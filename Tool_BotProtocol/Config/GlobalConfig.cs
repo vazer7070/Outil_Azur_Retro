@@ -16,7 +16,7 @@ namespace Tool_BotProtocol.Config
 		static string COnfigPath = @".\ressources\Bot\BotConfig.json";
 		static JObject DefaultConfig = new JObject(new JProperty("Config", new JObject(new object[] { new JProperty("IP", "127.0.0.1"), new JProperty("AuthPort", "450"), new JProperty("GamePort", "5555"), new JProperty("Version", "1.34.1")})));
 		static Dictionary<string, string> ConfigDico = new Dictionary<string,string>();
-
+		public const string BOTVERSION = "N/A";
 		public static string IP => SearchConfig("IP");
 		public static string AUTHPORT => SearchConfig("authport");
 		public static string GAMEPORT => SearchConfig("gameport");

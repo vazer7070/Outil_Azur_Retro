@@ -30,6 +30,7 @@
         {
             this.iTalk_ThemeContainer1 = new iTalk.iTalk_ThemeContainer();
             this.iTalk_RichTextBox1 = new iTalk.iTalk_RichTextBox();
+            this.backgroundWorker1 = new System.ComponentModel.BackgroundWorker();
             this.iTalk_ThemeContainer1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -58,10 +59,16 @@
             this.iTalk_RichTextBox1.ForeColor = System.Drawing.Color.DimGray;
             this.iTalk_RichTextBox1.Location = new System.Drawing.Point(12, 31);
             this.iTalk_RichTextBox1.Name = "iTalk_RichTextBox1";
-            this.iTalk_RichTextBox1.ReadOnly = false;
+            this.iTalk_RichTextBox1.ReadOnly = true;
             this.iTalk_RichTextBox1.Size = new System.Drawing.Size(610, 297);
             this.iTalk_RichTextBox1.TabIndex = 0;
             this.iTalk_RichTextBox1.WordWrap = true;
+            // 
+            // backgroundWorker1
+            // 
+            this.backgroundWorker1.DoWork += new System.ComponentModel.DoWorkEventHandler(this.backgroundWorker1_DoWork);
+            this.backgroundWorker1.ProgressChanged += new System.ComponentModel.ProgressChangedEventHandler(this.backgroundWorker1_ProgressChanged);
+            this.backgroundWorker1.RunWorkerCompleted += new System.ComponentModel.RunWorkerCompletedEventHandler(this.backgroundWorker1_RunWorkerCompleted);
             // 
             // InitializeForm
             // 
@@ -84,5 +91,6 @@
 
         private iTalk.iTalk_ThemeContainer iTalk_ThemeContainer1;
         private iTalk.iTalk_RichTextBox iTalk_RichTextBox1;
+        private System.ComponentModel.BackgroundWorker backgroundWorker1;
     }
 }

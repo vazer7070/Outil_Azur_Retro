@@ -39,6 +39,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Tool_Editor.maps.managers\SettingsManager.cs" />
+    <Compile Include="update\Version.cs" />
     <None Include="App.config" />
     <Compile Include="Properties\AssemblyInfo.cs">
       <AutoGen>false</AutoGen>

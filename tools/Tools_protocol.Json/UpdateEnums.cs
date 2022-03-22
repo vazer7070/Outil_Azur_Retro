@@ -17,6 +17,8 @@ namespace Tools_protocol.Json
             public string ProtocolVersion { get; set; }
             [JsonProperty("AzurBotVersion")]
             public string AzurBotVersion { get; set; }
+            [JsonProperty("EditeursVersion")]
+            public string EditorVersion { get; set; }
         }
         public class UpdateData
         {

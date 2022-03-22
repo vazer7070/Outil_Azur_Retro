@@ -109,6 +109,7 @@ namespace Outil_Azur_complet
             iTalk_Label10.Text = InitializeForm.ToolVersion;
             iTalk_Label11.Text = InitializeForm.ProtocolVersion;
             iTalk_Label14.Text = InitializeForm.AzurBotVersion;
+            iTalk_Label16.Text = InitializeForm.EditorVersion;
         }
 
         private void iTalk_TextBox_Small3_TextChanged(object sender, EventArgs e)
@@ -133,6 +134,21 @@ namespace Outil_Azur_complet
         private void iTalk_LinkLabel1_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
             Process.Start(@"https://azurtoolretro.com/");
+        }
+
+        private void iTalk_Label13_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void iTalk_Label9_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void iTalk_Label8_Click(object sender, EventArgs e)
+        {
+
         }
     }
 }

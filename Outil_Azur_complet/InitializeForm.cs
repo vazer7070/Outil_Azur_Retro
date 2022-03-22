@@ -1,7 +1,9 @@
-﻿using System;
+﻿using System.IO.Compression;
+using System;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Windows.Forms;
 using Tools_protocol.Data;
 using Tools_protocol.Json;
@@ -22,8 +24,9 @@ namespace Outil_Azur_complet
         public static bool NoAuth;
         public static bool noWorld;
         public static readonly string ToolVersion = "0.5";
-        public static readonly string ProtocolVersion = "0.5";
-        public static readonly string AzurBotVersion = "N/A";
+        public static readonly string EditorVersion = update.Version.VERSION;
+        public static readonly string ProtocolVersion = Tools_protocol.Json.Version.VERSION;
+        public static readonly string AzurBotVersion = Tool_BotProtocol.Config.GlobalConfig.BOTVERSION;
 
         public InitializeForm()
         {
@@ -90,24 +93,51 @@ namespace Outil_Azur_complet
                 Init_Json();
             }
         }
-        public void InitializeForm_Load(object sender, EventArgs e)
+        
+        private void CheckAndInstallMaj()
         {
-            if(UpdateJsonManager.NeedMaj(@"https://azurtoolretro.com/maj.json", ToolVersion, ProtocolVersion, AzurBotVersion))
+            if (Directory.Exists($@"{Application.StartupPath}\MAJ"))
             {
-                iTalk_RichTextBox1.ForeColor = Color.Red;
-                iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + "Mise à jour nécessaire.";
+                string[] DirFiles = Directory.GetFiles($@"{Application.StartupPath}\MAJ");
+                string[] AppFiles = Directory.GetFiles(Application.StartupPath);
+                foreach (string DirFile in DirFiles)
+                {
+                    if (DirFile.Contains(".dll"))
+                    {
+                        string file = DirFile.Split('\\').Last();
+                        File.Delete(AppFiles.FirstOrDefault(x => x.Contains(file)));
+                        File.Move(DirFile, $@"{Application.StartupPath}\{file}");
+                    }
+                }
+                Directory.Delete(UpdateJsonManager.ZipPath, true);
+                iTalk_RichTextBox1.Text = "Installation de la mise à jour terminée\n";
+                
+                CheckAndInstallMaj();
             }
             else
             {
-                CheckPropertieConfig();
+                if (UpdateJsonManager.NeedMaj(@"https://azurtoolretro.com/amaj/maj.json", ToolVersion, ProtocolVersion, AzurBotVersion, EditorVersion))
+                {
+                    iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + "Mise à jour nécessaire.\n";
+                    backgroundWorker1.RunWorkerAsync();
+                }
+                else
+                {
+                    CheckPropertieConfig();
+                }
             }
+            
+        }
+        public void InitializeForm_Load(object sender, EventArgs e)
+        {
+            CheckAndInstallMaj();
+            
         }
         private void Init_Json()
         {
             try
             {
-                iTalk_RichTextBox1.ResetText();
-                iTalk_RichTextBox1.Text = "Initialisation Json...\n";
+                iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + "Initialisation Json...\n";
                 if(JsonManager.Initialize(@".\auth\auth_tables.json", @".\world\world_tables.json", @".\config.json"))
                 {
                     iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + "Initialisation Json...OK\n";
@@ -289,6 +319,28 @@ namespace Outil_Azur_complet
         private void iTalk_Button_11_Click(object sender, EventArgs e)
         {
             Close();
+        }
+
+        private void backgroundWorker1_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
+        {
+            using (var client = new WebClient())
+            {
+                client.DownloadFile(UpdateJsonManager.GetNewVersion(), $"{UpdateJsonManager.ZipPath}{UpdateJsonManager.GetFile()}");
+            }
+        }
+
+        private void backgroundWorker1_ProgressChanged(object sender, System.ComponentModel.ProgressChangedEventArgs e)
+        {
+            iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"téléchargement en cours...{e.ProgressPercentage}%";
+        }
+
+        private void backgroundWorker1_RunWorkerCompleted(object sender, System.ComponentModel.RunWorkerCompletedEventArgs e)
+        {
+            iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + "Téléchargement terminé, installation en cours...\n";
+            ZipFile.ExtractToDirectory($"{UpdateJsonManager.ZipPath}{UpdateJsonManager.GetFile()}", $@"{Application.StartupPath}\MAJ");
+            iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + "Installation terminée.\n";
+
+            Application.Restart();
         }
     }
 }
