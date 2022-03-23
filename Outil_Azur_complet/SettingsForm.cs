@@ -1,4 +1,5 @@
 ﻿
+using Outil_Azur_complet.Annexes;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -128,7 +129,16 @@ namespace Outil_Azur_complet
 
         private void iTalk_Button_12_Click(object sender, EventArgs e)
         {
-
+            if(UpdateJsonManager.NeedMaj(InitializeForm.ToolVersion, InitializeForm.ProtocolVersion, InitializeForm.AzurBotVersion, InitializeForm.EditorVersion))
+            {
+                MessageBox.Show("Mise à jour nécessaire, le programme va redémarrer pour l'installer.", "Mise à jour requise", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                Application.Restart();
+            }
+            else
+            {
+                MessageBox.Show("Le logiciel et ses dépendances sont à jours.", "Demande de mise à jour.", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
         }
 
         private void iTalk_LinkLabel1_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
@@ -149,6 +159,12 @@ namespace Outil_Azur_complet
         private void iTalk_Label8_Click(object sender, EventArgs e)
         {
 
+        }
+
+        private void iTalk_Button_23_Click(object sender, EventArgs e)
+        {
+            JsonModifier JM = new JsonModifier();
+            JM.ShowDialog();
         }
     }
 }

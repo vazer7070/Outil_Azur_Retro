@@ -37,9 +37,11 @@
             this.iTalk_Button_12 = new iTalk.iTalk_Button_1();
             this.iTalk_LinkLabel1 = new iTalk.iTalk_LinkLabel();
             this.iTalk_Label14 = new iTalk.iTalk_Label();
+            this.iTalk_Label16 = new iTalk.iTalk_Label();
             this.iTalk_Label11 = new iTalk.iTalk_Label();
             this.iTalk_Label10 = new iTalk.iTalk_Label();
             this.iTalk_Label13 = new iTalk.iTalk_Label();
+            this.iTalk_Label15 = new iTalk.iTalk_Label();
             this.iTalk_Label9 = new iTalk.iTalk_Label();
             this.iTalk_Label8 = new iTalk.iTalk_Label();
             this.iTalk_Label1 = new iTalk.iTalk_Label();
@@ -57,8 +59,6 @@
             this.iTalk_Label3 = new iTalk.iTalk_Label();
             this.iTalk_Label2 = new iTalk.iTalk_Label();
             this.iTalk_Button_11 = new iTalk.iTalk_Button_1();
-            this.iTalk_Label15 = new iTalk.iTalk_Label();
-            this.iTalk_Label16 = new iTalk.iTalk_Label();
             this.iTalk_ThemeContainer1.SuspendLayout();
             this.iTalk_Panel2.SuspendLayout();
             this.iTalk_Panel1.SuspendLayout();
@@ -100,6 +100,7 @@
             this.iTalk_Button_23.TabIndex = 8;
             this.iTalk_Button_23.Text = "Modifier Json";
             this.iTalk_Button_23.TextAlignment = System.Drawing.StringAlignment.Center;
+            this.iTalk_Button_23.Click += new System.EventHandler(this.iTalk_Button_23_Click);
             // 
             // iTalk_Button_22
             // 
@@ -213,6 +214,18 @@
             this.iTalk_Label14.TabIndex = 3;
             this.iTalk_Label14.Text = "*";
             // 
+            // iTalk_Label16
+            // 
+            this.iTalk_Label16.AutoSize = true;
+            this.iTalk_Label16.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label16.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label16.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label16.Location = new System.Drawing.Point(128, 86);
+            this.iTalk_Label16.Name = "iTalk_Label16";
+            this.iTalk_Label16.Size = new System.Drawing.Size(12, 13);
+            this.iTalk_Label16.TabIndex = 3;
+            this.iTalk_Label16.Text = "*";
+            // 
             // iTalk_Label11
             // 
             this.iTalk_Label11.AutoSize = true;
@@ -249,6 +262,19 @@
             this.iTalk_Label13.TabIndex = 2;
             this.iTalk_Label13.Text = "Version du bot:";
             this.iTalk_Label13.Click += new System.EventHandler(this.iTalk_Label13_Click);
+            // 
+            // iTalk_Label15
+            // 
+            this.iTalk_Label15.AutoSize = true;
+            this.iTalk_Label15.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label15.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label15.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label15.Location = new System.Drawing.Point(5, 85);
+            this.iTalk_Label15.Name = "iTalk_Label15";
+            this.iTalk_Label15.Size = new System.Drawing.Size(114, 13);
+            this.iTalk_Label15.TabIndex = 2;
+            this.iTalk_Label15.Text = "Version des éditeurs:";
+            this.iTalk_Label15.Click += new System.EventHandler(this.iTalk_Label9_Click);
             // 
             // iTalk_Label9
             // 
@@ -486,31 +512,6 @@
             this.iTalk_Button_11.Text = "X";
             this.iTalk_Button_11.TextAlignment = System.Drawing.StringAlignment.Center;
             this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
-            // 
-            // iTalk_Label15
-            // 
-            this.iTalk_Label15.AutoSize = true;
-            this.iTalk_Label15.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label15.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label15.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label15.Location = new System.Drawing.Point(5, 85);
-            this.iTalk_Label15.Name = "iTalk_Label15";
-            this.iTalk_Label15.Size = new System.Drawing.Size(114, 13);
-            this.iTalk_Label15.TabIndex = 2;
-            this.iTalk_Label15.Text = "Version des éditeurs:";
-            this.iTalk_Label15.Click += new System.EventHandler(this.iTalk_Label9_Click);
-            // 
-            // iTalk_Label16
-            // 
-            this.iTalk_Label16.AutoSize = true;
-            this.iTalk_Label16.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label16.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label16.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label16.Location = new System.Drawing.Point(128, 86);
-            this.iTalk_Label16.Name = "iTalk_Label16";
-            this.iTalk_Label16.Size = new System.Drawing.Size(12, 13);
-            this.iTalk_Label16.TabIndex = 3;
-            this.iTalk_Label16.Text = "*";
             // 
             // SettingsForm
             // 

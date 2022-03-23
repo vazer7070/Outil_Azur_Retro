@@ -122,7 +122,7 @@ namespace Outil_Azur_complet
             }
             else
             {
-                if (UpdateJsonManager.NeedMaj(@"https://azurtoolretro.com/amaj/maj.json", ToolVersion, ProtocolVersion, AzurBotVersion, EditorVersion))
+                if (UpdateJsonManager.NeedMaj(ToolVersion, ProtocolVersion, AzurBotVersion, EditorVersion))
                 {
                     iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + "Mise à jour nécessaire.\n";
                     backgroundWorker1.RunWorkerAsync();

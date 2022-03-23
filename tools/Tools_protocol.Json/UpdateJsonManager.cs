@@ -23,14 +23,15 @@ namespace Tools_protocol.Json
 
         private const string FolderPath = @"https://azurtoolretro.com/amaj/";
         public const string ZipPath = @".\MAJ\";
-        public static bool NeedMaj(string path, string Tv, string Pv, string AZv, string Ev)
+        private const string MajCheckPath = @"https://azurtoolretro.com/amaj/maj.json";
+        public static bool NeedMaj(string Tv, string Pv, string AZv, string Ev)
         {
             Directory.CreateDirectory(ZipPath);
             try
             {
                 using (WebClient wc = new WebClient())
                 {
-                    var json = wc.DownloadString(path);
+                    var json = wc.DownloadString(MajCheckPath);
                     UpdateEnums.UpdateEntries maj = JsonConvert.DeserializeObject<UpdateEnums.UpdateData>(json).UpdateEntries;
                     if (maj.ToolVersion != Tv)
                     {

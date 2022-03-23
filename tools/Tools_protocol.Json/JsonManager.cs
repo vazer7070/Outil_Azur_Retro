@@ -19,9 +19,9 @@ namespace Tools_protocol.Json
 
 		static Dictionary<string, string> Configuration = new Dictionary<string, string>();
 
-		static Dictionary<string, string> Auth_dico = new Dictionary<string, string>();
+		public static Dictionary<string, string> Auth_dico = new Dictionary<string, string>();
 
-		static Dictionary<string, string> World_dico = new Dictionary<string, string>();
+		public static Dictionary<string, string> World_dico = new Dictionary<string, string>();
 
 		public static string Aauth => SearchConfig("auth");
 
@@ -246,6 +246,23 @@ namespace Tools_protocol.Json
 			File.WriteAllText(@".\config.json", Parse.ToString());
 
 		}
+		public static void RewriteTableJson(string json, bool isAuth)
+        {
+			JObject parsing;
+			if (json != null)
+            {
+                if (isAuth)
+                {
+					parsing = JObject.Parse(json);
+					File.WriteAllText(@".\auth\auth_tables.json", parsing.ToString());
+				}
+                else
+                {
+					parsing = JObject.Parse(json);
+					File.WriteAllText(@".\world\world_tables.json", parsing.ToString());
+				}
+            }
+        }
 		public static void WriteConfig(string modele, string path)
 		{
 			JObject parsing;

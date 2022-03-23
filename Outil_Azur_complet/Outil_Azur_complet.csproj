@@ -156,6 +156,12 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Annexes\JsonModifier.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Annexes\JsonModifier.Designer.cs">
+      <DependentUpon>JsonModifier.cs</DependentUpon>
+    </Compile>
     <Compile Include="Bot\Controls\Animations.cs" />
     <Compile Include="Bot\Controls\AnimationType.cs" />
     <Compile Include="Bot\Controls\CellState.cs" />
@@ -299,6 +305,9 @@
       <DependentUpon>SettingsForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Theme\italk.cs" />
+    <EmbeddedResource Include="Annexes\JsonModifier.resx">
+      <DependentUpon>JsonModifier.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Bot\Controls\UserMapControl.resx">
       <DependentUpon>UserMapControl.cs</DependentUpon>
     </EmbeddedResource>
