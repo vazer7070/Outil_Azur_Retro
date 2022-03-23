@@ -10,6 +10,7 @@ using Tools_protocol.Json;
 using Tools_protocol.Kryone.Database;
 using Tools_protocol.Managers;
 using Tools_protocol.Query;
+using System.Diagnostics;
 
 namespace Outil_Azur_complet
 {
@@ -107,6 +108,11 @@ namespace Outil_Azur_complet
                         string file = DirFile.Split('\\').Last();
                         File.Delete(AppFiles.FirstOrDefault(x => x.Contains(file)));
                         File.Move(DirFile, $@"{Application.StartupPath}\{file}");
+
+                    }else if (DirFile.Contains(".exe"))
+                    {
+                        Process.Start(DirFile);
+                        Application.Exit();
                     }
                 }
                 Directory.Delete(UpdateJsonManager.ZipPath, true);
