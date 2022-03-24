@@ -12,7 +12,6 @@ namespace Tools_protocol.Kryone.Database
 	{
 		public static string level;
 
-
 		public string AP
 		{
 			get;
@@ -57,9 +56,6 @@ namespace Tools_protocol.Kryone.Database
 			set;
 		}
 
-		static JobsList()
-		{
-		}
 		public static List<JobsList> AllJobs = new List<JobsList>();
 		public JobsList(IDataReader reader)
 		{
@@ -72,17 +68,29 @@ namespace Tools_protocol.Kryone.Database
 		}
 		public static int JobsCount;
 		public static void ANPE()
-        {
-			JobsList jobs;
+		{
 			string[] args = new string[] { "*" };
-			MySqlDataReader lecteur = DatabaseManager.SelectQuery(QueryBuilder.SelectFromQuery(args, TableJobs, "", ""));
-			while (lecteur.Read())
+			string query = QueryBuilder.SelectFromQuery(args, TableJobs, "", "");
+			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
 			{
-				jobs = new JobsList(lecteur);
-				AllJobs.Add(jobs);
+				try
+				{
+					connection.Open();
+					JobsList jobs;
+					MySqlDataReader lecteur = new MySqlCommand(query, connection).ExecuteReader();
+					while (lecteur.Read())
+					{
+						jobs = new JobsList(lecteur);
+						AllJobs.Add(jobs);
+					}
+					lecteur.Close();
+					JobsCount = AllJobs.Count;
+					lecteur.Dispose();
+					connection.Close();
+					connection.Dispose();
+				}
+				catch (MySqlException) { }
 			}
-			lecteur.Close();
-			JobsCount = AllJobs.Count;
 		}
 
 		public static string LookJobs(string id)

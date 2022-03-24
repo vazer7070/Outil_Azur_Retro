@@ -266,7 +266,7 @@ namespace Outil_Azur_complet
             if(DatabaseManager.IsServerConnected(JsonManager.Hôte, JsonManager.User, JsonManager.MDP, JsonManager.Aauth))
             {
                 NoDB = false;
-                DatabaseManager.Connect(JsonManager.Hôte, JsonManager.User, JsonManager.MDP, JsonManager.Aauth);
+               // DatabaseManager.Connect(JsonManager.Hôte, JsonManager.User, JsonManager.MDP, JsonManager.Aauth);
                 iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + "Connexion établie.!\n";
                 DB_world();
             }
@@ -294,7 +294,6 @@ namespace Outil_Azur_complet
                 iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + "Connexion SQL world...\n";
                 if(DatabaseManager2.IsServerConnected(JsonManager.Hôte, JsonManager.User, JsonManager.MDP, JsonManager.Aworld) && !NoDB)
                 {
-                    DatabaseManager2.Connect(JsonManager.Hôte, JsonManager.User, JsonManager.MDP, JsonManager.Aworld);
                     iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + "Connexion établie.!...\n";
                     NoDB = false;
                     Load_Misc();
@@ -319,12 +318,6 @@ namespace Outil_Azur_complet
 
                 }
             
-        }
-       
-
-        private void iTalk_Button_11_Click(object sender, EventArgs e)
-        {
-            Close();
         }
 
         private void backgroundWorker1_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)

@@ -74,17 +74,30 @@ namespace Tools_protocol.Kryone.Database
 		
 		public static void AddItemIdToList()
 		{
-			ItemsId.Clear();
-			ItemList G = null;
 			string[] args = new string[] { "*" };
-			MySqlDataReader lecteur = DatabaseManager2.SelectQuery(QueryBuilder.SelectFromQuery(args, TableItems, "", ""));
-			while (lecteur.Read())
+			string query = QueryBuilder.SelectFromQuery(args, TableItems, "", "");
+
+			using (MySqlConnection connection = new MySqlConnection(DatabaseManager2.ConnectionString))
 			{
-				G = new ItemList(lecteur);
-				ItemsId.Add((int)lecteur["guid"], (int)lecteur["template"]);
-				ItemsList.Add((int)lecteur["guid"],G);
+				try
+				{
+					connection.Open();
+					ItemsId.Clear();
+					ItemList G = null;
+					MySqlDataReader lecteur = new MySqlCommand(query, connection).ExecuteReader();
+					while (lecteur.Read())
+					{
+						G = new ItemList(lecteur);
+						ItemsId.Add((int)lecteur["guid"], (int)lecteur["template"]);
+						ItemsList.Add((int)lecteur["guid"], G);
+					}
+					lecteur.Close();
+					lecteur.Dispose();
+					connection.Close();
+					connection.Dispose();
+				}
+				catch (MySqlException) { }
 			}
-			lecteur.Close();
 		}
 		public static int ReturnItemQua(string GU)
         {

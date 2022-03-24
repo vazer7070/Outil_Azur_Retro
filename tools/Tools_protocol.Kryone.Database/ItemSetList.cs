@@ -66,17 +66,28 @@ namespace Tools_protocol.Kryone.Database
 
 		public static void LoadPano()
 		{
-			ItemSetList set = null;
-			MySqlDataReader R = DatabaseManager.SelectQuery(QueryBuilder.SelectFromQuery(new string[] { "*" }, TableSet, "", ""));
-			while (R.Read())
+			string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TableSet, "", "");
+			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
 			{
-				set = new ItemSetList(R);
-				AllItemsInSet.Add(set.Id, set);
-				SetName.Add(set.Name);
+				try
+				{
+					connection.Open();
+					ItemSetList set = null;
+					MySqlDataReader R = new MySqlCommand(query, connection).ExecuteReader();
+					while (R.Read())
+					{
+						set = new ItemSetList(R);
+						AllItemsInSet.Add(set.Id, set);
+						SetName.Add(set.Name);
+					}
+					Count_Pano = AllItemsInSet.Count;
+					R.Close();
+					R.Dispose();
+					connection.Close();
+					connection.Dispose();
+				}
+				catch (MySqlException) { }
 			}
-			Count_Pano = AllItemsInSet.Count;
-			R.Close();
-			R.Dispose();
 		}
 
 		public static void ReturnEffect(int id, int surplus)

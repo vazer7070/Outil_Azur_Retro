@@ -67,19 +67,19 @@ namespace Outil_Azur_complet.editeur_compte
                         }
                         else
                         {
-                            MessageBox.Show("Le nom de compte voulu existe déjà, merci de le changer", "requête impossible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            MessageBox.Show("Le nom de compte voulu existe déjà, merci de le changer", "Requête impossible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                             return;
                         }
                     }
                     else
                     {
-                        MessageBox.Show("Vous êtes obligé de choisir une méthode de hash.!", "requête impossible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        MessageBox.Show("Vous êtes obligé de choisir une méthode de hash.!", "Requête impossible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return;
                     }
                 }
                 else
                 {
-                    MessageBox.Show("La longueur des paramètres n'est pas correcte, il faut au minimum:" + "\n" + "5 caractères pour le nom, 8 pour le mot de passe, 6 pour la question et 6 pour la réponse." + "\n" + "Veuillez vérifier vos informations.", "requête impossible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show("La longueur des paramètres n'est pas correcte, il faut au minimum:" + "\n" + "5 caractères pour le nom, 8 pour le mot de passe, 6 pour la question et 6 pour la réponse." + "\n" + "Veuillez vérifier vos informations.", "Requête impossible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
@@ -87,7 +87,7 @@ namespace Outil_Azur_complet.editeur_compte
             }
             else
             {
-                MessageBox.Show("Veuillez remplir correctement les informations demandées.", "requête impossible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Veuillez remplir correctement les informations demandées.", "Requête impossible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             
@@ -96,6 +96,11 @@ namespace Outil_Azur_complet.editeur_compte
         private void radioButton1_CheckedChanged(object sender, EventArgs e)
         {
 
+        }
+
+        private void iTalk_Button_11_Click(object sender, EventArgs e)
+        {
+            Close();
         }
     }
 }

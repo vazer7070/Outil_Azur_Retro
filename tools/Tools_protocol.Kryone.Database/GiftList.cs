@@ -24,23 +24,35 @@ namespace Tools_protocol.Kryone.Database
         }
         public static void LoadAllgifts()
         {
-            MySqlDataReader reader = DatabaseManager2.SelectQuery(QueryBuilder.SelectFromQuery(new string[] { "*" }, TableGift, "", ""));
-            GiftList G = null;
-            while (reader.Read())
+            string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TableGift, "", "");
+
+            using (MySqlConnection connection = new MySqlConnection(DatabaseManager2.ConnectionString))
             {
-                G = new GiftList(reader);
-                if (string.IsNullOrEmpty(G.Objects))
+                try
                 {
-                    AllGiftsDico.Add(G.ID, "@");
+                    connection.Open();
+                    MySqlDataReader reader = new MySqlCommand(query, connection).ExecuteReader();
+                    GiftList G = null;
+                    while (reader.Read())
+                    {
+                        G = new GiftList(reader);
+                        if (string.IsNullOrEmpty(G.Objects))
+                        {
+                            AllGiftsDico.Add(G.ID, "@");
+                        }
+                        else
+                        {
+                            AllGiftsDico.Add(G.ID, G.Objects);
+                        }
+                        GiftsCount = AllGiftsDico.Count;
+                    }
+                    reader.Close();
+                    reader.Dispose();
+                    connection.Close();
+                    connection.Dispose();
                 }
-                else
-                {
-                    AllGiftsDico.Add(G.ID, G.Objects);
-                }
-                GiftsCount = AllGiftsDico.Count;
+                catch (MySqlException) { }
             }
-            reader.Close();
-            reader.Dispose();
         }
     }
 }

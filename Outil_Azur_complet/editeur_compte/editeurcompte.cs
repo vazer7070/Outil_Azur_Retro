@@ -34,7 +34,7 @@ namespace Outil_Azur_complet.editeur_compte
         private void Load_editeur(string emu)
         {
             listBox1.Items.Clear();
-            if (emu.Equals("kryone"))
+            if (emu.Equals("Kryone"))
             {
                 AccountList.Accounts.Clear();
                 AccountList.AllAccounts();
@@ -46,7 +46,7 @@ namespace Outil_Azur_complet.editeur_compte
                 {
                     list.Add(str);
                 }
-            }else if (emu.Equals("codebreak"))
+            }else if (emu.Equals("Codebreak"))
             {
                 AccountListi.AccountsName.Clear();
                 AccountListi.LoadAccounts();
@@ -334,6 +334,11 @@ namespace Outil_Azur_complet.editeur_compte
         {
             CreateForm CF = new CreateForm();
             CF.ShowDialog();
+        }
+
+        private void iTalk_Button_15_Click(object sender, EventArgs e)
+        {
+            Close();
         }
     }
 }

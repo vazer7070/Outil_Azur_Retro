@@ -154,8 +154,7 @@ namespace Tools_protocol.Codebreak.Database
 
 		public static uint AccountId(string name)
 		{
-			uint id = AccountListi.AccountsList.FirstOrDefault<AccountListi>((AccountListi x) => x.Name == name).Id;
-			return id;
+			return AccountsList.FirstOrDefault(x => x.Name == name).Id;
 		}
 
 		public static string Accountinfos(uint id, int sw)
@@ -165,16 +164,29 @@ namespace Tools_protocol.Codebreak.Database
 
 		public static void LoadAccounts()
 		{
-			AccountListi acc = null;
-			MySqlDataReader reader = DatabaseManager.SelectQuery(QueryBuilder.SelectFromQuery(new string[] { "*" }, AccountListi.TableAccount, "", ""));
-			while (reader.Read())
+			string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, AccountListi.TableAccount, "", "");
+
+			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
 			{
-				acc = new AccountListi(reader);
-				AccountListi.AccountsList.Add(acc);
-				AccountListi.AccountsName.Add(acc.Name);
+				try
+				{
+					connection.Open();
+					AccountListi acc = null;
+					MySqlDataReader reader = new MySqlCommand(query, connection).ExecuteReader();
+					while (reader.Read())
+					{
+						acc = new AccountListi(reader);
+						AccountListi.AccountsList.Add(acc);
+						AccountListi.AccountsName.Add(acc.Name);
+					}
+					reader.Close();
+					reader.Dispose();
+					connection.Close();
+					connection.Dispose();
+				}
+				catch (MySqlException) { }
 			}
-			reader.Close();
-			reader.Dispose();
+			
 		}
 	}
 }

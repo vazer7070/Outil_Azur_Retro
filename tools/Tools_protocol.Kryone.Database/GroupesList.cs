@@ -53,15 +53,28 @@ namespace Tools_protocol.Kryone.Database
 		public static void groupe()
 		{
 			string[] args = new string[] { "*" };
-			MySqlDataReader lecteur = DatabaseManager.SelectQuery(QueryBuilder.SelectFromQuery(args, GroupesList.TableGroupe, "", ""));
-			while (lecteur.Read())
+			string query = QueryBuilder.SelectFromQuery(args, GroupesList.TableGroupe, "", "");
+
+			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
 			{
-				if (!GroupesList.Grades.ContainsKey(Convert.ToInt32(lecteur["id"])))
+				try
 				{
-					GroupesList.Grades.Add(Convert.ToInt32(lecteur["id"]), lecteur["nom"].ToString());
+					connection.Open();
+					MySqlDataReader lecteur = new MySqlCommand(query, connection).ExecuteReader();
+					while (lecteur.Read())
+					{
+						if (!GroupesList.Grades.ContainsKey(Convert.ToInt32(lecteur["id"])))
+						{
+							GroupesList.Grades.Add(Convert.ToInt32(lecteur["id"]), lecteur["nom"].ToString());
+						}
+					}
+					lecteur.Close();
+					lecteur.Dispose();
+					connection.Close();
+					connection.Dispose();
 				}
+				catch (MySqlException) { }
 			}
-			lecteur.Close();
 		}
 	}
 }

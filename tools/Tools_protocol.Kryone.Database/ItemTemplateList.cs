@@ -153,16 +153,28 @@ namespace Tools_protocol.Kryone.Database
 
 		public static void AddNameByData(int type)
 		{
-			MySqlDataReader R = DatabaseManager.SelectQuery(QueryBuilder.SelectFromQuery(new string[] { "name" }, TableTemplate, "type", type.ToString()));
-			if (R != null)
+			string query = QueryBuilder.SelectFromQuery(new string[] { "name" }, TableTemplate, "type", type.ToString());
+
+			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
 			{
-				while (R.Read())
+				try
 				{
-					U.Add(R["name"].ToString());
+					connection.Open();
+					MySqlDataReader R = new MySqlCommand(query, connection).ExecuteReader();
+					if (R != null)
+					{
+						while (R.Read())
+						{
+							U.Add(R["name"].ToString());
+						}
+					}
+					R.Close();
+					R.Dispose();
+					connection.Close();
+					connection.Dispose();
 				}
+				catch (MySqlException) { }
 			}
-			R.Close();
-			R.Dispose();
 		}
 
 		public static void DeleteItem(string name)
@@ -242,18 +254,30 @@ namespace Tools_protocol.Kryone.Database
 
 		public static void Load_Item()
 		{
-			MySqlDataReader lecteur = DatabaseManager.SelectQuery(QueryBuilder.SelectFromQuery(new string[] { "*" }, TableTemplate, "", ""));
-			ItemTemplateList record = null;
-			while (lecteur.Read())
+			string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TableTemplate, "", "");
+			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
 			{
-				record = new ItemTemplateList(lecteur);
-				if (!ItemFullDico.ContainsKey(record.Id))
+				try
 				{
-					ItemFullDico.Add(record.Id, record);
+					connection.Open();
+					MySqlDataReader lecteur = new MySqlCommand(query, connection).ExecuteReader();
+					ItemTemplateList record = null;
+					while (lecteur.Read())
+					{
+						record = new ItemTemplateList(lecteur);
+						if (!ItemFullDico.ContainsKey(record.Id))
+						{
+							ItemFullDico.Add(record.Id, record);
+						}
+					}
+					CountItems = ItemFullDico.Count;
+					lecteur.Close();
+					lecteur.Dispose();
+					connection.Close();
+					connection.Dispose();
 				}
+				catch (MySqlException) { }
 			}
-			CountItems = ItemFullDico.Count;
-			lecteur.Close();
 		}
 
 		public static void ParseTemplate(int id)

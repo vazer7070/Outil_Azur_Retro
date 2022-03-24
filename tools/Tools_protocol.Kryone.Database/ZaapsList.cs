@@ -25,15 +25,28 @@ namespace Tools_protocol.Kryone.Database
         }
         public static void LoadallZaaps()
         {
-            MySqlDataReader reader = DatabaseManager.SelectQuery(QueryBuilder.SelectFromQuery(new string[] { "*" }, TableZaaps, "", ""));
-            ZaapsList Z = null;
-            while (reader.Read())
+            string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TableZaaps, "", "");
+
+            using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
             {
-                Z = new ZaapsList(reader);
-                AllZaaps.Add(Z);
+                try
+                {
+                    connection.Open();
+                    MySqlDataReader reader = new MySqlCommand(query, connection).ExecuteReader();
+                    ZaapsList Z = null;
+                    while (reader.Read())
+                    {
+                        Z = new ZaapsList(reader);
+                        AllZaaps.Add(Z);
+                    }
+                    reader.Close();
+                    ZaapsCount = AllZaaps.Count;
+                    reader.Dispose();
+                    connection.Close();
+                    connection.Dispose();
+                }
+                catch (MySqlException) { }
             }
-            reader.Close();
-            ZaapsCount = AllZaaps.Count;
         }
     }
 }

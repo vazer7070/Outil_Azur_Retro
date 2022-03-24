@@ -331,16 +331,30 @@ namespace Tools_protocol.Kryone.Database
 		public static void AllPerso()
 		{
 			string[] args = new string[] { "*" };
-			MySqlDataReader lecteur = DatabaseManager.SelectQuery(QueryBuilder.SelectFromQuery(args, TablePerso, "", ""));
-			while (lecteur.Read())
+			string query = QueryBuilder.SelectFromQuery(args, TablePerso, "", "");
+
+			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
 			{
-				PersoAll.Add(lecteur["name"].ToString());
-				if (!IdAccount.ContainsKey(Convert.ToInt32(lecteur["id"])))
+				try
 				{
-					IdAccount.Add((int)lecteur["id"],(string)lecteur["name"]);
+					connection.Open();
+					MySqlDataReader lecteur = new MySqlCommand(query, connection).ExecuteReader();
+					while (lecteur.Read())
+					{
+						PersoAll.Add(lecteur["name"].ToString());
+						if (!IdAccount.ContainsKey(Convert.ToInt32(lecteur["id"])))
+						{
+							IdAccount.Add((int)lecteur["id"], (string)lecteur["name"]);
+						}
+					}
+					lecteur.Close();
+					lecteur.Dispose();
+					connection.Close();
+					connection.Dispose();
 				}
+				catch (MySqlException) { }
 			}
-			lecteur.Close();
+			
 		}
 
 		public static void GetInventory(string perso)
@@ -381,25 +395,53 @@ namespace Tools_protocol.Kryone.Database
 		public static void Informations(string guid)
 		{
 			string[] args = new string[] { "name" };
-			MySqlDataReader read = DatabaseManager.SelectQuery(QueryBuilder.SelectFromQuery(args, CharacterList.TablePerso, "account", guid));
-			while (read.Read())
+			string query = QueryBuilder.SelectFromQuery(args, CharacterList.TablePerso, "account", guid);
+
+			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
 			{
-				Nameperso.Add(read["name"].ToString());
+				try
+				{
+					connection.Open();
+					MySqlDataReader read = new MySqlCommand(query, connection).ExecuteReader();
+					while (read.Read())
+					{
+						Nameperso.Add(read["name"].ToString());
+					}
+					read.Close();
+					read.Dispose();
+					connection.Close();
+					connection.Dispose();
+				}
+				catch (MySqlException) { }
 			}
-			read.Close();
+			
 		}
 
 		public static CharacterList Listing(string name)
 		{
-			CharacterList données = null;
 			string[] args = new string[] { "*" };
-			MySqlDataReader info = DatabaseManager.SelectQuery(QueryBuilder.SelectFromQuery(args, CharacterList.TablePerso, "name", name));
-			while (info.Read())
+			string query = QueryBuilder.SelectFromQuery(args, CharacterList.TablePerso, "name", name);
+
+			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
 			{
-				données = new CharacterList(info);
+				try
+				{
+					connection.Open();
+					CharacterList données = null;
+					MySqlDataReader info = new MySqlCommand(query, connection).ExecuteReader();
+					while (info.Read())
+					{
+						données = new CharacterList(info);
+					}
+					info.Close();
+					info.Dispose();
+					connection.Close();
+					connection.Dispose();
+					return données;
+				}
+				catch (MySqlException) { return null; }
 			}
-			info.Close();
-			return données;
+			
 		}
 	}
 }

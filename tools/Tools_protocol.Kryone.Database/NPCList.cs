@@ -33,15 +33,28 @@ namespace Tools_protocol.Kryone.Database
         }
         public static void LoadAllPnj()
         {
-            MySqlDataReader reader = DatabaseManager.SelectQuery(QueryBuilder.SelectFromQuery(new string[] { "*" }, TablePNJ, "", ""));
-            NPCList npcs = null;
-            while (reader.Read())
+            string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TablePNJ, "", "");
+
+            using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
             {
-                npcs = new NPCList(reader);
-                AllPnj.Add(npcs);
+                try
+                {
+                    connection.Open();
+                    MySqlDataReader reader = new MySqlCommand(query, connection).ExecuteReader();
+                    NPCList npcs = null;
+                    while (reader.Read())
+                    {
+                        npcs = new NPCList(reader);
+                        AllPnj.Add(npcs);
+                    }
+                    reader.Close();
+                    NpcCount = AllPnj.Count;
+                    reader.Dispose();
+                    connection.Close();
+                    connection.Dispose();
+                }
+                catch (MySqlException) { }
             }
-            reader.Close();
-            NpcCount = AllPnj.Count;
         }
         public static void AddNameToPnj(string path)
         {

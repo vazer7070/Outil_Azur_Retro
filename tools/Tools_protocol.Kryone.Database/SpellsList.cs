@@ -17,23 +17,23 @@ namespace Tools_protocol.Kryone.Database
 
 		public static int NORM;
 
-		public static Dictionary<int, SpellsList> AllSpells;
+		public static Dictionary<int, SpellsList> AllSpells = new Dictionary<int, SpellsList>();
 
-		public static List<string> SpellsName;
+		public static List<string> SpellsName = new List<string>();
 
-		public static List<string> EffectLvl1;
+		public static List<string> EffectLvl1 = new List<string>();
 
-		public static List<string> EffectLvl2;
+		public static List<string> EffectLvl2 = new List<string>();
 
-		public static List<string> EffectLvl3;
+		public static List<string> EffectLvl3 = new List<string>();
 
-		public static List<string> EffectLvl4;
+		public static List<string> EffectLvl4 = new List<string>();
 
-		public static List<string> EffectLvl5;
+		public static List<string> EffectLvl5 = new List<string>();
 
-		public static List<string> EffectLvl6;
+		public static List<string> EffectLvl6 = new List<string>();
 
-		public static List<string> SpellsShow;
+		public static List<string> SpellsShow = new List<string>();
 
 		public static int CountSpells;
 
@@ -123,19 +123,6 @@ namespace Tools_protocol.Kryone.Database
 			set;
 		}
 
-		static SpellsList()
-		{
-			AllSpells = new Dictionary<int, SpellsList>();
-			SpellsName = new List<string>();
-			EffectLvl1 = new List<string>();
-			EffectLvl2 = new List<string>();
-			EffectLvl3 = new List<string>();
-			EffectLvl4 = new List<string>();
-			EffectLvl5 = new List<string>();
-			EffectLvl6 = new List<string>();
-			SpellsShow = new List<string>();
-		}
-
 		public SpellsList(IDataReader reader)
 		{
 			this.Id = (int)reader["id"];
@@ -155,13 +142,26 @@ namespace Tools_protocol.Kryone.Database
 
 		public static void AddSpellsToList(string data)
 		{
-			MySqlDataReader R = DatabaseManager.SelectQuery(QueryBuilder.SelectFromQuery(new string[] { "*" }, SpellsList.TableSort, "id", data.Split(new char[] { ';' })[0]));
-			string z = data.Split(new char[] { ';' })[1];
-			while (R.Read())
+			string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, SpellsList.TableSort, "id", data.Split(new char[] { ';' })[0]);
+
+			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
 			{
-				SpellsShow.Add(string.Concat(R["nom"].ToString(), " - niveau: ", z));
+				try
+				{
+					connection.Open();
+					MySqlDataReader R = new MySqlCommand(query, connection).ExecuteReader();
+					string z = data.Split(new char[] { ';' })[1];
+					while (R.Read())
+					{
+						SpellsShow.Add(string.Concat(R["nom"].ToString(), " - niveau: ", z));
+					}
+					R.Close();
+					R.Dispose();
+					connection.Close();
+					connection.Dispose();
+				}
+				catch (MySqlException) { }
 			}
-			R.Close();
 		}
 
 		public static string CaracParse(string un, bool decal)
@@ -458,16 +458,30 @@ namespace Tools_protocol.Kryone.Database
 
 		public static void Load_Spells()
 		{
-			MySqlDataReader spelllec = DatabaseManager.SelectQuery(QueryBuilder.SelectFromQuery(new string[] { "*" }, TableSort, "", ""));
-			while (spelllec.Read())
+			string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TableSort, "", "");
+
+			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
 			{
-				SpellsList spellrecord = new SpellsList(spelllec);
-				AllSpells.Add(spellrecord.Id, spellrecord);
-				SpellsName.Add(spellrecord.Nom);
+				try
+				{
+					connection.Open();
+					MySqlDataReader spelllec = new MySqlCommand(query, connection).ExecuteReader();
+					while (spelllec.Read())
+					{
+						SpellsList spellrecord = new SpellsList(spelllec);
+						AllSpells.Add(spellrecord.Id, spellrecord);
+						SpellsName.Add(spellrecord.Nom);
+					}
+					CountSpells = AllSpells.Count();
+					spelllec.Close();
+					spelllec.Dispose();
+					connection.Close();
+					connection.Dispose();
+				}
+				catch (MySqlException) { }
 			}
-			CountSpells = AllSpells.Count();
-			spelllec.Close();
-			spelllec.Dispose();
+			
+			
 		}
 
 		public static string NormParse(string un)

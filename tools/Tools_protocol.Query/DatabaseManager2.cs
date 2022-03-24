@@ -12,18 +12,8 @@ namespace Tools_protocol.Query
 
 		static Dictionary<string, string> SelectConnection;
 
-		private static MySqlConnection Connection
-		{
-			get;
-			set;
-		}
+		public static string ConnectionString { get; set; }
 
-
-		public static void CloseConnect()
-		{
-			Connection.Close();
-			Connection = null;
-		}
 		public static bool IsServerConnected(string host, string username, string password, string databaseName)
 		{
 			string connectionString = string.Concat(new string[] { "server=", host, ";uid=", username, ";pwd=", password, ";database=", databaseName });
@@ -32,6 +22,9 @@ namespace Tools_protocol.Query
 				try
 				{
 					connection.Open();
+					ConnectionString = connectionString;
+					connection.Close();
+					connection.Dispose();
 					return true;
 				}
 				catch (MySqlException)
@@ -40,55 +33,54 @@ namespace Tools_protocol.Query
 				}
 			}
 		}
-		public static void Connect(string host, string username, string password, string databaseName)
+		public static object ExecuteScalar(string query)
 		{
-		     SelectConnection = new Dictionary<string, string>();
-			lock (Objects)
+			object obj = null;
+			using (MySqlConnection connection = new MySqlConnection(ConnectionString))
 			{
 				try
 				{
-					string connectionString = string.Concat(new string[] { "server=", host, ";uid=", username, ";pwd=", password, ";database=", databaseName });
-					Connection = new MySqlConnection()
-					{
-						ConnectionString = connectionString
-					};
-					Connection.Open();
+					connection.Open();
+					obj = new MySqlCommand(query ?? "", connection).ExecuteScalar();
+					return obj;
 				}
-				catch
+				catch (MySqlException)
 				{
-					return;
+					return obj = null;
 				}
 			}
-		}
-
-		public static object ExecuteScalar(string query)
-		{
-			object obj;
-			lock (Objects)
-			{
-				obj = (new MySqlCommand(query ?? "", Connection)).ExecuteScalar();
-			}
-			return obj;
 		}
 
 		public static MySqlDataReader SelectQuery(string query)
 		{
-			MySqlDataReader mySqlDataReader;
-			lock (Objects)
+			using (MySqlConnection connection = new MySqlConnection(ConnectionString))
 			{
-				mySqlDataReader = (new MySqlCommand(query, Connection)).ExecuteReader();
+				try
+				{
+					connection.Open();
+					return new MySqlCommand(query, connection).ExecuteReader();
+				}
+				catch (MySqlException) { return null; }
 			}
-			return mySqlDataReader;
+
 		}
 
 		public static object UpdateQuery(string query)
 		{
-			object obj;
-			lock (Objects)
+			object obj = null;
+			using (MySqlConnection connection = new MySqlConnection(ConnectionString))
 			{
-				obj = (new MySqlCommand(query, Connection)).ExecuteNonQuery();
+				try
+				{
+					connection.Open();
+					obj = new MySqlCommand(query, connection).ExecuteNonQuery();
+					return obj;
+				}
+				catch (MySqlException)
+				{
+					return obj = null;
+				}
 			}
-			return obj;
 		}
 	}
 }

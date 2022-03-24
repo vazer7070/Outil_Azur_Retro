@@ -223,17 +223,29 @@ namespace Tools_protocol.Kryone.Database
 
 		public static void Load_Drops()
 		{
-			MySqlDataReader reader = DatabaseManager2.SelectQuery(QueryBuilder.SelectFromQuery(new string[] { "*" }, TableDrops, "", ""));
-			DropsList D = null;
-			while (reader.Read())
+			string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TableDrops, "", "");
+
+			using (MySqlConnection connection = new MySqlConnection(DatabaseManager2.ConnectionString))
 			{
-				D = new DropsList(reader);
-				AllDrops.Add(D.Id, D);
-				DropsName.Add(D.ObjectName);
-				Drops_Count = DropsName.Count;
+				try
+				{
+					connection.Open();
+					MySqlDataReader reader = new MySqlCommand(query, connection).ExecuteReader();
+					DropsList D = null;
+					while (reader.Read())
+					{
+						D = new DropsList(reader);
+						AllDrops.Add(D.Id, D);
+						DropsName.Add(D.ObjectName);
+						Drops_Count = DropsName.Count;
+					}
+					reader.Close();
+					reader.Dispose();
+					connection.Close();
+					connection.Dispose();
+				}
+				catch (MySqlException) {  }
 			}
-			reader.Close();
-			reader.Dispose();
 		}
 	}
 }

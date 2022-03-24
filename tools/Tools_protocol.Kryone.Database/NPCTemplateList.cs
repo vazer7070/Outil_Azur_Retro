@@ -52,15 +52,29 @@ namespace Tools_protocol.Kryone.Database
         }
         public static void LoadAllPnjTemplate()
         {
-            MySqlDataReader reader = DatabaseManager.SelectQuery(QueryBuilder.SelectFromQuery(new string[] { "*" }, TablePNJTemplate, "", ""));
-            NPCTemplateList npcsT = null;
-            while (reader.Read())
+            string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TablePNJTemplate, "", "");
+
+            using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
             {
-                npcsT = new NPCTemplateList(reader);
-                TemplatesPNJ.Add(npcsT.ID, npcsT);
+                try
+                {
+                    connection.Open();
+                    MySqlDataReader reader = new MySqlCommand(query, connection).ExecuteReader();
+                    NPCTemplateList npcsT = null;
+                    while (reader.Read())
+                    {
+                        npcsT = new NPCTemplateList(reader);
+                        TemplatesPNJ.Add(npcsT.ID, npcsT);
+                    }
+                    reader.Close();
+                    PNJcount = TemplatesPNJ.Count;
+                    reader.Dispose();
+                    connection.Close();
+                    connection.Dispose();
+                }
+                catch (MySqlException) { }
             }
-            reader.Close();
-            PNJcount = TemplatesPNJ.Count;
+            
         }
     }
 }

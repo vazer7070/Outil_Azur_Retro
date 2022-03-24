@@ -104,14 +104,25 @@ namespace Tools_protocol.Managers
             switch (EMUSELECTED)
             {
 				case "Kryone":
-				MySqlDataReader R = DatabaseManager.SelectQuery(QueryBuilder.SelectFromQuery(new string[] { panocol }, JsonManager.SearchAuth("panoplies"), "name", panoname));
-                    while (R.Read())
-                    {
-						row = R.GetString(panocol);
-                    }
-					R.Close();
-					R.Dispose();
-					return row;
+					string query = QueryBuilder.SelectFromQuery(new string[] { panocol }, JsonManager.SearchAuth("panoplies"), "name", panoname);
+					using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
+					{
+						try
+						{
+							connection.Open();
+							MySqlDataReader R = new MySqlCommand(query, connection).ExecuteReader();
+							while (R.Read())
+							{
+								row = R.GetString(panocol);
+							}
+							R.Close();
+							R.Dispose();
+							connection.Close();
+							connection.Dispose();
+							return row;
+						}
+						catch (MySqlException) { return null; }
+					}
             }
 			return row;
         }

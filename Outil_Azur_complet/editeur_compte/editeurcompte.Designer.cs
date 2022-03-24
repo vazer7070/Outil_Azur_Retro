@@ -70,13 +70,14 @@
             this.iTalk_Label2 = new iTalk.iTalk_Label();
             this.iTalk_Label1 = new iTalk.iTalk_Label();
             this.listBox1 = new System.Windows.Forms.ListBox();
-            this.iTalk_ControlBox1 = new iTalk.iTalk_ControlBox();
+            this.iTalk_Button_15 = new iTalk.iTalk_Button_1();
             this.iTalk_ThemeContainer1.SuspendLayout();
             this.SuspendLayout();
             // 
             // iTalk_ThemeContainer1
             // 
             this.iTalk_ThemeContainer1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(246)))), ((int)(((byte)(246)))), ((int)(((byte)(246)))));
+            this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_Button_15);
             this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_Button_14);
             this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_Label9);
             this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_Button_21);
@@ -117,7 +118,6 @@
             this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_Label2);
             this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_Label1);
             this.iTalk_ThemeContainer1.Controls.Add(this.listBox1);
-            this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_ControlBox1);
             this.iTalk_ThemeContainer1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.iTalk_ThemeContainer1.Font = new System.Drawing.Font("Segoe UI", 8F);
             this.iTalk_ThemeContainer1.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
@@ -553,7 +553,7 @@
             this.iTalk_Label7.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
             this.iTalk_Label7.Location = new System.Drawing.Point(343, 180);
             this.iTalk_Label7.Name = "iTalk_Label7";
-            this.iTalk_Label7.Size = new System.Drawing.Size(45, 13);
+            this.iTalk_Label7.Size = new System.Drawing.Size(44, 13);
             this.iTalk_Label7.TabIndex = 3;
             this.iTalk_Label7.Text = "Bannis:";
             // 
@@ -686,16 +686,19 @@
             this.listBox1.TabIndex = 1;
             this.listBox1.SelectedIndexChanged += new System.EventHandler(this.listBox1_SelectedIndexChanged);
             // 
-            // iTalk_ControlBox1
+            // iTalk_Button_15
             // 
-            this.iTalk_ControlBox1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.iTalk_ControlBox1.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_ControlBox1.Location = new System.Drawing.Point(830, -1);
-            this.iTalk_ControlBox1.Name = "iTalk_ControlBox1";
-            this.iTalk_ControlBox1.Size = new System.Drawing.Size(77, 19);
-            this.iTalk_ControlBox1.TabIndex = 0;
-            this.iTalk_ControlBox1.Text = "iTalk_ControlBox1";
-            this.iTalk_ControlBox1.Click += new System.EventHandler(this.iTalk_ControlBox1_Click);
+            this.iTalk_Button_15.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Button_15.Font = new System.Drawing.Font("Segoe UI", 12F);
+            this.iTalk_Button_15.Image = null;
+            this.iTalk_Button_15.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.iTalk_Button_15.Location = new System.Drawing.Point(875, 3);
+            this.iTalk_Button_15.Name = "iTalk_Button_15";
+            this.iTalk_Button_15.Size = new System.Drawing.Size(20, 17);
+            this.iTalk_Button_15.TabIndex = 16;
+            this.iTalk_Button_15.Text = "X";
+            this.iTalk_Button_15.TextAlignment = System.Drawing.StringAlignment.Center;
+            this.iTalk_Button_15.Click += new System.EventHandler(this.iTalk_Button_15_Click);
             // 
             // editeurcompte
             // 
@@ -729,7 +732,6 @@
         private iTalk.iTalk_Label iTalk_Label2;
         private iTalk.iTalk_Label iTalk_Label1;
         private System.Windows.Forms.ListBox listBox1;
-        private iTalk.iTalk_ControlBox iTalk_ControlBox1;
         private iTalk.iTalk_Label iTalk_Label8;
         private iTalk.iTalk_TextBox_Small iTalk_TextBox_Small3;
         private iTalk.iTalk_TextBox_Small iTalk_TextBox_Small2;
@@ -762,5 +764,6 @@
         private iTalk.iTalk_ComboBox iTalk_ComboBox1;
         private iTalk.iTalk_Label iTalk_Label9;
         private iTalk.iTalk_Button_1 iTalk_Button_14;
+        private iTalk.iTalk_Button_1 iTalk_Button_15;
     }
 }

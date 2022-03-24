@@ -113,16 +113,28 @@ namespace Tools_protocol.Kryone.Database
 		public static void AllAccounts()
 		{
 			string[] args = new string[] { "guid", "account" };
-			MySqlDataReader lecteur = DatabaseManager.SelectQuery(QueryBuilder.SelectFromQuery(args, AccountList.TableCompte, "", ""));
-			while (lecteur.Read())
+			string query = QueryBuilder.SelectFromQuery(args, AccountList.TableCompte, "", "");
+			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
 			{
-				AccountList.Accounts.Add(lecteur["account"].ToString());
-				if (!CharacterList.IdCompte.ContainsKey(Convert.ToInt32(lecteur["guid"])))
+				try
 				{
-					CharacterList.IdCompte.Add(Convert.ToInt32(lecteur["guid"]), lecteur["account"].ToString());
+					connection.Open();
+					MySqlDataReader lecteur = new MySqlCommand(query, connection).ExecuteReader();
+					while (lecteur.Read())
+					{
+						AccountList.Accounts.Add(lecteur["account"].ToString());
+						if (!CharacterList.IdCompte.ContainsKey(Convert.ToInt32(lecteur["guid"])))
+						{
+							CharacterList.IdCompte.Add(Convert.ToInt32(lecteur["guid"]), lecteur["account"].ToString());
+						}
+					}
+					lecteur.Close();
+					lecteur.Dispose();
+					connection.Close();
+					connection.Dispose();
 				}
+				catch (MySqlException) { }
 			}
-			lecteur.Close();
 		}
 
 		public static void CreateAccount(string compte, int hash, string mdp, string question, string reponse)
@@ -168,28 +180,54 @@ namespace Tools_protocol.Kryone.Database
 
 		public static AccountList IdInformations(uint id)
 		{
-			AccountList comptes = null;
 			string[] args = new string[] { "*" };
-			MySqlDataReader read = DatabaseManager.SelectQuery(QueryBuilder.SelectFromQuery(args, AccountList.TableCompte, "guid", id.ToString()));
-			while (read.Read())
+			string query = QueryBuilder.SelectFromQuery(args, AccountList.TableCompte, "guid", id.ToString());
+			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
 			{
-				comptes = new AccountList(read);
+				try
+				{
+					connection.Open();
+					AccountList comptes = null;
+					MySqlDataReader read = new MySqlCommand(query, connection).ExecuteReader();
+					while (read.Read())
+					{
+						comptes = new AccountList(read);
+					}
+					read.Close();
+					read.Dispose();
+					connection.Close();
+					connection.Dispose();
+					return comptes;
+				}
+				catch (MySqlException) { return null; }
 			}
-			read.Close();
-			return comptes;
+			
 		}
 
 		public static AccountList Informations(string account)
 		{
-			AccountList comptes = null;
 			string[] args = new string[] { "*" };
-			MySqlDataReader read = DatabaseManager.SelectQuery(QueryBuilder.SelectFromQuery(args, AccountList.TableCompte, "account", account));
-			while (read.Read())
+			string query = QueryBuilder.SelectFromQuery(args, AccountList.TableCompte, "account", account);
+			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
 			{
-				comptes = new AccountList(read);
+				try
+				{
+					connection.Open();
+					AccountList comptes = null;
+					MySqlDataReader read = new MySqlCommand(query, connection).ExecuteReader();
+					while (read.Read())
+					{
+						comptes = new AccountList(read);
+					}
+					read.Close();
+					read.Dispose();
+					connection.Close();
+					connection.Dispose();
+					return comptes;
+				}
+				catch (MySqlException) { return null; }
 			}
-			read.Close();
-			return comptes;
+			
 		}
 
 		public static string SHA51(string input)

@@ -12,11 +12,11 @@ namespace Tools_protocol.Kryone.Database
 {
 	public class MonsterList
 	{
-		public static Dictionary<int, MonsterList> AllMonster;
-
+		public static Dictionary<int, MonsterList> AllMonster = new Dictionary<int, MonsterList>();
+			
 		public static int Monsters_count;
 
-		public static Dictionary<string, string> MonsterGrade;
+		public static Dictionary<string, string> MonsterGrade = new Dictionary<string, string>();
 
 		public int AggroDistance
 		{
@@ -152,12 +152,6 @@ namespace Tools_protocol.Kryone.Database
 			set;
 		}
 
-		static MonsterList()
-		{
-			AllMonster = new Dictionary<int, MonsterList>();
-			MonsterGrade = new Dictionary<string, string>();
-		}
-
 		public MonsterList(IDataReader reader)
 		{
 			
@@ -186,36 +180,46 @@ namespace Tools_protocol.Kryone.Database
 
 		public static string CapturableOrNot(int id)
 		{
-			string str;
 			if (AllMonster.ContainsKey(id))
 			{
-				KeyValuePair<int, MonsterList> keyValuePair = AllMonster.FirstOrDefault<KeyValuePair<int, MonsterList>>((KeyValuePair<int, MonsterList> x) => x.Key == id);
-				int C = keyValuePair.Value.Capturable;
-				if (C == 1)
-				{
-					str = "oui";
-					return str;
-				}
-				else if (C == 0)
-				{
-					str = "non";
-					return str;
-				}
+				int C = AllMonster.FirstOrDefault(x => x.Key == id).Value.Capturable;
+                switch (C)
+                {
+					case 0:
+						return "Non";
+					case 1:
+						return "Oui";
+					default:
+						return "Non";
+                }
 			}
-			str = null;
-			return str;
+			else
+				return $"{id}";
 		}
 
 		public static void Load_Monster()
 		{
-			MySqlDataReader reader = DatabaseManager2.SelectQuery(QueryBuilder.SelectFromQuery(new string[] { "*" }, TableMonstre, "", ""));
-			while (reader.Read())
+			string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TableMonstre, "", "");
+
+			using (MySqlConnection connection = new MySqlConnection(DatabaseManager2.ConnectionString))
 			{
-				MonsterList MonsterRecord = new MonsterList(reader);
-				AllMonster.Add(MonsterRecord.Id, MonsterRecord);
+				try
+				{
+					connection.Open();
+					MySqlDataReader reader = new MySqlCommand(query, connection).ExecuteReader();
+					while (reader.Read())
+					{
+						MonsterList MonsterRecord = new MonsterList(reader);
+						AllMonster.Add(MonsterRecord.Id, MonsterRecord);
+					}
+					Monsters_count = AllMonster.Count;
+					reader.Close();
+					reader.Dispose();
+					connection.Close();
+					connection.Dispose();
+				}
+				catch (MySqlException) { }
 			}
-			Monsters_count = AllMonster.Count;
-			reader.Close();
 		}
 
 		public static void ParseGrade(int id)
@@ -264,7 +268,7 @@ namespace Tools_protocol.Kryone.Database
 						n = m.Split(new char[] { '@' })[0];
 						o = m.Split(new char[] { '@' })[1];
                     }
-					catch (Exception mp)
+					catch (Exception)
                     {
 						continue;
                     }
@@ -302,40 +306,25 @@ namespace Tools_protocol.Kryone.Database
 
 		public static string ReturnAlignMonster(int id)
 		{
-			string str;
+			
 			if (AllMonster.ContainsKey(id))
 			{
-				KeyValuePair<int, MonsterList> keyValuePair = AllMonster.FirstOrDefault<KeyValuePair<int, MonsterList>>((KeyValuePair<int, MonsterList> x) => x.Key == id);
-				int A = keyValuePair.Value.Align;
-				if (A.Equals(-1))
-				{
-					str = "Sans alignement";
-				}
-				else if (A.Equals(0))
-				{
-					str = "Neutre";
-				}
-				else if (!A.Equals(1))
-				{
-					if (A.Equals(2))
-					{
-						str = "Brakmarien";
-						return str;
-					}
-					str = null;
-					return str;
-				}
-				else
-				{
-					str = "Bontarien";
-				}
+				int A = AllMonster.FirstOrDefault(x => x.Key == id).Value.Align;
+                switch (A)
+                {
+					case -1:
+						return "Sans alignement";
+				    case 0:
+						return "Neutre";
+					case 1:
+						return "Bontarien";
+					case 2:
+						return "Brakmarien";
+					default:
+						return "";
+                }
 			}
-			else
-			{
-				str = null;
-				return str;
-			}
-			return str;
+			return $"{id}";
 		}
 
 		public static string ReturnKamas(int id)
@@ -347,29 +336,25 @@ namespace Tools_protocol.Kryone.Database
 			}
 			else
 			{
-				KeyValuePair<int, MonsterList> keyValuePair = AllMonster.FirstOrDefault<KeyValuePair<int, MonsterList>>((KeyValuePair<int, MonsterList> x) => x.Key == id);
-				int MinK = keyValuePair.Value.MinKamas;
-				keyValuePair = AllMonster.FirstOrDefault((KeyValuePair<int, MonsterList> x) => x.Key == id);
-				int MxK = keyValuePair.Value.MaxKamas;
-				str = MxK.Equals(0) ? "0" : string.Format("de {0} à {1}", MinK, MxK);
+				int MinK = AllMonster.FirstOrDefault(x => x.Key == id).Value.MinKamas;
+				int MxK = AllMonster.FirstOrDefault(x => x.Key == id).Value.MaxKamas;
+				str = $"de {MinK} à {MxK}";
 			}
 			return str;
 		}
 
 		public static int ReturnMonsterByName(string name)
 		{
-			KeyValuePair<int, MonsterList> keyValuePair = MonsterList.AllMonster.FirstOrDefault<KeyValuePair<int, MonsterList>>((KeyValuePair<int, MonsterList> x) => x.Value.Name == name);
-			return keyValuePair.Key;
+			return AllMonster.FirstOrDefault(x => x.Value.Name == name).Key;
 		}
 
 		public static string ReturnMonstersInfos(int id, int sw)
 		{
-			KeyValuePair<int, MonsterList> keyValuePair;
-			string name;
-			int gFXid;
-			if (!MonsterList.AllMonster.ContainsKey(id))
+			
+			
+			if (!AllMonster.ContainsKey(id))
 			{
-				name = null;
+				return $"{id} inconnue.";
 			}
 			else
 			{
@@ -377,32 +362,22 @@ namespace Tools_protocol.Kryone.Database
 				{
 					case 1:
 					{
-						keyValuePair = MonsterList.AllMonster.FirstOrDefault<KeyValuePair<int, MonsterList>>((KeyValuePair<int, MonsterList> x) => x.Key == id);
-						name = keyValuePair.Value.Name;
-						break;
+						return AllMonster.FirstOrDefault(x => x.Key == id).Value.Name;
 					}
 					case 2:
 					{
-						keyValuePair = MonsterList.AllMonster.FirstOrDefault<KeyValuePair<int, MonsterList>>((KeyValuePair<int, MonsterList> x) => x.Key == id);
-						gFXid = keyValuePair.Value.GFXid;
-						name = gFXid.ToString();
-						break;
+						return AllMonster.FirstOrDefault(x => x.Key == id).Value.GFXid.ToString();
 					}
 					case 3:
 					{
-						keyValuePair = MonsterList.AllMonster.FirstOrDefault<KeyValuePair<int, MonsterList>>((KeyValuePair<int, MonsterList> x) => x.Key == id);
-						gFXid = keyValuePair.Value.Size;
-						name = gFXid.ToString();
-						break;
+							return AllMonster.FirstOrDefault(x => x.Key == id).Value.Size.ToString();
 					}
 					default:
 					{
-						name = string.Format("{0} monstre inconnu", id);
-						break;
+							return $"Le monstre {id} est inconnu.";
 					}
 				}
 			}
-			return name;
 		}
 	}
 }

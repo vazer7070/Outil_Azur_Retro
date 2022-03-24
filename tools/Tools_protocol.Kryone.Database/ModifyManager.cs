@@ -16,10 +16,6 @@ namespace Tools_protocol.Kryone.Database
 			}
 		}
 
-		public ModifyManager()
-		{
-		}
-
 		public static string ModifyAccepted(string col, int count, string sujet, string result, string ID)
 		{
 			string str;

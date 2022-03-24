@@ -63,17 +63,29 @@ namespace Tools_protocol.Kryone.Database
         }
         public static void LoadAllMaps()
         {
-            MapsList M = null;
             string[] args = new string[] { "*" };
-            MySqlDataReader lecteur = DatabaseManager.SelectQuery(QueryBuilder.SelectFromQuery(args, TableMap, "", ""));
-            while (lecteur.Read())
+            string query = QueryBuilder.SelectFromQuery(args, TableMap, "", "");
+            using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
             {
-                M = new MapsList(lecteur);
-                AllMaps.Add(M);
-                AllMapsDico.Add(M.ID, M);
+                try
+                {
+                    connection.Open();
+                    MapsList M = null;
+                    MySqlDataReader lecteur = new MySqlCommand(query, connection).ExecuteReader();
+                    while (lecteur.Read())
+                    {
+                        M = new MapsList(lecteur);
+                        AllMaps.Add(M);
+                        AllMapsDico.Add(M.ID, M);
+                    }
+                    MapsCount = AllMaps.Count;
+                    lecteur.Close();
+                    lecteur.Dispose();
+                    connection.Close();
+                    connection.Dispose();
+                }
+                catch (MySqlException) { }
             }
-            MapsCount = AllMaps.Count;
-            lecteur.Close();
         }
         public static MapsList ReturnMapInfo (int id)
         {

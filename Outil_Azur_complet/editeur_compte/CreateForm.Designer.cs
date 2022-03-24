@@ -43,13 +43,14 @@
             this.iTalk_Label3 = new iTalk.iTalk_Label();
             this.iTalk_Label2 = new iTalk.iTalk_Label();
             this.iTalk_Label1 = new iTalk.iTalk_Label();
-            this.iTalk_ControlBox1 = new iTalk.iTalk_ControlBox();
+            this.iTalk_Button_11 = new iTalk.iTalk_Button_1();
             this.iTalk_ThemeContainer1.SuspendLayout();
             this.SuspendLayout();
             // 
             // iTalk_ThemeContainer1
             // 
             this.iTalk_ThemeContainer1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(246)))), ((int)(((byte)(246)))), ((int)(((byte)(246)))));
+            this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_Button_11);
             this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_Button_21);
             this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_TextBox_Small4);
             this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_TextBox_Small3);
@@ -63,7 +64,6 @@
             this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_Label3);
             this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_Label2);
             this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_Label1);
-            this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_ControlBox1);
             this.iTalk_ThemeContainer1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.iTalk_ThemeContainer1.Font = new System.Drawing.Font("Segoe UI", 8F);
             this.iTalk_ThemeContainer1.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
@@ -247,15 +247,19 @@
             this.iTalk_Label1.TabIndex = 1;
             this.iTalk_Label1.Text = "Nom du compte";
             // 
-            // iTalk_ControlBox1
+            // iTalk_Button_11
             // 
-            this.iTalk_ControlBox1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.iTalk_ControlBox1.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_ControlBox1.Location = new System.Drawing.Point(393, -1);
-            this.iTalk_ControlBox1.Name = "iTalk_ControlBox1";
-            this.iTalk_ControlBox1.Size = new System.Drawing.Size(77, 19);
-            this.iTalk_ControlBox1.TabIndex = 0;
-            this.iTalk_ControlBox1.Text = "iTalk_ControlBox1";
+            this.iTalk_Button_11.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Button_11.Font = new System.Drawing.Font("Segoe UI", 12F);
+            this.iTalk_Button_11.Image = null;
+            this.iTalk_Button_11.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.iTalk_Button_11.Location = new System.Drawing.Point(442, 3);
+            this.iTalk_Button_11.Name = "iTalk_Button_11";
+            this.iTalk_Button_11.Size = new System.Drawing.Size(20, 17);
+            this.iTalk_Button_11.TabIndex = 5;
+            this.iTalk_Button_11.Text = "X";
+            this.iTalk_Button_11.TextAlignment = System.Drawing.StringAlignment.Center;
+            this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
             // 
             // CreateForm
             // 
@@ -291,7 +295,7 @@
         private iTalk.iTalk_Label iTalk_Label3;
         private iTalk.iTalk_Label iTalk_Label2;
         private iTalk.iTalk_Label iTalk_Label1;
-        private iTalk.iTalk_ControlBox iTalk_ControlBox1;
         private iTalk.iTalk_Button_2 iTalk_Button_21;
+        private iTalk.iTalk_Button_1 iTalk_Button_11;
     }
 }
