@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Net;
 using System.Threading;
 using System.Windows.Forms;
 using Tools_protocol.Codebreak.Database;
@@ -14,6 +15,8 @@ namespace Outil_Azur_complet.editeur_compte
 {
     public partial class editeurcompte : Form
     {
+        private Dictionary<string, string> ModifiedQuery = new Dictionary<string, string>();
+        static List<string> PersoByAccount = new List<string>();
         public editeurcompte()
         {
             InitializeComponent();
@@ -36,9 +39,7 @@ namespace Outil_Azur_complet.editeur_compte
             listBox1.Items.Clear();
             if (emu.Equals("Kryone"))
             {
-                AccountList.Accounts.Clear();
-                AccountList.AllAccounts();
-                foreach (string word in AccountList.Accounts)
+                foreach (string word in AccountList.AllAccount.Keys)
                 {
                     listBox1.Items.Add(word);
                 }
@@ -70,7 +71,7 @@ namespace Outil_Azur_complet.editeur_compte
              try
              {
                 iTalk_TextBox_Small1.Text = EmuManager.ReturnAccountsInfo(InitializeForm.EMUSELECT, listBox1.SelectedItem.ToString(), 1);
-                 iTalk_TextBox_Small2.Text = EmuManager.ReturnAccountsInfo(InitializeForm.EMUSELECT, listBox1.SelectedItem.ToString(), 2);
+                iTalk_TextBox_Small2.Text = EmuManager.ReturnAccountsInfo(InitializeForm.EMUSELECT, listBox1.SelectedItem.ToString(), 2);
                 iTalk_TextBox_Small3.Text = EmuManager.ReturnAccountsInfo(InitializeForm.EMUSELECT, listBox1.SelectedItem.ToString(), 3);
                 iTalk_TextBox_Small4.Text = EmuManager.ReturnAccountsInfo(InitializeForm.EMUSELECT, listBox1.SelectedItem.ToString(), 4);
                 iTalk_TextBox_Small5.Text = EmuManager.ReturnAccountsInfo(InitializeForm.EMUSELECT, listBox1.SelectedItem.ToString(), 5);
@@ -79,10 +80,9 @@ namespace Outil_Azur_complet.editeur_compte
                 iTalk_TextBox_Small9.Text = EmuManager.ReturnAccountsInfo(InitializeForm.EMUSELECT, listBox1.SelectedItem.ToString(), 8);
                 iTalk_TextBox_Small10.Text = EmuManager.ReturnAccountsInfo(InitializeForm.EMUSELECT, listBox1.SelectedItem.ToString(), 9);
                 iTalk_TextBox_Small11.Text = EmuManager.ReturnAccountsInfo(InitializeForm.EMUSELECT, listBox1.SelectedItem.ToString(), 10);
-                CharacterList.Nameperso.Clear();
                 iTalk_ComboBox1.Items.Clear();
-                CharacterList.Informations(iTalk_TextBox_Small1.Text);
-                foreach(string word in CharacterList.Nameperso)
+                PersoByAccount = CharacterList.Informations(int.Parse(iTalk_TextBox_Small1.Text));
+                foreach(string word in PersoByAccount)
                 {
                     iTalk_ComboBox1.Items.Add(word);
                 }
@@ -107,16 +107,38 @@ namespace Outil_Azur_complet.editeur_compte
             
         }
 
-        private void iTalk_Button_12_Click(object sender, EventArgs e)
+        private void iTalk_Button_12_Click(object sender, EventArgs e) //Bannis ou pas
         {
-            AccountList.UpdateBan(listBox1.SelectedItem.ToString(), Convert.ToInt32(iTalk_TextBox_Small5.Text));
-            iTalk_TextBox_Small5.Text = AccountList.Informations(listBox1.SelectedItem.ToString()).Banned.ToString();
+            AccountList.ModifyAccount(AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)), AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Account, iTalk_TextBox_Small5.Text, 9);
+            if (ModifiedQuery.ContainsKey($"BanControl{iTalk_TextBox_Small1.Text}"))
+            {
+                ModifiedQuery.Remove($"BanControl{iTalk_TextBox_Small1.Text}");
+                ModifiedQuery.Add($"BanControl{iTalk_TextBox_Small1.Text}", QueryBuilder.UpdateFromQuery(TableCompte, "banned", 1, AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Banned.ToString(), "guid", iTalk_TextBox_Small1.Text));
+            }
+            else
+            {
+                UpdateNotifNumber();
+                ModifiedQuery.Remove($"BanControl{iTalk_TextBox_Small1.Text}");
+                ModifiedQuery.Add($"BanControl{iTalk_TextBox_Small1.Text}", QueryBuilder.UpdateFromQuery(TableCompte, "banned", 1, AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Banned.ToString(), "guid", iTalk_TextBox_Small1.Text));
+            }
+            iTalk_TextBox_Small5.Text = AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Banned.ToString();
         }
 
-        private void iTalk_Button_13_Click(object sender, EventArgs e)
+        private void iTalk_Button_13_Click(object sender, EventArgs e) //VIP
         {
-            AccountList.UpdateVip(listBox1.SelectedItem.ToString(), Convert.ToInt32(iTalk_TextBox_Small11.Text));
-            iTalk_TextBox_Small11.Text = AccountList.Informations(listBox1.SelectedItem.ToString()).Vip.ToString();
+            AccountList.ModifyAccount(AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)), AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Account, iTalk_TextBox_Small11.Text, 8);
+            if (ModifiedQuery.ContainsKey($"VIPControl{iTalk_TextBox_Small1.Text}"))
+            {
+                ModifiedQuery.Remove($"VIPControl{iTalk_TextBox_Small1.Text}");
+                ModifiedQuery.Add($"VIPControl{iTalk_TextBox_Small1.Text}", QueryBuilder.UpdateFromQuery(TableCompte, "vip", 1, AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Vip.ToString(), "guid", iTalk_TextBox_Small1.Text));
+            }
+            else
+            {
+                UpdateNotifNumber();
+                ModifiedQuery.Remove($"VIPControl{iTalk_TextBox_Small1.Text}");
+                ModifiedQuery.Add($"VIPControl{iTalk_TextBox_Small1.Text}", QueryBuilder.UpdateFromQuery(TableCompte, "vip", 1, AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Vip.ToString(), "guid", iTalk_TextBox_Small1.Text));
+            }
+            iTalk_TextBox_Small11.Text = AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Vip.ToString();
         }
         private void iTalk_Button_14_Click(object sender, EventArgs e)
         {
@@ -128,7 +150,6 @@ namespace Outil_Azur_complet.editeur_compte
             DatabaseManager.UpdateQuery(QueryBuilder.DeleteFromQuery(TableCompte, "account", listBox1.SelectedItem.ToString()));
             DatabaseManager.UpdateQuery(QueryBuilder.DeleteFromQuery(TablePerso, "account", iTalk_TextBox_Small1.Text));
             MessageBox.Show($"Le compte {iTalk_TextBox_Small2.Text} a bien été supprimé", "Action réussie", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            AccountList.Accounts.Remove(iTalk_TextBox_Small2.Text);
             listBox1.Items.Remove(listBox1.SelectedItem.ToString());
             iTalk_TextBox_Small1.Text = "";
             iTalk_TextBox_Small2.Text = "";
@@ -143,19 +164,38 @@ namespace Outil_Azur_complet.editeur_compte
             iTalk_Label14.Text = $"{listBox1.Items.Count} comptes chargés.";
 
         }
+        private void UpdateNotifNumber(bool erase = false)
+        {
+            if (erase)
+                iTalk_NotificationNumber1.Value = 0;
+            else
+                iTalk_NotificationNumber1.Value = iTalk_NotificationNumber1.Value + 1;
 
-        private void iTalk_LinkLabel2_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        }
+        private void iTalk_LinkLabel2_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) // modifier le nom du compte
         {
             try
             {
-
-                if (!iTalk_TextBox_Small2.Text.Equals(""))
+                if (!string.IsNullOrEmpty(iTalk_TextBox_Small2.Text))
                 {
-                    DatabaseManager.UpdateQuery(QueryBuilder.UpdateFromQuery(TableCompte, "account", 1, iTalk_TextBox_Small2.Text, "guid", iTalk_TextBox_Small1.Text));
-                    listBox1.Items.Clear();
-                    iTalk_Label14.Text = $"{listBox1.Items.Count} comptes chargés.";
-                    Thread.Sleep(10);
-                    Load_editeur(InitializeForm.EMUSELECT);
+                    string name = iTalk_TextBox_Small2.Text;
+                    string firstname = AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Account;
+                    if (name != firstname)
+                    {
+                        AccountList.ModifyAccount(AccountList.Informations(firstname),firstname, name, 1);
+                        if (ModifiedQuery.ContainsKey($"NameControl{iTalk_TextBox_Small1.Text}"))
+                        {
+                            ModifiedQuery.Remove($"NameControl{iTalk_TextBox_Small1.Text}");
+                            ModifiedQuery.Add($"NameControl{iTalk_TextBox_Small1.Text}", QueryBuilder.UpdateFromQuery(TableCompte, "account", 1, iTalk_TextBox_Small2.Text, "guid", iTalk_TextBox_Small1.Text));
+                        }
+                        else
+                        {
+                            UpdateNotifNumber();
+                            ModifiedQuery.Add($"NameControl{iTalk_TextBox_Small1.Text}", QueryBuilder.UpdateFromQuery(TableCompte, "account", 1, iTalk_TextBox_Small2.Text, "guid", iTalk_TextBox_Small1.Text));
+                        }
+                            
+
+                    }
                 }
                 
 
@@ -210,14 +250,31 @@ namespace Outil_Azur_complet.editeur_compte
             }
         }
 
-        private void iTalk_LinkLabel3_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        private void iTalk_LinkLabel3_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) //modifier le pseudo
         {
             try
             {
-
-                if (!iTalk_TextBox_Small3.Text.Equals(""))
+                if (!string.IsNullOrEmpty(iTalk_TextBox_Small3.Text))
                 {
-                    DatabaseManager.UpdateQuery(QueryBuilder.UpdateFromQuery(TableCompte, "pseudo", 1, iTalk_TextBox_Small3.Text, "guid", iTalk_TextBox_Small1.Text));
+                    string pseudo = iTalk_TextBox_Small3.Text;
+                    string firstpseudo = AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Pseudo;
+                    if (pseudo != firstpseudo)
+                    {
+                        AccountList.ModifyAccount(AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)), AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Account, pseudo, 2);
+                        if (ModifiedQuery.ContainsKey($"PseudoControl{iTalk_TextBox_Small1.Text}"))
+                        {
+                            ModifiedQuery.Remove($"PseudoControl{iTalk_TextBox_Small1.Text}");
+                            ModifiedQuery.Add($"PseudoControl{iTalk_TextBox_Small1.Text}", QueryBuilder.UpdateFromQuery(TableCompte, "pseudo", 1, iTalk_TextBox_Small3.Text, "guid", iTalk_TextBox_Small1.Text));
+                        }
+                        else
+                        {
+                            UpdateNotifNumber();
+                            ModifiedQuery.Remove($"PseudoControl{iTalk_TextBox_Small1.Text}");
+                            ModifiedQuery.Add($"PseudoControl{iTalk_TextBox_Small1.Text}", QueryBuilder.UpdateFromQuery(TableCompte, "pseudo", 1, iTalk_TextBox_Small3.Text, "guid", iTalk_TextBox_Small1.Text));
+                        }
+                           
+
+                    }
                 }
 
 
@@ -230,16 +287,32 @@ namespace Outil_Azur_complet.editeur_compte
             }
         }
 
-        private void iTalk_LinkLabel4_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        private void iTalk_LinkLabel4_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) //modifier le mot de passe
         {
             try
             {
-
-                if (!iTalk_TextBox_Small4.Text.Equals(""))
+                if (!string.IsNullOrEmpty(iTalk_TextBox_Small4.Text))
                 {
-                    DatabaseManager.UpdateQuery(QueryBuilder.UpdateFromQuery(TableCompte, "pass", 1, iTalk_TextBox_Small4.Text, "guid", iTalk_TextBox_Small1.Text));
-                }
+                    string pass = iTalk_TextBox_Small4.Text;
+                    string firstpass = AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Pass;
+                    if (pass != firstpass)
+                    {
+                        AccountList.ModifyAccount(AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)), AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Account, pass, 3);
+                        
+                        if (ModifiedQuery.ContainsKey($"PassControl{iTalk_TextBox_Small1.Text}"))
+                        {
+                            ModifiedQuery.Remove($"PassControl{iTalk_TextBox_Small1.Text}");
+                            ModifiedQuery.Add($"PassControl{iTalk_TextBox_Small1.Text}", QueryBuilder.UpdateFromQuery(TableCompte, "pass", 1, iTalk_TextBox_Small4.Text, "guid", iTalk_TextBox_Small1.Text));
+                        }
+                        else
+                        {
+                            UpdateNotifNumber();
+                            ModifiedQuery.Add($"PassControl{iTalk_TextBox_Small1.Text}", QueryBuilder.UpdateFromQuery(TableCompte, "pass", 1, iTalk_TextBox_Small4.Text, "guid", iTalk_TextBox_Small1.Text));
+                        }
+                            
 
+                    }
+                }
 
             }
             catch (Exception fdfdf)
@@ -250,14 +323,31 @@ namespace Outil_Azur_complet.editeur_compte
             }
         }
 
-        private void iTalk_LinkLabel6_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        private void iTalk_LinkLabel6_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) //modifier la question
         {
             try
             {
 
-                if (!iTalk_TextBox_Small6.Text.Equals(""))
+                if (!string.IsNullOrEmpty(iTalk_TextBox_Small6.Text))
                 {
-                    DatabaseManager.UpdateQuery(QueryBuilder.UpdateFromQuery(TableCompte, "question", 1, iTalk_TextBox_Small6.Text, "guid", iTalk_TextBox_Small1.Text));
+                    string ask = iTalk_TextBox_Small6.Text;
+                    string firstask = AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Question;
+                    if (ask != firstask)
+                    {
+                        AccountList.ModifyAccount(AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)), AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Account, ask, 4);
+                        
+                        if (ModifiedQuery.ContainsKey($"AskControl{iTalk_TextBox_Small1.Text}"))
+                        {
+                            ModifiedQuery.Remove($"AskControl{iTalk_TextBox_Small1.Text}");
+                            ModifiedQuery.Add($"AskControl{iTalk_TextBox_Small1.Text}", QueryBuilder.UpdateFromQuery(TableCompte, "question", 1, iTalk_TextBox_Small6.Text, "guid", iTalk_TextBox_Small1.Text));
+                        }
+                        else
+                        {
+                            UpdateNotifNumber();
+                            ModifiedQuery.Add($"AskControl{iTalk_TextBox_Small1.Text}", QueryBuilder.UpdateFromQuery(TableCompte, "question", 1, iTalk_TextBox_Small6.Text, "guid", iTalk_TextBox_Small1.Text));
+                        }
+
+                    }
                 }
 
 
@@ -270,14 +360,31 @@ namespace Outil_Azur_complet.editeur_compte
             }
         }
 
-        private void iTalk_LinkLabel7_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        private void iTalk_LinkLabel7_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) //modifier la réponse
         {
             try
             {
 
-                if (!iTalk_TextBox_Small7.Text.Equals(""))
+                if (!string.IsNullOrEmpty(iTalk_TextBox_Small7.Text))
                 {
-                    DatabaseManager.UpdateQuery(QueryBuilder.UpdateFromQuery(TableCompte, "reponse", 1, iTalk_TextBox_Small7.Text, "guid", iTalk_TextBox_Small1.Text));
+                    string Answer = iTalk_TextBox_Small7.Text;
+                    string firstanswer = AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Reponse;
+                    if (Answer != firstanswer)
+                    {
+                        AccountList.ModifyAccount(AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)), AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Account, Answer, 5);
+                        
+                        if (ModifiedQuery.ContainsKey($"AnswerControl{iTalk_TextBox_Small1.Text}"))
+                        {
+                            ModifiedQuery.Remove($"AnswerControl{iTalk_TextBox_Small1.Text}");
+                            ModifiedQuery.Add($"AnswerControl{iTalk_TextBox_Small1.Text}", QueryBuilder.UpdateFromQuery(TableCompte, "reponse", 1, iTalk_TextBox_Small7.Text, "guid", iTalk_TextBox_Small1.Text));
+                        }
+                        else
+                        {
+                            UpdateNotifNumber();
+                            ModifiedQuery.Add($"AnswerControl{iTalk_TextBox_Small1.Text}", QueryBuilder.UpdateFromQuery(TableCompte, "reponse", 1, iTalk_TextBox_Small7.Text, "guid", iTalk_TextBox_Small1.Text));
+                        }
+
+                    }
                 }
 
 
@@ -290,14 +397,30 @@ namespace Outil_Azur_complet.editeur_compte
             }
         }
 
-        private void iTalk_LinkLabel9_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        private void iTalk_LinkLabel9_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) //modifier les points
         {
             try
             {
-
-                if (!iTalk_TextBox_Small9.Text.Equals(""))
+                if (!string.IsNullOrEmpty(iTalk_TextBox_Small9.Text))
                 {
-                    DatabaseManager.UpdateQuery(QueryBuilder.UpdateFromQuery(TableCompte, "points", 1, iTalk_TextBox_Small9.Text, "guid", iTalk_TextBox_Small1.Text));
+                    string points = iTalk_TextBox_Small9.Text;
+                    string firstpoints = AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Points.ToString();
+                    if (points != firstpoints)
+                    {
+                        AccountList.ModifyAccount(AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)), AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Account, points, 6);
+                        
+                        if (ModifiedQuery.ContainsKey($"PointsControl{iTalk_TextBox_Small1.Text}"))
+                        {
+                            ModifiedQuery.Remove($"PointsControl{iTalk_TextBox_Small1.Text}");
+                            ModifiedQuery.Add($"PointsControl{iTalk_TextBox_Small1.Text}", QueryBuilder.UpdateFromQuery(TableCompte, "points", 1, iTalk_TextBox_Small9.Text, "guid", iTalk_TextBox_Small1.Text));
+                        }
+                        else
+                        {
+                            UpdateNotifNumber();
+                            ModifiedQuery.Add($"PointsControl{iTalk_TextBox_Small1.Text}", QueryBuilder.UpdateFromQuery(TableCompte, "points", 1, iTalk_TextBox_Small9.Text, "guid", iTalk_TextBox_Small1.Text));
+                        }
+
+                    }
                 }
 
 
@@ -310,14 +433,38 @@ namespace Outil_Azur_complet.editeur_compte
             }
         }
 
-        private void iTalk_LinkLabel10_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        private void iTalk_LinkLabel10_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) // modifier ip
         {
             try
             {
 
-                if (!iTalk_TextBox_Small10.Text.Equals(""))
+                if (!string.IsNullOrEmpty(iTalk_TextBox_Small10.Text))
                 {
-                    DatabaseManager.UpdateQuery(QueryBuilder.UpdateFromQuery(TableCompte, "lastIp", 1, iTalk_TextBox_Small10.Text, "guid", iTalk_TextBox_Small1.Text));
+                    string ip = iTalk_TextBox_Small10.Text;
+                    if(IPAddress.TryParse(ip, out IPAddress address))
+                    {
+                        string firstip = AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).lastIp;
+                        if (ip != firstip)
+                        {
+                            AccountList.ModifyAccount(AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)), AccountList.ReturnById(int.Parse(iTalk_TextBox_Small1.Text)).Account, ip, 7);
+                            
+                            if (ModifiedQuery.ContainsKey($"IpControl{iTalk_TextBox_Small1.Text}"))
+                            {
+                                ModifiedQuery.Remove($"IpControl{iTalk_TextBox_Small1.Text}");
+                                ModifiedQuery.Add($"IpControl{iTalk_TextBox_Small1.Text}", QueryBuilder.UpdateFromQuery(TableCompte, "lastIP", 1, iTalk_TextBox_Small10.Text, "guid", iTalk_TextBox_Small1.Text));
+                            }
+                            else
+                            {
+                                UpdateNotifNumber();
+                                ModifiedQuery.Add($"IpControl{iTalk_TextBox_Small1.Text}", QueryBuilder.UpdateFromQuery(TableCompte, "lastIP", 1, iTalk_TextBox_Small10.Text, "guid", iTalk_TextBox_Small1.Text));
+                            }
+                        }
+                    }
+                    else
+                    {
+                        MessageBox.Show($"Merci de vérifier le format de l'adresse ip renseignée [{ip}].", "Adresse IP incorrecte", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
                 }
 
 
@@ -339,6 +486,24 @@ namespace Outil_Azur_complet.editeur_compte
         private void iTalk_Button_15_Click(object sender, EventArgs e)
         {
             Close();
+        }
+
+        private void iTalk_Button_22_Click(object sender, EventArgs e)
+        {
+           if(ModifiedQuery.Count > 0)
+            {
+                foreach(string v in ModifiedQuery.Values)
+                {
+                    DatabaseManager.UpdateQuery(v);
+                }
+            }
+           UpdateNotifNumber(true);
+           MessageBox.Show("Modifications effectuées.", "Applications des modifications", MessageBoxButtons.OK, MessageBoxIcon.Information);
+           ModifiedQuery.Clear();
+           listBox1.Items.Clear();
+           iTalk_Label14.Text = $"{listBox1.Items.Count} comptes chargés.";
+           Thread.Sleep(10);
+           Load_editeur(InitializeForm.EMUSELECT);
         }
     }
 }

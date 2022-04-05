@@ -2,6 +2,7 @@ using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -12,69 +13,29 @@ namespace Tools_protocol.Kryone.Database
 {
 	public class AccountList
 	{
-		public static List<string> Accounts;
+		public static Dictionary<string, AccountList> AllAccount = new Dictionary<string, AccountList>();
 
 		private static string hashing;
 
-		public string Account
-		{
-			get;
-			set;
-		}
+		public string Account { get; set; }
 
-		public sbyte Banned
-		{
-			get;
-			set;
-		}
+		public sbyte Banned { get; set; }
 
-		public uint Guid
-		{
-			get;
-			set;
-		}
+		public uint Guid { get; set; }
 
-		public string lastIp
-		{
-			get;
-			set;
-		}
+		public string lastIp { get; set; }
 
-		public int Logged
-		{
-			get;
-			set;
-		}
+		public int Logged { get; set; }
 
-		public string Pass
-		{
-			get;
-			set;
-		}
+		public string Pass { get; set; }
 
-		public int Points
-		{
-			get;
-			set;
-		}
+		public int Points { get; set; }
 
-		public string Pseudo
-		{
-			get;
-			set;
-		}
+		public string Pseudo { get; set; }
 
-		public string Question
-		{
-			get;
-			set;
-		}
+		public string Question { get; set; }
 
-		public string Reponse
-		{
-			get;
-			set;
-		}
+		public string Reponse { get; set; }
 
 		public static string TableCompte
 		{
@@ -84,16 +45,9 @@ namespace Tools_protocol.Kryone.Database
 			}
 		}
 
-		public int Vip
-		{
-			get;
-			set;
-		}
+		public int Vip { get; set; }
+		public static int AccountListCount { get; set; }
 
-		static AccountList()
-		{
-			AccountList.Accounts = new List<string>();
-		}
 
 		public AccountList(IDataReader reader)
 		{
@@ -112,21 +66,24 @@ namespace Tools_protocol.Kryone.Database
 
 		public static void AllAccounts()
 		{
-			string[] args = new string[] { "guid", "account" };
+			string[] args = new string[] { "*" };
 			string query = QueryBuilder.SelectFromQuery(args, AccountList.TableCompte, "", "");
 			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
 			{
 				try
 				{
+					AccountList Ac = null;
 					connection.Open();
 					MySqlDataReader lecteur = new MySqlCommand(query, connection).ExecuteReader();
 					while (lecteur.Read())
 					{
-						AccountList.Accounts.Add(lecteur["account"].ToString());
-						if (!CharacterList.IdCompte.ContainsKey(Convert.ToInt32(lecteur["guid"])))
+					    Ac = new AccountList(lecteur);
+						AllAccount.Add(Ac.Account, Ac);
+						if (!CharacterList.IdCompte.ContainsKey((int)Ac.Guid))
 						{
-							CharacterList.IdCompte.Add(Convert.ToInt32(lecteur["guid"]), lecteur["account"].ToString());
+							CharacterList.IdCompte.Add(Convert.ToInt32(Ac.Guid), Ac.Account);
 						}
+						AccountListCount = AllAccount.Count;
 					}
 					lecteur.Close();
 					lecteur.Dispose();
@@ -177,59 +134,76 @@ namespace Tools_protocol.Kryone.Database
 			}
 			return sBuilder.ToString();
 		}
-
-		public static AccountList IdInformations(uint id)
-		{
-			string[] args = new string[] { "*" };
-			string query = QueryBuilder.SelectFromQuery(args, AccountList.TableCompte, "guid", id.ToString());
-			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
-			{
-				try
-				{
-					connection.Open();
-					AccountList comptes = null;
-					MySqlDataReader read = new MySqlCommand(query, connection).ExecuteReader();
-					while (read.Read())
-					{
-						comptes = new AccountList(read);
-					}
-					read.Close();
-					read.Dispose();
-					connection.Close();
-					connection.Dispose();
-					return comptes;
-				}
-				catch (MySqlException) { return null; }
-			}
-			
-		}
-
+		public static AccountList ReturnById(int id)
+        {
+			return AllAccount.FirstOrDefault(x => x.Value.Guid == id).Value;
+        }
 		public static AccountList Informations(string account)
 		{
-			string[] args = new string[] { "*" };
-			string query = QueryBuilder.SelectFromQuery(args, AccountList.TableCompte, "account", account);
-			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
-			{
-				try
-				{
-					connection.Open();
-					AccountList comptes = null;
-					MySqlDataReader read = new MySqlCommand(query, connection).ExecuteReader();
-					while (read.Read())
-					{
-						comptes = new AccountList(read);
-					}
-					read.Close();
-					read.Dispose();
-					connection.Close();
-					connection.Dispose();
-					return comptes;
-				}
-				catch (MySqlException) { return null; }
-			}
+			if(AllAccount.TryGetValue(account, out AccountList result))
+				return result;
+			return null;
 			
 		}
-
+		public static void ModifyAccount(AccountList acc, string key, string changed, int sw)
+        {
+            switch (sw)
+            {
+				case 1:
+					AllAccount.Remove(key);
+					acc.Account = changed;
+					AllAccount.Add(changed, acc);
+					break;
+			    case 2:
+					AllAccount.Remove(key);
+					acc.Pseudo = changed;
+					AllAccount.Add(key, acc);
+					break;
+				case 3:
+					AllAccount.Remove(key);
+					acc.Pass = changed;
+					AllAccount.Add(key, acc);
+					break;
+				case 4:
+					AllAccount.Remove(key);
+					acc.Question = changed;
+					AllAccount.Add(key, acc);
+					break;
+				case 5:
+					AllAccount.Remove(key);
+					acc.Reponse = changed;
+					AllAccount.Add(key, acc);
+					break;
+				case 6:
+					AllAccount.Remove(key);
+					acc.Points = int.Parse(changed);
+					AllAccount.Add(key, acc);
+					break;
+				case 7:
+					AllAccount.Remove(key);
+					acc.lastIp = changed;
+					AllAccount.Add(key, acc);
+					break;
+				case 8:
+					if(changed == "0")
+						changed = "1";
+					else
+						changed = "0";
+					AllAccount.Remove(key);
+					acc.Vip = int.Parse(changed);
+					AllAccount.Add(key, acc);
+					break;
+				case 9:
+					if(changed=="0")
+						changed="1";
+					else
+						changed="0";
+					AllAccount.Remove(key);
+					acc.Banned = sbyte.Parse(changed);
+					AllAccount.Add(key, acc);
+					break;
+            }
+        }
 		public static string SHA51(string input)
 		{
 			string str;
@@ -247,30 +221,6 @@ namespace Tools_protocol.Kryone.Database
 				str = hashedInputStringBuilder.ToString();
 			}
 			return str;
-		}
-
-		public static void UpdateBan(string compte, int actuel)
-		{
-			if (!actuel.Equals(1))
-			{
-				DatabaseManager.UpdateQuery(QueryBuilder.UpdateFromQuery(AccountList.TableCompte, "banned", 1, "1", "account", compte));
-			}
-			else
-			{
-				DatabaseManager.UpdateQuery(QueryBuilder.UpdateFromQuery(AccountList.TableCompte, "banned", 1, "0", "account", compte));
-			}
-		}
-
-		public static void UpdateVip(string compte, int actuel)
-		{
-			if (!actuel.Equals(1))
-			{
-				DatabaseManager.UpdateQuery(QueryBuilder.UpdateFromQuery(AccountList.TableCompte, "vip", 1, "1", "account", compte));
-			}
-			else
-			{
-				DatabaseManager.UpdateQuery(QueryBuilder.UpdateFromQuery(AccountList.TableCompte, "vip", 1, "0", "account", compte));
-			}
 		}
 	}
 }

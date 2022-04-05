@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows.Forms;
 using Tools_protocol.Json;
@@ -12,9 +13,9 @@ namespace Tools_protocol.Kryone.Database
 {
 	public class CharacterList
 	{
-		public static List<string> Nameperso = new List<string>();
+		
 
-		public static List<string> PersoAll = new List<string>();
+		public static Dictionary<string, CharacterList> PersoAll = new Dictionary<string, CharacterList>();
 
 		public static List<string> ItemsPerso = new List<string>();
 
@@ -24,221 +25,77 @@ namespace Tools_protocol.Kryone.Database
 
 		public static List<string> preinventory = new List<string>();
 
-		public int Account
-		{
-			get;
-			set;
-		}
+		public int Account { get; set; }
 
-		public int Agilite
-		{
-			get;
-			set;
-		}
+		public int Agilite { get; set; }
 
-		public int Alignement
-		{
-			get;
-			set;
-		}
+		public int Alignement { get; set; }
 
-		public int Alvl
-		{
-			get;
-			set;
-		}
+		public int Alvl { get; set; }
 
-		public int Capital
-		{
-			get;
-			set;
-		}
+		public int Capital { get; set; }
 
-		public int Cell
-		{
-			get;
-			set;
-		}
+		public int Cell { get; set; }
 
-		public int Chance
-		{
-			get;
-			set;
-		}
+		public int Chance { get; set; }
 
-		public short Class
-		{
-			get;
-			set;
-		}
+		public short Class { get; set; }
 
-		public int Color1
-		{
-			get;
-			set;
-		}
+		public int Color1 { get; set; }
 
-		public int Color2
-		{
-			get;
-			set;
-		}
+		public int Color2 { get; set; }
 
-		public int Color3
-		{
-			get;
-			set;
-		}
+		public int Color3 { get; set; }
 
-		public int Deshonor
-		{
-			get;
-			set;
-		}
+		public int Deshonor { get; set; }
 
-		public int Energy
-		{
-			get;
-			set;
-		}
+		public int Energy { get; set; }
 
-		public int Force
-		{
-			get;
-			set;
-		}
+		public int Force { get; set; }
 
-		public int Gfx
-		{
-			get;
-			set;
-		}
+		public int Gfx { get; set; }
 
-		public int Groupe
-		{
-			get;
-			set;
-		}
+		public int Groupe { get; set; }
 
-		public int Honor
-		{
-			get;
-			set;
-		}
+		public int Honor { get; set; }
 
-		public int Id
-		{
-			get;
-			set;
-		}
+		public int Id { get; set; }
 
-		public int Intelligence
-		{
-			get;
-			set;
-		}
+		public int Intelligence { get; set; }
 
-		public string Jobs
-		{
-			get;
-			set;
-		}
+		public string Jobs { get; set; }
 
-		public long Kamas
-		{
-			get;
-			set;
-		}
+		public long Kamas { get; set; }
 
-		public int Level
-		{
-			get;
-			set;
-		}
+		public int Level { get; set; }
 
-		public int Logged
-		{
-			get;
-			set;
-		}
+		public int Logged { get; set; }
 
-		public int Map
-		{
-			get;
-			set;
-		}
+		public int Map { get; set; }
 
-		public int Mount
-		{
-			get;
-			set;
-		}
+		public int Mount { get; set; }
 
-		public string Name
-		{
-			get;
-			set;
-		}
+		public string Name { get; set; }
 
-		public string Objets
-		{
-			get;
-			set;
-		}
+		public string Objets { get; set; }
 
-		public long Prison
-		{
-			get;
-			set;
-		}
+		public long Prison { get; set; }
 
-		public int Sagesse
-		{
-			get;
-			set;
-		}
+		public int Sagesse { get; set; }
 
-		public string Savepos
-		{
-			get;
-			set;
-		}
+		public string Savepos { get; set; }
 
-		public int Server
-		{
-			get;
-			set;
-		}
+		public int Server { get; set; }
 
-		public sbyte Sexe
-		{
-			get;
-			set;
-		}
+		public sbyte Sexe { get; set; }
 
-		public int Size
-		{
-			get;
-			set;
-		}
+		public int Size { get; set; }
 
-		public int Spellboost
-		{
-			get;
-			set;
-		}
+		public int Spellboost { get; set; }
 
-		public string Spells
-		{
-			get;
-			set;
-		}
+		public string Spells { get; set; }
 
-		public string StoreObjets
-		{
-			get;
-			set;
-		}
+		public string StoreObjets { get; set; }
 
 		public static string TablePerso
 		{
@@ -248,41 +105,17 @@ namespace Tools_protocol.Kryone.Database
 			}
 		}
 
-		public int Title
-		{
-			get;
-			set;
-		}
+		public int Title { get; set; }
 
-		public int Vitalite
-		{
-			get;
-			set;
-		}
+		public int Vitalite { get; set; }
 
-		public int Wife
-		{
-			get;
-			set;
-		}
+		public int Wife { get; set; }
 
-		public long Xp
-		{
-			get;
-			set;
-		}
+		public long Xp { get; set; }
 
-		public string Zaaps
-		{
-			get;
-			set;
-		}
+		public string Zaaps { get; set; }
 
-		static CharacterList()
-		{
-			
-		}
-
+		public static int PersoCount = 0;
 		public CharacterList(IDataReader reader)
 		{
 			Id = (int)reader["id"];
@@ -339,14 +172,17 @@ namespace Tools_protocol.Kryone.Database
 				{
 					connection.Open();
 					MySqlDataReader lecteur = new MySqlCommand(query, connection).ExecuteReader();
+					CharacterList CL = null;
 					while (lecteur.Read())
 					{
-						PersoAll.Add(lecteur["name"].ToString());
-						if (!IdAccount.ContainsKey(Convert.ToInt32(lecteur["id"])))
+						CL = new CharacterList(lecteur);
+						PersoAll.Add(CL.Name, CL);
+						if (!IdAccount.ContainsKey(CL.Id))
 						{
-							IdAccount.Add((int)lecteur["id"], (string)lecteur["name"]);
+							IdAccount.Add(CL.Id, CL.Name);
 						}
 					}
+					PersoCount = PersoAll.Count;
 					lecteur.Close();
 					lecteur.Dispose();
 					connection.Close();
@@ -392,29 +228,20 @@ namespace Tools_protocol.Kryone.Database
 			}
 		}
 
-		public static void Informations(string guid)
+		public static List<string> Informations(int guid)
 		{
-			string[] args = new string[] { "name" };
-			string query = QueryBuilder.SelectFromQuery(args, CharacterList.TablePerso, "account", guid);
-
-			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
-			{
-				try
+			List<string> listPerso = new List<string>();
+			listPerso.Clear();
+            try
+            {
+				foreach (CharacterList h in PersoAll.Values)
 				{
-					connection.Open();
-					MySqlDataReader read = new MySqlCommand(query, connection).ExecuteReader();
-					while (read.Read())
-					{
-						Nameperso.Add(read["name"].ToString());
-					}
-					read.Close();
-					read.Dispose();
-					connection.Close();
-					connection.Dispose();
+					if(h.Account == guid)
+						listPerso.Add(h.Name);
 				}
-				catch (MySqlException) { }
-			}
-			
+            }
+            catch { }
+			return listPerso;
 		}
 
 		public static CharacterList Listing(string name)

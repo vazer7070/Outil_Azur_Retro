@@ -32,7 +32,7 @@ namespace Outil_Azur_complet.editeur_compte
                 {
                     if(radioButton1.Checked.Equals(true) || radioButton2.Checked.Equals(true) || radioButton3.Checked.Equals(true))
                     {
-                        if (!AccountList.Accounts.Contains(iTalk_TextBox_Small1.Text))
+                        if (!AccountList.AllAccount.ContainsKey(iTalk_TextBox_Small1.Text))
                         {
                             if (radioButton1.Checked.Equals(true))
                             {
@@ -49,7 +49,7 @@ namespace Outil_Azur_complet.editeur_compte
                             try
                             {
                                 AccountList.CreateAccount(iTalk_TextBox_Small4.Text, select, iTalk_TextBox_Small3.Text, iTalk_TextBox_Small2.Text, iTalk_TextBox_Small1.Text);
-                                AccountList.Accounts.Add(iTalk_TextBox_Small1.Text);
+                               //AccountList.Accounts.Add(iTalk_TextBox_Small1.Text);
                                 MessageBox.Show($"Le compte {iTalk_TextBox_Small4.Text} a été crée avec succès.!", "Création du compte réussie", MessageBoxButtons.OK, MessageBoxIcon.Information);
                                 iTalk_TextBox_Small4.Text = "";
                                 iTalk_TextBox_Small3.Text = "";

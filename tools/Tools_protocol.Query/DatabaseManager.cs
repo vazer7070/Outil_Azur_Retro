@@ -77,6 +77,11 @@ namespace Tools_protocol.Query
 				{
 					return obj = null;
 				}
+                finally
+                {
+					connection?.Close();
+					connection?.Dispose();
+                }
 			}
 		}
 	}

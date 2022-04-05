@@ -576,8 +576,8 @@ namespace Outil_Azur_complet.editeur_items
         public void LoadStaticInventory()
         {
            
-            CharacterList.AllPerso();
-            foreach(string s in CharacterList.PersoAll)
+            
+            foreach(string s in CharacterList.PersoAll.Keys)
             {
                 listBox4.Items.Add(s);
                 list.Add(s);
@@ -646,10 +646,6 @@ namespace Outil_Azur_complet.editeur_items
             }
         }
 
-
-
-        #endregion
-
         private void listBox4_SelectedIndexChanged(object sender, EventArgs e)
         {
             List<string> str = new List<string>();
@@ -666,23 +662,23 @@ namespace Outil_Azur_complet.editeur_items
             {
                 CharacterList.GetInventory(listBox4.SelectedItem.ToString());
                 str = CharacterList.ItemsPerso;
-                if(!Persoinventory.ContainsKey(listBox4.SelectedItem.ToString()))
+                if (!Persoinventory.ContainsKey(listBox4.SelectedItem.ToString()))
                     Persoinventory.Add(listBox4.SelectedItem.ToString(), str);
                 sfListView1.DataSource = str;
                 sfListView1.Refresh();
                 str.Clear();
             }
             iTalk_Label29.Text = sfListView1.RowCount.ToString();
-            
+
 
         }
 
         private void backgroundWorker1_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-           
+
         }
 
-        
+
 
         private void sfListView1_Click(object sender, EventArgs e)
         {
@@ -691,7 +687,7 @@ namespace Outil_Azur_complet.editeur_items
 
         private void sfListView1_SelectionChanged(object sender, Syncfusion.WinForms.ListView.Events.ItemSelectionChangedEventArgs e)
         {
-            if(sfListView1.SelectedItem != null)
+            if (sfListView1.SelectedItem != null)
             {
                 GUID = Convert.ToInt32(sfListView1.SelectedItem.ToString().Split('(')[1].Split(')')[0].Trim());
                 ID = ItemList.ItemsList.FirstOrDefault(x => x.Key == GUID).Value.Template;
@@ -789,32 +785,32 @@ namespace Outil_Azur_complet.editeur_items
                 {
                     if (alrealdyIn)
                     {
-                        
-                            Items.Remove(name);
-                            Selection.Remove(name);
-                            listView1.Items.Clear();
-                            ListViewItem item = new ListViewItem(name);
-                            item.SubItems.Add(qua.ToString());
-                            item.SubItems.Add("Ajout");
-                            item.SubItems.Add(listBox4.SelectedItem.ToString());
-                            Items.Add(name, item);
+
+                        Items.Remove(name);
+                        Selection.Remove(name);
+                        listView1.Items.Clear();
+                        ListViewItem item = new ListViewItem(name);
+                        item.SubItems.Add(qua.ToString());
+                        item.SubItems.Add("Ajout");
+                        item.SubItems.Add(listBox4.SelectedItem.ToString());
+                        Items.Add(name, item);
                         SelectionClass SC = new SelectionClass
                         {
                             id = id,
                             Template = ItemTemplateList.ReturnItemId(name.Split('(')[0]).ToString(),
                             stats = ItemTemplateList.ReturnItemName(ItemTemplateList.ReturnItemId(name.Split('(')[0])).StatsTemplate,
                             name = name,
-                                action = false,
-                                Count = qua,
-                                player_name = listBox4.SelectedItem.ToString(),
-                                New = newitem
-                            };
-                            Selection.Add(name, SC);
-                            foreach (ListViewItem i in Items.Values)
-                            {
-                                listView1.Items.Add(i);
-                            }
-                        
+                            action = false,
+                            Count = qua,
+                            player_name = listBox4.SelectedItem.ToString(),
+                            New = newitem
+                        };
+                        Selection.Add(name, SC);
+                        foreach (ListViewItem i in Items.Values)
+                        {
+                            listView1.Items.Add(i);
+                        }
+
                     }
                     else
                     {
@@ -833,7 +829,7 @@ namespace Outil_Azur_complet.editeur_items
                             action = false,
                             Count = qua,
                             player_name = listBox4.SelectedItem.ToString(),
-                            New=newitem
+                            New = newitem
                         };
                         Selection.Add(name, SC);
                     }
@@ -851,11 +847,11 @@ namespace Outil_Azur_complet.editeur_items
         }
         private void iTalk_Button_12_Click(object sender, EventArgs e) // ajouter
         {
-            if(listBox5.SelectedItem != null)
+            if (listBox5.SelectedItem != null)
             {
-                if(listBox4.SelectedItem != null)
+                if (listBox4.SelectedItem != null)
                 {
-                   if(iTalk_NumericUpDown6.Value >= 1)
+                    if (iTalk_NumericUpDown6.Value >= 1)
                     {
                         if (Selection.Keys.Contains(listBox5.SelectedItem.ToString()))
                         {
@@ -941,7 +937,7 @@ namespace Outil_Azur_complet.editeur_items
                 {
                     for (int i = 0; i < sfListView1.CheckedItems.Count; i++)
                     {
-                       if(Selection.ContainsKey(sfListView1.CheckedItems[i].ToString()))
+                        if (Selection.ContainsKey(sfListView1.CheckedItems[i].ToString()))
                         {
                             string P = Selection.FirstOrDefault(x => x.Key == sfListView1.CheckedItems[i].ToString()).Value.player_name;
                             MessageBox.Show($"L'objet {sfListView1.CheckedItems[i]} du joueur {P} est déjà en attente.", "Impossible d'effectuer l'action", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -970,21 +966,21 @@ namespace Outil_Azur_complet.editeur_items
 
         private void listView1_Click(object sender, EventArgs e)
         {
-            
+
         }
 
         private void toolStripMenuItem1_Click(object sender, EventArgs e)
         {
-           selectionned = "";
+            selectionned = "";
             try
             {
-               selected = listView1.SelectedItems[0].Selected;
-               selectionned = listView1.SelectedItems[0].Text;
+                selected = listView1.SelectedItems[0].Selected;
+                selectionned = listView1.SelectedItems[0].Text;
             }
             catch
             {
                 selected = false;
-               
+
             }
             if (selected)
             {
@@ -996,7 +992,7 @@ namespace Outil_Azur_complet.editeur_items
                     listView1.Items.Add(I);
                 }
             }
-            
+
         }
 
         private void iTalk_Button_23_Click(object sender, EventArgs e) // application
@@ -1005,16 +1001,16 @@ namespace Outil_Azur_complet.editeur_items
             List<SelectionClass> SE_ADD = new List<SelectionClass>();
             List<string> ObjectBeforeDelete = new List<string>();
             Dictionary<string, string> DicoBeforeDeletequery = new Dictionary<string, string>();
-            List<string>ObjectBeforeAdd = new List<string>();
+            List<string> ObjectBeforeAdd = new List<string>();
             Dictionary<string, string> DicoBeforeAddquery = new Dictionary<string, string>();
             Dictionary<string, int> ItemAndQuaDelete = new Dictionary<string, int>();
             Dictionary<string, int> ItemAndQuaADD = new Dictionary<string, int>();
 
             if (Selection.Count > 0)
             {
-                foreach(SelectionClass S in Selection.Values)
+                foreach (SelectionClass S in Selection.Values)
                 {
-                    if(S.action == true)
+                    if (S.action == true)
                     {
                         SE_delete.Add(S);
                     }
@@ -1023,7 +1019,7 @@ namespace Outil_Azur_complet.editeur_items
                         SE_ADD.Add(S);
                     }
                 }
-                if(SE_delete.Count > 0)
+                if (SE_delete.Count > 0)
                 {
                     foreach (SelectionClass SE in SE_delete)
                     {
@@ -1060,7 +1056,7 @@ namespace Outil_Azur_complet.editeur_items
                                     {
                                         ObjectBeforeDelete.Add(o);
                                     }
-                                    
+
                                 }
                                 if (!SE.New)
                                 {
@@ -1072,24 +1068,25 @@ namespace Outil_Azur_complet.editeur_items
                             }
                         }
 
-                    } ObjectBeforeDelete.Clear();
+                    }
+                    ObjectBeforeDelete.Clear();
                 }
 
             }
-                if(SE_ADD.Count > 0)
+            if (SE_ADD.Count > 0)
+            {
+                foreach (SelectionClass SE in SE_ADD)
                 {
-                    foreach (SelectionClass SE in SE_ADD)
+                    if (DicoBeforeAddquery.ContainsKey(SE.player_name))
                     {
-                        if (DicoBeforeAddquery.ContainsKey(SE.player_name))
+                        string inv = DicoBeforeAddquery[SE.player_name];
+                        foreach (string b in inv.Split('|'))
                         {
-                            string inv = DicoBeforeAddquery[SE.player_name];
-                            foreach(string b in inv.Split('|'))
+                            if (!string.IsNullOrEmpty(b))
                             {
-                                if (!string.IsNullOrEmpty(b))
-                                {
-                                    ObjectBeforeAdd.Add(b);
-                                }
+                                ObjectBeforeAdd.Add(b);
                             }
+                        }
                         if (SE.New)
                         {
                             ObjectBeforeAdd.Add(SE.name.Split('(')[1].Split(')')[0]);
@@ -1099,37 +1096,37 @@ namespace Outil_Azur_complet.editeur_items
                         {
                             ItemAndQuaADD.Add($"{SE.name.Split('(')[1].Split(')')[0]}", SE.Count);
                         }
-                            DicoBeforeAddquery.Remove(SE.player_name);
-                            DicoBeforeAddquery.Add(SE.player_name, string.Join("|", ObjectBeforeAdd));
-                        }
-                        else
+                        DicoBeforeAddquery.Remove(SE.player_name);
+                        DicoBeforeAddquery.Add(SE.player_name, string.Join("|", ObjectBeforeAdd));
+                    }
+                    else
+                    {
+                        string U = CharacterList.GetObjectFromInventory(SE.player_name);
+                        if (U != null)
                         {
-                            string U = CharacterList.GetObjectFromInventory(SE.player_name);
-                            if (U != null)
+                            foreach (string o in U.Split('|'))
                             {
-                                foreach (string o in U.Split('|'))
+                                if (!string.IsNullOrEmpty(o))
                                 {
-                                    if (!string.IsNullOrEmpty(o))
-                                    {
-                                        ObjectBeforeAdd.Add(o);
-                                    }
+                                    ObjectBeforeAdd.Add(o);
                                 }
-                            if(SE.New)
-                                {
+                            }
+                            if (SE.New)
+                            {
                                 ObjectBeforeAdd.Add(SE.name.Split('(')[1].Split(')')[0]);
                                 ItemAndQuaADD.Add($"{SE.name.Split('(')[1].Split(')')[0]}@{SE.Template}@{SE.stats}", SE.Count);
                             }
-                                else
+                            else
                             {
                                 ItemAndQuaADD.Add($"{SE.name.Split('(')[1].Split(')')[0]}", SE.Count);
                             }
                             ItemAndQuaADD.Add(SE.name.Split('(')[1].Split(')')[0], SE.Count);
-                                DicoBeforeAddquery.Add(SE.player_name, string.Join("|", ObjectBeforeAdd));
-                            }
+                            DicoBeforeAddquery.Add(SE.player_name, string.Join("|", ObjectBeforeAdd));
                         }
-                        ObjectBeforeAdd.Clear();
                     }
+                    ObjectBeforeAdd.Clear();
                 }
+            }
             try
             {
                 if (DicoBeforeDeletequery.Count > 0)
@@ -1170,12 +1167,13 @@ namespace Outil_Azur_complet.editeur_items
                 }
                 MessageBox.Show("Les modifications ont été effectuées.", "Modifications réussies", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-            }catch(Exception ex)
+            }
+            catch (Exception ex)
             {
                 MessageBox.Show(ex.Message);
                 return;
             }
-            
+
 
             Selection.Clear();
             Items.Clear();
@@ -1205,8 +1203,8 @@ namespace Outil_Azur_complet.editeur_items
                 selected = false;
 
             }
-            
-            
+
+
         }
 
         private void ajouterX1ToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1228,7 +1226,7 @@ namespace Outil_Azur_complet.editeur_items
         }
         private void UpdateViaContextMenu(int qua, bool remove, string already = null)
         {
-            if(already != null)
+            if (already != null)
                 selectionned = already;
 
             string IDitem = Selection.FirstOrDefault(x => x.Key == selectionned).Value.id;
@@ -1243,7 +1241,7 @@ namespace Outil_Azur_complet.editeur_items
             int ItemQua = 0;
             if (ItemList.ItemsList.ContainsKey(Convert.ToInt32(GUID)))
             {
-                 ItemQua = ItemList.ItemsList.FirstOrDefault(x => x.Key == Convert.ToInt32(GUID)).Value.Qua;
+                ItemQua = ItemList.ItemsList.FirstOrDefault(x => x.Key == Convert.ToInt32(GUID)).Value.Qua;
             }
             else
             {
@@ -1360,7 +1358,7 @@ namespace Outil_Azur_complet.editeur_items
         {
             bool AC = Selection.FirstOrDefault(x => x.Key == selectionned).Value.action;
             bool IsNew = Selection.FirstOrDefault(x => x.Key == selectionned).Value.New;
-            if(AC == false && IsNew == true)
+            if (AC == false && IsNew == true)
             {
                 listView1.Items.Clear();
                 Selection.Remove(selectionned);
@@ -1405,6 +1403,11 @@ namespace Outil_Azur_complet.editeur_items
                 }
             }
         }
+
+
+
+        #endregion
+
     }
 }
 

@@ -59,13 +59,9 @@ namespace Outil_Azur_complet.editeur_perso
 
         private void editeur_perso_Load(object sender, EventArgs e)
         {
-       
-         CharacterList.PersoAll.Clear();
-          CharacterList.AllPerso();
-          AccountList.Accounts.Clear();
-         AccountList.AllAccounts();
-           GroupesList.groupe();
-           foreach(string name in CharacterList.PersoAll)
+
+         GroupesList.groupe();
+           foreach(string name in CharacterList.PersoAll.Keys)
             {
               listBox1.Items.Add(name);
           }
