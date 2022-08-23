@@ -151,6 +151,9 @@ namespace Outil_Azur_complet.editeur_compte
             DatabaseManager.UpdateQuery(QueryBuilder.DeleteFromQuery(TablePerso, "account", iTalk_TextBox_Small1.Text));
             MessageBox.Show($"Le compte {iTalk_TextBox_Small2.Text} a bien été supprimé", "Action réussie", MessageBoxButtons.OK, MessageBoxIcon.Information);
             listBox1.Items.Remove(listBox1.SelectedItem.ToString());
+            AccountList.AllAccount.Remove(iTalk_TextBox_Small2.Text);
+            foreach (string i in iTalk_ComboBox1.Items)
+                CharacterList.PersoAll.Remove(i);
             iTalk_TextBox_Small1.Text = "";
             iTalk_TextBox_Small2.Text = "";
             iTalk_TextBox_Small3.Text = "";
@@ -162,6 +165,7 @@ namespace Outil_Azur_complet.editeur_compte
             iTalk_TextBox_Small10.Text = "";
             iTalk_TextBox_Small11.Text = "";
             iTalk_Label14.Text = $"{listBox1.Items.Count} comptes chargés.";
+            
 
         }
         private void UpdateNotifNumber(bool erase = false)
@@ -480,7 +484,8 @@ namespace Outil_Azur_complet.editeur_compte
         private void iTalk_Button_14_Click_1(object sender, EventArgs e)
         {
             CreateForm CF = new CreateForm();
-            CF.ShowDialog();
+            if (CF.ShowDialog() == DialogResult.OK)
+                Load_editeur(EmuManager.EMUSELECTED);
         }
 
         private void iTalk_Button_15_Click(object sender, EventArgs e)

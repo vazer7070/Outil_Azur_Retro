@@ -48,16 +48,25 @@ namespace Outil_Azur_complet.editeur_compte
                             }
                             try
                             {
-                                AccountList.CreateAccount(iTalk_TextBox_Small4.Text, select, iTalk_TextBox_Small3.Text, iTalk_TextBox_Small2.Text, iTalk_TextBox_Small1.Text);
-                               //AccountList.Accounts.Add(iTalk_TextBox_Small1.Text);
-                                MessageBox.Show($"Le compte {iTalk_TextBox_Small4.Text} a été crée avec succès.!", "Création du compte réussie", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                                iTalk_TextBox_Small4.Text = "";
-                                iTalk_TextBox_Small3.Text = "";
-                                iTalk_TextBox_Small2.Text = "";
-                                iTalk_TextBox_Small1.Text = "";
-                                radioButton1.Checked = false;
-                                radioButton2.Checked = false;
-                                radioButton3.Checked = false;
+                                if (!AccountList.AllAccount.ContainsKey(iTalk_TextBox_Small1.Text))
+                                {
+                                    AccountList.CreateAccount(iTalk_TextBox_Small4.Text, select, iTalk_TextBox_Small3.Text, iTalk_TextBox_Small2.Text, iTalk_TextBox_Small1.Text);
+                                    MessageBox.Show($"Le compte {iTalk_TextBox_Small4.Text} a été crée avec succès.!", "Création du compte réussie", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                    iTalk_TextBox_Small4.Text = "";
+                                    iTalk_TextBox_Small3.Text = "";
+                                    iTalk_TextBox_Small2.Text = "";
+                                    iTalk_TextBox_Small1.Text = "";
+                                    radioButton1.Checked = false;
+                                    radioButton2.Checked = false;
+                                    radioButton3.Checked = false;
+                                    DialogResult = DialogResult.OK;
+                                }
+                                else
+                                {
+                                    MessageBox.Show($"Le compte {iTalk_TextBox_Small4.Text} existe déjà, merci de changer les informations.", "Création impossible", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+                                    return;
+                                }
+
                             }
                             catch(Exception u)
                             {

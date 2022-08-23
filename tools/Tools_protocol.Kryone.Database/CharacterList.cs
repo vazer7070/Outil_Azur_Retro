@@ -195,21 +195,22 @@ namespace Tools_protocol.Kryone.Database
 
 		public static void GetInventory(string perso)
 		{
+			preinventory.Clear();
+			ItemsPerso.Clear();
 			foreach(string item in Listing(perso).Objets.Split('|'))
             {
-				if(!string.IsNullOrWhiteSpace(item))
+				if (!string.IsNullOrWhiteSpace(item))
                     preinventory.Add(item);
             }	
 			foreach(string i in preinventory)
             {
 				int h = Convert.ToInt32(i);
-				if (ItemList.ItemsId.ContainsKey(h))
+				if (ItemList.ItemsList.ContainsKey(h))
                 {
-					if(ItemList.ItemsId.TryGetValue(h, out int y))
-					{
-						ItemsPerso.Add($"{ItemTemplateList.GetItem(y, 1)} ({h})");
-					}
-                }
+					int n = ItemList.ItemsList.FirstOrDefault( x => x.Key == h).Value.Template;
+					string name = ItemTemplateList.GetItem(n, 1);
+				   ItemsPerso.Add($"{name} ({h}) x{ItemList.ItemsList.FirstOrDefault(x => x.Key == h).Value.Qua}");
+				}
 			}
 
 
@@ -246,28 +247,13 @@ namespace Tools_protocol.Kryone.Database
 
 		public static CharacterList Listing(string name)
 		{
-			string[] args = new string[] { "*" };
-			string query = QueryBuilder.SelectFromQuery(args, CharacterList.TablePerso, "name", name);
-
-			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
-			{
+			
 				try
 				{
-					connection.Open();
-					CharacterList données = null;
-					MySqlDataReader info = new MySqlCommand(query, connection).ExecuteReader();
-					while (info.Read())
-					{
-						données = new CharacterList(info);
-					}
-					info.Close();
-					info.Dispose();
-					connection.Close();
-					connection.Dispose();
-					return données;
+					return CharacterList.PersoAll[name];
 				}
 				catch (MySqlException) { return null; }
-			}
+			
 			
 		}
 	}

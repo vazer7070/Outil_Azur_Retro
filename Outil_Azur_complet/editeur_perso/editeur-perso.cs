@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
 using Tools_protocol.Kryone.Database;
@@ -59,12 +60,16 @@ namespace Outil_Azur_complet.editeur_perso
 
         private void editeur_perso_Load(object sender, EventArgs e)
         {
-
-         GroupesList.groupe();
-           foreach(string name in CharacterList.PersoAll.Keys)
+            LoadList();
+        }
+        private void LoadList(bool erase = false)
+        {
+            if (erase)
+                listBox1.Items.Clear();
+            foreach (string name in CharacterList.PersoAll.Keys)
             {
-              listBox1.Items.Add(name);
-          }
+                listBox1.Items.Add(name);
+            }
             foreach (String str in listBox1.Items)
             {
                 list.Add(str.ToLower());
@@ -77,64 +82,63 @@ namespace Outil_Azur_complet.editeur_perso
             iTalk_TextBox_Small3.Enabled = false;
             iTalk_Label1.Text = $"Nombre de personnages: {listBox1.Items.Count}";
         }
-
         private void listBox1_SelectedIndexChanged(object sender, EventArgs e)
+        {
+
+            ChargeEditor(listBox1.SelectedItem.ToString());
+        }
+        private void ChargeEditor(string name)
         {
             iTalk_ComboBox1.Items.Clear();
             iTalk_ComboBox2.Items.Clear();
             iTalk_ComboBox3.Items.Clear();
             ItemList.ItemsId.Clear();
-            iTalk_TextBox_Small4.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Id.ToString();
-            iTalk_TextBox_Small5.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Name;
-            iTalk_TextBox_Small8.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Level.ToString();
-            iTalk_TextBox_Small9.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Xp.ToString();
-            iTalk_TextBox_Small12.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Kamas.ToString();
-            iTalk_TextBox_Small13.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Capital.ToString();
-            iTalk_TextBox_Small14.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Energy.ToString();
-            iTalk_TextBox_Small17.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Size.ToString();
-            iTalk_TextBox_Small18.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Map.ToString();
-            iTalk_TextBox_Small19.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Cell.ToString();
-            iTalk_TextBox_Small20.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Savepos;
-            iTalk_TextBox_Small21.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Deshonor.ToString();
-            iTalk_TextBox_Small22.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Honor.ToString();
-            iTalk_TextBox_Small27.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Intelligence.ToString();
-            iTalk_TextBox_Small28.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Chance.ToString();
-            iTalk_TextBox_Small29.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Agilite.ToString();
-            iTalk_TextBox_Small30.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Sagesse.ToString();
-            iTalk_TextBox_Small31.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Force.ToString();
-            iTalk_TextBox_Small32.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Vitalite.ToString();
-            iTalk_TextBox_Small25.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Gfx.ToString();
-            iTalk_TextBox_Small2.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Color1.ToString();
-            iTalk_TextBox_Small1.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Color2.ToString();
-            iTalk_TextBox_Small3.Text = CharacterList.Listing(listBox1.SelectedItem.ToString()).Color3.ToString();
-            iTalk_TextBox_Small11.Text = PersoClasse(CharacterList.Listing(listBox1.SelectedItem.ToString()).Class);
-            iTalk_TextBox_Small10.Text = SexePerso(CharacterList.Listing(listBox1.SelectedItem.ToString()).Sexe);
-            iTalk_TextBox_Small24.Text = AlignPerso(CharacterList.Listing(listBox1.SelectedItem.ToString()).Alignement);
-            iTalk_TextBox_Small16.Text = PrisonPerso(CharacterList.Listing(listBox1.SelectedItem.ToString()).Prison);
-            iTalk_Label35.Text = ConnectPerso(CharacterList.Listing(listBox1.SelectedItem.ToString()).Logged);
-            iTalk_TextBox_Small23.Text = Wife(CharacterList.Listing(listBox1.SelectedItem.ToString()).Wife);
-            iTalk_TextBox_Small6.Text = OwnerP(CharacterList.Listing(listBox1.SelectedItem.ToString()).Account);
-            iTalk_TextBox_Small7.Text = Grades(CharacterList.Listing(listBox1.SelectedItem.ToString()).Groupe);
-            CharacterList.GetInventory(listBox1.SelectedItem.ToString());
-            CharacterList.GetSpells(listBox1.SelectedItem.ToString());
-            backgroundWorker1.RunWorkerAsync();
-            #region paramètre
-            Properties.Settings.Default.EP_name = iTalk_TextBox_Small5.Text;
-
-            #endregion
-
+            iTalk_TextBox_Small4.Text = CharacterList.Listing(name).Id.ToString();
+            iTalk_TextBox_Small5.Text = CharacterList.Listing(name).Name;
+            iTalk_TextBox_Small8.Text = CharacterList.Listing(name).Level.ToString();
+            iTalk_TextBox_Small9.Text = CharacterList.Listing(name).Xp.ToString();
+            iTalk_TextBox_Small12.Text = CharacterList.Listing(name).Kamas.ToString();
+            iTalk_TextBox_Small13.Text = CharacterList.Listing(name).Capital.ToString();
+            iTalk_TextBox_Small14.Text = CharacterList.Listing(name).Energy.ToString();
+            iTalk_TextBox_Small17.Text = CharacterList.Listing(name).Size.ToString();
+            iTalk_TextBox_Small18.Text = CharacterList.Listing(name).Map.ToString();
+            iTalk_TextBox_Small19.Text = CharacterList.Listing(name).Cell.ToString();
+            iTalk_TextBox_Small20.Text = CharacterList.Listing(name).Savepos;
+            iTalk_TextBox_Small21.Text = CharacterList.Listing(name).Deshonor.ToString();
+            iTalk_TextBox_Small22.Text = CharacterList.Listing(name).Honor.ToString();
+            iTalk_TextBox_Small27.Text = CharacterList.Listing(name).Intelligence.ToString();
+            iTalk_TextBox_Small28.Text = CharacterList.Listing(name).Chance.ToString();
+            iTalk_TextBox_Small29.Text = CharacterList.Listing(name).Agilite.ToString();
+            iTalk_TextBox_Small30.Text = CharacterList.Listing(name).Sagesse.ToString();
+            iTalk_TextBox_Small31.Text = CharacterList.Listing(name).Force.ToString();
+            iTalk_TextBox_Small32.Text = CharacterList.Listing(name).Vitalite.ToString();
+            iTalk_TextBox_Small25.Text = CharacterList.Listing(name).Gfx.ToString();
+            iTalk_TextBox_Small2.Text = CharacterList.Listing(name).Color1.ToString();
+            iTalk_TextBox_Small1.Text = CharacterList.Listing(name).Color2.ToString();
+            iTalk_TextBox_Small3.Text = CharacterList.Listing(name).Color3.ToString();
+            iTalk_TextBox_Small11.Text = PersoClasse(CharacterList.Listing(name).Class);
+            iTalk_TextBox_Small10.Text = SexePerso(CharacterList.Listing(name).Sexe);
+            iTalk_TextBox_Small24.Text = AlignPerso(CharacterList.Listing(name).Alignement);
+            iTalk_TextBox_Small16.Text = PrisonPerso(CharacterList.Listing(name).Prison);
+            iTalk_Label35.Text = ConnectPerso(CharacterList.Listing(name).Logged);
+            iTalk_TextBox_Small23.Text = Wife(CharacterList.Listing(name).Wife);
+            iTalk_TextBox_Small6.Text = OwnerP(CharacterList.Listing(name).Account);
+            iTalk_TextBox_Small7.Text = Grades(CharacterList.Listing(name).Groupe);
+            CharacterList.GetSpells(name);
+            Action_editeur(name);
         }
-        private void Action_editeur()
+        private void Action_editeur(string name)
         {
-           /* foreach(int id in ItemList.ItemsId)
+            CharacterList.GetInventory(name);
+            foreach (string h in CharacterList.ItemsPerso)
             {
-                iTalk_ComboBox1.Items.Add(ItemTemplateList.GetItem(id, 1));
-            }*/
+                iTalk_ComboBox1.Items.Add(h);
+            }
             foreach(string S in SpellsList.SpellsShow)
             {
                 iTalk_ComboBox2.Items.Add(S);
             }
-            string T = JobsList.LookJobs(listBox1.SelectedItem.ToString());
+            string T = JobsList.LookJobs(name);
             if(T != null)
              {
                 if (T.Contains(";"))
@@ -315,24 +319,26 @@ namespace Outil_Azur_complet.editeur_perso
 
         }
 
-        private void iTalk_LinkLabel5_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        private void iTalk_LinkLabel5_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) //nom
         {
-            iTalk_TextBox_Small5.Text = ModifyManager.ModifyAccepted("name", 9, "name", iTalk_TextBox_Small5.Text, iTalk_TextBox_Small4.Text);
+            bool canModify = ModifyManager.ModifyAccepted(1, iTalk_TextBox_Small4.Text, CharacterList.PersoAll.FirstOrDefault(x => x.Key == listBox1.SelectedItem.ToString()).Key, iTalk_TextBox_Small5.Text);
+            if (canModify)
+            {
+                LoadList();
+                ChargeEditor(iTalk_TextBox_Small5.Text);
+                iTalk_TextBox_Small5.Text = CharacterList.PersoAll.FirstOrDefault(x => x.Value.Id == Convert.ToInt32(iTalk_TextBox_Small4.Text)).Value.Name;
+                iTalk_NotificationNumber1.Value = ModifyManager.QueryCount;
+            }
+            else
+            {
+                MessageBox.Show($"Impossible de modifier le personnage {iTalk_TextBox_Small5.Text}, assurez-vous de pouvoir le faire.", "Modification impossible", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+                return;
+            }
         }
 
         private void iTalk_LinkLabel6_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
 
-        }
-
-        private void backgroundWorker1_DoWork(object sender, DoWorkEventArgs e)
-        {
-
-        }
-
-        private void backgroundWorker1_RunWorkerCompleted_1(object sender, RunWorkerCompletedEventArgs e)
-        {
-            Action_editeur();
         }
     }
 }

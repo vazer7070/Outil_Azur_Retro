@@ -21,6 +21,7 @@ namespace Tool_BotProtocol.Config
 		public static string AUTHPORT => SearchConfig("authport");
 		public static string GAMEPORT => SearchConfig("gameport");
 		public static string VERSION => SearchConfig("version");
+		public static bool BYPASS = false;
 		public static void InitializeConfig()
         {
             if (!File.Exists(COnfigPath))

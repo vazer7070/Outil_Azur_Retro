@@ -100,7 +100,10 @@ namespace Tools_protocol.Kryone.Database
 
 		public static string Name_Jobs(string id)
 		{
-			return AllJobs[Convert.ToInt32(id)].Name;
+			if(AllJobs[Convert.ToInt32(id)] != null)
+			   return AllJobs[Convert.ToInt32(id)].Name;
+			else
+				return null;
 		}
 	}
 }

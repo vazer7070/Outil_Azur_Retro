@@ -31,8 +31,10 @@ namespace Outil_Azur_complet.editeur_perso
         private void InitializeComponent()
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(editeur_perso));
-            this.backgroundWorker1 = new System.ComponentModel.BackgroundWorker();
             this.iTalk_ThemeContainer1 = new iTalk.iTalk_ThemeContainer();
+            this.iTalk_NotificationNumber1 = new iTalk.iTalk_NotificationNumber();
+            this.iTalk_Label34 = new iTalk.iTalk_Label();
+            this.iTalk_Button_31 = new iTalk.iTalk_Button_3();
             this.iTalk_Label35 = new iTalk.iTalk_Label();
             this.iTalk_Button_23 = new iTalk.iTalk_Button_2();
             this.iTalk_Button_22 = new iTalk.iTalk_Button_2();
@@ -138,14 +140,12 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_ThemeContainer1.SuspendLayout();
             this.SuspendLayout();
             // 
-            // backgroundWorker1
-            // 
-            this.backgroundWorker1.DoWork += new System.ComponentModel.DoWorkEventHandler(this.backgroundWorker1_DoWork);
-            this.backgroundWorker1.RunWorkerCompleted += new System.ComponentModel.RunWorkerCompletedEventHandler(this.backgroundWorker1_RunWorkerCompleted_1);
-            // 
             // iTalk_ThemeContainer1
             // 
             this.iTalk_ThemeContainer1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(246)))), ((int)(((byte)(246)))), ((int)(((byte)(246)))));
+            this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_NotificationNumber1);
+            this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_Label34);
+            this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_Button_31);
             this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_Label35);
             this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_Button_23);
             this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_Button_22);
@@ -263,6 +263,42 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_ThemeContainer1.Text = " ";
             this.iTalk_ThemeContainer1.Click += new System.EventHandler(this.iTalk_ThemeContainer1_Click);
             // 
+            // iTalk_NotificationNumber1
+            // 
+            this.iTalk_NotificationNumber1.Location = new System.Drawing.Point(1149, 438);
+            this.iTalk_NotificationNumber1.Maximum = 99;
+            this.iTalk_NotificationNumber1.Name = "iTalk_NotificationNumber1";
+            this.iTalk_NotificationNumber1.Size = new System.Drawing.Size(20, 20);
+            this.iTalk_NotificationNumber1.TabIndex = 16;
+            this.iTalk_NotificationNumber1.Text = "iTalk_NotificationNumber1";
+            this.iTalk_NotificationNumber1.Value = 0;
+            // 
+            // iTalk_Label34
+            // 
+            this.iTalk_Label34.AutoSize = true;
+            this.iTalk_Label34.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label34.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label34.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label34.Location = new System.Drawing.Point(1014, 440);
+            this.iTalk_Label34.Name = "iTalk_Label34";
+            this.iTalk_Label34.Size = new System.Drawing.Size(128, 13);
+            this.iTalk_Label34.TabIndex = 15;
+            this.iTalk_Label34.Text = "Modifications en cours:";
+            // 
+            // iTalk_Button_31
+            // 
+            this.iTalk_Button_31.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Button_31.Font = new System.Drawing.Font("Segoe UI", 14F);
+            this.iTalk_Button_31.ForeColor = System.Drawing.Color.Black;
+            this.iTalk_Button_31.Image = null;
+            this.iTalk_Button_31.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.iTalk_Button_31.Location = new System.Drawing.Point(977, 466);
+            this.iTalk_Button_31.Name = "iTalk_Button_31";
+            this.iTalk_Button_31.Size = new System.Drawing.Size(236, 40);
+            this.iTalk_Button_31.TabIndex = 14;
+            this.iTalk_Button_31.Text = "Appliquer";
+            this.iTalk_Button_31.TextAlignment = System.Drawing.StringAlignment.Center;
+            // 
             // iTalk_Label35
             // 
             this.iTalk_Label35.AutoSize = true;
@@ -282,7 +318,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_Button_23.ForeColor = System.Drawing.Color.White;
             this.iTalk_Button_23.Image = null;
             this.iTalk_Button_23.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.iTalk_Button_23.Location = new System.Drawing.Point(971, 257);
+            this.iTalk_Button_23.Location = new System.Drawing.Point(971, 243);
             this.iTalk_Button_23.Name = "iTalk_Button_23";
             this.iTalk_Button_23.Size = new System.Drawing.Size(244, 28);
             this.iTalk_Button_23.TabIndex = 12;
@@ -297,7 +333,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_Button_22.ForeColor = System.Drawing.Color.White;
             this.iTalk_Button_22.Image = null;
             this.iTalk_Button_22.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.iTalk_Button_22.Location = new System.Drawing.Point(971, 192);
+            this.iTalk_Button_22.Location = new System.Drawing.Point(971, 178);
             this.iTalk_Button_22.Name = "iTalk_Button_22";
             this.iTalk_Button_22.Size = new System.Drawing.Size(245, 29);
             this.iTalk_Button_22.TabIndex = 11;
@@ -311,13 +347,13 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_Button_21.ForeColor = System.Drawing.Color.White;
             this.iTalk_Button_21.Image = null;
             this.iTalk_Button_21.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.iTalk_Button_21.Location = new System.Drawing.Point(971, 127);
+            this.iTalk_Button_21.Location = new System.Drawing.Point(971, 113);
             this.iTalk_Button_21.Name = "iTalk_Button_21";
             this.iTalk_Button_21.Size = new System.Drawing.Size(245, 29);
             this.iTalk_Button_21.TabIndex = 10;
             this.iTalk_Button_21.Text = "Éditeur d\'items";
             this.iTalk_Button_21.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_21.Click += new System.EventHandler(iTalk_Button_21_Click);
+            this.iTalk_Button_21.Click += new System.EventHandler(this.iTalk_Button_21_Click);
             // 
             // iTalk_Button_12
             // 
@@ -325,7 +361,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_Button_12.Font = new System.Drawing.Font("Segoe UI", 12F);
             this.iTalk_Button_12.Image = null;
             this.iTalk_Button_12.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.iTalk_Button_12.Location = new System.Drawing.Point(974, 403);
+            this.iTalk_Button_12.Location = new System.Drawing.Point(974, 385);
             this.iTalk_Button_12.Name = "iTalk_Button_12";
             this.iTalk_Button_12.Size = new System.Drawing.Size(239, 45);
             this.iTalk_Button_12.TabIndex = 9;
@@ -339,7 +375,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_Button_11.Font = new System.Drawing.Font("Segoe UI", 12F);
             this.iTalk_Button_11.Image = null;
             this.iTalk_Button_11.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.iTalk_Button_11.Location = new System.Drawing.Point(974, 351);
+            this.iTalk_Button_11.Location = new System.Drawing.Point(974, 333);
             this.iTalk_Button_11.Name = "iTalk_Button_11";
             this.iTalk_Button_11.Size = new System.Drawing.Size(239, 45);
             this.iTalk_Button_11.TabIndex = 9;
@@ -746,7 +782,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_ComboBox3.HoverSelectionColor = System.Drawing.Color.FromArgb(((int)(((byte)(241)))), ((int)(((byte)(241)))), ((int)(((byte)(241)))));
             this.iTalk_ComboBox3.IntegralHeight = false;
             this.iTalk_ComboBox3.ItemHeight = 20;
-            this.iTalk_ComboBox3.Location = new System.Drawing.Point(971, 228);
+            this.iTalk_ComboBox3.Location = new System.Drawing.Point(971, 214);
             this.iTalk_ComboBox3.Name = "iTalk_ComboBox3";
             this.iTalk_ComboBox3.Size = new System.Drawing.Size(245, 26);
             this.iTalk_ComboBox3.StartIndex = 0;
@@ -764,7 +800,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_ComboBox2.HoverSelectionColor = System.Drawing.Color.FromArgb(((int)(((byte)(241)))), ((int)(((byte)(241)))), ((int)(((byte)(241)))));
             this.iTalk_ComboBox2.IntegralHeight = false;
             this.iTalk_ComboBox2.ItemHeight = 20;
-            this.iTalk_ComboBox2.Location = new System.Drawing.Point(971, 161);
+            this.iTalk_ComboBox2.Location = new System.Drawing.Point(971, 147);
             this.iTalk_ComboBox2.Name = "iTalk_ComboBox2";
             this.iTalk_ComboBox2.Size = new System.Drawing.Size(245, 26);
             this.iTalk_ComboBox2.StartIndex = 0;
@@ -782,7 +818,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_ComboBox1.HoverSelectionColor = System.Drawing.Color.FromArgb(((int)(((byte)(241)))), ((int)(((byte)(241)))), ((int)(((byte)(241)))));
             this.iTalk_ComboBox1.IntegralHeight = false;
             this.iTalk_ComboBox1.ItemHeight = 20;
-            this.iTalk_ComboBox1.Location = new System.Drawing.Point(971, 97);
+            this.iTalk_ComboBox1.Location = new System.Drawing.Point(971, 83);
             this.iTalk_ComboBox1.Name = "iTalk_ComboBox1";
             this.iTalk_ComboBox1.Size = new System.Drawing.Size(245, 26);
             this.iTalk_ComboBox1.StartIndex = 0;
@@ -793,11 +829,11 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_TextBox_Small3.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_TextBox_Small3.Font = new System.Drawing.Font("Tahoma", 11F);
             this.iTalk_TextBox_Small3.ForeColor = System.Drawing.Color.DimGray;
-            this.iTalk_TextBox_Small3.Location = new System.Drawing.Point(1148, 312);
+            this.iTalk_TextBox_Small3.Location = new System.Drawing.Point(1148, 294);
             this.iTalk_TextBox_Small3.MaxLength = 32767;
             this.iTalk_TextBox_Small3.Multiline = false;
             this.iTalk_TextBox_Small3.Name = "iTalk_TextBox_Small3";
-            this.iTalk_TextBox_Small3.ReadOnly = false;
+            this.iTalk_TextBox_Small3.ReadOnly = true;
             this.iTalk_TextBox_Small3.Size = new System.Drawing.Size(84, 28);
             this.iTalk_TextBox_Small3.TabIndex = 5;
             this.iTalk_TextBox_Small3.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
@@ -808,11 +844,11 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_TextBox_Small1.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_TextBox_Small1.Font = new System.Drawing.Font("Tahoma", 11F);
             this.iTalk_TextBox_Small1.ForeColor = System.Drawing.Color.DimGray;
-            this.iTalk_TextBox_Small1.Location = new System.Drawing.Point(1048, 313);
+            this.iTalk_TextBox_Small1.Location = new System.Drawing.Point(1048, 295);
             this.iTalk_TextBox_Small1.MaxLength = 32767;
             this.iTalk_TextBox_Small1.Multiline = false;
             this.iTalk_TextBox_Small1.Name = "iTalk_TextBox_Small1";
-            this.iTalk_TextBox_Small1.ReadOnly = false;
+            this.iTalk_TextBox_Small1.ReadOnly = true;
             this.iTalk_TextBox_Small1.Size = new System.Drawing.Size(84, 28);
             this.iTalk_TextBox_Small1.TabIndex = 5;
             this.iTalk_TextBox_Small1.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
@@ -842,7 +878,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_TextBox_Small16.MaxLength = 32767;
             this.iTalk_TextBox_Small16.Multiline = false;
             this.iTalk_TextBox_Small16.Name = "iTalk_TextBox_Small16";
-            this.iTalk_TextBox_Small16.ReadOnly = false;
+            this.iTalk_TextBox_Small16.ReadOnly = true;
             this.iTalk_TextBox_Small16.Size = new System.Drawing.Size(181, 28);
             this.iTalk_TextBox_Small16.TabIndex = 5;
             this.iTalk_TextBox_Small16.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
@@ -1128,7 +1164,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_TextBox_Small20.MaxLength = 32767;
             this.iTalk_TextBox_Small20.Multiline = false;
             this.iTalk_TextBox_Small20.Name = "iTalk_TextBox_Small20";
-            this.iTalk_TextBox_Small20.ReadOnly = false;
+            this.iTalk_TextBox_Small20.ReadOnly = true;
             this.iTalk_TextBox_Small20.Size = new System.Drawing.Size(179, 28);
             this.iTalk_TextBox_Small20.TabIndex = 5;
             this.iTalk_TextBox_Small20.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
@@ -1218,7 +1254,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_TextBox_Small4.MaxLength = 32767;
             this.iTalk_TextBox_Small4.Multiline = false;
             this.iTalk_TextBox_Small4.Name = "iTalk_TextBox_Small4";
-            this.iTalk_TextBox_Small4.ReadOnly = false;
+            this.iTalk_TextBox_Small4.ReadOnly = true;
             this.iTalk_TextBox_Small4.Size = new System.Drawing.Size(179, 28);
             this.iTalk_TextBox_Small4.TabIndex = 5;
             this.iTalk_TextBox_Small4.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
@@ -1229,11 +1265,11 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_TextBox_Small2.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_TextBox_Small2.Font = new System.Drawing.Font("Tahoma", 11F);
             this.iTalk_TextBox_Small2.ForeColor = System.Drawing.Color.DimGray;
-            this.iTalk_TextBox_Small2.Location = new System.Drawing.Point(947, 312);
+            this.iTalk_TextBox_Small2.Location = new System.Drawing.Point(947, 294);
             this.iTalk_TextBox_Small2.MaxLength = 32767;
             this.iTalk_TextBox_Small2.Multiline = false;
             this.iTalk_TextBox_Small2.Name = "iTalk_TextBox_Small2";
-            this.iTalk_TextBox_Small2.ReadOnly = false;
+            this.iTalk_TextBox_Small2.ReadOnly = true;
             this.iTalk_TextBox_Small2.Size = new System.Drawing.Size(84, 28);
             this.iTalk_TextBox_Small2.TabIndex = 5;
             this.iTalk_TextBox_Small2.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
@@ -1281,7 +1317,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_Label33.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label33.Font = new System.Drawing.Font("Segoe UI", 8F);
             this.iTalk_Label33.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label33.Location = new System.Drawing.Point(911, 237);
+            this.iTalk_Label33.Location = new System.Drawing.Point(911, 223);
             this.iTalk_Label33.Name = "iTalk_Label33";
             this.iTalk_Label33.Size = new System.Drawing.Size(54, 13);
             this.iTalk_Label33.TabIndex = 4;
@@ -1305,7 +1341,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_Label31.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label31.Font = new System.Drawing.Font("Segoe UI", 8F);
             this.iTalk_Label31.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label31.Location = new System.Drawing.Point(904, 101);
+            this.iTalk_Label31.Location = new System.Drawing.Point(904, 87);
             this.iTalk_Label31.Name = "iTalk_Label31";
             this.iTalk_Label31.Size = new System.Drawing.Size(61, 13);
             this.iTalk_Label31.TabIndex = 4;
@@ -1317,7 +1353,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_Label30.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label30.Font = new System.Drawing.Font("Segoe UI", 8F);
             this.iTalk_Label30.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label30.Location = new System.Drawing.Point(916, 166);
+            this.iTalk_Label30.Location = new System.Drawing.Point(916, 152);
             this.iTalk_Label30.Name = "iTalk_Label30";
             this.iTalk_Label30.Size = new System.Drawing.Size(36, 13);
             this.iTalk_Label30.TabIndex = 4;
@@ -1475,7 +1511,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_Label17.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
             this.iTalk_Label17.Location = new System.Drawing.Point(223, 469);
             this.iTalk_Label17.Name = "iTalk_Label17";
-            this.iTalk_Label17.Size = new System.Drawing.Size(35, 13);
+            this.iTalk_Label17.Size = new System.Drawing.Size(36, 13);
             this.iTalk_Label17.TabIndex = 4;
             this.iTalk_Label17.Text = "Taille:";
             // 
@@ -1617,7 +1653,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_Label4.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label4.Font = new System.Drawing.Font("Segoe UI", 8F);
             this.iTalk_Label4.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label4.Location = new System.Drawing.Point(957, 295);
+            this.iTalk_Label4.Location = new System.Drawing.Point(957, 277);
             this.iTalk_Label4.Name = "iTalk_Label4";
             this.iTalk_Label4.Size = new System.Drawing.Size(54, 13);
             this.iTalk_Label4.TabIndex = 4;
@@ -1629,7 +1665,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_Label3.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label3.Font = new System.Drawing.Font("Segoe UI", 8F);
             this.iTalk_Label3.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label3.Location = new System.Drawing.Point(1063, 295);
+            this.iTalk_Label3.Location = new System.Drawing.Point(1063, 277);
             this.iTalk_Label3.Name = "iTalk_Label3";
             this.iTalk_Label3.Size = new System.Drawing.Size(54, 13);
             this.iTalk_Label3.TabIndex = 4;
@@ -1641,7 +1677,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_Label5.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label5.Font = new System.Drawing.Font("Segoe UI", 8F);
             this.iTalk_Label5.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label5.Location = new System.Drawing.Point(1162, 295);
+            this.iTalk_Label5.Location = new System.Drawing.Point(1162, 277);
             this.iTalk_Label5.Name = "iTalk_Label5";
             this.iTalk_Label5.Size = new System.Drawing.Size(54, 13);
             this.iTalk_Label5.TabIndex = 4;
@@ -1825,6 +1861,8 @@ namespace Outil_Azur_complet.editeur_perso
         private iTalk.iTalk_Button_2 iTalk_Button_21;
         private iTalk.iTalk_Button_1 iTalk_Button_12;
         private iTalk.iTalk_Label iTalk_Label35;
-        private System.ComponentModel.BackgroundWorker backgroundWorker1;
+        private iTalk.iTalk_Button_3 iTalk_Button_31;
+        private iTalk.iTalk_NotificationNumber iTalk_NotificationNumber1;
+        private iTalk.iTalk_Label iTalk_Label34;
     }
 }

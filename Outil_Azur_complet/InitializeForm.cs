@@ -221,6 +221,7 @@ namespace Outil_Azur_complet
 
                     AccountList.AllAccounts();
                     iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{AccountList.AccountListCount} compte(s) chargé(s).\n";
+                    GroupesList.groupe();
                     CharacterList.AllPerso();
                     iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{CharacterList.PersoCount} personnage(s) chargé(s).\n";
                     ConditionsListing.ConditionsLoad(@".\ressources\conditions.txt");

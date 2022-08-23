@@ -51,11 +51,19 @@ namespace Outil_Azur_complet.Bot
             {
                 if (GC.ShowDialog() == DialogResult.OK)
                 {
-                    AccountConfig AccountConf = AccountConfig.AccountsActive[0];
-                    GameForm GF = new GameForm();
-                    GF.ActualCompte = new Accounts(AccountConf);
-                    GF.MdiParent = this;
-                    GF.Show();
+                    if (GlobalConfig.BYPASS)
+                    {
+                        MessageBox.Show("ee");
+                        
+                    }
+                    else
+                    {
+                        AccountConfig AccountConf = AccountConfig.AccountsActive[0];
+                        GameForm GF = new GameForm();
+                        GF.ActualCompte = new Accounts(AccountConf);
+                        GF.MdiParent = this;
+                        GF.Show();
+                    }
                 }
             }
         }

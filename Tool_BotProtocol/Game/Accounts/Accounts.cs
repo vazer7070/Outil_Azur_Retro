@@ -31,6 +31,7 @@ namespace Tool_BotProtocol.Game.Accounts
         public bool HasGroup => Groupe != null;
         public bool IsGroupLeader => !HasGroup || Groupe.leader == this;
         public Groupe Groupe { get; set; }
+        public bool CanUseMount = false;
 
         public Accounts(AccountConfig conf)
         {
@@ -56,8 +57,8 @@ namespace Tool_BotProtocol.Game.Accounts
         public void SwitchToGameServer(string Coordinate)
         {
             Connexion.DisconnectSocket();
-            //Connexion.ConnectToServer(IPAddress.Parse(Coordinate.Split(':')[0]), int.Parse(Coordinate.Split(':')[1]));
-            Connexion.ConnectToServer(IPAddress.Parse("127.0.0.1"), 5555);
+            Connexion.ConnectToServer(IPAddress.Parse(Coordinate.Split(':')[0]), int.Parse(Coordinate.Split(':')[1]));
+           // Connexion.ConnectToServer(IPAddress.Parse("127.0.0.1"), 5555);
         }
     
         public AccountStates AccountStates

@@ -14,6 +14,7 @@ namespace Outil_Azur_complet.Bot
 {
     public partial class Options : Form
     {
+        static bool IsOfficial = false;
         public Options()
         {
             InitializeComponent();
@@ -21,6 +22,7 @@ namespace Outil_Azur_complet.Bot
             iTalk_TextBox_Small2.Text = GlobalConfig.AUTHPORT;
             iTalk_TextBox_Small3.Text = GlobalConfig.GAMEPORT;
             iTalk_TextBox_Small4.Text = GlobalConfig.VERSION;
+            
         }
 
         private void iTalk_Button_11_Click(object sender, EventArgs e)
@@ -45,7 +47,12 @@ namespace Outil_Azur_complet.Bot
 
         private void iTalk_Button_21_Click(object sender, EventArgs e)
         {
-            bool isgood = false;
+            if (iTalk_ComboBox1.SelectedItem.ToString().Equals("Serveur officiel"))
+                IsOfficial = GlobalConfig.BYPASS = true;
+            else
+                IsOfficial = GlobalConfig.BYPASS = false;
+
+                bool isgood = false;
             if (!IPAddress.TryParse(iTalk_TextBox_Small1.Text, out IPAddress address))
             {
                 isgood = false;
@@ -66,10 +73,30 @@ namespace Outil_Azur_complet.Bot
             {
                 isgood = true;
             }
+            
 
-            if(isgood)
+            if(isgood || IsOfficial)
                 GlobalConfig.writenewconfig(iTalk_TextBox_Small1.Text, iTalk_TextBox_Small2.Text, iTalk_TextBox_Small3.Text, iTalk_TextBox_Small4.Text);
             Close();
+        }
+
+        private void iTalk_ComboBox1_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if(iTalk_ComboBox1.SelectedItem.ToString().Equals("Serveur officiel"))
+            {
+                IsOfficial = true;
+                iTalk_TextBox_Small1.Text = "172.65.206.193";
+                iTalk_TextBox_Small2.Text = "443";
+                iTalk_TextBox_Small3.Text = "5555";
+                iTalk_TextBox_Small4.Text = "1.38.7";
+                GlobalConfig.BYPASS = true;
+            }
+            else
+            {
+                IsOfficial = false;
+                GlobalConfig.BYPASS = false;
+            }
+                
         }
     }
 }

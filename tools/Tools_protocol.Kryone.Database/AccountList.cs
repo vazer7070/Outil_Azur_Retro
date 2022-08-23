@@ -63,7 +63,10 @@ namespace Tools_protocol.Kryone.Database
 			this.Points = (int)reader["points"];
 			this.Logged = (int)reader["logged"];
 		}
+		public AccountList()
+        {
 
+        }
 		public static void AllAccounts()
 		{
 			string[] args = new string[] { "*" };
@@ -96,8 +99,18 @@ namespace Tools_protocol.Kryone.Database
 
 		public static void CreateAccount(string compte, int hash, string mdp, string question, string reponse)
 		{
+
+			string Hmdp = GetHash(hash, mdp);
 			string[] col = new string[] { "account", "pass", "question", "reponse" };
-			string[] val = new string[] { compte, AccountList.GetHash(hash, mdp), question, reponse };
+			string[] val = new string[] { compte, Hmdp, question, reponse };
+			AccountList A = new AccountList()
+			{
+				Account = compte,
+				Pass = Hmdp,
+				Question = question,
+				Reponse = reponse
+			};
+			AllAccount.Add(compte, A);
 			DatabaseManager.UpdateQuery(QueryBuilder.InsertIntoQuery(AccountList.TableCompte, col, val, ""));
 		}
 

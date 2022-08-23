@@ -57,11 +57,6 @@ namespace Tools_protocol.Kryone.Database
 			set;
 		}
 
-		static ItemList()
-		{
-
-		}
-
 		public ItemList(IDataReader reader)
 		{
 			Guid = (int)reader["guid"];
@@ -88,8 +83,8 @@ namespace Tools_protocol.Kryone.Database
 					while (lecteur.Read())
 					{
 						G = new ItemList(lecteur);
-						ItemsId.Add((int)lecteur["guid"], (int)lecteur["template"]);
-						ItemsList.Add((int)lecteur["guid"], G);
+						ItemsId.Add(G.Guid, G.Template);
+						ItemsList.Add(G.Guid, G);
 					}
 					lecteur.Close();
 					lecteur.Dispose();

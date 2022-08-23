@@ -3,15 +3,21 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Game.Groupes;
+using Tool_BotProtocol.Game.Jobs;
+using Tool_BotProtocol.Game.Perso;
 using Tool_BotProtocol.Network;
 
 namespace Tool_BotProtocol.Frames.Jeu
 {
     class CharacterFrame : Frame
     {
+        [MessageAttribution("As")]
+        public void ActualiseStats(TcpClient client, string message) => client.account.Game.character.RefreshCaracs(message);
+
         [MessageAttribution("PIK")]
         public void GetGroup(TcpClient client, string message)
         {
@@ -114,6 +120,116 @@ namespace Tool_BotProtocol.Frames.Jeu
 
         [MessageAttribution("Bp")]
         public void GetAllPing(TcpClient client, string message) => client.SendPacket($"Bp{client.GetPingAverage()}|{client.GetTotalPings()}|50");
+
+        [MessageAttribution("Ow")]
+
+        public void GetPods(TcpClient client, string message)
+        {
+            string[] pods = message.Substring(2).Split('|');
+            short actual_pods = short.Parse(pods[0]);
+            short Max_pods = short.Parse(pods[1]);
+            CharacterClass perso = client.account.Game.character;
+
+            perso.Inventory.Actual_pods = actual_pods;
+            perso.Inventory.Pods_Max = Max_pods;
+            client.account.Game.character.PodsRefreshEvent();
+        }
+
+        [MessageAttribution("JS")]
+        public void GetJobsSkills(TcpClient client, string message)
+        {
+            string[] separador_skill;
+            CharacterClass perso = client.account.Game.character;
+            Jobs job;
+            JobSkills skilljobs = null;
+            short Id_jobs, Id_skills;
+            byte Min, Max;
+            float Time;
+
+            foreach(string data in message.Substring(3).Split('|'))
+            {
+                Id_jobs = short.Parse(data.Split(';')[0]);
+                job = perso.Jobs.Find(x => x.ID == Id_jobs);
+
+                if(job == null)
+                {
+                    job = new Jobs(Id_jobs);
+                    perso.Jobs.Add(job);
+                }
+
+                foreach(string skill in data.Split(';')[1].Split(','))
+                {
+                    separador_skill = skill.Split('~');
+                    Id_skills = short.Parse(separador_skill[0]);
+                    Min = byte.Parse(separador_skill[1]);
+                    Max = byte.Parse(separador_skill[2]);
+                    Time = float.Parse(separador_skill[4]);
+                    skilljobs = job.Skills.Find(x => x.Id == Id_skills);
+
+                    if (skilljobs != null)
+                        skilljobs.Actualise(Id_skills, Min, Max, Time);
+                    else
+                        job.Skills.Add(new JobSkills(Id_skills, Min, Max, Time));
+                }
+            }
+            perso.JobsRefreshEvent();
+        }
+        [MessageAttribution("JX")]
+        public void GetExpInJob(TcpClient client, string message)
+        {
+            string[] separate_jobs_Exp = message.Substring(3).Split('|');
+            CharacterClass perso = client.account.Game.character;
+            uint actualExp, baseExp, nextlevelExp;
+            short Id;
+            byte level;
+
+            foreach(string jobs in separate_jobs_Exp)
+            {
+                var payload = jobs.Split(';');
+                if (payload.Length < 4)
+                    continue;
+                Id = short.Parse(payload[0]);
+                level = byte.Parse(payload[1]);
+                baseExp = uint.Parse(payload[2]);
+                actualExp = byte.Parse(payload[3]);
+
+                if (level < 100 && payload.Length >= 4)
+                    nextlevelExp = uint.Parse(jobs.Split(';')[4]);
+                else
+                    nextlevelExp = 0;
+                perso.Jobs.Find(x => x.ID == Id).AcutalizeJob(level, baseExp, actualExp, nextlevelExp);
+            }
+            perso.JobsRefreshEvent();
+        }
+
+        [MessageAttribution("Re")]
+        public void GetInfoMonture(TcpClient client, string message) => client.account.CanUseMount = true;
+
+        [MessageAttribution("OAKO")]
+        public void GetObjects(TcpClient client, string message) => client.account.Game.character.Inventory.Add_Items(message.Substring(4));
+
+        [MessageAttribution("OR")]
+        public void EliminateObject(TcpClient client, string message) => client.account.Game.character.Inventory.SuppItem(uint.Parse(message.Substring(2)), 1, false);
+
+        [MessageAttribution("OQ")]
+        public void ModifyQuantityItems(TcpClient client, string message) => client.account.Game.character.Inventory.Modify_Items(message.Substring(2));
+
+        [MessageAttribution("ECK")]
+        public void GoInStorage(TcpClient client, string message) => client.account.AccountStates = AccountStates.STORAGE;
+
+        [MessageAttribution("PCK")]
+        public void AcceptGroup(TcpClient client, string message) => client.account.Game.character.InGroupe = true;
+
+        [MessageAttribution("PV")]
+        public void AbandonGroup(TcpClient client, string message) => client.account.Game.character.InGroupe = false;
+
+        [MessageAttribution("ERK")]
+        public void AskExchange(TcpClient client, string message)
+        {
+            client.account.Logger.LogInfo("DOFUS", "Quelqu'un demande un échange");
+            client.SendPacket("EV", true);
+        }
+
         [MessageAttribution("gJR")]
         public void HandleGuild(TcpClient client, string message)
         {

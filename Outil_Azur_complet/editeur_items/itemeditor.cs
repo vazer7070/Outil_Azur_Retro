@@ -655,6 +655,7 @@ namespace Outil_Azur_complet.editeur_items
             Persoinventory.TryGetValue(listBox4.SelectedItems.ToString(), out List<string> listItem);
             if (listItem != null)
             {
+                MessageBox.Show("null");
                 sfListView1.DataSource = listItem;
                 sfListView1.Refresh();
             }
@@ -697,7 +698,7 @@ namespace Outil_Azur_complet.editeur_items
                 iTalk_Label36.Text = sfListView1.SelectedItem.ToString().Split('(')[0].Trim().ToString();
                 iTalk_Label37.Text = TYPE;
                 iTalk_Label38.Text = ItemList.ItemsList.FirstOrDefault(x => x.Key == GUID).Value.Qua.ToString();
-                pictureBox1.Image = Image.FromFile(SearchManager.Search_pictureItem(ID, Convert.ToInt32(TYPE)));
+                try { pictureBox1.Image = Image.FromFile(SearchManager.Search_pictureItem(ID, Convert.ToInt32(TYPE))); } catch { };
 
             }
         }
