@@ -52,13 +52,14 @@
             this.treeView1 = new System.Windows.Forms.TreeView();
             this.iTalk_Listview1 = new iTalk.iTalk_Listview();
             this.tabPage2 = new System.Windows.Forms.TabPage();
-            this.tabPage6 = new System.Windows.Forms.TabPage();
+            this.iTalk_Button_23 = new iTalk.iTalk_Button_2();
             this.iTalk_ThemeContainer1.SuspendLayout();
             this.iTalk_TabControl1.SuspendLayout();
             this.tabPage1.SuspendLayout();
             this.iTalk_TabControl2.SuspendLayout();
             this.tabPage4.SuspendLayout();
             this.tabPage5.SuspendLayout();
+            this.tabPage2.SuspendLayout();
             this.SuspendLayout();
             // 
             // iTalk_ThemeContainer1
@@ -113,7 +114,6 @@
             this.iTalk_TabControl1.Alignment = System.Windows.Forms.TabAlignment.Left;
             this.iTalk_TabControl1.Controls.Add(this.tabPage1);
             this.iTalk_TabControl1.Controls.Add(this.tabPage2);
-            this.iTalk_TabControl1.Controls.Add(this.tabPage6);
             this.iTalk_TabControl1.DrawMode = System.Windows.Forms.TabDrawMode.OwnerDrawFixed;
             this.iTalk_TabControl1.ItemSize = new System.Drawing.Size(44, 135);
             this.iTalk_TabControl1.Location = new System.Drawing.Point(3, 25);
@@ -349,20 +349,27 @@
             // tabPage2
             // 
             this.tabPage2.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(246)))), ((int)(((byte)(246)))), ((int)(((byte)(246)))));
+            this.tabPage2.Controls.Add(this.iTalk_Button_23);
             this.tabPage2.Location = new System.Drawing.Point(139, 4);
             this.tabPage2.Name = "tabPage2";
+            this.tabPage2.Padding = new System.Windows.Forms.Padding(3);
             this.tabPage2.Size = new System.Drawing.Size(958, 510);
             this.tabPage2.TabIndex = 1;
-            this.tabPage2.Text = "Personnage";
+            this.tabPage2.Text = "Boutons";
             // 
-            // tabPage6
+            // iTalk_Button_23
             // 
-            this.tabPage6.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(246)))), ((int)(((byte)(246)))), ((int)(((byte)(246)))));
-            this.tabPage6.Location = new System.Drawing.Point(139, 4);
-            this.tabPage6.Name = "tabPage6";
-            this.tabPage6.Size = new System.Drawing.Size(958, 510);
-            this.tabPage6.TabIndex = 3;
-            this.tabPage6.Text = "Guilde";
+            this.iTalk_Button_23.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Button_23.Font = new System.Drawing.Font("Segoe UI", 14F);
+            this.iTalk_Button_23.ForeColor = System.Drawing.Color.White;
+            this.iTalk_Button_23.Image = null;
+            this.iTalk_Button_23.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.iTalk_Button_23.Location = new System.Drawing.Point(6, 39);
+            this.iTalk_Button_23.Name = "iTalk_Button_23";
+            this.iTalk_Button_23.Size = new System.Drawing.Size(166, 40);
+            this.iTalk_Button_23.TabIndex = 0;
+            this.iTalk_Button_23.Text = "perso";
+            this.iTalk_Button_23.TextAlignment = System.Drawing.StringAlignment.Center;
             // 
             // GameForm
             // 
@@ -381,6 +388,7 @@
             this.iTalk_TabControl2.ResumeLayout(false);
             this.tabPage4.ResumeLayout(false);
             this.tabPage5.ResumeLayout(false);
+            this.tabPage2.ResumeLayout(false);
             this.ResumeLayout(false);
 
         }
@@ -390,7 +398,6 @@
         private iTalk.iTalk_ThemeContainer iTalk_ThemeContainer1;
         private iTalk.iTalk_TabControl iTalk_TabControl1;
         private System.Windows.Forms.TabPage tabPage1;
-        private System.Windows.Forms.TabPage tabPage2;
         private iTalk.iTalk_TabControl iTalk_TabControl2;
         private System.Windows.Forms.TabPage tabPage4;
         private iTalk.iTalk_Button_2 iTalk_Button_21;
@@ -410,6 +417,7 @@
         private iTalk.iTalk_RadioButton iTalk_RadioButton4;
         private iTalk.iTalk_RadioButton iTalk_RadioButton1;
         private System.Windows.Forms.RichTextBox richTextBox1;
-        private System.Windows.Forms.TabPage tabPage6;
+        private System.Windows.Forms.TabPage tabPage2;
+        private iTalk.iTalk_Button_2 iTalk_Button_23;
     }
 }

@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Principal;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Tool_BotProtocol.Frames.Messages;
@@ -151,13 +153,15 @@ namespace Tool_BotProtocol.Frames.Jeu
                 Id_jobs = short.Parse(data.Split(';')[0]);
                 job = perso.Jobs.Find(x => x.ID == Id_jobs);
 
-                if(job == null)
+                if (job == null)
                 {
+                    job = perso.Jobs.Find(x => x.ID == Id_jobs);
                     job = new Jobs(Id_jobs);
                     perso.Jobs.Add(job);
                 }
 
-                foreach(string skill in data.Split(';')[1].Split(','))
+
+                foreach (string skill in data.Split(';')[1].Split(','))
                 {
                     separador_skill = skill.Split('~');
                     Id_skills = short.Parse(separador_skill[0]);
@@ -228,6 +232,49 @@ namespace Tool_BotProtocol.Frames.Jeu
         {
             client.account.Logger.LogInfo("DOFUS", "Quelqu'un demande un échange");
             client.SendPacket("EV", true);
+        }
+
+        [MessageAttribution("ILS")]
+        public void GetRegenTime(TcpClient client, string message)
+        {
+            string cut = message.Substring(3);
+            int time = int.Parse(cut);
+            Accounts A = client.account;
+            CharacterClass perso = A.Game.character;
+
+            perso.Regen_Timer.Change(Timeout.Infinite, Timeout.Infinite);
+            perso.Regen_Timer.Change(time, time);
+
+            A.Logger.LogInfo("DOFUS", $"Votre personnage récupère 1 pdv chaque {time / 1000} secondes");
+        }
+
+        [MessageAttribution("ILF")]
+        public void GetLifeRegen(TcpClient client, string message)
+        {
+            string cut = message.Substring(3);
+            int life = int.Parse(message);
+            Accounts A = client.account;
+            CharacterClass perso = A.Game.character;
+
+            perso.stats.VitalityActual += life;
+            A.Logger.LogInfo("DOFUS", $"Vous avez récupéré {life} points de vie");
+        }
+
+        [MessageAttribution("eUK")]
+        public void GetEmote(TcpClient client, string message)
+        {
+            string[] sep = message.Substring(3).Split('|');
+            int id = int.Parse(sep[0]);
+            int emote_id = int.Parse(sep[1]);
+            Accounts A = client.account;
+
+            if (A.Game.character.id != id)
+                return;
+
+            if (emote_id == 1 && A.AccountStates != AccountStates.REGENERATION)
+                A.AccountStates = AccountStates.REGENERATION;
+            else if (emote_id == 0 && A.AccountStates == AccountStates.REGENERATION)
+                A.AccountStates = AccountStates.CONNECTED_INACTIVE;
         }
 
         [MessageAttribution("gJR")]

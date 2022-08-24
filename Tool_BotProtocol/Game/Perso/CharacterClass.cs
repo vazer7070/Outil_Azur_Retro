@@ -59,7 +59,10 @@ namespace Tool_BotProtocol.Game.Perso
             Accounts = A;
             Inventory = new InventoryClass(A);
             AFK_Timer = new Timer(No_AFK, null, Timeout.Infinite, Timeout.Infinite);
+            Regen_Timer = new Timer(RegenCallback, null, Timeout.Infinite, Timeout.Infinite);
+
             stats = new CharacterStats();
+            Jobs = new List<Jobs.Jobs>();
 
         }
         public void CheckWhoSpeak(string who)
@@ -185,6 +188,23 @@ namespace Tool_BotProtocol.Game.Perso
                 }
             }
             RefreshCaracteristiques?.Invoke();
+        }
+        private void RegenCallback(object state)
+        {
+            try
+            {
+                if(stats?.VitalityActual >= stats?.MaxVitality)
+                {
+                    Regen_Timer.Change(Timeout.Infinite, Timeout.Infinite);
+                    return;
+                }
+                stats.VitalityActual++;
+                RefreshCaracteristiques?.Invoke();
+            }catch(Exception e)
+            {
+                Accounts.Logger.LogError("TIMER-REGEN", $"Problème avec la régenération {e}");
+            }
+           
         }
         public void Clear()
         {

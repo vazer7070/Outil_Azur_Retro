@@ -200,6 +200,12 @@
     <Compile Include="Bot\Interfaces\MapControl.Designer.cs">
       <DependentUpon>MapControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="Bot\Interfaces\Perso_UI.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Bot\Interfaces\Perso_UI.Designer.cs">
+      <DependentUpon>Perso_UI.cs</DependentUpon>
+    </Compile>
     <Compile Include="Bot\MenuP_Bot.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -323,6 +329,9 @@
     <EmbeddedResource Include="Bot\Interfaces\MapControl.resx">
       <DependentUpon>MapControl.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="Bot\Interfaces\Perso_UI.resx">
+      <DependentUpon>Perso_UI.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Bot\MenuP_Bot.resx">
       <DependentUpon>MenuP_Bot.cs</DependentUpon>
     </EmbeddedResource>
@@ -417,6 +426,22 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <None Include="bin\Debug\ressources\Bot\1.png" />
+    <None Include="bin\Debug\ressources\Bot\2.png" />
+    <None Include="bin\Debug\ressources\Bot\3.png" />
+    <None Include="bin\Debug\ressources\Bot\4.png" />
+    <None Include="bin\Debug\ressources\Bot\5.png" />
+    <None Include="bin\Debug\ressources\Bot\UI\agi.png" />
+    <None Include="bin\Debug\ressources\Bot\UI\chance.png" />
+    <None Include="bin\Debug\ressources\Bot\UI\fire.png" />
+    <None Include="bin\Debug\ressources\Bot\UI\force.png" />
+    <None Include="bin\Debug\ressources\Bot\UI\init.png" />
+    <None Include="bin\Debug\ressources\Bot\UI\prospec.png" />
+    <None Include="bin\Debug\ressources\Bot\UI\sage.png" />
+    <None Include="bin\Debug\ressources\Bot\UI\vita.png" />
+    <None Include="bin\Debug\ressources\Bot\UI\intel.png" />
+    <None Include="bin\Debug\ressources\Bot\UI\cross.png" />
+    <None Include="bin\Debug\ressources\Bot\UI\bonta.png" />
     <Content Include="openal32.dll" />
     <None Include="Resources\21000.png" />
     <None Include="Resources\re1-1.png" />
