@@ -444,19 +444,22 @@ namespace Outil_Azur_complet.Bot.Controls
             
             foreach(Cell cell in MapCells)
             {
-                Cells[cell.CellID].State = CellState.NO_WALKABLE;
-
-                if (cell.IsWalkable())
-                    Cells[cell.CellID].State = CellState.WALKABLE;
-                if(cell.LineofSight)
-                    Cells[cell.CellID].State = CellState.OBSTACLE;
-                if(cell.IsTrigger())
-                    Cells[cell.CellID].State = CellState.TRIGGER;
-                if (cell.IsInteractiveCell())
+                if(cell != null)
                 {
-                    Cells[cell.CellID].State = CellState.INTERACTIVE;
+
+                    Cells[cell.CellID].State = CellState.NO_WALKABLE;
+
+                    if (cell.IsWalkable())
+                        Cells[cell.CellID].State = CellState.WALKABLE;
+                    if (cell.LineofSight)
+                        Cells[cell.CellID].State = CellState.OBSTACLE;
+                    if (cell.IsTrigger())
+                        Cells[cell.CellID].State = CellState.TRIGGER;
+                    if (cell.IsInteractiveCell())
+                    {
+                        Cells[cell.CellID].State = CellState.INTERACTIVE;
+                    }
                 }
-                    
                     
             }
             AnimTimer.Start();

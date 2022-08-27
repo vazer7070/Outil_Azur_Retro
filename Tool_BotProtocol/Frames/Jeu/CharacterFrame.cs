@@ -242,10 +242,13 @@ namespace Tool_BotProtocol.Frames.Jeu
             Accounts A = client.account;
             CharacterClass perso = A.Game.character;
 
-            perso.Regen_Timer.Change(Timeout.Infinite, Timeout.Infinite);
-            perso.Regen_Timer.Change(time, time);
+            if(perso.stats.VitalityActual < perso.stats.MaxVitality)
+            {
+                perso.Regen_Timer.Change(Timeout.Infinite, Timeout.Infinite);
+                perso.Regen_Timer.Change(time, time);
 
-            A.Logger.LogInfo("DOFUS", $"Votre personnage récupère 1 pdv chaque {time / 1000} secondes");
+                A.Logger.LogInfo("DOFUS", $"Votre personnage récupère 1 pdv chaque {time / 1000} secondes");
+            }
         }
 
         [MessageAttribution("ILF")]

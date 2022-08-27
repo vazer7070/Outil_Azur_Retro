@@ -26,7 +26,10 @@ namespace Tool_BotProtocol.Frames.Auth
             client.SendPacket("Af");
         }
         [MessageAttribution("Af")]
-        public void GetLoginQueue(TcpClient client, string message) => client.account.Logger.LogInfo("File d'attente", $"Position: {message[2]}/{message[4]}");
+        public void GetLoginQueue(TcpClient client, string message)
+        {
+            client.account.Logger.LogInfo("File d'attente", $"Position: {message[2]}/{message[4]}");
+        }
 
         [MessageAttribution("Ad")]
         public void Getpseudo(TcpClient client, string message) => client.account.Name = message.Substring(2);

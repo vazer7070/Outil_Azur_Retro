@@ -58,7 +58,10 @@ namespace Tool_BotProtocol.Frames.Jeu
         public void UnavailableChat(TcpClient client, string message) => client.account.Logger.LogInfo("[DOFUS]", $"Ce canal est réservé aux abonnés niveau {message.Split(';')[1]}.");
         [MessageAttribution("Im037")]
         public void AFKMessage(TcpClient client, string message) => client.account.Logger.LogInfo("[DOFUS]", "Tu es maintenant considéré comme AFK.");
+        [MessageAttribution("Im1165")]
+        public void WorldSaveGood(TcpClient client, string message) => client.account.Logger.LogInfo("[DOFUS]", "Le monde a été correctement sauvegardé.!");
         [MessageAttribution("Im112")]
         public void CantHaveMorepods(TcpClient client, string message) => client.account.Logger.LogInfo("[DOFUS]", "Tu es trop chargé, libère de la place dans ton inventaire.");
+        
     }
 }

@@ -30,8 +30,8 @@
         {
             this.components = new System.ComponentModel.Container();
             this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
-            this.iTalk_ThemeContainer1 = new iTalk.iTalk_ThemeContainer();
             this.iTalk_Button_12 = new iTalk.iTalk_Button_1();
+            this.iTalk_ThemeContainer1 = new iTalk.iTalk_ThemeContainer();
             this.iTalk_Button_11 = new iTalk.iTalk_Button_1();
             this.iTalk_TabControl1 = new iTalk.iTalk_TabControl();
             this.tabPage1 = new System.Windows.Forms.TabPage();
@@ -62,6 +62,21 @@
             this.tabPage2.SuspendLayout();
             this.SuspendLayout();
             // 
+            // iTalk_Button_12
+            // 
+            this.iTalk_Button_12.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Button_12.Font = new System.Drawing.Font("Segoe UI", 12F);
+            this.iTalk_Button_12.Image = null;
+            this.iTalk_Button_12.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.iTalk_Button_12.Location = new System.Drawing.Point(540, 1);
+            this.iTalk_Button_12.Name = "iTalk_Button_12";
+            this.iTalk_Button_12.Size = new System.Drawing.Size(104, 23);
+            this.iTalk_Button_12.TabIndex = 7;
+            this.iTalk_Button_12.Text = "Déconnexion";
+            this.iTalk_Button_12.TextAlignment = System.Drawing.StringAlignment.Center;
+            this.toolTip1.SetToolTip(this.iTalk_Button_12, "Déconnecter le personnage");
+            this.iTalk_Button_12.Click += new System.EventHandler(this.iTalk_Button_12_Click);
+            // 
             // iTalk_ThemeContainer1
             // 
             this.iTalk_ThemeContainer1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(246)))), ((int)(((byte)(246)))), ((int)(((byte)(246)))));
@@ -79,21 +94,6 @@
             this.iTalk_ThemeContainer1.SmartBounds = false;
             this.iTalk_ThemeContainer1.StartPosition = System.Windows.Forms.FormStartPosition.WindowsDefaultLocation;
             this.iTalk_ThemeContainer1.TabIndex = 0;
-            // 
-            // iTalk_Button_12
-            // 
-            this.iTalk_Button_12.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Button_12.Font = new System.Drawing.Font("Segoe UI", 12F);
-            this.iTalk_Button_12.Image = null;
-            this.iTalk_Button_12.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.iTalk_Button_12.Location = new System.Drawing.Point(540, 1);
-            this.iTalk_Button_12.Name = "iTalk_Button_12";
-            this.iTalk_Button_12.Size = new System.Drawing.Size(104, 23);
-            this.iTalk_Button_12.TabIndex = 7;
-            this.iTalk_Button_12.Text = "Déconnexion";
-            this.iTalk_Button_12.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.toolTip1.SetToolTip(this.iTalk_Button_12, "Déconnecter le personnage");
-            this.iTalk_Button_12.Click += new System.EventHandler(this.iTalk_Button_12_Click);
             // 
             // iTalk_Button_11
             // 
@@ -370,6 +370,7 @@
             this.iTalk_Button_23.TabIndex = 0;
             this.iTalk_Button_23.Text = "perso";
             this.iTalk_Button_23.TextAlignment = System.Drawing.StringAlignment.Center;
+            this.iTalk_Button_23.Click += new System.EventHandler(this.iTalk_Button_23_Click);
             // 
             // GameForm
             // 

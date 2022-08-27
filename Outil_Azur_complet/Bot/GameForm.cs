@@ -214,5 +214,11 @@ namespace Outil_Azur_complet.Bot
             ActualCompte.Disconnect();
             Close();
         }
+
+        private void iTalk_Button_23_Click(object sender, EventArgs e)
+        {
+            PersoForm P = new PersoForm(ActualCompte);
+            P.ShowDialog();
+        }
     }
 }

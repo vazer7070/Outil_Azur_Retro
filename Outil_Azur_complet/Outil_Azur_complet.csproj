@@ -200,12 +200,6 @@
     <Compile Include="Bot\Interfaces\MapControl.Designer.cs">
       <DependentUpon>MapControl.cs</DependentUpon>
     </Compile>
-    <Compile Include="Bot\Interfaces\Perso_UI.cs">
-      <SubType>UserControl</SubType>
-    </Compile>
-    <Compile Include="Bot\Interfaces\Perso_UI.Designer.cs">
-      <DependentUpon>Perso_UI.cs</DependentUpon>
-    </Compile>
     <Compile Include="Bot\MenuP_Bot.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -217,6 +211,12 @@
     </Compile>
     <Compile Include="Bot\Options.Designer.cs">
       <DependentUpon>Options.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Bot\PersoForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Bot\PersoForm.Designer.cs">
+      <DependentUpon>PersoForm.cs</DependentUpon>
     </Compile>
     <Compile Include="editeur_compte\CreateForm.cs">
       <SubType>Form</SubType>
@@ -329,14 +329,14 @@
     <EmbeddedResource Include="Bot\Interfaces\MapControl.resx">
       <DependentUpon>MapControl.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="Bot\Interfaces\Perso_UI.resx">
-      <DependentUpon>Perso_UI.cs</DependentUpon>
-    </EmbeddedResource>
     <EmbeddedResource Include="Bot\MenuP_Bot.resx">
       <DependentUpon>MenuP_Bot.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Bot\Options.resx">
       <DependentUpon>Options.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Bot\PersoForm.resx">
+      <DependentUpon>PersoForm.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="editeur_compte\CreateForm.resx">
       <DependentUpon>CreateForm.cs</DependentUpon>
