@@ -288,7 +288,9 @@ namespace Outil_Azur_complet
                 }
                 else
                 {
+                    iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + "Rendez-vous dans les options pour activer la connexion aux bases de données et les outils reliés.\n";
                     NoDB = true;
+                    VerifAssetsFolders();
                 }
             }
                

@@ -181,13 +181,14 @@ namespace Tool_BotProtocol.Frames.Jeu
         [MessageAttribution("JX")]
         public void GetExpInJob(TcpClient client, string message)
         {
-            string[] separate_jobs_Exp = message.Substring(3).Split('|');
+            string pre_cut = message.Substring(3);
+            string[] separate_jobs_Exp = pre_cut.Split('|');
             CharacterClass perso = client.account.Game.character;
             uint actualExp, baseExp, nextlevelExp;
             short Id;
             byte level;
 
-            foreach(string jobs in separate_jobs_Exp)
+            foreach (string jobs in separate_jobs_Exp)
             {
                 var payload = jobs.Split(';');
                 if (payload.Length < 4)
@@ -195,7 +196,7 @@ namespace Tool_BotProtocol.Frames.Jeu
                 Id = short.Parse(payload[0]);
                 level = byte.Parse(payload[1]);
                 baseExp = uint.Parse(payload[2]);
-                actualExp = byte.Parse(payload[3]);
+                actualExp = uint.Parse(payload[3]);
 
                 if (level < 100 && payload.Length >= 4)
                     nextlevelExp = uint.Parse(jobs.Split(';')[4]);

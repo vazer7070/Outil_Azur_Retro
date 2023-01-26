@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
@@ -49,7 +50,7 @@ namespace Tool_BotProtocol.Frames.Auth
                     int id = int.Parse(vs[0].Trim());
 
                     ServerStates SS = (ServerStates)byte.Parse(vs[1].Trim());
-                    if(id == int.Parse(A.accountConfig.Server))
+                    if(id == A.accountConfig.Server_id)
                     {
                         G.RefreshData(id, $"{id}", SS);
                         A.Logger.LogInfo("LOGIN", $"Le serveur avec l'id {id} est {A.Game.Server.GetState(SS)}");
@@ -65,39 +66,27 @@ namespace Tool_BotProtocol.Frames.Auth
         [MessageAttribution("AQ")]
         public void GetSecretQuestion(TcpClient client, string message)
         {
-            if(client.account.Game.Server.ServerStates == ServerStates.ONLINE)
                 client.SendPacket("Ax", true);
         }
         [MessageAttribution("AxK")]
         public void GetServerList(TcpClient client, string message)
         {
-            Accounts A = client.account;
-            string[] S = message.Substring(3).Split('|');
-            int count = 1;
-            bool picked = false;
+              Accounts A = client.account;
+              string[] S = message.Substring(4).Split('|');
+              int count = 1;
+              A.AboTime = int.Parse(message.Substring(3).Split('|')[0]);
 
-            while(count < S.Length && !picked)
-            {
-                string[] S2 = S[count].Split(',');
-                int serverid = int.Parse(S2[0]);
+              while(count < S.Length)
+              {
+                 A.accountConfig.Servers.Add(S[count]);
+                  count++;
+              }
 
-                if(serverid == A.Game.Server.ServerID)
-                {
-                    if(A.Game.Server.ServerStates == ServerStates.ONLINE)
-                    {
-                        picked = true;
-                        A.Game.character.ServerSelectedEvent();
-                    }
-                    else
-                    {
-                        A.Logger.LogError("LOGIN", $"Le serveur {serverid} est offline");
-                    }
-                }else
-                    A.Logger.LogError("LOGIN", $"Les serveurs ne correspondent pas [Server_ID]:{serverid} / [Player_Server]:{A.Game.Server.ServerID}");
-                count++;
-            }
-            if(picked)
-                client.SendPacket($"AX{A.Game.Server.ServerID}", true);
+           // client.SendPacket($"AX{A.Game.Server.ServerID}", true);
+
+
+
+
         }
         [MessageAttribution("AXK")]
         public void GetServerSelection(TcpClient client, string message)

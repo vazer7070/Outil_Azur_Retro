@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Tool_BotProtocol.Game.Accounts;
+using Tool_BotProtocol.Game.Jobs;
 
 namespace Outil_Azur_complet.Bot
 {
@@ -17,6 +18,7 @@ namespace Outil_Azur_complet.Bot
     {
         Accounts ACC;
         ToolTip T_T = new ToolTip();
+        private List<int> PrimaryJobs = new List<int> {2, 15, 16, 24, 25, 26, 27, 28, 36, 41, 58, 65 };
         public PersoForm(Accounts A)
         {
             InitializeComponent();
@@ -35,6 +37,72 @@ namespace Outil_Azur_complet.Bot
                 iTalk_Label1.Text = ACC.Game.character.Name;
                 iTalk_Label2.Text = $"Niveau: {ACC.Game.character.Level}";
             }));
+        }
+        private void SetJobsToButton(Button B, int jobid)
+        {
+            Jobs J = ACC.Game.character.Jobs.Find(x => x.ID == jobid);
+            T_T.SetToolTip(B, J.name);
+            B.BackgroundImage = Image.FromFile($@".\ressources\Bot\BotJobs\pics\{jobid}.png");
+            B.BackgroundImageLayout = ImageLayout.Stretch;
+        }
+        private void SetAlignToButton(Button B, int align)
+        {
+            string align_text = "";
+            if (align == 0)
+                align_text = "neutre";
+            else if (align == 1)
+                align_text = "Bontarien";
+            else if (align == 2)
+                align_text = "Brakmarien";
+            T_T.SetToolTip(B, align_text);
+            B.BackgroundImage = Image.FromFile($@".\ressources\Bot\UI\{align}.png");
+            B.BackgroundImageLayout = ImageLayout.Stretch;
+        }
+        private void SetAlignPerso()
+        {
+            BeginInvoke((Action)((() =>
+            {
+
+                int ali = ACC.Game.character.stats.Alignement;
+                    SetAlignToButton(button1, ali);
+
+            })));
+
+
+
+        }
+        private void setPersoJobs()
+        {
+            BeginInvoke((Action)((() =>
+            {
+                if(ACC.Game.character.Jobs != null)
+                {
+                    foreach(Jobs J in ACC.Game.character.Jobs)
+                    {
+                        if (PrimaryJobs.Contains(J.ID))
+                        {
+                            if (button8.BackgroundImage == null)
+                                SetJobsToButton(button8, J.ID);
+                            else if (button9.BackgroundImage == null)
+                                SetJobsToButton(button9, J.ID);
+                            else
+                                SetJobsToButton(button10, J.ID);
+                        }
+                        else
+                        {
+                            if (button11.BackgroundImage == null)
+                                SetJobsToButton(button11, J.ID);
+                            else if (button12.BackgroundImage == null)
+                                SetJobsToButton(button12, J.ID);
+                            else
+                                SetJobsToButton(button13, J.ID);
+
+                        }
+                    }
+                }
+
+
+            })));
         }
         private void SetCaracPerso()
         {
@@ -75,6 +143,8 @@ namespace Outil_Azur_complet.Bot
             {
                 SetSelectionnedPerso();
                 SetCaracPerso();
+                setPersoJobs();
+                SetAlignPerso();
             }
         }
         private void SendBoost(string message, int cost)
@@ -116,6 +186,20 @@ namespace Outil_Azur_complet.Bot
         private void button7_Click(object sender, EventArgs e)
         {
             SendBoost("AB14", 1);
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            if(ACC.Game.character.stats.Alignement == 0)
+            {
+                MessageBox.Show("Vous devez avoir un alignement autre que neutre pour pouvoir accéder à cette interface.!", "Alignement incorrect", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+                return;
+            }
+            else
+            {
+                AboutAli AALI = new AboutAli(ACC);
+                AALI.ShowDialog();
+            }
         }
     }
 }

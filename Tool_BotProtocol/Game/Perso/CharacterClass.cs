@@ -118,7 +118,15 @@ namespace Tool_BotProtocol.Game.Perso
             stats.ExpNivNext = double.Parse(loc2[2]);
             Kamas = int.Parse(loc[1]);
             Carac_Points = int.Parse(loc[2]);
-
+            stats.Alignement = int.Parse(loc[4].Split('~')[0]);
+            stats.AlignLVL = int.Parse(loc[4].Split(',')[1]);
+            stats.GradeAli = int.Parse(loc[4].Split(',')[2]);
+            stats.Honor = int.Parse(loc[4].Split(',')[3]);
+            stats.Dishonor = int.Parse(loc[4].Split(',')[4]);
+            if (int.Parse(loc[4].Split(',')[5]) == 0)
+                stats.HasWings = false;
+            else
+                stats.HasWings = true;
             stats.VitalityActual = int.Parse(loc3[0]);
             stats.MaxVitality = int.Parse(loc3[1]);
 

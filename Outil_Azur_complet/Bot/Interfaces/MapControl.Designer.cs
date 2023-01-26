@@ -30,38 +30,12 @@ namespace Outil_Azur_complet.Bot.Interfaces
         /// </summary>
         private void InitializeComponent()
         {
-            this.iTalk_Label4 = new iTalk.iTalk_Label();
-            this.iTalk_Label3 = new iTalk.iTalk_Label();
             this.UserMap = new Outil_Azur_complet.Bot.Controls.UserMapControl();
             this.iTalk_Label2 = new iTalk.iTalk_Label();
             this.iTalk_Label1 = new iTalk.iTalk_Label();
             this.SuspendLayout();
             // 
-            // iTalk_Label4
-            // 
-            this.iTalk_Label4.AutoSize = true;
-            this.iTalk_Label4.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label4.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label4.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label4.Location = new System.Drawing.Point(283, 461);
-            this.iTalk_Label4.Name = "iTalk_Label4";
-            this.iTalk_Label4.Size = new System.Drawing.Size(12, 13);
-            this.iTalk_Label4.TabIndex = 4;
-            this.iTalk_Label4.Text = "*";
-            // 
-            // iTalk_Label3
-            // 
-            this.iTalk_Label3.AutoSize = true;
-            this.iTalk_Label3.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label3.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label3.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label3.Location = new System.Drawing.Point(234, 458);
-            this.iTalk_Label3.Name = "iTalk_Label3";
-            this.iTalk_Label3.Size = new System.Drawing.Size(31, 13);
-            this.iTalk_Label3.TabIndex = 3;
-            this.iTalk_Label3.Text = "Lieu:";
-            // 
-            // userMapControl1
+            // UserMap
             // 
             this.UserMap.BorderColorOver = System.Drawing.Color.Empty;
             this.UserMap.CellActive = System.Drawing.Color.Azure;
@@ -106,8 +80,6 @@ namespace Outil_Azur_complet.Bot.Interfaces
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.Controls.Add(this.iTalk_Label4);
-            this.Controls.Add(this.iTalk_Label3);
             this.Controls.Add(this.UserMap);
             this.Controls.Add(this.iTalk_Label2);
             this.Controls.Add(this.iTalk_Label1);
@@ -123,7 +95,5 @@ namespace Outil_Azur_complet.Bot.Interfaces
         private UserMapControl UserMap;
         private iTalk.iTalk_Label iTalk_Label1;
         private iTalk.iTalk_Label iTalk_Label2;
-        private iTalk.iTalk_Label iTalk_Label3;
-        private iTalk.iTalk_Label iTalk_Label4;
     }
 }

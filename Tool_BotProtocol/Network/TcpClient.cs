@@ -23,7 +23,6 @@ namespace Tool_BotProtocol.Network
         public event Action<string> packetSendEvent;
         public event Action<string> socketInformationEvent;
 
-
         private bool _isWaitingPacket = false;
         private int _ticks;
         private List<int> _pings;

@@ -10,8 +10,6 @@ namespace Tools_protocol.Query
 	{
 		public readonly static object Objects = new object();
 
-		static Dictionary<string, string> SelectConnection;
-
 		public static string ConnectionString { get; set; }
 
 		public static bool IsServerConnected(string host, string username, string password, string databaseName)

@@ -27,51 +27,31 @@ namespace Outil_Azur_complet.Bot
         public MenuP_Bot()
         {
             InitializeComponent();
-            Directory.CreateDirectory(@".\ressources\Bot\BotMaps");
-            Directory.CreateDirectory(@".\ressources\Bot\BotObjets");
-            Directory.CreateDirectory(@".\ressources\Bot\BotJobs");
-            Directory.CreateDirectory(@".\ressources\Bot\AccountSingle");
-            Directory.CreateDirectory(@".\ressources\Bot\BotZaaps");
-            Directory.CreateDirectory(@".\ressources\Bot\BotNPCs");
-            Directory.CreateDirectory(@".\ressources\Bot\BotMonsters\");
-            GlobalConfig.InitializeConfig();
-            AccountConfig.LoadAccount();
-            MessagesReception.Init();
-            Map.LoadAllMaps();
-            InventoryClass.LoadAllObjects();
-            Jobs.LoadAllJobs();
-            Zaaps.LoadZaaps();
-            PNJ.LoadAllNPC();
-            Monstres.LoadAllMonstrers();
+            /* Directory.CreateDirectory(@".\ressources\Bot\BotMaps");
+             Directory.CreateDirectory(@".\ressources\Bot\BotObjets");
+             Directory.CreateDirectory(@".\ressources\Bot\BotJobs");
+             Directory.CreateDirectory(@".\ressources\Bot\AccountSingle");
+             Directory.CreateDirectory(@".\ressources\Bot\BotZaaps");
+             Directory.CreateDirectory(@".\ressources\Bot\BotNPCs");
+             Directory.CreateDirectory(@".\ressources\Bot\BotMonsters\");
+             
+
+             Map.LoadAllMaps();
+             InventoryClass.LoadAllObjects();
+             Jobs.LoadAllJobs();
+             Zaaps.LoadZaaps();
+             PNJ.LoadAllNPC();
+             Monstres.LoadAllMonstrers();*/
         }
 
         private void fileMenu_Click(object sender, EventArgs e)
         {
-            using (Gestionnaire_de_comptes GC = new Gestionnaire_de_comptes())
-            {
-                if (GC.ShowDialog() == DialogResult.OK)
-                {
-                    if (GlobalConfig.BYPASS)
-                    {
-                        MessageBox.Show("ee");
-                        
-                    }
-                    else
-                    {
-                        AccountConfig AccountConf = AccountConfig.AccountsActive[0];
-                        GameForm GF = new GameForm();
-                        GF.ActualCompte = new Accounts(AccountConf);
-                        GF.MdiParent = this;
-                        GF.Show();
-                    }
-                }
-            }
+           
         }
 
         private void editMenu_Click(object sender, EventArgs e)
         {
-            Options O = new Options();
-            O.ShowDialog();
+            
         }
     }
 }

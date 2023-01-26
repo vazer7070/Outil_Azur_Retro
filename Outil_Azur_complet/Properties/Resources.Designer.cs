@@ -133,16 +133,6 @@ namespace Outil_Azur_complet.Properties {
         /// <summary>
         ///   Recherche une ressource localisée de type System.Drawing.Bitmap.
         /// </summary>
-        internal static System.Drawing.Bitmap bonta {
-            get {
-                object obj = ResourceManager.GetObject("bonta", resourceCulture);
-                return ((System.Drawing.Bitmap)(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Recherche une ressource localisée de type System.Drawing.Bitmap.
-        /// </summary>
         internal static System.Drawing.Bitmap chance {
             get {
                 object obj = ResourceManager.GetObject("chance", resourceCulture);

@@ -29,24 +29,13 @@
         private void InitializeComponent()
         {
             this.iTalk_ThemeContainer1 = new iTalk.iTalk_ThemeContainer();
-            this.iTalk_Button_11 = new iTalk.iTalk_Button_1();
-            this.iTalk_Panel1 = new iTalk.iTalk_Panel();
-            this.iTalk_Label32 = new iTalk.iTalk_Label();
-            this.iTalk_Label31 = new iTalk.iTalk_Label();
-            this.iTalk_Label34 = new iTalk.iTalk_Label();
-            this.iTalk_Label33 = new iTalk.iTalk_Label();
-            this.iTalk_Label11 = new iTalk.iTalk_Label();
-            this.iTalk_Label10 = new iTalk.iTalk_Label();
-            this.iTalk_Label9 = new iTalk.iTalk_Label();
-            this.iTalk_Label8 = new iTalk.iTalk_Label();
-            this.iTalk_Label7 = new iTalk.iTalk_Label();
-            this.iTalk_Label6 = new iTalk.iTalk_Label();
-            this.iTalk_Label5 = new iTalk.iTalk_Label();
-            this.button1 = new System.Windows.Forms.Button();
-            this.iTalk_Label4 = new iTalk.iTalk_Label();
-            this.iTalk_Label1 = new iTalk.iTalk_Label();
-            this.iTalk_Label3 = new iTalk.iTalk_Label();
-            this.iTalk_Label2 = new iTalk.iTalk_Label();
+            this.iTalk_Label28 = new iTalk.iTalk_Label();
+            this.button13 = new System.Windows.Forms.Button();
+            this.button12 = new System.Windows.Forms.Button();
+            this.button11 = new System.Windows.Forms.Button();
+            this.button10 = new System.Windows.Forms.Button();
+            this.button9 = new System.Windows.Forms.Button();
+            this.button8 = new System.Windows.Forms.Button();
             this.iTalk_Panel2 = new iTalk.iTalk_Panel();
             this.button7 = new System.Windows.Forms.Button();
             this.button6 = new System.Windows.Forms.Button();
@@ -80,15 +69,25 @@
             this.iTalk_Label16 = new iTalk.iTalk_Label();
             this.iTalk_Label14 = new iTalk.iTalk_Label();
             this.iTalk_Label12 = new iTalk.iTalk_Label();
-            this.iTalk_Label28 = new iTalk.iTalk_Label();
-            this.button13 = new System.Windows.Forms.Button();
-            this.button12 = new System.Windows.Forms.Button();
-            this.button11 = new System.Windows.Forms.Button();
-            this.button10 = new System.Windows.Forms.Button();
-            this.button9 = new System.Windows.Forms.Button();
-            this.button8 = new System.Windows.Forms.Button();
+            this.iTalk_Panel1 = new iTalk.iTalk_Panel();
+            this.iTalk_Label32 = new iTalk.iTalk_Label();
+            this.iTalk_Label31 = new iTalk.iTalk_Label();
+            this.iTalk_Label34 = new iTalk.iTalk_Label();
+            this.iTalk_Label33 = new iTalk.iTalk_Label();
+            this.iTalk_Label11 = new iTalk.iTalk_Label();
+            this.iTalk_Label10 = new iTalk.iTalk_Label();
+            this.iTalk_Label9 = new iTalk.iTalk_Label();
+            this.iTalk_Label8 = new iTalk.iTalk_Label();
+            this.iTalk_Label7 = new iTalk.iTalk_Label();
+            this.iTalk_Label6 = new iTalk.iTalk_Label();
+            this.iTalk_Label5 = new iTalk.iTalk_Label();
+            this.button1 = new System.Windows.Forms.Button();
+            this.iTalk_Label4 = new iTalk.iTalk_Label();
+            this.iTalk_Label1 = new iTalk.iTalk_Label();
+            this.iTalk_Label3 = new iTalk.iTalk_Label();
+            this.iTalk_Label2 = new iTalk.iTalk_Label();
+            this.iTalk_Button_11 = new iTalk.iTalk_Button_1();
             this.iTalk_ThemeContainer1.SuspendLayout();
-            this.iTalk_Panel1.SuspendLayout();
             this.iTalk_Panel2.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox8)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox7)).BeginInit();
@@ -98,6 +97,7 @@
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox3)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox2)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
+            this.iTalk_Panel1.SuspendLayout();
             this.SuspendLayout();
             // 
             // iTalk_ThemeContainer1
@@ -125,233 +125,66 @@
             this.iTalk_ThemeContainer1.StartPosition = System.Windows.Forms.FormStartPosition.WindowsDefaultLocation;
             this.iTalk_ThemeContainer1.TabIndex = 0;
             // 
-            // iTalk_Button_11
+            // iTalk_Label28
             // 
-            this.iTalk_Button_11.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Button_11.Font = new System.Drawing.Font("Segoe UI", 12F);
-            this.iTalk_Button_11.Image = null;
-            this.iTalk_Button_11.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.iTalk_Button_11.Location = new System.Drawing.Point(238, 3);
-            this.iTalk_Button_11.Name = "iTalk_Button_11";
-            this.iTalk_Button_11.Size = new System.Drawing.Size(21, 19);
-            this.iTalk_Button_11.TabIndex = 0;
-            this.iTalk_Button_11.Text = "X";
-            this.iTalk_Button_11.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
+            this.iTalk_Label28.AutoSize = true;
+            this.iTalk_Label28.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label28.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label28.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label28.Location = new System.Drawing.Point(164, 453);
+            this.iTalk_Label28.Name = "iTalk_Label28";
+            this.iTalk_Label28.Size = new System.Drawing.Size(86, 13);
+            this.iTalk_Label28.TabIndex = 16;
+            this.iTalk_Label28.Text = "Spécialisations:";
             // 
-            // iTalk_Panel1
+            // button13
             // 
-            this.iTalk_Panel1.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Panel1.Controls.Add(this.iTalk_Label32);
-            this.iTalk_Panel1.Controls.Add(this.iTalk_Label31);
-            this.iTalk_Panel1.Controls.Add(this.iTalk_Label34);
-            this.iTalk_Panel1.Controls.Add(this.iTalk_Label33);
-            this.iTalk_Panel1.Controls.Add(this.iTalk_Label11);
-            this.iTalk_Panel1.Controls.Add(this.iTalk_Label10);
-            this.iTalk_Panel1.Controls.Add(this.iTalk_Label9);
-            this.iTalk_Panel1.Controls.Add(this.iTalk_Label8);
-            this.iTalk_Panel1.Controls.Add(this.iTalk_Label7);
-            this.iTalk_Panel1.Controls.Add(this.iTalk_Label6);
-            this.iTalk_Panel1.Controls.Add(this.iTalk_Label5);
-            this.iTalk_Panel1.Controls.Add(this.button1);
-            this.iTalk_Panel1.Controls.Add(this.iTalk_Label4);
-            this.iTalk_Panel1.Controls.Add(this.iTalk_Label1);
-            this.iTalk_Panel1.Controls.Add(this.iTalk_Label3);
-            this.iTalk_Panel1.Controls.Add(this.iTalk_Label2);
-            this.iTalk_Panel1.Location = new System.Drawing.Point(15, 26);
-            this.iTalk_Panel1.Name = "iTalk_Panel1";
-            this.iTalk_Panel1.Padding = new System.Windows.Forms.Padding(5);
-            this.iTalk_Panel1.Size = new System.Drawing.Size(238, 167);
-            this.iTalk_Panel1.TabIndex = 7;
-            this.iTalk_Panel1.Text = "iTalk_Panel1";
+            this.button13.Location = new System.Drawing.Point(222, 469);
+            this.button13.Name = "button13";
+            this.button13.Size = new System.Drawing.Size(26, 27);
+            this.button13.TabIndex = 10;
+            this.button13.UseVisualStyleBackColor = true;
             // 
-            // iTalk_Label32
+            // button12
             // 
-            this.iTalk_Label32.AutoSize = true;
-            this.iTalk_Label32.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label32.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label32.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label32.Location = new System.Drawing.Point(89, 149);
-            this.iTalk_Label32.Name = "iTalk_Label32";
-            this.iTalk_Label32.Size = new System.Drawing.Size(43, 13);
-            this.iTalk_Label32.TabIndex = 13;
-            this.iTalk_Label32.Text = "Portée:";
+            this.button12.Location = new System.Drawing.Point(194, 469);
+            this.button12.Name = "button12";
+            this.button12.Size = new System.Drawing.Size(26, 27);
+            this.button12.TabIndex = 11;
+            this.button12.UseVisualStyleBackColor = true;
             // 
-            // iTalk_Label31
+            // button11
             // 
-            this.iTalk_Label31.AutoSize = true;
-            this.iTalk_Label31.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label31.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label31.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label31.Location = new System.Drawing.Point(68, 132);
-            this.iTalk_Label31.Name = "iTalk_Label31";
-            this.iTalk_Label31.Size = new System.Drawing.Size(64, 13);
-            this.iTalk_Label31.TabIndex = 13;
-            this.iTalk_Label31.Text = "Invocation:";
+            this.button11.Location = new System.Drawing.Point(165, 469);
+            this.button11.Name = "button11";
+            this.button11.Size = new System.Drawing.Size(27, 27);
+            this.button11.TabIndex = 12;
+            this.button11.UseVisualStyleBackColor = true;
             // 
-            // iTalk_Label34
+            // button10
             // 
-            this.iTalk_Label34.AutoSize = true;
-            this.iTalk_Label34.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label34.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label34.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label34.Location = new System.Drawing.Point(191, 149);
-            this.iTalk_Label34.Name = "iTalk_Label34";
-            this.iTalk_Label34.Size = new System.Drawing.Size(23, 13);
-            this.iTalk_Label34.TabIndex = 12;
-            this.iTalk_Label34.Text = "*P*";
+            this.button10.Location = new System.Drawing.Point(115, 451);
+            this.button10.Name = "button10";
+            this.button10.Size = new System.Drawing.Size(46, 41);
+            this.button10.TabIndex = 13;
+            this.button10.UseVisualStyleBackColor = true;
             // 
-            // iTalk_Label33
+            // button9
             // 
-            this.iTalk_Label33.AutoSize = true;
-            this.iTalk_Label33.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label33.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label33.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label33.Location = new System.Drawing.Point(191, 132);
-            this.iTalk_Label33.Name = "iTalk_Label33";
-            this.iTalk_Label33.Size = new System.Drawing.Size(44, 13);
-            this.iTalk_Label33.TabIndex = 12;
-            this.iTalk_Label33.Text = "*invoc*";
+            this.button9.Location = new System.Drawing.Point(67, 451);
+            this.button9.Name = "button9";
+            this.button9.Size = new System.Drawing.Size(45, 41);
+            this.button9.TabIndex = 14;
+            this.button9.UseVisualStyleBackColor = true;
             // 
-            // iTalk_Label11
+            // button8
             // 
-            this.iTalk_Label11.AutoSize = true;
-            this.iTalk_Label11.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label11.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label11.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label11.Location = new System.Drawing.Point(191, 113);
-            this.iTalk_Label11.Name = "iTalk_Label11";
-            this.iTalk_Label11.Size = new System.Drawing.Size(33, 13);
-            this.iTalk_Label11.TabIndex = 12;
-            this.iTalk_Label11.Text = "*PM*";
-            // 
-            // iTalk_Label10
-            // 
-            this.iTalk_Label10.AutoSize = true;
-            this.iTalk_Label10.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label10.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label10.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label10.Location = new System.Drawing.Point(22, 113);
-            this.iTalk_Label10.Name = "iTalk_Label10";
-            this.iTalk_Label10.Size = new System.Drawing.Size(110, 13);
-            this.iTalk_Label10.TabIndex = 11;
-            this.iTalk_Label10.Text = "Points mouvements:";
-            // 
-            // iTalk_Label9
-            // 
-            this.iTalk_Label9.AutoSize = true;
-            this.iTalk_Label9.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label9.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label9.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label9.Location = new System.Drawing.Point(191, 95);
-            this.iTalk_Label9.Name = "iTalk_Label9";
-            this.iTalk_Label9.Size = new System.Drawing.Size(29, 13);
-            this.iTalk_Label9.TabIndex = 10;
-            this.iTalk_Label9.Text = "*PA*";
-            // 
-            // iTalk_Label8
-            // 
-            this.iTalk_Label8.AutoSize = true;
-            this.iTalk_Label8.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label8.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label8.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label8.Location = new System.Drawing.Point(40, 95);
-            this.iTalk_Label8.Name = "iTalk_Label8";
-            this.iTalk_Label8.Size = new System.Drawing.Size(92, 13);
-            this.iTalk_Label8.TabIndex = 9;
-            this.iTalk_Label8.Text = "Points d\'actions:";
-            // 
-            // iTalk_Label7
-            // 
-            this.iTalk_Label7.AutoSize = true;
-            this.iTalk_Label7.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label7.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label7.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label7.Location = new System.Drawing.Point(150, 78);
-            this.iTalk_Label7.Name = "iTalk_Label7";
-            this.iTalk_Label7.Size = new System.Drawing.Size(44, 13);
-            this.iTalk_Label7.TabIndex = 8;
-            this.iTalk_Label7.Text = "*endu*";
-            // 
-            // iTalk_Label6
-            // 
-            this.iTalk_Label6.AutoSize = true;
-            this.iTalk_Label6.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label6.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label6.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label6.Location = new System.Drawing.Point(164, 56);
-            this.iTalk_Label6.Name = "iTalk_Label6";
-            this.iTalk_Label6.Size = new System.Drawing.Size(30, 13);
-            this.iTalk_Label6.TabIndex = 7;
-            this.iTalk_Label6.Text = "*PV*";
-            // 
-            // iTalk_Label5
-            // 
-            this.iTalk_Label5.AutoSize = true;
-            this.iTalk_Label5.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label5.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label5.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label5.Location = new System.Drawing.Point(43, 56);
-            this.iTalk_Label5.Name = "iTalk_Label5";
-            this.iTalk_Label5.Size = new System.Drawing.Size(75, 13);
-            this.iTalk_Label5.TabIndex = 6;
-            this.iTalk_Label5.Text = "Points de vie:";
-            // 
-            // button1
-            // 
-            this.button1.Location = new System.Drawing.Point(11, 5);
-            this.button1.Name = "button1";
-            this.button1.Size = new System.Drawing.Size(49, 45);
-            this.button1.TabIndex = 2;
-            this.button1.UseVisualStyleBackColor = true;
-            // 
-            // iTalk_Label4
-            // 
-            this.iTalk_Label4.AutoSize = true;
-            this.iTalk_Label4.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label4.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label4.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label4.Location = new System.Drawing.Point(103, 28);
-            this.iTalk_Label4.Name = "iTalk_Label4";
-            this.iTalk_Label4.Size = new System.Drawing.Size(29, 13);
-            this.iTalk_Label4.TabIndex = 5;
-            this.iTalk_Label4.Text = "*XP*";
-            // 
-            // iTalk_Label1
-            // 
-            this.iTalk_Label1.AutoSize = true;
-            this.iTalk_Label1.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label1.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label1.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label1.Location = new System.Drawing.Point(72, 6);
-            this.iTalk_Label1.Name = "iTalk_Label1";
-            this.iTalk_Label1.Size = new System.Drawing.Size(45, 13);
-            this.iTalk_Label1.TabIndex = 1;
-            this.iTalk_Label1.Text = "*name*";
-            // 
-            // iTalk_Label3
-            // 
-            this.iTalk_Label3.AutoSize = true;
-            this.iTalk_Label3.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label3.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label3.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label3.Location = new System.Drawing.Point(69, 78);
-            this.iTalk_Label3.Name = "iTalk_Label3";
-            this.iTalk_Label3.Size = new System.Drawing.Size(49, 13);
-            this.iTalk_Label3.TabIndex = 4;
-            this.iTalk_Label3.Text = "Energie:";
-            // 
-            // iTalk_Label2
-            // 
-            this.iTalk_Label2.AutoSize = true;
-            this.iTalk_Label2.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label2.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label2.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label2.Location = new System.Drawing.Point(169, 5);
-            this.iTalk_Label2.Name = "iTalk_Label2";
-            this.iTalk_Label2.Size = new System.Drawing.Size(51, 13);
-            this.iTalk_Label2.TabIndex = 3;
-            this.iTalk_Label2.Text = "*niveau*";
+            this.button8.BackgroundImageLayout = System.Windows.Forms.ImageLayout.Stretch;
+            this.button8.Location = new System.Drawing.Point(20, 451);
+            this.button8.Name = "button8";
+            this.button8.Size = new System.Drawing.Size(45, 41);
+            this.button8.TabIndex = 15;
+            this.button8.UseVisualStyleBackColor = true;
             // 
             // iTalk_Panel2
             // 
@@ -751,65 +584,234 @@
             this.iTalk_Label12.TabIndex = 0;
             this.iTalk_Label12.Text = "Vitalité:";
             // 
-            // iTalk_Label28
+            // iTalk_Panel1
             // 
-            this.iTalk_Label28.AutoSize = true;
-            this.iTalk_Label28.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label28.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label28.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label28.Location = new System.Drawing.Point(164, 453);
-            this.iTalk_Label28.Name = "iTalk_Label28";
-            this.iTalk_Label28.Size = new System.Drawing.Size(86, 13);
-            this.iTalk_Label28.TabIndex = 16;
-            this.iTalk_Label28.Text = "Spécialisations:";
+            this.iTalk_Panel1.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Panel1.Controls.Add(this.iTalk_Label32);
+            this.iTalk_Panel1.Controls.Add(this.iTalk_Label31);
+            this.iTalk_Panel1.Controls.Add(this.iTalk_Label34);
+            this.iTalk_Panel1.Controls.Add(this.iTalk_Label33);
+            this.iTalk_Panel1.Controls.Add(this.iTalk_Label11);
+            this.iTalk_Panel1.Controls.Add(this.iTalk_Label10);
+            this.iTalk_Panel1.Controls.Add(this.iTalk_Label9);
+            this.iTalk_Panel1.Controls.Add(this.iTalk_Label8);
+            this.iTalk_Panel1.Controls.Add(this.iTalk_Label7);
+            this.iTalk_Panel1.Controls.Add(this.iTalk_Label6);
+            this.iTalk_Panel1.Controls.Add(this.iTalk_Label5);
+            this.iTalk_Panel1.Controls.Add(this.button1);
+            this.iTalk_Panel1.Controls.Add(this.iTalk_Label4);
+            this.iTalk_Panel1.Controls.Add(this.iTalk_Label1);
+            this.iTalk_Panel1.Controls.Add(this.iTalk_Label3);
+            this.iTalk_Panel1.Controls.Add(this.iTalk_Label2);
+            this.iTalk_Panel1.Location = new System.Drawing.Point(15, 26);
+            this.iTalk_Panel1.Name = "iTalk_Panel1";
+            this.iTalk_Panel1.Padding = new System.Windows.Forms.Padding(5);
+            this.iTalk_Panel1.Size = new System.Drawing.Size(238, 167);
+            this.iTalk_Panel1.TabIndex = 7;
+            this.iTalk_Panel1.Text = "iTalk_Panel1";
             // 
-            // button13
+            // iTalk_Label32
             // 
-            this.button13.Location = new System.Drawing.Point(222, 469);
-            this.button13.Name = "button13";
-            this.button13.Size = new System.Drawing.Size(26, 27);
-            this.button13.TabIndex = 10;
-            this.button13.UseVisualStyleBackColor = true;
+            this.iTalk_Label32.AutoSize = true;
+            this.iTalk_Label32.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label32.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label32.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label32.Location = new System.Drawing.Point(89, 149);
+            this.iTalk_Label32.Name = "iTalk_Label32";
+            this.iTalk_Label32.Size = new System.Drawing.Size(43, 13);
+            this.iTalk_Label32.TabIndex = 13;
+            this.iTalk_Label32.Text = "Portée:";
             // 
-            // button12
+            // iTalk_Label31
             // 
-            this.button12.Location = new System.Drawing.Point(194, 469);
-            this.button12.Name = "button12";
-            this.button12.Size = new System.Drawing.Size(26, 27);
-            this.button12.TabIndex = 11;
-            this.button12.UseVisualStyleBackColor = true;
+            this.iTalk_Label31.AutoSize = true;
+            this.iTalk_Label31.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label31.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label31.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label31.Location = new System.Drawing.Point(68, 132);
+            this.iTalk_Label31.Name = "iTalk_Label31";
+            this.iTalk_Label31.Size = new System.Drawing.Size(64, 13);
+            this.iTalk_Label31.TabIndex = 13;
+            this.iTalk_Label31.Text = "Invocation:";
             // 
-            // button11
+            // iTalk_Label34
             // 
-            this.button11.Location = new System.Drawing.Point(165, 469);
-            this.button11.Name = "button11";
-            this.button11.Size = new System.Drawing.Size(27, 27);
-            this.button11.TabIndex = 12;
-            this.button11.UseVisualStyleBackColor = true;
+            this.iTalk_Label34.AutoSize = true;
+            this.iTalk_Label34.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label34.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label34.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label34.Location = new System.Drawing.Point(191, 149);
+            this.iTalk_Label34.Name = "iTalk_Label34";
+            this.iTalk_Label34.Size = new System.Drawing.Size(23, 13);
+            this.iTalk_Label34.TabIndex = 12;
+            this.iTalk_Label34.Text = "*P*";
             // 
-            // button10
+            // iTalk_Label33
             // 
-            this.button10.Location = new System.Drawing.Point(115, 451);
-            this.button10.Name = "button10";
-            this.button10.Size = new System.Drawing.Size(46, 41);
-            this.button10.TabIndex = 13;
-            this.button10.UseVisualStyleBackColor = true;
+            this.iTalk_Label33.AutoSize = true;
+            this.iTalk_Label33.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label33.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label33.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label33.Location = new System.Drawing.Point(191, 132);
+            this.iTalk_Label33.Name = "iTalk_Label33";
+            this.iTalk_Label33.Size = new System.Drawing.Size(44, 13);
+            this.iTalk_Label33.TabIndex = 12;
+            this.iTalk_Label33.Text = "*invoc*";
             // 
-            // button9
+            // iTalk_Label11
             // 
-            this.button9.Location = new System.Drawing.Point(67, 451);
-            this.button9.Name = "button9";
-            this.button9.Size = new System.Drawing.Size(45, 41);
-            this.button9.TabIndex = 14;
-            this.button9.UseVisualStyleBackColor = true;
+            this.iTalk_Label11.AutoSize = true;
+            this.iTalk_Label11.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label11.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label11.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label11.Location = new System.Drawing.Point(191, 113);
+            this.iTalk_Label11.Name = "iTalk_Label11";
+            this.iTalk_Label11.Size = new System.Drawing.Size(33, 13);
+            this.iTalk_Label11.TabIndex = 12;
+            this.iTalk_Label11.Text = "*PM*";
             // 
-            // button8
+            // iTalk_Label10
             // 
-            this.button8.Location = new System.Drawing.Point(20, 451);
-            this.button8.Name = "button8";
-            this.button8.Size = new System.Drawing.Size(45, 41);
-            this.button8.TabIndex = 15;
-            this.button8.UseVisualStyleBackColor = true;
+            this.iTalk_Label10.AutoSize = true;
+            this.iTalk_Label10.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label10.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label10.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label10.Location = new System.Drawing.Point(22, 113);
+            this.iTalk_Label10.Name = "iTalk_Label10";
+            this.iTalk_Label10.Size = new System.Drawing.Size(110, 13);
+            this.iTalk_Label10.TabIndex = 11;
+            this.iTalk_Label10.Text = "Points mouvements:";
+            // 
+            // iTalk_Label9
+            // 
+            this.iTalk_Label9.AutoSize = true;
+            this.iTalk_Label9.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label9.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label9.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label9.Location = new System.Drawing.Point(191, 95);
+            this.iTalk_Label9.Name = "iTalk_Label9";
+            this.iTalk_Label9.Size = new System.Drawing.Size(29, 13);
+            this.iTalk_Label9.TabIndex = 10;
+            this.iTalk_Label9.Text = "*PA*";
+            // 
+            // iTalk_Label8
+            // 
+            this.iTalk_Label8.AutoSize = true;
+            this.iTalk_Label8.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label8.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label8.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label8.Location = new System.Drawing.Point(40, 95);
+            this.iTalk_Label8.Name = "iTalk_Label8";
+            this.iTalk_Label8.Size = new System.Drawing.Size(92, 13);
+            this.iTalk_Label8.TabIndex = 9;
+            this.iTalk_Label8.Text = "Points d\'actions:";
+            // 
+            // iTalk_Label7
+            // 
+            this.iTalk_Label7.AutoSize = true;
+            this.iTalk_Label7.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label7.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label7.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label7.Location = new System.Drawing.Point(150, 78);
+            this.iTalk_Label7.Name = "iTalk_Label7";
+            this.iTalk_Label7.Size = new System.Drawing.Size(44, 13);
+            this.iTalk_Label7.TabIndex = 8;
+            this.iTalk_Label7.Text = "*endu*";
+            // 
+            // iTalk_Label6
+            // 
+            this.iTalk_Label6.AutoSize = true;
+            this.iTalk_Label6.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label6.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label6.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label6.Location = new System.Drawing.Point(164, 56);
+            this.iTalk_Label6.Name = "iTalk_Label6";
+            this.iTalk_Label6.Size = new System.Drawing.Size(30, 13);
+            this.iTalk_Label6.TabIndex = 7;
+            this.iTalk_Label6.Text = "*PV*";
+            // 
+            // iTalk_Label5
+            // 
+            this.iTalk_Label5.AutoSize = true;
+            this.iTalk_Label5.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label5.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label5.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label5.Location = new System.Drawing.Point(43, 56);
+            this.iTalk_Label5.Name = "iTalk_Label5";
+            this.iTalk_Label5.Size = new System.Drawing.Size(75, 13);
+            this.iTalk_Label5.TabIndex = 6;
+            this.iTalk_Label5.Text = "Points de vie:";
+            // 
+            // button1
+            // 
+            this.button1.Location = new System.Drawing.Point(11, 5);
+            this.button1.Name = "button1";
+            this.button1.Size = new System.Drawing.Size(49, 45);
+            this.button1.TabIndex = 2;
+            this.button1.UseVisualStyleBackColor = true;
+            this.button1.Click += new System.EventHandler(this.button1_Click);
+            // 
+            // iTalk_Label4
+            // 
+            this.iTalk_Label4.AutoSize = true;
+            this.iTalk_Label4.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label4.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label4.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label4.Location = new System.Drawing.Point(103, 28);
+            this.iTalk_Label4.Name = "iTalk_Label4";
+            this.iTalk_Label4.Size = new System.Drawing.Size(29, 13);
+            this.iTalk_Label4.TabIndex = 5;
+            this.iTalk_Label4.Text = "*XP*";
+            // 
+            // iTalk_Label1
+            // 
+            this.iTalk_Label1.AutoSize = true;
+            this.iTalk_Label1.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label1.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label1.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label1.Location = new System.Drawing.Point(72, 6);
+            this.iTalk_Label1.Name = "iTalk_Label1";
+            this.iTalk_Label1.Size = new System.Drawing.Size(45, 13);
+            this.iTalk_Label1.TabIndex = 1;
+            this.iTalk_Label1.Text = "*name*";
+            // 
+            // iTalk_Label3
+            // 
+            this.iTalk_Label3.AutoSize = true;
+            this.iTalk_Label3.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label3.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label3.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label3.Location = new System.Drawing.Point(69, 78);
+            this.iTalk_Label3.Name = "iTalk_Label3";
+            this.iTalk_Label3.Size = new System.Drawing.Size(49, 13);
+            this.iTalk_Label3.TabIndex = 4;
+            this.iTalk_Label3.Text = "Energie:";
+            // 
+            // iTalk_Label2
+            // 
+            this.iTalk_Label2.AutoSize = true;
+            this.iTalk_Label2.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label2.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label2.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label2.Location = new System.Drawing.Point(169, 5);
+            this.iTalk_Label2.Name = "iTalk_Label2";
+            this.iTalk_Label2.Size = new System.Drawing.Size(51, 13);
+            this.iTalk_Label2.TabIndex = 3;
+            this.iTalk_Label2.Text = "*niveau*";
+            // 
+            // iTalk_Button_11
+            // 
+            this.iTalk_Button_11.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Button_11.Font = new System.Drawing.Font("Segoe UI", 12F);
+            this.iTalk_Button_11.Image = null;
+            this.iTalk_Button_11.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.iTalk_Button_11.Location = new System.Drawing.Point(238, 3);
+            this.iTalk_Button_11.Name = "iTalk_Button_11";
+            this.iTalk_Button_11.Size = new System.Drawing.Size(21, 19);
+            this.iTalk_Button_11.TabIndex = 0;
+            this.iTalk_Button_11.Text = "X";
+            this.iTalk_Button_11.TextAlignment = System.Drawing.StringAlignment.Center;
+            this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
             // 
             // PersoForm
             // 
@@ -824,8 +826,6 @@
             this.Load += new System.EventHandler(this.PersoForm_Load);
             this.iTalk_ThemeContainer1.ResumeLayout(false);
             this.iTalk_ThemeContainer1.PerformLayout();
-            this.iTalk_Panel1.ResumeLayout(false);
-            this.iTalk_Panel1.PerformLayout();
             this.iTalk_Panel2.ResumeLayout(false);
             this.iTalk_Panel2.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox8)).EndInit();
@@ -836,6 +836,8 @@
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox3)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox2)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).EndInit();
+            this.iTalk_Panel1.ResumeLayout(false);
+            this.iTalk_Panel1.PerformLayout();
             this.ResumeLayout(false);
 
         }

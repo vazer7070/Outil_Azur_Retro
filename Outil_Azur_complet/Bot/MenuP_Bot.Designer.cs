@@ -53,6 +53,7 @@
             // 
             this.fileMenu.ImageTransparentColor = System.Drawing.SystemColors.ActiveBorder;
             this.fileMenu.Name = "fileMenu";
+            this.fileMenu.ShowShortcutKeys = false;
             this.fileMenu.Size = new System.Drawing.Size(67, 20);
             this.fileMenu.Text = "Comptes";
             this.fileMenu.Click += new System.EventHandler(this.fileMenu_Click);

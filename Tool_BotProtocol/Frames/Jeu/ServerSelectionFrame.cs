@@ -33,20 +33,24 @@ namespace Tool_BotProtocol.Frames.Jeu
         public void Perso_Selection(TcpClient client, string message)
         {
             Accounts A = client.account;
+            A.AccountCharactersInfo.Clear();
             string[] S = message.Substring(3).Split('|');
             int count = 2;
-            bool found = false;
-            while(count < S.Length && !found)
+            while(count < S.Length)
             {
                 string[] S2 = S[count].Split(';');
                 int id = int.Parse(S2[0]);
                 string name = S2[1];
-                
-                if(name.ToLower().Equals(A.accountConfig.player.ToLower()) || string.IsNullOrEmpty(A.accountConfig.player))
+                int lvl = int.Parse(S2[2]);
+                int GfxId = int.Parse(S2[3]);
+
+                A.AccountCharactersInfo.Add($"{name}|{lvl}|{GfxId}|{id}");
+
+              /*  if(name.ToLower().Equals(A.accountConfig.player.ToLower()) || string.IsNullOrEmpty(A.accountConfig.player))
                 {
                     client.SendPacket($"AS{id}", true);
                     found = true;
-                }
+                }*/
                 count++;
             }
         }

@@ -15,17 +15,20 @@ namespace Tool_BotProtocol.Config
         public static Dictionary<string, AccountConfig> AccountsDico = new Dictionary<string, AccountConfig>();
         public  string Account {get; set;}
         public  string Password { get; set; }
-        public  string Server { get; set;}
-        public  string player { get; set; }
+        public string Lieu { get; set; }
+        public int Server_id = 0;
+        public List<string> Servers { get; set; }
+        public List<string> Perso_names_and_levels;
 
         static string comptePath = @".\ressources\Bot\AccountSingle\";
         public static List<AccountConfig> AccountsActive = new List<AccountConfig>();
-        public AccountConfig(string account, string pass, string server, string perso)
+        public AccountConfig(string account, string pass, string lieu)
         {
             Account = account;
             Password = pass;
-            Server = server;
-            player = perso;
+            Perso_names_and_levels = new List<string>();
+            Servers = new List<string>();
+            Lieu = lieu;
         }
         public static AccountConfig ReturnAccountInfo(string key)
         {
@@ -43,7 +46,7 @@ namespace Tool_BotProtocol.Config
 
                         string lec = File.ReadAllText(json);
                         Json.AccountsJson.AccountEntries accounts = JsonConvert.DeserializeObject<Json.AccountsJson.DataEntries>(lec).accountEntries;
-                        AccountConfig A = new AccountConfig(accounts.Compte, accounts.MDP, accounts.Serveur, accounts.Perso);
+                        AccountConfig A = new AccountConfig(accounts.Compte, accounts.MDP, accounts.Lieu);
                         AccountsDico.Add(accounts.Compte, A);
 
                     }
@@ -55,9 +58,9 @@ namespace Tool_BotProtocol.Config
                 }
             }
         }
-        public static void WriteCompte(string a, string mdp, string s, string pla)
+        public static void WriteCompte(string a, string mdp, string lieu)
         {
-            JObject newAccount = new JObject(new JProperty("Comptes", new JObject(new object[] { new JProperty("Compte", a), new JProperty("MDP", mdp), new JProperty("Serveur", s), new JProperty("Perso", pla) })));
+            JObject newAccount = new JObject(new JProperty("Comptes", new JObject(new object[] { new JProperty("Compte", a), new JProperty("MDP", mdp), new JProperty("Lieu", lieu) })));
             JObject Parse = JObject.Parse(newAccount.ToString());
             File.WriteAllText($"{comptePath}{a}.json", Parse.ToString());
         }

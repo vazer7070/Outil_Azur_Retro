@@ -7,16 +7,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using Tool_BotProtocol.Game.Accounts;
 
-namespace Outil_Azur_complet.Bot
+namespace Outil_Azur_complet
 {
-    public partial class GameClientFullform : Form
+    public partial class CreateCharacter : Form
     {
-        public Accounts ActualCompte { get; set; }
-        public List<string> DebugMessages = new List<string>();
-
-        public GameClientFullform()
+        public CreateCharacter()
         {
             InitializeComponent();
         }

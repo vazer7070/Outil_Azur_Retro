@@ -28,6 +28,12 @@ namespace Tool_BotProtocol.Game.Perso.Stats
         public StatsBase Agility { get; set; }
         public StatsBase Atteignable { get; set; }
         public StatsBase Invoc { get; set; }
+        public int Alignement { get; set; }
+        public int AlignLVL { get; set; }
+        public int Honor { get; set; }
+        public int Dishonor { get; set; }
+        public int GradeAli { get; set; }
+        public bool HasWings { get; set; }
         public int LifePercent => MaxVitality == 0?0 : (int)((double)VitalityActual / MaxVitality * 100);
 
         public CharacterStats()
@@ -545,6 +551,12 @@ namespace Tool_BotProtocol.Game.Perso.Stats
             EnergyMax = 0;
             VitalityActual = 0;
             MaxVitality = 0;
+            Alignement = 0;
+            AlignLVL = 0;
+            Honor = 0;
+            Dishonor = 0;
+            GradeAli = 0;
+            HasWings = false;
 
             Initiative.Clear();
             Propec.Clear();

@@ -582,6 +582,7 @@ namespace Outil_Azur_complet.Bot.Controls
                         List<string> groups = new List<string>();
                         List<string> names = new List<string>();
                         string S = "";
+                        Tinfo.Items.Clear();
                         foreach( var n in Account.Game.Map.MonsterList().FirstOrDefault(x => x.Cell.CellID == CellH.id).MobsInGroupe)
                             groups.Add($"{n.TemplateID}|{n.Level}|{n.Star}");
 
@@ -598,8 +599,7 @@ namespace Outil_Azur_complet.Bot.Controls
                         toolTipItem2.Image = ReturnMonsterStar(int.Parse(S));
                         toolTipItem2.Style.ImageSize = new Size(80, 15);
                         Tinfo.Items.Add(toolTipItem2);
-                        sf.Show(Tinfo);
-
+                        sf.SetToolTipInfo(this, Tinfo);
 
                     }
                     else if (Account.Game.character.Cell != null && CellH.id == Account.Game.character.Cell.CellID && !Anim.ContainsKey(Account.Game.character.id))
@@ -614,7 +614,7 @@ namespace Outil_Azur_complet.Bot.Controls
                     {
 
                         CellH.Border(g, Brushes.BlueViolet);
-                        T.ToolTipTitle = $"PNJ({Account.Game.Map.NPC_List().FirstOrDefault(x => x.Cell.CellID == CellH.id).GFX}";
+                        T.ToolTipTitle = $"PNJ ({Account.Game.Map.NPC_List().FirstOrDefault(x => x.Cell.CellID == CellH.id).GFX})";
                         T.Show(Account.Game.Map.Entites.Values.Where(x => x is PNJ).FirstOrDefault(x => x.Cell.CellID == CellH.id && !Anim.ContainsKey(x.id)).Name, this, CellH.Centre, 60);
                     }
                 }

@@ -162,6 +162,12 @@
     <Compile Include="Annexes\JsonModifier.Designer.cs">
       <DependentUpon>JsonModifier.cs</DependentUpon>
     </Compile>
+    <Compile Include="Bot\AboutAli.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Bot\AboutAli.Designer.cs">
+      <DependentUpon>AboutAli.cs</DependentUpon>
+    </Compile>
     <Compile Include="Bot\Controls\Animations.cs" />
     <Compile Include="Bot\Controls\AnimationType.cs" />
     <Compile Include="Bot\Controls\CellState.cs" />
@@ -188,17 +194,17 @@
     <Compile Include="Bot\GameForm.Designer.cs">
       <DependentUpon>GameForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="Bot\Gestionnaire de comptes.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="Bot\Gestionnaire de comptes.Designer.cs">
-      <DependentUpon>Gestionnaire de comptes.cs</DependentUpon>
-    </Compile>
     <Compile Include="Bot\Interfaces\MapControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="Bot\Interfaces\MapControl.Designer.cs">
       <DependentUpon>MapControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Bot\LoginForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Bot\LoginForm.Designer.cs">
+      <DependentUpon>LoginForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Bot\MenuP_Bot.cs">
       <SubType>Form</SubType>
@@ -206,17 +212,23 @@
     <Compile Include="Bot\MenuP_Bot.Designer.cs">
       <DependentUpon>MenuP_Bot.cs</DependentUpon>
     </Compile>
-    <Compile Include="Bot\Options.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="Bot\Options.Designer.cs">
-      <DependentUpon>Options.cs</DependentUpon>
-    </Compile>
     <Compile Include="Bot\PersoForm.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Bot\PersoForm.Designer.cs">
       <DependentUpon>PersoForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Bot\PersoSelection.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Bot\PersoSelection.Designer.cs">
+      <DependentUpon>PersoSelection.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Bot\SelectPlayerPerso.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Bot\SelectPlayerPerso.Designer.cs">
+      <DependentUpon>SelectPlayerPerso.cs</DependentUpon>
     </Compile>
     <Compile Include="editeur_compte\CreateForm.cs">
       <SubType>Form</SubType>
@@ -304,6 +316,11 @@
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
     <Compile Include="SettingsForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -314,6 +331,9 @@
     <EmbeddedResource Include="Annexes\JsonModifier.resx">
       <DependentUpon>JsonModifier.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="Bot\AboutAli.resx">
+      <DependentUpon>AboutAli.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Bot\Controls\UserMapControl.resx">
       <DependentUpon>UserMapControl.cs</DependentUpon>
     </EmbeddedResource>
@@ -323,20 +343,23 @@
     <EmbeddedResource Include="Bot\GameForm.resx">
       <DependentUpon>GameForm.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="Bot\Gestionnaire de comptes.resx">
-      <DependentUpon>Gestionnaire de comptes.cs</DependentUpon>
-    </EmbeddedResource>
     <EmbeddedResource Include="Bot\Interfaces\MapControl.resx">
       <DependentUpon>MapControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Bot\LoginForm.resx">
+      <DependentUpon>LoginForm.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Bot\MenuP_Bot.resx">
       <DependentUpon>MenuP_Bot.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="Bot\Options.resx">
-      <DependentUpon>Options.cs</DependentUpon>
-    </EmbeddedResource>
     <EmbeddedResource Include="Bot\PersoForm.resx">
       <DependentUpon>PersoForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Bot\PersoSelection.resx">
+      <DependentUpon>PersoSelection.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Bot\SelectPlayerPerso.resx">
+      <DependentUpon>SelectPlayerPerso.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="editeur_compte\CreateForm.resx">
       <DependentUpon>CreateForm.cs</DependentUpon>
@@ -362,6 +385,7 @@
     </EmbeddedResource>
     <EmbeddedResource Include="maps\MainEditeur.resx">
       <DependentUpon>MainEditeur.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="maps\MapForm.resx">
       <DependentUpon>MapForm.cs</DependentUpon>
@@ -383,14 +407,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
-      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
       <SubType>Designer</SubType>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
-    <Compile Include="Properties\Resources.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DependentUpon>Resources.resx</DependentUpon>
-      <DesignTime>True</DesignTime>
-    </Compile>
     <EmbeddedResource Include="SettingsForm.resx">
       <DependentUpon>SettingsForm.cs</DependentUpon>
     </EmbeddedResource>

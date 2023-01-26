@@ -17,11 +17,8 @@ namespace Tool_BotProtocol.Json
             [JsonProperty("MDP")]
             public string MDP { get; set; }
 
-            [JsonProperty("Perso")]
-            public string Perso { get; set; }
-
-            [JsonProperty("Serveur")]
-            public string Serveur { get; set; }
+            [JsonProperty("Lieu")]
+            public string Lieu { get; set; }
         }
 
         public class DataEntries

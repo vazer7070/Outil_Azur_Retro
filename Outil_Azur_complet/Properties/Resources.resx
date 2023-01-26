@@ -121,9 +121,6 @@
   <data name="agi" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\bin\Debug\ressources\Bot\UI\agi.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
-  <data name="bonta" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\bin\Debug\ressources\Bot\UI\bonta.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
   <data name="chance" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\bin\Debug\ressources\Bot\UI\chance.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>

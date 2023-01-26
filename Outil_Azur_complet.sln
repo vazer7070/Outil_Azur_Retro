@@ -7,8 +7,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Outil_Azur_complet", "Outil
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tool_BotProtocol", "Tool_BotProtocol\Tool_BotProtocol.csproj", "{61EA9DD0-C807-42A1-A3E1-1A1F49460CD8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PictureParser", "C:\Users\kishi\source\repos\PictureParser\PictureParser\PictureParser.csproj", "{26C17895-7405-40BA-A66E-FE736302BE04}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tools_protocol", "tools\Tools_protocol.csproj", "{856FD0FC-07E3-4ECD-876A-8DA87C30E920}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tool_Editor", "tools\tools_editor\Tool_Editor.csproj", "{F27C842A-DD9C-4549-9D89-1F23D66866AF}"
@@ -27,10 +25,6 @@ Global
 		{61EA9DD0-C807-42A1-A3E1-1A1F49460CD8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{61EA9DD0-C807-42A1-A3E1-1A1F49460CD8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{61EA9DD0-C807-42A1-A3E1-1A1F49460CD8}.Release|Any CPU.Build.0 = Release|Any CPU
-		{26C17895-7405-40BA-A66E-FE736302BE04}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{26C17895-7405-40BA-A66E-FE736302BE04}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{26C17895-7405-40BA-A66E-FE736302BE04}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{26C17895-7405-40BA-A66E-FE736302BE04}.Release|Any CPU.Build.0 = Release|Any CPU
 		{856FD0FC-07E3-4ECD-876A-8DA87C30E920}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{856FD0FC-07E3-4ECD-876A-8DA87C30E920}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{856FD0FC-07E3-4ECD-876A-8DA87C30E920}.Release|Any CPU.ActiveCfg = Release|Any CPU
