@@ -28,8 +28,9 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.components = new System.ComponentModel.Container();
             this.iTalk_ThemeContainer1 = new iTalk.iTalk_ThemeContainer();
+            this.iTalk_Label12 = new iTalk.iTalk_Label();
+            this.iTalk_Label11 = new iTalk.iTalk_Label();
             this.iTalk_Button_21 = new iTalk.iTalk_Button_2();
             this.iTalk_Button_12 = new iTalk.iTalk_Button_1();
             this.iTalk_Button_11 = new iTalk.iTalk_Button_1();
@@ -59,9 +60,6 @@
             this.pictureBox3 = new System.Windows.Forms.PictureBox();
             this.pictureBox2 = new System.Windows.Forms.PictureBox();
             this.pictureBox1 = new System.Windows.Forms.PictureBox();
-            this.iTalk_Label11 = new iTalk.iTalk_Label();
-            this.iTalk_Label12 = new iTalk.iTalk_Label();
-            this.timer1 = new System.Windows.Forms.Timer(this.components);
             this.iTalk_ThemeContainer1.SuspendLayout();
             this.iTalk_Panel1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox5)).BeginInit();
@@ -93,6 +91,30 @@
             this.iTalk_ThemeContainer1.TabIndex = 0;
             this.iTalk_ThemeContainer1.Text = "Selection du personnage";
             // 
+            // iTalk_Label12
+            // 
+            this.iTalk_Label12.AutoSize = true;
+            this.iTalk_Label12.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label12.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label12.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label12.Location = new System.Drawing.Point(627, 344);
+            this.iTalk_Label12.Name = "iTalk_Label12";
+            this.iTalk_Label12.Size = new System.Drawing.Size(12, 13);
+            this.iTalk_Label12.TabIndex = 4;
+            this.iTalk_Label12.Text = "*";
+            // 
+            // iTalk_Label11
+            // 
+            this.iTalk_Label11.AutoSize = true;
+            this.iTalk_Label11.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label11.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label11.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label11.Location = new System.Drawing.Point(496, 344);
+            this.iTalk_Label11.Name = "iTalk_Label11";
+            this.iTalk_Label11.Size = new System.Drawing.Size(116, 13);
+            this.iTalk_Label11.TabIndex = 3;
+            this.iTalk_Label11.Text = "Abonnement restant:";
+            // 
             // iTalk_Button_21
             // 
             this.iTalk_Button_21.BackColor = System.Drawing.Color.Transparent;
@@ -120,6 +142,7 @@
             this.iTalk_Button_12.TabIndex = 1;
             this.iTalk_Button_12.Text = "Créer personnage";
             this.iTalk_Button_12.TextAlignment = System.Drawing.StringAlignment.Center;
+            this.iTalk_Button_12.Click += new System.EventHandler(this.iTalk_Button_12_Click);
             // 
             // iTalk_Button_11
             // 
@@ -133,6 +156,7 @@
             this.iTalk_Button_11.TabIndex = 1;
             this.iTalk_Button_11.Text = "Changer de serveur";
             this.iTalk_Button_11.TextAlignment = System.Drawing.StringAlignment.Center;
+            this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
             // 
             // iTalk_Panel1
             // 
@@ -264,6 +288,7 @@
             this.iTalk_RadioButton5.Size = new System.Drawing.Size(62, 15);
             this.iTalk_RadioButton5.TabIndex = 3;
             this.iTalk_RadioButton5.Text = "Choisir";
+            this.iTalk_RadioButton5.CheckedChanged += new iTalk.iTalk_RadioButton.CheckedChangedEventHandler(this.iTalk_RadioButton5_CheckedChanged);
             // 
             // iTalk_RadioButton4
             // 
@@ -275,6 +300,7 @@
             this.iTalk_RadioButton4.Size = new System.Drawing.Size(62, 15);
             this.iTalk_RadioButton4.TabIndex = 3;
             this.iTalk_RadioButton4.Text = "Choisir";
+            this.iTalk_RadioButton4.CheckedChanged += new iTalk.iTalk_RadioButton.CheckedChangedEventHandler(this.iTalk_RadioButton4_CheckedChanged);
             // 
             // iTalk_RadioButton3
             // 
@@ -286,6 +312,7 @@
             this.iTalk_RadioButton3.Size = new System.Drawing.Size(62, 15);
             this.iTalk_RadioButton3.TabIndex = 3;
             this.iTalk_RadioButton3.Text = "Choisir";
+            this.iTalk_RadioButton3.CheckedChanged += new iTalk.iTalk_RadioButton.CheckedChangedEventHandler(this.iTalk_RadioButton3_CheckedChanged);
             // 
             // iTalk_RadioButton2
             // 
@@ -297,6 +324,7 @@
             this.iTalk_RadioButton2.Size = new System.Drawing.Size(62, 15);
             this.iTalk_RadioButton2.TabIndex = 3;
             this.iTalk_RadioButton2.Text = "Choisir";
+            this.iTalk_RadioButton2.CheckedChanged += new iTalk.iTalk_RadioButton.CheckedChangedEventHandler(this.iTalk_RadioButton2_CheckedChanged);
             // 
             // iTalk_RadioButton1
             // 
@@ -485,36 +513,6 @@
             this.pictureBox1.TabIndex = 0;
             this.pictureBox1.TabStop = false;
             // 
-            // iTalk_Label11
-            // 
-            this.iTalk_Label11.AutoSize = true;
-            this.iTalk_Label11.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label11.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label11.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label11.Location = new System.Drawing.Point(496, 344);
-            this.iTalk_Label11.Name = "iTalk_Label11";
-            this.iTalk_Label11.Size = new System.Drawing.Size(116, 13);
-            this.iTalk_Label11.TabIndex = 3;
-            this.iTalk_Label11.Text = "Abonnement restant:";
-            // 
-            // iTalk_Label12
-            // 
-            this.iTalk_Label12.AutoSize = true;
-            this.iTalk_Label12.BackColor = System.Drawing.Color.Transparent;
-            this.iTalk_Label12.Font = new System.Drawing.Font("Segoe UI", 8F);
-            this.iTalk_Label12.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label12.Location = new System.Drawing.Point(627, 344);
-            this.iTalk_Label12.Name = "iTalk_Label12";
-            this.iTalk_Label12.Size = new System.Drawing.Size(12, 13);
-            this.iTalk_Label12.TabIndex = 4;
-            this.iTalk_Label12.Text = "*";
-            // 
-            // timer1
-            // 
-            this.timer1.Enabled = true;
-            this.timer1.Interval = 1000;
-            this.timer1.Tick += new System.EventHandler(this.timer1_Tick);
-            // 
             // SelectPlayerPerso
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -574,6 +572,5 @@
         private iTalk.iTalk_Label iTalk_Label6;
         private iTalk.iTalk_Label iTalk_Label12;
         private iTalk.iTalk_Label iTalk_Label11;
-        private System.Windows.Forms.Timer timer1;
     }
 }

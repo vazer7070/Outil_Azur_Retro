@@ -65,10 +65,10 @@ namespace Outil_Azur_complet
                     RP.Show();
                     break;
                 case "AzurBot":
-                    /* MenuP_Bot MP = new MenuP_Bot();
-                     MP.Show();*/
-                    LoginForm LF = new LoginForm();
-                    LF.Show();
+                   /* LoginForm LF = new LoginForm();
+                    LF.Show();*/
+                   LoadingBotForm LBF  = new LoadingBotForm();
+                    LBF.Show();
                     break;
             }
         }

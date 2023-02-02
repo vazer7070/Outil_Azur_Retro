@@ -18,8 +18,9 @@ namespace Outil_Azur_complet.Bot
     {
         public Accounts ActualCompte { get; set; }
         public List<string> DebugMessages = new List<string>();
-        public GameForm()
+        public GameForm(Accounts A)
         {
+            ActualCompte = A;
             InitializeComponent();
         }
 
@@ -29,13 +30,11 @@ namespace Outil_Azur_complet.Bot
             iTalk_Listview1.Columns.Add("Date", 100, HorizontalAlignment.Left);
             iTalk_Listview1.Columns.Add("Message", 240, HorizontalAlignment.Left);
             ActualCompte.Logger.log_event += (str, color) => WriteMessages(str.ToString(), color);
-            ActualCompte.Connect();
-
             ActualCompte.Connexion.packetReceivedEvent += PacketRecu;
             ActualCompte.Connexion.packetSendEvent += PacketSent;
             ActualCompte.Connexion.socketInformationEvent += GetSocketInfo;
             ActualCompte.Game.character.ChatPrivate += AddPrivateToList;
-            ActualCompte.Game.character.Player_Selection += PlayerSelection;
+            PlayerSelection();
             iTalk_RadioButton2.Checked = true;
 
 

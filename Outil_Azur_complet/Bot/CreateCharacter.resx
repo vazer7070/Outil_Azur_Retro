@@ -117,4 +117,59 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <assembly alias="System.Drawing" name="System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
+  <data name="iTalk_Button_14.Image" type="System.Drawing.Bitmap, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+    <value>
+        iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABGdBTUEAALGPC/xhBQAAAAlwSFlzAAAA
+        cAAAAHABznhikwAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAKJSURBVDhPbZPv
+        TxJxHMdvbvoPuVHrQTLBVCRSEFHTlisdTzLrgZvg3GlbqROXKKTCpj0rJ21p+sTTu6OtB47F1gIUjn49
+        KeH0AcJVi+vT53t+Yeh6b6/dk3u97sfumIuL2e01qQar5dBo9SWNts2Mo27zqEO/8KPzqgUGaqvpaf/f
+        YYPNhJKEQIkjR10lEgab6ennd+AY7UNBrZDzKaMtLvcY45nOunxFRJUn9Lepdrb44LopMRRSD6wPhKTB
+        mvvW0hM+bu9Xju39UBxsIyi/nBYx49Dn5BG9oOzUq3nO0KTJMXatJj4UkjAASO77oG+LiCVoQOPP09Zt
+        hTPkMABIEiL4Tg7uhyxUhq+urbD8RIDs8HPhxN7Pn3Tc7Srea0Xa+KLHKsD7dvi7f0OkAShwBjMJ+Ggg
+        Lz/mFRKQJ4U9YNkq7RZxwDJVKPMkgCg/OUOBRuYZFN9ogYevYppM7mCS76RueRC1d9MA/BauxbUAV7/B
+        +N2pTb9LggD7Jb7uleGMbBf1yluNOW+ufnQCYe6dIzEjWgF5zfhd6QUSWHR/yqOs0AjPApQfgQW2aiXm
+        FGigMBu2FUjAI1rnGf9IykIChBczGZEE5nxZoTco87eC2e7GaKi7KRoSJj6MaYFA9I5Irw6et21mZo2N
+        1aCcIoFn7nRu1nu0jTKUQLmMOzq+7QnbTmkguRQZOPu0UW5G1NGxlNAync51LWbE3oCsVASUhv2X4uXd
+        4Gn73iMe5eJM2NaoyaUNj6f7TFOSigABQ4Xrns+JK8JKAsXCJS4AFLWXd53/lEszTUtNKCdLEUKFiAST
+        up3l81e+uNqlSLVpOm1umZLm8bih4wIbut2AV8ctm2sjSxd+Z4b5BxZlCPMl4ppcAAAAAElFTkSuQmCC
+</value>
+  </data>
+  <data name="iTalk_Button_13.Image" type="System.Drawing.Bitmap, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+    <value>
+        iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABGdBTUEAALGPC/xhBQAAAAlwSFlzAAAA
+        cQAAAHEBHD+AdwAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAKJSURBVDhPbZPv
+        TxJxHMdvbvoPuVHrQTLBVCRSEFHTlisdTzLrgZvg3GlbqROXKKTCpj0rJ21p+sTTu6OtB47F1gIUjn49
+        KeH0AcJVi+vT53t+Yeh6b6/dk3u97sfumIuL2e01qQar5dBo9SWNts2Mo27zqEO/8KPzqgUGaqvpaf/f
+        YYPNhJKEQIkjR10lEgab6ennd+AY7UNBrZDzKaMtLvcY45nOunxFRJUn9Lepdrb44LopMRRSD6wPhKTB
+        mvvW0hM+bu9Xju39UBxsIyi/nBYx49Dn5BG9oOzUq3nO0KTJMXatJj4UkjAASO77oG+LiCVoQOPP09Zt
+        hTPkMABIEiL4Tg7uhyxUhq+urbD8RIDs8HPhxN7Pn3Tc7Srea0Xa+KLHKsD7dvi7f0OkAShwBjMJ+Ggg
+        Lz/mFRKQJ4U9YNkq7RZxwDJVKPMkgCg/OUOBRuYZFN9ogYevYppM7mCS76RueRC1d9MA/BauxbUAV7/B
+        +N2pTb9LggD7Jb7uleGMbBf1yluNOW+ufnQCYe6dIzEjWgF5zfhd6QUSWHR/yqOs0AjPApQfgQW2aiXm
+        FGigMBu2FUjAI1rnGf9IykIChBczGZEE5nxZoTco87eC2e7GaKi7KRoSJj6MaYFA9I5Irw6et21mZo2N
+        1aCcIoFn7nRu1nu0jTKUQLmMOzq+7QnbTmkguRQZOPu0UW5G1NGxlNAync51LWbE3oCsVASUhv2X4uXd
+        4Gn73iMe5eJM2NaoyaUNj6f7TFOSigABQ4Xrns+JK8JKAsXCJS4AFLWXd53/lEszTUtNKCdLEUKFiAST
+        up3l81e+uNqlSLVpOm1umZLm8bih4wIbut2AV8ctm2sjSxd+Z4b5BxZlCPMl4ppcAAAAAElFTkSuQmCC
+</value>
+  </data>
+  <data name="iTalk_Button_12.Image" type="System.Drawing.Bitmap, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+    <value>
+        iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABGdBTUEAALGPC/xhBQAAAAlwSFlzAAAA
+        cgAAAHIBsYahGgAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAKJSURBVDhPbZPv
+        TxJxHMdvbvoPuVHrQTLBVCRSEFHTlisdTzLrgZvg3GlbqROXKKTCpj0rJ21p+sTTu6OtB47F1gIUjn49
+        KeH0AcJVi+vT53t+Yeh6b6/dk3u97sfumIuL2e01qQar5dBo9SWNts2Mo27zqEO/8KPzqgUGaqvpaf/f
+        YYPNhJKEQIkjR10lEgab6ennd+AY7UNBrZDzKaMtLvcY45nOunxFRJUn9Lepdrb44LopMRRSD6wPhKTB
+        mvvW0hM+bu9Xju39UBxsIyi/nBYx49Dn5BG9oOzUq3nO0KTJMXatJj4UkjAASO77oG+LiCVoQOPP09Zt
+        hTPkMABIEiL4Tg7uhyxUhq+urbD8RIDs8HPhxN7Pn3Tc7Srea0Xa+KLHKsD7dvi7f0OkAShwBjMJ+Ggg
+        Lz/mFRKQJ4U9YNkq7RZxwDJVKPMkgCg/OUOBRuYZFN9ogYevYppM7mCS76RueRC1d9MA/BauxbUAV7/B
+        +N2pTb9LggD7Jb7uleGMbBf1yluNOW+ufnQCYe6dIzEjWgF5zfhd6QUSWHR/yqOs0AjPApQfgQW2aiXm
+        FGigMBu2FUjAI1rnGf9IykIChBczGZEE5nxZoTco87eC2e7GaKi7KRoSJj6MaYFA9I5Irw6et21mZo2N
+        1aCcIoFn7nRu1nu0jTKUQLmMOzq+7QnbTmkguRQZOPu0UW5G1NGxlNAync51LWbE3oCsVASUhv2X4uXd
+        4Gn73iMe5eJM2NaoyaUNj6f7TFOSigABQ4Xrns+JK8JKAsXCJS4AFLWXd53/lEszTUtNKCdLEUKFiAST
+        up3l81e+uNqlSLVpOm1umZLm8bih4wIbut2AV8ctm2sjSxd+Z4b5BxZlCPMl4ppcAAAAAElFTkSuQmCC
+</value>
+  </data>
+  <metadata name="colorDialog1.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
+    <value>17, 17</value>
+  </metadata>
 </root>

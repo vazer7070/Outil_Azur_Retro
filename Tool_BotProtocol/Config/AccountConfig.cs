@@ -50,10 +50,8 @@ namespace Tool_BotProtocol.Config
                         AccountsDico.Add(accounts.Compte, A);
 
                     }
-                    catch(Exception e)
+                    catch
                     {
-                        MessageBox.Show(e.Message);
-                        return;
                     }
                 }
             }

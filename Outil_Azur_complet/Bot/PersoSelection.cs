@@ -19,7 +19,6 @@ namespace Outil_Azur_complet.Bot
         Accounts A;
         private bool selected;
         private string selectionned;
-        private bool isgood =false;
 
         public PersoSelection(AccountConfig AC)
         {
@@ -30,22 +29,71 @@ namespace Outil_Azur_complet.Bot
 
         private void PersoSelection_Load(object sender, EventArgs e)
         {
+            iTalk_Listview1.Items.Clear();
             A.Connect();
+            A.Game.Server.AlreadyConnected += AlreadyConnected;
+            A.Game.Server.FoundOrNotFriend += HaveFoundFriend;
+            A.Game.Server.AddServerInMenu += UpdateListViews;
             iTalk_Listview1.Columns.Add("Serveurs", 170, HorizontalAlignment.Left);
             iTalk_Listview1.Columns.Add("Nombre de perso", 150, HorizontalAlignment.Left);
+            iTalk_Listview1.Columns.Add("État", 200, HorizontalAlignment.Left);
 
+        }
+        public void AlreadyConnected()
+        {
+            try
+            {
+                BeginInvoke((Action)(() =>
+                {
+                    MessageBox.Show("Vous êtes déjà en jeu, déconnexion de votre compte.", "Connexion impossible", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    LoginForm LF = new LoginForm();
+                    LF.Show();
+                    Close();
+                }));
+            }
+            catch
+            {
+
+            }
+        }
+        public void HaveFoundFriend(string serveur)
+        {
+            try
+            {
+                BeginInvoke((Action)(() =>
+                {
+                    if (!string.IsNullOrEmpty(serveur))
+                    {
+                        iTalk_Label2.Text = $"{iTalk_TextBox_Small1.Text} possède {serveur.Split(',')[1].Split(';')[0]} personnage(s) sur le serveur {serveur.Split(',')[0]}";
+
+                    }
+                }));
+            }
+            catch
+            {
+
+            }
         }
         public void UpdateListViews()
         {
-            iTalk_Listview1.Items.Clear();
-            if (config.Servers.Count > 0)
+            try
             {
-                foreach (string h in config.Servers)
+                BeginInvoke((Action)(() =>
                 {
-                    iTalk_Listview1.Items.Add(h.Split(',')[0]).SubItems.AddRange(new string[1] { h.Split(',')[1] });
-                }
+                    iTalk_Listview1.Items.Clear();
+                    if (config.Servers.Count > 0)
+                    {
+                        foreach (string h in config.Servers)
+                        {
+                            iTalk_Listview1.Items.Add(h.Split(',')[0]).SubItems.AddRange(new string[2] { h.Split(',')[1], A.Game.Server.ServerStates.ToString() });
+                        }
+                    }
+                }));
             }
+            catch
+            {
 
+            }
         }
 
         private void iTalk_Button_21_Click(object sender, EventArgs e)
@@ -81,14 +129,12 @@ namespace Outil_Azur_complet.Bot
             this.Close();
         }
 
-        private void timer1_Tick(object sender, EventArgs e)
+        private void iTalk_Button_11_Click(object sender, EventArgs e)
         {
-            if(!isgood)
+            if(!string.IsNullOrWhiteSpace(iTalk_TextBox_Small1.Text))
             {
-                UpdateListViews();
-                isgood = true;
+                A.Connexion.SendPacket($"AF{iTalk_TextBox_Small1.Text}", true);
             }
-
         }
     }
 }

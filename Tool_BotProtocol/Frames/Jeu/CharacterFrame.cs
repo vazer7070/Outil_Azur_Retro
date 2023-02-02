@@ -256,7 +256,7 @@ namespace Tool_BotProtocol.Frames.Jeu
         public void GetLifeRegen(TcpClient client, string message)
         {
             string cut = message.Substring(3);
-            int life = int.Parse(message);
+            int life = int.Parse(cut);
             Accounts A = client.account;
             CharacterClass perso = A.Game.character;
 

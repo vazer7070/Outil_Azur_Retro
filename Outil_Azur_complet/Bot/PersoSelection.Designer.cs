@@ -30,25 +30,26 @@
         {
             this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(PersoSelection));
-            iTalk.ControlRenderer controlRenderer1 = new iTalk.ControlRenderer();
-            iTalk.MSColorTable msColorTable1 = new iTalk.MSColorTable();
+            iTalk.ControlRenderer controlRenderer2 = new iTalk.ControlRenderer();
+            iTalk.MSColorTable msColorTable2 = new iTalk.MSColorTable();
+            this.timer1 = new System.Windows.Forms.Timer(this.components);
             this.iTalk_ThemeContainer1 = new iTalk.iTalk_ThemeContainer();
             this.iTalk_TabControl1 = new iTalk.iTalk_TabControl();
             this.tabPage1 = new System.Windows.Forms.TabPage();
+            this.iTalk_Label2 = new iTalk.iTalk_Label();
             this.iTalk_Button_21 = new iTalk.iTalk_Button_2();
             this.iTalk_Label1 = new iTalk.iTalk_Label();
             this.iTalk_TextBox_Small1 = new iTalk.iTalk_TextBox_Small();
             this.iTalk_Button_11 = new iTalk.iTalk_Button_1();
             this.iTalk_Listview1 = new iTalk.iTalk_Listview();
-            this.tabPage2 = new System.Windows.Forms.TabPage();
             this.iTalk_ContextMenuStrip1 = new iTalk.iTalk_ContextMenuStrip();
             this.connexionToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.timer1 = new System.Windows.Forms.Timer(this.components);
             this.iTalk_ThemeContainer1.SuspendLayout();
             this.iTalk_TabControl1.SuspendLayout();
             this.tabPage1.SuspendLayout();
             this.iTalk_ContextMenuStrip1.SuspendLayout();
             this.SuspendLayout();
+            // 
             // 
             // iTalk_ThemeContainer1
             // 
@@ -65,13 +66,12 @@
             this.iTalk_ThemeContainer1.SmartBounds = false;
             this.iTalk_ThemeContainer1.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.iTalk_ThemeContainer1.TabIndex = 0;
-            this.iTalk_ThemeContainer1.Text = "Entrée en jeu";
+            this.iTalk_ThemeContainer1.Text = "Selection du serveur";
             // 
             // iTalk_TabControl1
             // 
             this.iTalk_TabControl1.Alignment = System.Windows.Forms.TabAlignment.Left;
             this.iTalk_TabControl1.Controls.Add(this.tabPage1);
-            this.iTalk_TabControl1.Controls.Add(this.tabPage2);
             this.iTalk_TabControl1.DrawMode = System.Windows.Forms.TabDrawMode.OwnerDrawFixed;
             this.iTalk_TabControl1.ItemSize = new System.Drawing.Size(44, 135);
             this.iTalk_TabControl1.Location = new System.Drawing.Point(3, 24);
@@ -85,6 +85,7 @@
             // tabPage1
             // 
             this.tabPage1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(246)))), ((int)(((byte)(246)))), ((int)(((byte)(246)))));
+            this.tabPage1.Controls.Add(this.iTalk_Label2);
             this.tabPage1.Controls.Add(this.iTalk_Button_21);
             this.tabPage1.Controls.Add(this.iTalk_Label1);
             this.tabPage1.Controls.Add(this.iTalk_TextBox_Small1);
@@ -97,6 +98,17 @@
             this.tabPage1.TabIndex = 0;
             this.tabPage1.Text = "Serveurs";
             // 
+            // iTalk_Label2
+            // 
+            this.iTalk_Label2.AutoSize = true;
+            this.iTalk_Label2.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label2.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label2.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label2.Location = new System.Drawing.Point(204, 46);
+            this.iTalk_Label2.Name = "iTalk_Label2";
+            this.iTalk_Label2.Size = new System.Drawing.Size(0, 13);
+            this.iTalk_Label2.TabIndex = 5;
+            // 
             // iTalk_Button_21
             // 
             this.iTalk_Button_21.BackColor = System.Drawing.Color.Transparent;
@@ -104,7 +116,7 @@
             this.iTalk_Button_21.ForeColor = System.Drawing.Color.White;
             this.iTalk_Button_21.Image = ((System.Drawing.Image)(resources.GetObject("iTalk_Button_21.Image")));
             this.iTalk_Button_21.ImageAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            this.iTalk_Button_21.Location = new System.Drawing.Point(36, 13);
+            this.iTalk_Button_21.Location = new System.Drawing.Point(36, 7);
             this.iTalk_Button_21.Name = "iTalk_Button_21";
             this.iTalk_Button_21.Size = new System.Drawing.Size(41, 32);
             this.iTalk_Button_21.TabIndex = 4;
@@ -117,7 +129,7 @@
             this.iTalk_Label1.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label1.Font = new System.Drawing.Font("Segoe UI", 8F);
             this.iTalk_Label1.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label1.Location = new System.Drawing.Point(108, 24);
+            this.iTalk_Label1.Location = new System.Drawing.Point(108, 18);
             this.iTalk_Label1.Name = "iTalk_Label1";
             this.iTalk_Label1.Size = new System.Drawing.Size(105, 13);
             this.iTalk_Label1.TabIndex = 3;
@@ -128,7 +140,7 @@
             this.iTalk_TextBox_Small1.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_TextBox_Small1.Font = new System.Drawing.Font("Tahoma", 11F);
             this.iTalk_TextBox_Small1.ForeColor = System.Drawing.Color.DimGray;
-            this.iTalk_TextBox_Small1.Location = new System.Drawing.Point(229, 16);
+            this.iTalk_TextBox_Small1.Location = new System.Drawing.Point(229, 10);
             this.iTalk_TextBox_Small1.MaxLength = 32767;
             this.iTalk_TextBox_Small1.Multiline = false;
             this.iTalk_TextBox_Small1.Name = "iTalk_TextBox_Small1";
@@ -144,44 +156,35 @@
             this.iTalk_Button_11.Font = new System.Drawing.Font("Segoe UI", 12F);
             this.iTalk_Button_11.Image = null;
             this.iTalk_Button_11.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.iTalk_Button_11.Location = new System.Drawing.Point(472, 9);
+            this.iTalk_Button_11.Location = new System.Drawing.Point(472, 3);
             this.iTalk_Button_11.Name = "iTalk_Button_11";
             this.iTalk_Button_11.Size = new System.Drawing.Size(166, 40);
             this.iTalk_Button_11.TabIndex = 1;
             this.iTalk_Button_11.Text = "Recherche";
             this.iTalk_Button_11.TextAlignment = System.Drawing.StringAlignment.Center;
+            this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
             // 
             // iTalk_Listview1
             // 
             this.iTalk_Listview1.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.iTalk_Listview1.HeaderStyle = System.Windows.Forms.ColumnHeaderStyle.Nonclickable;
             this.iTalk_Listview1.HideSelection = false;
-            this.iTalk_Listview1.Location = new System.Drawing.Point(6, 57);
+            this.iTalk_Listview1.Location = new System.Drawing.Point(6, 67);
             this.iTalk_Listview1.Name = "iTalk_Listview1";
-            this.iTalk_Listview1.Size = new System.Drawing.Size(640, 330);
+            this.iTalk_Listview1.Size = new System.Drawing.Size(640, 320);
             this.iTalk_Listview1.TabIndex = 0;
             this.iTalk_Listview1.UseCompatibleStateImageBehavior = false;
             this.iTalk_Listview1.View = System.Windows.Forms.View.Details;
             this.iTalk_Listview1.SelectedIndexChanged += new System.EventHandler(this.iTalk_Listview1_SelectedIndexChanged);
-            // 
-            // tabPage2
-            // 
-            this.tabPage2.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(246)))), ((int)(((byte)(246)))), ((int)(((byte)(246)))));
-            this.tabPage2.Location = new System.Drawing.Point(139, 4);
-            this.tabPage2.Name = "tabPage2";
-            this.tabPage2.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage2.Size = new System.Drawing.Size(654, 393);
-            this.tabPage2.TabIndex = 1;
-            this.tabPage2.Text = "Création";
             // 
             // iTalk_ContextMenuStrip1
             // 
             this.iTalk_ContextMenuStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.connexionToolStripMenuItem});
             this.iTalk_ContextMenuStrip1.Name = "iTalk_ContextMenuStrip1";
-            controlRenderer1.ColorTable = msColorTable1;
-            controlRenderer1.RoundedEdges = true;
-            this.iTalk_ContextMenuStrip1.Renderer = controlRenderer1;
+            controlRenderer2.ColorTable = msColorTable2;
+            controlRenderer2.RoundedEdges = true;
+            this.iTalk_ContextMenuStrip1.Renderer = controlRenderer2;
             this.iTalk_ContextMenuStrip1.Size = new System.Drawing.Size(133, 26);
             // 
             // connexionToolStripMenuItem
@@ -191,12 +194,6 @@
             this.connexionToolStripMenuItem.Size = new System.Drawing.Size(132, 22);
             this.connexionToolStripMenuItem.Text = "Connexion";
             this.connexionToolStripMenuItem.Click += new System.EventHandler(this.connexionToolStripMenuItem_Click);
-            // 
-            // timer1
-            // 
-            this.timer1.Enabled = true;
-            this.timer1.Interval = 1000;
-            this.timer1.Tick += new System.EventHandler(this.timer1_Tick);
             // 
             // PersoSelection
             // 
@@ -208,7 +205,7 @@
             this.MinimumSize = new System.Drawing.Size(126, 39);
             this.Name = "PersoSelection";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "Entrée en jeu";
+            this.Text = "Selection du serveur";
             this.TransparencyKey = System.Drawing.Color.Fuchsia;
             this.Load += new System.EventHandler(this.PersoSelection_Load);
             this.iTalk_ThemeContainer1.ResumeLayout(false);
@@ -225,7 +222,6 @@
         private iTalk.iTalk_ThemeContainer iTalk_ThemeContainer1;
         private iTalk.iTalk_TabControl iTalk_TabControl1;
         private System.Windows.Forms.TabPage tabPage1;
-        private System.Windows.Forms.TabPage tabPage2;
         private iTalk.iTalk_Label iTalk_Label1;
         private iTalk.iTalk_TextBox_Small iTalk_TextBox_Small1;
         private iTalk.iTalk_Button_1 iTalk_Button_11;
@@ -234,5 +230,6 @@
         private iTalk.iTalk_ContextMenuStrip iTalk_ContextMenuStrip1;
         private System.Windows.Forms.ToolStripMenuItem connexionToolStripMenuItem;
         private System.Windows.Forms.Timer timer1;
+        private iTalk.iTalk_Label iTalk_Label2;
     }
 }

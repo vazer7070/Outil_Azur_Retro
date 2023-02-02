@@ -35,13 +35,28 @@ namespace Tool_BotProtocol.Frames.Auth
         [MessageAttribution("Ad")]
         public void Getpseudo(TcpClient client, string message) => client.account.Name = message.Substring(2);
 
+        [MessageAttribution("ADE")]
+        public void FailDeletePerso(TcpClient client, string message)
+        {
+            client.account.Game.Server.deleteCharacter();
+        }
+        [MessageAttribution("ASE")]
+        public void SelectPersoFail(TcpClient client, string message)
+        {
+            client.account.Game.Server.FailPeroSelect();
+        }
+        [MessageAttribution("AAEF")]
+        public void FailCreateCharacter(TcpClient client, string message)
+        {
+            client.account.Game.Server.FailPersoCreate();
+        }
+
         [MessageAttribution("AH")]
         public void GetServerState(TcpClient client, string message)
         {
             Accounts A = client.account;
             string[] Serverlist = message.Substring(2).Split('|');
             GameServer G = A.Game.Server;
-            bool first = true;
             foreach (string server in Serverlist)
             {
                 if (!string.IsNullOrWhiteSpace(server))
@@ -49,19 +64,18 @@ namespace Tool_BotProtocol.Frames.Auth
                     string[] vs = server.Split(';');
                     int id = int.Parse(vs[0].Trim());
 
-                    ServerStates SS = (ServerStates)byte.Parse(vs[1].Trim());
-                    if(id == A.accountConfig.Server_id)
-                    {
-                        G.RefreshData(id, $"{id}", SS);
-                        A.Logger.LogInfo("LOGIN", $"Le serveur avec l'id {id} est {A.Game.Server.GetState(SS)}");
+                   ServerStates SS = new ServerStates();
+                    if (int.Parse(vs[1].Trim()) == 1)
+                        SS = ServerStates.ONLINE;
+                    if (int.Parse(vs[1].Trim()) == 2)
+                        SS = ServerStates.SAVING;
+                    if (int.Parse(vs[1].Trim()) == 0)
+                        SS = ServerStates.OFFLINE;
 
-                        if(SS != ServerStates.ONLINE)
-                            first = false;
-                    }
+                    G.RefreshData(id, $"{id}", SS);
                 }
             }
-            if (!first && G.ServerStates == ServerStates.ONLINE)
-                client.SendPacket("Ax");
+            A.Game.Server.AddServerMenu();
         }
         [MessageAttribution("AQ")]
         public void GetSecretQuestion(TcpClient client, string message)
@@ -78,14 +92,10 @@ namespace Tool_BotProtocol.Frames.Auth
 
               while(count < S.Length)
               {
-                 A.accountConfig.Servers.Add(S[count]);
+                if (!A.accountConfig.Servers.Contains(S[count].Split(',')[0]))
+                      A.accountConfig.Servers.Add(S[count]);
                   count++;
               }
-
-           // client.SendPacket($"AX{A.Game.Server.ServerID}", true);
-
-
-
 
         }
         [MessageAttribution("AXK")]
@@ -109,6 +119,19 @@ namespace Tool_BotProtocol.Frames.Auth
                 client.account.Logger.LogError("[BOT]", "Redirection au world server impossible");
                 client.account.Disconnect();
             }
+        }
+        [MessageAttribution("AF")]
+        public void SearchFriends(TcpClient client, string message)
+        {
+            if (message.Contains(";"))
+            {
+                client.account.Game.Server.SearchFriend(message.Substring(2));
+            }
+        }
+        [MessageAttribution("APK")]
+        public void CallRandomName(TcpClient client, string message)
+        {
+            client.account.Game.Server.HaveRandomName(message.Substring(3));
         }
 
     }

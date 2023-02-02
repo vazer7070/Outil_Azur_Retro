@@ -32,7 +32,7 @@ namespace Tool_BotProtocol.Frames.Auth
         [MessageAttribution("AlEd")]
         public void PlayerAlreadyInGame(TcpClient client, string message)
         {
-            client.account.Logger.LogError("[LOGIN]", "Ce compte est déjà en jeu.");
+            client.account.Game.Server.DisplayErrorConnected();
             client.account.Disconnect();
         }
         [MessageAttribution("AlEk")]

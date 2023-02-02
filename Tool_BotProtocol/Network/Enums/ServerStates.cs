@@ -8,8 +8,8 @@ namespace Tool_BotProtocol.Network.Enums
 {
     public enum ServerStates
     {
-        OFFLINE,
-        ONLINE,
-        SAVING
+        OFFLINE = 0,
+        ONLINE = 1,
+        SAVING = 2
     }
 }

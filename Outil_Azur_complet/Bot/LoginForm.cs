@@ -7,6 +7,7 @@ using System.Data;
 using System.Drawing;
 using System.Linq;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -21,11 +22,10 @@ namespace Outil_Azur_complet.Bot
         private bool selected;
         private string selectionned;
 
+
         public LoginForm()
         {
             InitializeComponent();
-
-            MessagesReception.Init();
             GlobalConfig.InitializeConfig();
             AccountConfig.LoadAccount();
         }
@@ -41,17 +41,34 @@ namespace Outil_Azur_complet.Bot
             {
                 foreach (string h in AccountConfig.AccountsDico.Keys)
                 {
-                    iTalk_Listview1.Items.Add(h);
+                    if(!iTalk_Listview1.Items.ContainsKey(h))
+                       iTalk_Listview1.Items.Add(h);
                 }
             }
         }
 
         private void LoginForm_Load(object sender, EventArgs e)
         {
-            iTalk_Listview1.Columns.Add("Compte", 170, HorizontalAlignment.Left);
-            iTalk_Listview1.Columns.Add("Lieu", 170, HorizontalAlignment.Left);
-            UpdateListViews();
-            UpdateOptions();
+            
+                iTalk_Listview1.Columns.Add("Compte", 170, HorizontalAlignment.Left);
+                iTalk_Listview1.Columns.Add("Lieu", 170, HorizontalAlignment.Left);
+                UpdateListViews();
+                UpdateOptions();
+            
+            
+        }
+        public bool CheckConnexion()
+        {
+            Ping MP = new Ping();
+            PingReply PR = MP.Send("185.21.25.12", 1000);
+            if(PR != null)
+            {
+                if(PR.Status == IPStatus.Success)
+                    return true;
+                else
+                    return false;
+            }
+            return false;
             
         }
         private void UpdateOptions()
@@ -63,55 +80,63 @@ namespace Outil_Azur_complet.Bot
         }
         private void iTalk_Button_12_Click_1(object sender, EventArgs e)
         {
-            if (iTalk_RadioButton2.Checked == iTalk_RadioButton2.Checked == false)
-                return;
-            if (!string.IsNullOrWhiteSpace(iTalk_TextBox_Small1.Text))
+            if (CheckConnexion())
             {
-                if (!string.IsNullOrWhiteSpace(iTalk_TextBox_Small2.Text))
+                if (iTalk_RadioButton2.Checked == iTalk_RadioButton2.Checked == false)
+                    return;
+                if (!string.IsNullOrWhiteSpace(iTalk_TextBox_Small1.Text))
                 {
-
-
-                    if (AccountConfig.AccountsDico.ContainsKey(iTalk_TextBox_Small1.Text))
+                    if (!string.IsNullOrWhiteSpace(iTalk_TextBox_Small2.Text))
                     {
-                        MessageBox.Show($"Le compte {iTalk_TextBox_Small1.Text} est déjà enregistré.", "Ajout impossible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        return;
+
+
+                        if (AccountConfig.AccountsDico.ContainsKey(iTalk_TextBox_Small1.Text))
+                        {
+                            MessageBox.Show($"Le compte {iTalk_TextBox_Small1.Text} est déjà enregistré.", "Ajout impossible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+                        else
+                        {
+                            string L = "";
+                            if (GlobalConfig.BYPASS)
+                                L = "Officiel";
+                            else
+                                L = "Privé";
+
+                            if (GlobalConfig.BYPASS)
+                            {
+                                //mettre bypass launcher officiel retro
+                            }
+                            else
+                            {
+                                AccountConfig A = new AccountConfig(iTalk_TextBox_Small1.Text, iTalk_TextBox_Small2.Text, L);
+                                AccountConfig.AccountsDico.Add(iTalk_TextBox_Small1.Text, A);
+                                AccountConfig.WriteCompte(iTalk_TextBox_Small1.Text, iTalk_TextBox_Small2.Text, L);
+                                UpdateListViews();
+                                AccountConfig.AccountsActive.Add(A);
+                                PersoSelection PS = new PersoSelection(A);
+                                PS.Show();
+                                Close();
+                            }
+
+                        }
+
                     }
                     else
                     {
-                        string L = "";
-                        if (GlobalConfig.BYPASS)
-                            L = "Officiel";
-                        else
-                            L = "Privé";
-
-                        if (GlobalConfig.BYPASS)
-                        {
-
-                        }
-                        else
-                        {
-                            AccountConfig A = new AccountConfig(iTalk_TextBox_Small1.Text, iTalk_TextBox_Small2.Text, L);
-                            AccountConfig.AccountsDico.Add(iTalk_TextBox_Small1.Text, A);
-                            AccountConfig.WriteCompte(iTalk_TextBox_Small1.Text, iTalk_TextBox_Small2.Text, L);
-                            UpdateListViews();
-                            AccountConfig.AccountsActive.Add(A);
-                            PersoSelection PS = new PersoSelection(A);
-                            PS.Show();
-                            this.Close();
-                        }
-
+                        MessageBox.Show("Le mot de passe renseigné est incorrect", "Ajout impossible", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
                     }
-
                 }
                 else
                 {
-                    MessageBox.Show("Le mot de passe renseigné est incorrect", "Ajout impossible", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("Information de compte incorrecte", "Ajout impossible", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
             }
             else
             {
-                MessageBox.Show("Information de compte incorrecte", "Ajout impossible", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Le serveur n'est pas joignable, merci de vérifier les informations de connexion.", "Connexion impossible", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
         }
@@ -136,17 +161,25 @@ namespace Outil_Azur_complet.Bot
 
         private void connexionToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (GlobalConfig.BYPASS)
+            if (CheckConnexion())
             {
+                if (GlobalConfig.BYPASS)
+                {
 
+                }
+                else
+                {
+                    AccountConfig A = AccountConfig.ReturnAccountInfo(selectionned);
+                    AccountConfig.AccountsActive.Add(A);
+                    PersoSelection PS = new PersoSelection(A);
+                    PS.Show();
+                    this.Close();
+                }
             }
             else
             {
-                AccountConfig A = AccountConfig.ReturnAccountInfo(selectionned);
-                AccountConfig.AccountsActive.Add(A);
-                PersoSelection PS = new PersoSelection(A);
-                PS.Show();
-                this.Close();
+                MessageBox.Show("Le serveur n'est pas joignable, merci de vérifier les informations de connexion.", "Connexion impossible", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
             }
         }
 

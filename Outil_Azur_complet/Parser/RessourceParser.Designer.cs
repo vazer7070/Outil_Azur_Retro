@@ -199,6 +199,7 @@
             this.iTalk_ComboBox1.Size = new System.Drawing.Size(182, 26);
             this.iTalk_ComboBox1.StartIndex = 0;
             this.iTalk_ComboBox1.TabIndex = 1;
+            this.iTalk_ComboBox1.SelectedIndexChanged += new System.EventHandler(this.iTalk_ComboBox1_SelectedIndexChanged);
             // 
             // iTalk_Label1
             // 

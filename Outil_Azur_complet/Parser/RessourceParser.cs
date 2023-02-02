@@ -37,7 +37,6 @@ namespace Outil_Azur_complet.Parser
 
         private void iTalk_Button_21_Click(object sender, EventArgs e)
         {
-            
 
             if (!InitializeForm.NoDB)
             {
@@ -106,6 +105,11 @@ namespace Outil_Azur_complet.Parser
                     iTalk_TextBox_Small1.Text = fbd.SelectedPath;
                 }
             }
+        }
+
+        private void iTalk_ComboBox1_SelectedIndexChanged(object sender, EventArgs e)
+        {
+
         }
     }
 }

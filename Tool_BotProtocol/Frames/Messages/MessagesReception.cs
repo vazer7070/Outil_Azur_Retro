@@ -21,7 +21,11 @@ namespace Tool_BotProtocol.Frames.Messages
                 Type Typ = Type.GetType(MI.DeclaringType.FullName);
 
                 object Instance = Activator.CreateInstance(Typ, null);
-                messagesDatas.Add(new MessagesData(Instance, MessageAttribut.Packet, MI));
+                MessagesData MD = new MessagesData(Instance, MessageAttribut.Packet, MI);
+                if(!messagesDatas.Contains(MD))
+                {
+                    messagesDatas.Add(MD);
+                }
             }
         }
         public static void Reception(TcpClient client, string message)

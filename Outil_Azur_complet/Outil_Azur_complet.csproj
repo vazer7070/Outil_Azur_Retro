@@ -170,6 +170,9 @@
     </Compile>
     <Compile Include="Bot\Controls\Animations.cs" />
     <Compile Include="Bot\Controls\AnimationType.cs" />
+    <Compile Include="Bot\Controls\buttons\RoundedButton.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Bot\Controls\CellState.cs" />
     <Compile Include="Bot\Controls\MapQuality.cs" />
     <Compile Include="Bot\Controls\tooltip\CustomToolTip.cs">
@@ -200,6 +203,12 @@
     <Compile Include="Bot\Interfaces\MapControl.Designer.cs">
       <DependentUpon>MapControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="Bot\LoadingBotForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Bot\LoadingBotForm.Designer.cs">
+      <DependentUpon>LoadingBotForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="Bot\LoginForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -229,6 +238,12 @@
     </Compile>
     <Compile Include="Bot\SelectPlayerPerso.Designer.cs">
       <DependentUpon>SelectPlayerPerso.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Bot\CreateCharacter.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Bot\CreateCharacter.Designer.cs">
+      <DependentUpon>CreateCharacter.cs</DependentUpon>
     </Compile>
     <Compile Include="editeur_compte\CreateForm.cs">
       <SubType>Form</SubType>
@@ -346,6 +361,9 @@
     <EmbeddedResource Include="Bot\Interfaces\MapControl.resx">
       <DependentUpon>MapControl.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="Bot\LoadingBotForm.resx">
+      <DependentUpon>LoadingBotForm.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Bot\LoginForm.resx">
       <DependentUpon>LoginForm.cs</DependentUpon>
     </EmbeddedResource>
@@ -360,6 +378,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Bot\SelectPlayerPerso.resx">
       <DependentUpon>SelectPlayerPerso.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Bot\CreateCharacter.resx">
+      <DependentUpon>CreateCharacter.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="editeur_compte\CreateForm.resx">
       <DependentUpon>CreateForm.cs</DependentUpon>

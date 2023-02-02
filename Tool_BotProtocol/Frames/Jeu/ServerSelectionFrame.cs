@@ -1,8 +1,10 @@
-﻿using System;
+﻿using Org.BouncyCastle.Crypto.Engines;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Network;
@@ -32,10 +34,12 @@ namespace Tool_BotProtocol.Frames.Jeu
         [MessageAttribution("ALK")]
         public void Perso_Selection(TcpClient client, string message)
         {
+            
             Accounts A = client.account;
             A.AccountCharactersInfo.Clear();
             string[] S = message.Substring(3).Split('|');
             int count = 2;
+            int idconnected = 0;
             while(count < S.Length)
             {
                 string[] S2 = S[count].Split(';');
@@ -44,14 +48,20 @@ namespace Tool_BotProtocol.Frames.Jeu
                 int lvl = int.Parse(S2[2]);
                 int GfxId = int.Parse(S2[3]);
 
-                A.AccountCharactersInfo.Add($"{name}|{lvl}|{GfxId}|{id}");
+                A.AccountCharactersInfo.TryAdd(id,$"{name}|{lvl}|{GfxId}|");
 
-              /*  if(name.ToLower().Equals(A.accountConfig.player.ToLower()) || string.IsNullOrEmpty(A.accountConfig.player))
+                if (name.Equals(A.Game.Server.NameNewCharacter))
                 {
-                    client.SendPacket($"AS{id}", true);
-                    found = true;
-                }*/
+                    idconnected = id;
+                }
                 count++;
+            }
+            if (!A.Game.Server.ExitCreationMenu)
+                A.Game.Server.AddCharacterMenu();
+            else
+            {
+                A.Connexion.SendPacket($"AS{idconnected}");
+                A.Connexion.SendPacket("AF");
             }
         }
         [MessageAttribution("BT")]

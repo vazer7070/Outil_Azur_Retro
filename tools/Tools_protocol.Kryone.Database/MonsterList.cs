@@ -155,27 +155,27 @@ namespace Tools_protocol.Kryone.Database
 		public MonsterList(IDataReader reader)
 		{
 			
-			this.Id = (int)reader["id"];
-			this.Name = (string)reader["name"];
-			this.GFXid = (int)reader["gfxID"];
-			this.Align = (int)reader["align"];
-			this.Grades = (string)reader["grades"];
-			this.Colors = (string)reader["colors"];
-			this.Stats = (string)reader["stats"];
-			this.Statsinfo = (string)reader["statsInfos"];
-			this.Spells = (string)reader["spells"];
-			this.Pdvs = (string)reader["pdvs"];
-			this.Points = (string)reader["points"];
-			this.Inits = (string)reader["inits"];
-			this.MinKamas = (int)reader["minKamas"];
-			this.MaxKamas = (int)reader["maxKamas"];
-			this.Exps = (string)reader["exps"];
-			this.AI_Type = (int)reader["AI_Type"];
-			this.Capturable = (int)reader["Capturable"];
-			this.Type = (int)reader["type"];
-			this.AggroDistance = (int)reader["aggroDistance"];
-			this.IaModels = (string)reader["iaModels"];
-			this.Size = (int)reader["size"];
+			Id = (int)reader["id"];
+			Name = (string)reader["name"];
+			GFXid = (int)reader["gfxID"];
+			Align = (int)reader["align"];
+			Grades = (string)reader["grades"];
+			Colors = (string)reader["colors"];
+			Stats = (string)reader["stats"];
+			Statsinfo = (string)reader["statsInfos"];
+			Spells = (string)reader["spells"];
+			Pdvs = (string)reader["pdvs"];
+			Points = (string)reader["points"];
+			Inits = (string)reader["inits"];
+			MinKamas = (int)reader["minKamas"];
+			MaxKamas = (int)reader["maxKamas"];
+			Exps = (string)reader["exps"];
+			AI_Type = (int)reader["AI_Type"];
+			Capturable = (int)reader["Capturable"];
+			Type = (int)reader["type"];
+			//AggroDistance = (int)reader["aggroDistance"];
+			IaModels = (string)reader["iaModels"];
+			Size = (int)reader["size"];
 		}
 
 		public static string CapturableOrNot(int id)

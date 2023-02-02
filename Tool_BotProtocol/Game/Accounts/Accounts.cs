@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -32,7 +33,7 @@ namespace Tool_BotProtocol.Game.Accounts
         public bool IsGroupLeader => !HasGroup || Groupe.leader == this;
         public Groupe Groupe { get; set; }
         public bool CanUseMount = false;
-        public List<string> AccountCharactersInfo;
+        public ConcurrentDictionary<int, string> AccountCharactersInfo;
         public int AboTime;
 
         public Accounts(AccountConfig conf)
@@ -40,7 +41,7 @@ namespace Tool_BotProtocol.Game.Accounts
             accountConfig = conf;
             Logger = new Logger();
             Game = new GameClass(this);
-            AccountCharactersInfo= new List<string>();
+            AccountCharactersInfo = new ConcurrentDictionary<int, string>();
             
 
         }
