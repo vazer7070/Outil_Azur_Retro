@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -16,16 +17,17 @@ namespace Tool_BotProtocol.Frames.Auth
     public class AccountLoginFrame : Frame
     {
         [MessageAttribution("HC")]
-        public void GetWelcomeKey(TcpClient client, string message)
+        public Task GetWelcomeKey(TcpClient client, string message) => Task.Run(async () =>
         {
             Accounts A = client.account;
-            A.AccountStates = AccountStates.CONNECTED;
             A.WelcomeKey = message.Substring(2);
-
-            client.SendPacket(GlobalConfig.VERSION);
-            client.SendPacket(client.account.accountConfig.Account + "\n" + Hash.Crypt_Password(client.account.accountConfig.Password, client.account.WelcomeKey));
-            client.SendPacket("Af");
-        }
+            await client.SendPacket(GlobalConfig.VERSION);
+            if (GlobalConfig.BYPASS)
+                await client.SendPacket($"#Z\n{client.Token}");
+            else
+                await client.SendPacket(client.account.accountConfig.Account + "\n" + Hash.Crypt_Password(client.account.accountConfig.Password, client.account.WelcomeKey));
+           await client.SendPacket("Af");
+        });
         [MessageAttribution("Af")]
         public void GetLoginQueue(TcpClient client, string message)
         {
@@ -52,7 +54,7 @@ namespace Tool_BotProtocol.Frames.Auth
         }
 
         [MessageAttribution("AH")]
-        public void GetServerState(TcpClient client, string message)
+        public Task GetServerState(TcpClient client, string message) => Task.Run(() =>
         {
             Accounts A = client.account;
             string[] Serverlist = message.Substring(2).Split('|');
@@ -63,24 +65,17 @@ namespace Tool_BotProtocol.Frames.Auth
                 {
                     string[] vs = server.Split(';');
                     int id = int.Parse(vs[0].Trim());
-
-                   ServerStates SS = new ServerStates();
-                    if (int.Parse(vs[1].Trim()) == 1)
-                        SS = ServerStates.ONLINE;
-                    if (int.Parse(vs[1].Trim()) == 2)
-                        SS = ServerStates.SAVING;
-                    if (int.Parse(vs[1].Trim()) == 0)
-                        SS = ServerStates.OFFLINE;
+                    ServerStates SS = (ServerStates)byte.Parse(vs[1].Trim());
 
                     G.RefreshData(id, $"{id}", SS);
                 }
             }
             A.Game.Server.AddServerMenu();
-        }
+        });
         [MessageAttribution("AQ")]
-        public void GetSecretQuestion(TcpClient client, string message)
+        public async void GetSecretQuestion(TcpClient client, string message)
         {
-                client.SendPacket("Ax", true);
+                await client.SendPacket("Ax", true);
         }
         [MessageAttribution("AxK")]
         public void GetServerList(TcpClient client, string message)
@@ -107,17 +102,33 @@ namespace Tool_BotProtocol.Frames.Auth
         [MessageAttribution("AYK")]
         public void GetServerSelectionRemaster(TcpClient client, string message)
         {
-            string[] Data = message.Substring(3).Split(';');
-            if(Data.Length != 0)
+            if (GlobalConfig.BYPASS)
             {
-                client.account.GameTicket = Data[1];
-                client.account.SwitchToGameServer(Data[0]);
-                client.account.Logger.LogInfo("[BOT]", "Connexion au world server");
+                Accounts A = client.account;
+                string[] Datas = message.Substring(3).Split(';');
+                string[] SecondData = Datas[0].Split(':');
+
+                A.GameTicket = Datas[1];
+
+                string ip = Dns.GetHostAddresses(SecondData[0])[0].ToString();
+                int port = int.Parse(SecondData[1]);
+                client.account.SwitchToGameServer($"{ip}:{port}");
+
             }
             else
             {
-                client.account.Logger.LogError("[BOT]", "Redirection au world server impossible");
-                client.account.Disconnect();
+                string[] Data = message.Substring(3).Split(';');
+                if (Data.Length != 0)
+                {
+                    client.account.GameTicket = Data[1];
+                    client.account.SwitchToGameServer(Data[0]);
+                    client.account.Logger.LogInfo("[BOT]", "Connexion au world server");
+                }
+                else
+                {
+                    client.account.Logger.LogError("[BOT]", "Redirection au world server impossible");
+                    client.account.Disconnect();
+                }
             }
         }
         [MessageAttribution("AF")]

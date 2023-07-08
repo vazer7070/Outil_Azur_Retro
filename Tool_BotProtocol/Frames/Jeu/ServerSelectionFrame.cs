@@ -14,33 +14,37 @@ namespace Tool_BotProtocol.Frames.Jeu
     internal class ServerSelectionFrame : Frame
     {
         [MessageAttribution("HG")]
-        public void WelcomeInGame(TcpClient client, string message) => client.SendPacket($"AT{client.account.GameTicket}");
+        public Task WelcomeInGame(TcpClient client, string message) => Task.Run(async () => await client.SendPacket($"AT{client.account.GameTicket}"));
 
         [MessageAttribution("ATK0")]
-        public void ServerSelected(TcpClient client, string message)
+        public Task ServerSelected(TcpClient client, string message) => Task.Run(async () =>
         {
-            client.SendPacket("Ak0");
-            client.SendPacket("AV");
-        }
-
+            await client.SendPacket("Ak0");
+            await client.SendPacket("AV");
+        });
+        [MessageAttribution("ATK")]
+        public Task ServerSelectionned(TcpClient client, string message) => Task.Run(async () =>
+        {
+            await client.SendPacketAsync("AV");
+        });
         [MessageAttribution("AV0")]
-        public void List_Perso(TcpClient client, string message)
+        public Task List_Perso(TcpClient client, string message) => Task.Run(async () =>
         {
-            client.SendPacket("Ages");
-            client.SendPacket("AL");
-            client.SendPacket("Af");
-        }
+            await client.SendPacket("Ages");
+            await client.SendPacket("AL");
+            await client.SendPacket("Af");
+        });
 
         [MessageAttribution("ALK")]
-        public void Perso_Selection(TcpClient client, string message)
+        public Task Perso_Selection(TcpClient client, string message) => Task.Run(async () =>
         {
-            
+
             Accounts A = client.account;
             A.AccountCharactersInfo.Clear();
             string[] S = message.Substring(3).Split('|');
             int count = 2;
             int idconnected = 0;
-            while(count < S.Length)
+            while (count < S.Length)
             {
                 string[] S2 = S[count].Split(';');
                 int id = int.Parse(S2[0]);
@@ -48,7 +52,7 @@ namespace Tool_BotProtocol.Frames.Jeu
                 int lvl = int.Parse(S2[2]);
                 int GfxId = int.Parse(S2[3]);
 
-                A.AccountCharactersInfo.TryAdd(id,$"{name}|{lvl}|{GfxId}|");
+                A.AccountCharactersInfo.TryAdd(id, $"{name}|{lvl}|{GfxId}|");
 
                 if (name.Equals(A.Game.Server.NameNewCharacter))
                 {
@@ -60,15 +64,15 @@ namespace Tool_BotProtocol.Frames.Jeu
                 A.Game.Server.AddCharacterMenu();
             else
             {
-                A.Connexion.SendPacket($"AS{idconnected}");
-                A.Connexion.SendPacket("AF");
+                await A.Connexion.SendPacket($"AS{idconnected}");
+                await A.Connexion.SendPacket("AF");
             }
-        }
+        });
         [MessageAttribution("BT")]
-        public void GetServerTime(TcpClient client, string message) => client.SendPacket("GI");
+        public Task GetServerTime(TcpClient client, string message) => Task.Run(async () => await client.SendPacket("GI"));
 
         [MessageAttribution("ASK")]
-        public void HaveSelectedPerso(TcpClient client, string message)
+        public Task HaveSelectedPerso(TcpClient client, string message) => Task.Run(async () =>
         {
             Accounts A = client?.account;
             string[] S = message.Substring(4).Split('|');
@@ -79,15 +83,17 @@ namespace Tool_BotProtocol.Frames.Jeu
             byte ID_Race = byte.Parse(S[3]);
             byte Sex = byte.Parse(S[4]);
 
-            A.Game.character.SetPerso_Data(id, name, level,Sex,ID_Race);
+            A.Game.character.SetPerso_Data(id, name, level, Sex, ID_Race);
             A.Game.character.Inventory.Add_Items(S[9]);
-
-            client.SendPacket("GC1");
-
             A.Game.character.PersoSelectedEvent();
             A.Game.character.AFK_Timer.Change(1200000, 1200000);
             client.account.AccountStates = AccountStates.CONNECTED_INACTIVE;
-        }
+
+            await client.SendPacketAsync("BYA");
+            await client.SendPacket("GC1");
+
+            
+        });
 
     }
 }

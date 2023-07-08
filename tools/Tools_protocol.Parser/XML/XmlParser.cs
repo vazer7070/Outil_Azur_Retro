@@ -5,13 +5,17 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Xml;
+using System.Xml.Linq;
 using Tools_protocol.Kryone.Database;
 
 namespace Tools_protocol.Parser.XML
 {
     public static class XmlParser
     {
-        public static void ParseSQLToXML(string path, string type, bool ForBot = false)
+        public static List<XElement> NormEffects = new List<XElement>();
+        public static List<XElement> CritEffects = new List<XElement>();
+
+        public static Task ParseSQLToXML(string path, string type, bool ForBot = false) => Task.Factory.StartNew(() =>
         {
             switch (type)
             {
@@ -142,7 +146,88 @@ namespace Tools_protocol.Parser.XML
                     }
                     MessageBox.Show("La génération des monstres est terminée", "Convertion complète", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     break;
+                case "Sorts":
+                    if (ForBot)
+                    {
+
+                        foreach (SpellsList spells in SpellsList.AllSpells.Values)
+                        {
+                            if (SpellsList.EffectLvl1 != null)
+                                SpellsList.EffectLvl1.Clear();
+                            if (SpellsList.EffectLvl2 != null)
+                                SpellsList.EffectLvl2.Clear();
+                            if (SpellsList.EffectLvl3 != null)
+                                SpellsList.EffectLvl3.Clear();
+                            if (SpellsList.EffectLvl4 != null)
+                                SpellsList.EffectLvl4.Clear();
+                            if (SpellsList.EffectLvl5 != null)
+                                SpellsList.EffectLvl5.Clear();
+                            if (SpellsList.EffectLvl6 != null)
+                                SpellsList.EffectLvl6.Clear();
+
+                            string pa = "";
+                            string pomin = "";
+                            string pomax = "";
+                            string line = "";
+                            string seeline = "";
+                            string empty = "";
+                            string modif = "";
+                            string turn = "";
+                            string obj = "";
+                            string interval = "";
+                            string zone = "";
+                            SpellsBrain SB = new SpellsBrain();
+
+                            SpellsList.ParseLevel(spells.Id, true);
+
+                            using (XmlWriter writer = XmlWriter.Create($"{path}{spells.Id}.xml"))
+                            {
+                                
+                                writer.WriteStartElement("SORTS");
+                                XElement sort =
+                                    new XElement("SORT", new XAttribute("ID", $"{spells.Id}"));
+                                sort.WriteTo(writer);
+                                writer.WriteElementString("NOM", spells.Nom);
+                                foreach(string h in SpellsList.ParsedSPells.Keys)
+                                {
+                                    SB = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[2] == "1").Value;
+                                    pa = SB.PA;
+                                    pomin = SB.PO.Split('à')[0].Trim();
+                                    pomax = SB.PO.Split('à')[1].Trim();
+                                    line = SB.LINE;
+                                    seeline = SB.LINE_SEE;
+                                    empty = SB.EMPTY_CELL;
+                                    modif = SB.PMODIF;
+                                    turn = SB.EC_TURN;
+                                    obj = SB.NBL.Trim();
+                                    interval = SB.INTERVAL.Trim();
+                                    zone = SB.Zone;
+                                    List<string> L = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[2] == "1").Value.EFFECT;
+                                    MessageBox.Show(L.Count.ToString());
+                                    /*foreach (string n_e in SB.EFFECT)
+                                        NormEffects.Add(new XElement("EFFETS", new XAttribute("TYPE", n_e.Split('|')[0]), new XAttribute("COOLDOWN", n_e.Split('|')[1]), new XAttribute("BUT", n_e.Split('|')[2]), new XAttribute("ZONE", zone), new XAttribute("CRITIQUE", n_e.Split('|')[3])));
+                                    foreach (string c_e in SB.EFFECT_CRIT)
+                                        CritEffects.Add(new XElement("EFFETS", new XAttribute("TYPE", c_e.Split('|')[0]), new XAttribute("COOLDOWN", c_e.Split('|')[1]), new XAttribute("BUT", c_e.Split('|')[2]), new XAttribute("ZONE", zone), new XAttribute("CRITIQUE", c_e.Split('|')[3])));
+                                    */
+                               }
+                                 
+                                
+                                XElement level1 = new XElement("NIVEAU", new XAttribute("NIVEAU", "1"), new XAttribute("PA", pa), new XAttribute("MIN_RANGE", pomin), new XAttribute("MAX_RANGE", pomax), new XAttribute("LIGNE", line), new XAttribute("LIGNE_DE_VUE", seeline), new XAttribute("NEED_EMPTY_CELL", empty), new XAttribute("MODIF", modif), new XAttribute("PER_TURN", turn), new XAttribute("PER_OBJECTIVE", obj), new XAttribute("INTERVAL", interval));
+                                level1.WriteTo(writer);
+                                foreach (XElement t in NormEffects)
+                                   t.WriteTo(writer);
+                                foreach(XElement x in CritEffects)
+                                    x.WriteTo(writer);
+                                writer.WriteEndElement();
+                                writer.Flush();
+
+                              
+                            }
+                        }
+                    }
+                    MessageBox.Show("La génération des sorts est terminée", "Convertion complète", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    break;
             }
-        }
+        }, TaskCreationOptions.LongRunning);
     }
 }

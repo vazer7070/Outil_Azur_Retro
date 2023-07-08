@@ -24,8 +24,8 @@ namespace Tool_BotProtocol.Utils.Logger
         {
             StringBuilder sb = new StringBuilder();
 
-            string _reference = string.IsNullOrEmpty(reference) ? "" : $"[{reference}]";
-            sb.Append($"[{DateTime.Now.ToString("HH:mm:ss")}] {_reference} {message}");
+            string _reference = string.IsNullOrEmpty(reference) ? "" : $"({reference})";
+            sb.Append($"[{DateTime.Now.ToString("HH:mm")}] {_reference} {message}");
 
             if (es_Exception)
                 sb.Append($"{Environment.NewLine}- An exception has occured : {exception}");

@@ -17,8 +17,11 @@ namespace Outil_Azur_complet.Bot
     {
         AccountConfig config;
         Accounts A;
+        List<string> list = new List<string>();
         private bool selected;
         private string selectionned;
+
+        public bool Alreadyhere { get; private set; }
 
         public PersoSelection(AccountConfig AC)
         {
@@ -34,10 +37,38 @@ namespace Outil_Azur_complet.Bot
             A.Game.Server.AlreadyConnected += AlreadyConnected;
             A.Game.Server.FoundOrNotFriend += HaveFoundFriend;
             A.Game.Server.AddServerInMenu += UpdateListViews;
+            A.Game.Server.WrongCredential += DisplayWrong;
+            A.Game.Server.WrongVersion += DisplayWrongVersion;
+            A.Game.Server.IsBanned += DisplayBantime;
             iTalk_Listview1.Columns.Add("Serveurs", 170, HorizontalAlignment.Left);
             iTalk_Listview1.Columns.Add("Nombre de perso", 150, HorizontalAlignment.Left);
             iTalk_Listview1.Columns.Add("État", 200, HorizontalAlignment.Left);
 
+
+        }
+        public void DisplayBantime(string time)
+        {
+            MessageBox.Show($"Votre compte a été banni pendant {time}.", "Connexion impossible", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            LoginForm LF = new LoginForm();
+            LF.Show();
+            Close();
+            return;
+        }
+        public void DisplayWrongVersion(string version)
+        {
+            MessageBox.Show($"La version {version} n'est pas une version acceptée par le serveur, merci de corriger cela dans les options.", "Connexion impossible", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+            LoginForm LF = new LoginForm();
+            LF.Show();
+            Close();
+            return;
+        }
+        public void DisplayWrong()
+        {
+            MessageBox.Show("Impossible de se connecter au serveur, 2 raisons possibles:\n - Si c'est sur un serveur privé, merci de vérifier vos informations de connexion.\n - Si c'est sur les serveurs officiels, soit les informations de connexions sont mauvaises soit le BY-PASS ne fonctionne pas, merci de vérifier vos informations et si celles-ci sont correctes, contactez un administrateur AzurBot.", "Connexion impossible", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+            LoginForm LF = new LoginForm();
+            LF.Show();
+            Close();
+            return;
         }
         public void AlreadyConnected()
         {
@@ -85,7 +116,13 @@ namespace Outil_Azur_complet.Bot
                     {
                         foreach (string h in config.Servers)
                         {
-                            iTalk_Listview1.Items.Add(h.Split(',')[0]).SubItems.AddRange(new string[2] { h.Split(',')[1], A.Game.Server.ServerStates.ToString() });
+
+                            if (!list.Contains(h))
+                            {
+                                list.Add(h);
+                                iTalk_Listview1.Items.Add(h.Split(',')[0]).SubItems.AddRange(new string[2] { h.Split(',')[1], A.Game.Server.GetState(A.Game.Server.Servers.FirstOrDefault(x => x.Key == int.Parse(h.Split(',')[0])).Value)});
+                                Alreadyhere = true;
+                            }
                         }
                     }
                 }));
@@ -121,20 +158,27 @@ namespace Outil_Azur_complet.Bot
             }
         }
 
-        private void connexionToolStripMenuItem_Click(object sender, EventArgs e)
+        private async void connexionToolStripMenuItem_Click(object sender, EventArgs e)
         {
             SelectPlayerPerso SPP = new SelectPlayerPerso(A);
             SPP.Show();
-            A.Connexion.SendPacket($"AX{A.Game.Server.ServerID}", true);
+            await A.Connexion.SendPacket($"AX{A.Game.Server.ServerID}", true);
+            list.Clear();
             this.Close();
         }
 
-        private void iTalk_Button_11_Click(object sender, EventArgs e)
+        private async void iTalk_Button_11_Click(object sender, EventArgs e)
         {
             if(!string.IsNullOrWhiteSpace(iTalk_TextBox_Small1.Text))
             {
-                A.Connexion.SendPacket($"AF{iTalk_TextBox_Small1.Text}", true);
+                await A.Connexion.SendPacket($"AF{iTalk_TextBox_Small1.Text}", true);
             }
+        }
+
+        private void timer2_Tick(object sender, EventArgs e)
+        {
+            if(!Alreadyhere)
+                UpdateListViews();
         }
     }
 }

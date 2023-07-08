@@ -66,9 +66,9 @@ namespace Outil_Azur_complet.Bot
             iTalk_TextBox_Small2.Text = colorDialog1.Color.ToArgb().ToString();
         }
 
-        private void iTalk_Button_11_Click(object sender, EventArgs e)
+        private async void iTalk_Button_11_Click(object sender, EventArgs e)
         {
-            a.Connexion.SendPacket("AP", true);
+            await a.Connexion.SendPacket("AP", true);
         }
 
         private void iTalk_Button_13_Click(object sender, EventArgs e)

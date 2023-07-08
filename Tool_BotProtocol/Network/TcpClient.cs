@@ -6,8 +6,12 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Forms;
+using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
+using Tool_BotProtocol.Network.ByPass;
+using Tool_BotProtocol.Utils.Crypto;
 
 namespace Tool_BotProtocol.Network
 {
@@ -23,29 +27,48 @@ namespace Tool_BotProtocol.Network
         public event Action<string> packetSendEvent;
         public event Action<string> socketInformationEvent;
 
-        private bool _isWaitingPacket = false;
-        private int _ticks;
+        public string apikey { get; set; }
+        public string Token { get; set; }
+        private bool ByPassOK = false;
+
         private List<int> _pings;
 
-        public TcpClient(Accounts Account) => account = Account;
-
-        public void ConnectToServer(IPAddress ip, int port)
+        public TcpClient(Accounts Account)
+        {
+            account = Account;
+            _semaphore = new SemaphoreSlim(1);
+            _pings = new List<int>(50);
+        }
+        public async Task ConnectToServer(IPAddress ip, int port)
         {
             try
             {
+                if(GlobalConfig.BYPASS)
+                    ByPassOK = await ConnexionZaap();
+
                 socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                 buffer = new byte[socket.ReceiveBufferSize];
-                _semaphore = new SemaphoreSlim(1);
-                _pings = new List<int>(50);
-                socket.BeginConnect(ip, port, new AsyncCallback(ConnectCallBack), socket);
+
+                await socket.ConnectAsync(ip, port);
+                if(ByPassOK && GlobalConfig.BYPASS)
+                    socket.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, ReceptionCallBack, socket);
+                else
+                    socket.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, ReceptionCallBack, socket);
             }
             catch (Exception ex)
             {
-                socketInformationEvent?.Invoke(ex.ToString());
+                MessageBox.Show(ex.Message);
                 DisconnectSocket();
             }
         }
+        public async Task<bool> ConnexionZaap()
+        {
+            apikey = await ByPassLauncher.GetAPI_key(account.accountConfig.Account, account.accountConfig.Password);
 
+           await Task.Delay(Randomize.get_Random(500, 1500));
+            Token = await ByPassLauncher.Get_Token(apikey);
+            return true;
+        }
         private void ConnectCallBack(IAsyncResult ar)
         {
             try
@@ -73,61 +96,53 @@ namespace Tool_BotProtocol.Network
 
         public void ReceptionCallBack(IAsyncResult ar)
         {
-            if (!IsConnected() || _disposed)
+            try
             {
-                DisconnectSocket();
+                if (!IsConnected() || _disposed)
+                {
+                    DisconnectSocket();
+                    return;
+                }
+
+                int byteData = socket.EndReceive(ar, out SocketError reponse);
+                byte[] buff = new byte[byteData];
+                Array.Copy(buffer, buff, buff.Length);
+
+                if (byteData < 1 || reponse != SocketError.Success)
+                {
+                    account.Disconnect();
+                    return;
+                }
+                string data = Encoding.UTF8.GetString(buff, 0, byteData);
+                foreach (string p in data.Replace("\x0a", string.Empty).Split('\0').Where(x => x != string.Empty))
+                {
+                    packetReceivedEvent?.Invoke(p);
+                    MessagesReception.Reception(this, p);
+                }
+                socket?.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, ReceptionCallBack, socket);
+            }
+            catch(Exception e)
+            {
+                socketInformationEvent?.Invoke(e.ToString());
                 return;
             }
 
-            int bytes_leidos = socket.EndReceive(ar, out SocketError reply);
-
-            if (bytes_leidos > 0 && reply == SocketError.Success)
-            {
-                string datos = Encoding.UTF8.GetString(buffer, 0, bytes_leidos);
-
-                foreach (string packet in datos.Replace("\x0a", string.Empty).Split('\0').Where(x => x != string.Empty))
-                {
-                    packetReceivedEvent?.Invoke(packet);
-
-                    if (_isWaitingPacket)
-                    {
-                        _pings.Add(Environment.TickCount - _ticks);
-
-                        if (_pings.Count > 48)
-                            _pings.RemoveAt(1);
-
-                        _isWaitingPacket = false;
-                    }
-
-                    MessagesReception.Reception(this, packet);
-                }
-
-                if (IsConnected())
-                    socket.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, new AsyncCallback(ReceptionCallBack), socket);
-            }
-            else
-                account.Disconnect();
         }
 
-        public async Task SendPacketAsync(string packet, bool reponse)
+        public async Task SendPacketAsync(string packet)
         {
             try
             {
                 if (!IsConnected())
                     return;
 
-                packet += "\n\x00";
-                byte[] byte_packet = Encoding.UTF8.GetBytes(packet);
+                
+                byte[] byte_packet = Encoding.UTF8.GetBytes(string.Format($"{packet}\n\x00"));
 
                 await _semaphore.WaitAsync().ConfigureAwait(false);
 
-                if (reponse)
-                    _isWaitingPacket = true;
-
                 socket.Send(byte_packet);
 
-                if (reponse)
-                    _ticks = Environment.TickCount;
 
                 packetSendEvent?.Invoke(packet);
                 _semaphore.Release();
@@ -139,8 +154,10 @@ namespace Tool_BotProtocol.Network
             };
         }
 
-        public void SendPacket(string packet, bool necesita_respuesta = false) => SendPacketAsync(packet, necesita_respuesta).Wait();
-
+        public async Task SendPacket(string packet, bool reponse = false)
+        {
+            await SendPacketAsync(packet);
+        }
         public void DisconnectSocket()
         {
             if (IsConnected())
@@ -174,7 +191,6 @@ namespace Tool_BotProtocol.Network
 
         public int GetTotalPings() => _pings.Count();
         public int GetPingAverage() => (int)_pings.Average();
-        public int GetPing() => Environment.TickCount - _ticks;
 
         
         ~TcpClient() => Dispose(false);

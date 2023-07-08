@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Tools_protocol.Data;
@@ -14,29 +15,19 @@ namespace Tools_protocol.Kryone.Database
 	public class SpellsList
 	{
 		public static int CRIT;
-
 		public static int NORM;
-
 		public static Dictionary<int, SpellsList> AllSpells = new Dictionary<int, SpellsList>();
-
 		public static List<string> SpellsName = new List<string>();
-
 		public static List<string> EffectLvl1 = new List<string>();
-
 		public static List<string> EffectLvl2 = new List<string>();
-
 		public static List<string> EffectLvl3 = new List<string>();
-
 		public static List<string> EffectLvl4 = new List<string>();
-
 		public static List<string> EffectLvl5 = new List<string>();
-
 		public static List<string> EffectLvl6 = new List<string>();
-
 		public static List<string> SpellsShow = new List<string>();
-
 		public static int CountSpells;
-
+		public static Dictionary<string, SpellsBrain> ParsedSPells = new Dictionary<string, SpellsBrain>();
+		public static bool IsDecal = false;
 		public int Durée
 		{
 			get;
@@ -125,19 +116,19 @@ namespace Tools_protocol.Kryone.Database
 
 		public SpellsList(IDataReader reader)
 		{
-			this.Id = (int)reader["id"];
-			this.Nom = (string)reader["nom"];
-			this.Sprite = (int)reader["Sprite"];
-			this.SpriteInfos = (string)reader["spriteInfos"];
-			this.Lvl1 = (string)reader["lvl1"];
-			this.Lvl2 = (string)reader["lvl2"];
-			this.Lvl3 = (string)reader["lvl3"];
-			this.Lvl4 = (string)reader["lvl4"];
-			this.Lvl5 = (string)reader["lvl5"];
-			this.Lvl6 = (string)reader["lvl6"];
-			this.EffectTarget = (string)reader["effectTarget"];
-			this.Type = (int)reader["type"];
-			this.Durée = (int)reader["durer"];
+			Id = (int)reader["id"];
+			Nom = (string)reader["nom"];
+			Sprite = (int)reader["Sprite"];
+			SpriteInfos = (string)reader["spriteInfos"];
+			Lvl1 = (string)reader["lvl1"];
+			Lvl2 = (string)reader["lvl2"];
+			Lvl3 = (string)reader["lvl3"];
+			Lvl4 = (string)reader["lvl4"];
+			Lvl5 = (string)reader["lvl5"];
+			Lvl6 = (string)reader["lvl6"];
+			EffectTarget = (string)reader["effectTarget"];
+			Type = (int)reader["type"];
+			Durée = (int)reader["durer"];
 		}
 
 		public static void AddSpellsToList(string data)
@@ -164,36 +155,37 @@ namespace Tools_protocol.Kryone.Database
 			}
 		}
 
-		public static string CaracParse(string un, bool decal)
+		public static string CaracParse(string un, bool decal, bool forbot = false)
 		{
 			string level;
 			string P_M;
 			string ByT;
 			int PACOST = 6;
+			IsDecal= decal;
 			StringBuilder S = new StringBuilder();
 			if (!decal)
 			{
 				S.Append("?");
-				if (!un.Split(new char[] { ',' })[2].Equals("-1"))
+				if (!un.Split(',')[2].Equals("-1"))
 				{
-					S.Append(un.Split(new char[] { ',' })[2]);
+					S.Append(un.Split(',')[2]);
 				}
 				else
 				{
 					S.Append(PACOST);
 				}
 				S.Append("?");
-				if ((!un.Split(new char[] { ',' })[3].Equals("0") ? false : !un.Split(new char[] { ',' })[2].Equals("0")))
+				if ((!un.Split(',')[3].Equals("0") ? false : !un.Split(',')[2].Equals("0")))
 				{
 					S.Append(un.Split(new char[] { ',' })[2]);
 				}
-				else if ((Convert.ToInt32(un.Split(new char[] { ',' })[2]) <= Convert.ToInt32(un.Split(new char[] { ',' })[3]) ? true : un.Split(new char[] { ',' })[3].Equals("0")))
+				else if ((Convert.ToInt32(un.Split(',' )[2]) <= Convert.ToInt32(un.Split(',')[3]) ? true : un.Split(',')[3].Equals("0")))
 				{
-					S.Append(string.Concat(un.Split(new char[] { ',' })[2], " à ", un.Split(new char[] { ',' })[3]));
+					S.Append(string.Concat(un.Split(',')[2], " à ", un.Split(',')[3]));
 				}
 				else
 				{
-					S.Append(string.Concat(un.Split(new char[] { ',' })[3], " à ", un.Split(new char[] { ',' })[2]));
+					S.Append(string.Concat(un.Split(',')[3], " à ", un.Split(',')[2]));
 				}
 				S.Append("?");
 				S.Append(un.Split(new char[] { ',' })[4]);
@@ -215,25 +207,35 @@ namespace Tools_protocol.Kryone.Database
 					S.Append("?");
 				}
 				S.Append("?");
-				if (un.Split(new char[] { ',' })[11].Trim() != "0")
-				{
-					S.Append(un.Split(new char[] { ',' })[11]);
-				}
+				if (forbot)
+					S.Append(un.Split(',')[11]);
 				else
 				{
-					S.Append("autant que possible");
-				}
+                    if (un.Split(',')[11].Trim() != "0")
+                    {
+                        S.Append(un.Split(',')[11]);
+                    }
+                    else
+                    {
+                        S.Append("autant que possible");
+                    }
+                }
 				S.Append("?");
-				if (un.Split(new char[] { ',' })[12].Trim() != "0")
-				{
-					S.Append(string.Concat(un.Split(new char[] { ',' })[12], " tour(s)"));
-				}
+				if(forbot)
+					S.Append(un.Split(',')[12]);
 				else
 				{
-					S.Append("Tous les tours");
-				}
+                    if (un.Split(',')[12].Trim() != "0")
+                    {
+                        S.Append(string.Concat(un.Split(',')[12], " tour(s)"));
+                    }
+                    else
+                    {
+                        S.Append("Tous les tours");
+                    }
+                }
 				S.Append("?");
-				ByT = un.Split(new char[] { ',' })[13].Trim();
+				ByT = un.Split(',')[13].Trim();
 				if (ByT != "0")
 				{
 					S.Append(ByT);
@@ -243,16 +245,22 @@ namespace Tools_protocol.Kryone.Database
 					S.Append("Immédiat");
 				}
 				S.Append("?");
-				if (!SpellsList.ReturnZone(un.Split(new char[] { ',' })[14]).Contains("invalide"))
+				if (!SpellsList.ReturnZone(un.Split(',')[14]).Contains("invalide"))
 				{
-					S.Append(SpellsList.ReturnZone(un.Split(new char[] { ',' })[14]));
-				}
+					if(forbot)
+						S.Append(un.Split(',')[14]);
+					else
+                        S.Append(SpellsList.ReturnZone(un.Split(',')[14]));
+                }
 				else
 				{
-					S.Append(SpellsList.ReturnZone(un.Split(new char[] { ',' })[15]));
-				}
+					if(forbot)
+						S.Append(un.Split(',')[15]);
+					else
+                        S.Append(SpellsList.ReturnZone(un.Split(',')[15]));
+                }
 				S.Append("?");
-				level = un.Split(new char[] { ',' })[17].Trim();
+				level = un.Split(',')[17].Trim();
 				if (!level.Contains(";"))
 				{
 					if (level != "0")
@@ -264,11 +272,11 @@ namespace Tools_protocol.Kryone.Database
 						S.Append("all");
 					}
 					S.Append("?");
-					S.Append(un.Split(new char[] { ',' })[18]);
+					S.Append(un.Split(',')[18]);
 				}
 				else
 				{
-					level = un.Split(new char[] { ',' })[18].Trim();
+					level = un.Split(',')[18].Trim();
 					if (level != "0")
 					{
 						S.Append(level);
@@ -278,46 +286,46 @@ namespace Tools_protocol.Kryone.Database
 						S.Append("all");
 					}
 					S.Append("?");
-					S.Append(un.Split(new char[] { ',' })[19]);
+					S.Append(un.Split(',')[19]);
 				}
 			}
 			else
 			{
 				S.Append("?");
-				if (!un.Split(new char[] { ',' })[2].Equals("-1"))
+				if (!un.Split(',')[2].Equals("-1"))
 				{
-					S.Append(un.Split(new char[] { ',' })[2]);
+					S.Append(un.Split(',')[2]);
 				}
 				else
 				{
 					S.Append(PACOST);
 				}
 				S.Append("?");
-				if ((!un.Split(new char[] { ',' })[3].Equals("0") ? false : !un.Split(new char[] { ',' })[2].Equals("0")))
+				if ((!un.Split(',')[3].Equals("0") ? false : !un.Split(',')[2].Equals("0")))
 				{
-					S.Append(un.Split(new char[] { ',' })[2]);
+					S.Append(un.Split(',')[2]);
 				}
-				else if ((Convert.ToInt32(un.Split(new char[] { ',' })[2]) <= Convert.ToInt32(un.Split(new char[] { ',' })[3]) ? true : un.Split(new char[] { ',' })[3].Equals("0")))
+				else if ((Convert.ToInt32(un.Split(',')[2]) <= Convert.ToInt32(un.Split(',')[3]) ? true : un.Split(',')[3].Equals("0")))
 				{
-					S.Append(string.Concat(un.Split(new char[] { ',' })[2], " à ", un.Split(new char[] { ',' })[3]));
+					S.Append(string.Concat(un.Split(',')[2], " à ", un.Split(',')[3]));
 				}
 				else
 				{
-					S.Append(string.Concat(un.Split(new char[] { ',' })[3], " à ", un.Split(new char[] { ',' })[2]));
+					S.Append(string.Concat(un.Split(',')[3], " à ", un.Split(',')[2]));
 				}
 				S.Append("?");
-				S.Append(un.Split(new char[] { ',' })[4]);
+				S.Append(un.Split(',')[4]);
 				S.Append("?");
-				S.Append(un.Split(new char[] { ',' })[6]);
+				S.Append(un.Split(',')[6]);
 				S.Append("?");
-				S.Append(un.Split(new char[] { ',' })[7]);
+				S.Append(un.Split(',')[7]);
 				S.Append("?");
-				S.Append(un.Split(new char[] { ',' })[8]);
+				S.Append(un.Split(',')[8]);
 				S.Append("?");
-				S.Append(un.Split(new char[] { ',' })[9]);
+				S.Append(un.Split(',')[9]);
 				S.Append("?");
-				S.Append(un.Split(new char[] { ',' })[10]);
-				P_M = un.Split(new char[] { ',' })[11].Trim();
+				S.Append(un.Split(',')[10]);
+				P_M = un.Split(',')[11].Trim();
 				if ((P_M.Equals("false") ? true : P_M.Equals("true")))
 				{
 					S.Append("?");
@@ -325,25 +333,35 @@ namespace Tools_protocol.Kryone.Database
 					S.Append("?");
 				}
 				S.Append("?");
-				if (un.Split(new char[] { ',' })[12].Trim() != "0")
-				{
-					S.Append(un.Split(new char[] { ',' })[12]);
-				}
+				if(forbot)
+					S.Append(un.Split(',')[12]);
 				else
 				{
-					S.Append("autant que possible");
-				}
+                    if (un.Split(',')[12].Trim() != "0")
+                    {
+                        S.Append(un.Split(',')[12]);
+                    }
+                    else
+                    {
+                        S.Append("autant que possible");
+                    }
+                }
 				S.Append("?");
-				if (un.Split(new char[] { ',' })[13].Trim() != "0")
-				{
-					S.Append(string.Concat(un.Split(new char[] { ',' })[13], " tour(s)"));
-				}
+				if(forbot)
+					S.Append(un.Split(',')[13]);
 				else
 				{
-					S.Append("Tous les tours");
-				}
+                    if (un.Split(',')[13].Trim() != "0")
+                    {
+                        S.Append(string.Concat(un.Split(',')[13], " tour(s)"));
+                    }
+                    else
+                    {
+                        S.Append("Tous les tours");
+                    }
+                }
 				S.Append("?");
-				ByT = un.Split(new char[] { ',' })[14].Trim();
+				ByT = un.Split(',')[14].Trim();
 				if (ByT != "0")
 				{
 					S.Append(ByT);
@@ -353,16 +371,22 @@ namespace Tools_protocol.Kryone.Database
 					S.Append("Immédiat");
 				}
 				S.Append("?");
-				if (!SpellsList.ReturnZone(un.Split(new char[] { ',' })[15]).Contains("invalide"))
+				if (!SpellsList.ReturnZone(un.Split(',')[15]).Contains("invalide"))
 				{
-					S.Append(SpellsList.ReturnZone(un.Split(new char[] { ',' })[15]));
-				}
+					if(forbot)
+						S.Append(un.Split(',')[15]);
+					else
+                        S.Append(SpellsList.ReturnZone(un.Split(',')[15]));
+                }
 				else
 				{
-					S.Append(SpellsList.ReturnZone(un.Split(new char[] { ',' })[16]));
-				}
+					if(forbot)
+						S.Append(un.Split(',')[16]);
+					else
+                        S.Append(SpellsList.ReturnZone(un.Split(',')[16]));
+                }
 				S.Append("?");
-				level = un.Split(new char[] { ',' })[17].Trim();
+				level = un.Split(',')[17].Trim();
 				if (!level.Contains(";"))
 				{
 					if (level != "0")
@@ -374,11 +398,11 @@ namespace Tools_protocol.Kryone.Database
 						S.Append("all");
 					}
 					S.Append("?");
-					S.Append(un.Split(new char[] { ',' })[18]);
+					S.Append(un.Split(',')[18]);
 				}
 				else
 				{
-					level = un.Split(new char[] { ',' })[18].Trim();
+					level = un.Split(',')[18].Trim();
 					if (level != "0")
 					{
 						S.Append(level);
@@ -388,7 +412,7 @@ namespace Tools_protocol.Kryone.Database
 						S.Append("all");
 					}
 					S.Append("?");
-					S.Append(un.Split(new char[] { ',' })[19]);
+					S.Append(un.Split(',')[19]);
 				}
 			}
 			return S.ToString();
@@ -427,10 +451,10 @@ namespace Tools_protocol.Kryone.Database
 			{
 				S.Append(MonsterList.ReturnMonstersInfos(id_m, 1));
 			}
-			else if ((Mm.Equals(401) ? false : !Mm.Equals(400)))
+			else if(!Mm.Equals(400) || !Mm.Equals(401) || !Mm.Equals(-100))
 			{
 				S.Append(SpellsList.Return_spells(Mm));
-			}
+            }
 			else
 			{
 				S.Append(EffectsListing.Return_SpellsEffects(Mm.ToString()));
@@ -488,10 +512,10 @@ namespace Tools_protocol.Kryone.Database
 		{
 			StringBuilder S = new StringBuilder();
 			string jetp = "";
-			string idspell = un.Split(new char[] { ';' })[0].Trim();
+			string idspell = un.Split(';')[0].Trim();
 			try
 			{
-				jetp = un.Split(new char[] { ';' })[6].Trim();
+				jetp = un.Split(';')[6].Trim();
 			}
 			catch
 			{
@@ -511,13 +535,13 @@ namespace Tools_protocol.Kryone.Database
 				S.Append(VB.Replace("$", SpellsList.ParseJetEffect(jetp)));
 			}
 			S.Append("@");
-			int Mm = Convert.ToInt32(un.Split(new char[] { ';' })[0]);
-			int id_m = Convert.ToInt32(un.Split(new char[] { ';' })[1]);
+			int Mm = Convert.ToInt32(un.Split(';')[0]);
+			int id_m = Convert.ToInt32(un.Split(';')[1]);
 			if ((Mm.Equals(181) ? true : Mm.Equals(185)))
 			{
 				S.Append(MonsterList.ReturnMonstersInfos(id_m, 1));
 			}
-			else if ((Mm.Equals(401) ? false : !Mm.Equals(400)))
+			else if (!Mm.Equals(400) || !Mm.Equals(401) || !Mm.Equals(-100))
 			{
 				S.Append(SpellsList.Return_spells(Mm));
 			}
@@ -526,9 +550,9 @@ namespace Tools_protocol.Kryone.Database
 				S.Append(EffectsListing.Return_SpellsEffects(Mm.ToString()));
 			}
 			S.Append("@");
-			S.Append(un.Split(new char[] { ';' })[2]);
+			S.Append(un.Split(';')[2]);
 			S.Append("@");
-			string etat = un.Split(new char[] { ';' })[3].Trim();
+			string etat = un.Split(';')[3].Trim();
 			if (!idspell.Equals("950"))
 			{
 				S.Append(etat);
@@ -542,7 +566,7 @@ namespace Tools_protocol.Kryone.Database
 				S.Append(SpellsList.SwitchEtat(etat));
 			}
 			S.Append("@");
-			S.Append(un.Split(new char[] { ';' })[4]);
+			S.Append(un.Split(';')[4]);
 			return S.ToString();
 		}
 
@@ -550,10 +574,10 @@ namespace Tools_protocol.Kryone.Database
 		{
 			string JET = "";
 			int dam2 = 0;
-			string B = jet.Split(new char[] { '+' })[0];
-			string C = jet.Split(new char[] { '+' })[1];
-			int o = Convert.ToInt32(B.Split(new char[] { 'd' })[0]);
-			int t = Convert.ToInt32(B.Split(new char[] { 'd' })[1]);
+			string B = jet.Split('+')[0];
+			string C = jet.Split('+')[1];
+			int o = Convert.ToInt32(B.Split('d')[0]);
+			int t = Convert.ToInt32(B.Split('d')[1]);
 			int dam = o * t;
 			if (!C.Equals("0"))
 			{
@@ -570,84 +594,93 @@ namespace Tools_protocol.Kryone.Database
 			return JET;
 		}
 
-		public static void ParseLevel(int id)
+		public static void ParseLevel(int id, bool forbot = false)
 		{
-			KeyValuePair<int, SpellsList> keyValuePair = SpellsList.AllSpells.FirstOrDefault<KeyValuePair<int, SpellsList>>((KeyValuePair<int, SpellsList> x) => x.Key == id);
-			string level1 = keyValuePair.Value.Lvl1;
-			keyValuePair = SpellsList.AllSpells.FirstOrDefault<KeyValuePair<int, SpellsList>>((KeyValuePair<int, SpellsList> x) => x.Key == id);
-			string level2 = keyValuePair.Value.Lvl2;
-			keyValuePair = SpellsList.AllSpells.FirstOrDefault<KeyValuePair<int, SpellsList>>((KeyValuePair<int, SpellsList> x) => x.Key == id);
-			string level3 = keyValuePair.Value.Lvl3;
-			keyValuePair = SpellsList.AllSpells.FirstOrDefault<KeyValuePair<int, SpellsList>>((KeyValuePair<int, SpellsList> x) => x.Key == id);
-			string level4 = keyValuePair.Value.Lvl4;
-			keyValuePair = SpellsList.AllSpells.FirstOrDefault<KeyValuePair<int, SpellsList>>((KeyValuePair<int, SpellsList> x) => x.Key == id);
-			string level5 = keyValuePair.Value.Lvl5;
-			keyValuePair = SpellsList.AllSpells.FirstOrDefault<KeyValuePair<int, SpellsList>>((KeyValuePair<int, SpellsList> x) => x.Key == id);
-			string level6 = keyValuePair.Value.Lvl6;
-			string[] strArrays = level1.Split(new char[] { '|' });
-			for (int i = 0; i < (int)strArrays.Length; i++)
+            
+
+            try
 			{
-				string lvl1 = strArrays[i];
-				SpellsList.EffectLvl1.Add(SpellsList.TradSpells(lvl1));
+                string level1 = SpellsList.AllSpells.FirstOrDefault(x => x.Key == id).Value.Lvl1;
+                string level2 = SpellsList.AllSpells.FirstOrDefault(x => x.Key == id).Value.Lvl2;
+                string level3 = SpellsList.AllSpells.FirstOrDefault(x => x.Key == id).Value.Lvl3;
+                string level4 = SpellsList.AllSpells.FirstOrDefault(x => x.Key == id).Value.Lvl4;
+                string level5 = SpellsList.AllSpells.FirstOrDefault(x => x.Key == id).Value.Lvl5;
+                string level6 = SpellsList.AllSpells.FirstOrDefault(x => x.Key == id).Value.Lvl6;
+
+                string[] strArrays = level1.Split('|');
+                for (int i = 0; i < (int)strArrays.Length; i++)
+                {
+                    string lvl1 = strArrays[i];
+                    SpellsList.EffectLvl1.Add(SpellsList.TradSpells(lvl1, forbot));
+                }
+
+                string[] strArrays1 = level2.Split('|');
+                for (int j = 0; j < (int)strArrays1.Length; j++)
+                {
+                    string lvl2 = strArrays1[j];
+                    SpellsList.EffectLvl2.Add(SpellsList.TradSpells(lvl2, forbot));
+                }
+
+                string[] strArrays2 = level3.Split('|');
+                for (int k = 0; k < (int)strArrays2.Length; k++)
+                {
+                    string lvl3 = strArrays2[k];
+                    SpellsList.EffectLvl3.Add(SpellsList.TradSpells(lvl3, forbot));
+                }
+
+                string[] strArrays3 = level4.Split('|');
+                for (int l = 0; l < (int)strArrays3.Length; l++)
+                {
+                    string lvl4 = strArrays3[l];
+                    SpellsList.EffectLvl4.Add(SpellsList.TradSpells(lvl4,forbot));
+                }
+
+                string[] strArrays4 = level5.Split('|');
+                for (int m = 0; m < (int)strArrays4.Length; m++)
+                {
+                    string lvl5 = strArrays4[m];
+                    SpellsList.EffectLvl5.Add(SpellsList.TradSpells(lvl5,forbot));
+                }
+
+                string[] strArrays5 = level6.Split('|');
+                for (int n = 0; n < (int)strArrays5.Length; n++)
+                {
+                    string lvl6 = strArrays5[n];
+                    SpellsList.EffectLvl6.Add(SpellsList.TradSpells(lvl6,forbot));
+                }
+
 			}
-			string[] strArrays1 = level2.Split(new char[] { '|' });
-			for (int j = 0; j < (int)strArrays1.Length; j++)
+			catch
 			{
-				string lvl2 = strArrays1[j];
-				SpellsList.EffectLvl2.Add(SpellsList.TradSpells(lvl2));
-			}
-			string[] strArrays2 = level3.Split(new char[] { '|' });
-			for (int k = 0; k < (int)strArrays2.Length; k++)
-			{
-				string lvl3 = strArrays2[k];
-				SpellsList.EffectLvl3.Add(SpellsList.TradSpells(lvl3));
-			}
-			string[] strArrays3 = level4.Split(new char[] { '|' });
-			for (int l = 0; l < (int)strArrays3.Length; l++)
-			{
-				string lvl4 = strArrays3[l];
-				SpellsList.EffectLvl4.Add(SpellsList.TradSpells(lvl4));
-			}
-			string[] strArrays4 = level5.Split(new char[] { '|' });
-			for (int m = 0; m < (int)strArrays4.Length; m++)
-			{
-				string lvl5 = strArrays4[m];
-				SpellsList.EffectLvl5.Add(SpellsList.TradSpells(lvl5));
-			}
-			string[] strArrays5 = level6.Split(new char[] { '|' });
-			for (int n = 0; n < (int)strArrays5.Length; n++)
-			{
-				string lvl6 = strArrays5[n];
-				SpellsList.EffectLvl6.Add(SpellsList.TradSpells(lvl6));
+				
 			}
 		}
 
 		public static string Return_spells(int id)
 		{
-			string nom;
+			string nom = "sort inconnu";
 			try
             {
 				
-				nom = AllSpells.FirstOrDefault(x => x.Key == id).Value.Nom;
+				nom = AllSpells.FirstOrDefault(x => x.Key == id).Value?.Nom;
 
 			}
             catch
             {
-				nom = "sort inconnu";
+				return nom;
 			}
 			return nom;
 		}
 
 		public static int ReturnSpellsIDByName(string name)
 		{
-			KeyValuePair<int, SpellsList> keyValuePair = SpellsList.AllSpells.FirstOrDefault<KeyValuePair<int, SpellsList>>((KeyValuePair<int, SpellsList> x) => x.Value.Nom == name);
-			return keyValuePair.Key;
+			return SpellsList.AllSpells.FirstOrDefault(x => x.Value.Nom == name).Key;
+			
 		}
 
 		public static int ReturnSpellSprite(int key)
 		{
-			KeyValuePair<int, SpellsList> keyValuePair = SpellsList.AllSpells.FirstOrDefault<KeyValuePair<int, SpellsList>>((KeyValuePair<int, SpellsList> x) => x.Key == key);
-			return keyValuePair.Value.Sprite;
+			return SpellsList.AllSpells.FirstOrDefault(x => x.Key == key).Value.Sprite;
 		}
 
 		public static string ReturnZone(string zone)
@@ -780,57 +813,72 @@ namespace Tools_protocol.Kryone.Database
 			return str;
 		}
 
-		public static string TradSpells(string data)
+		public static string TradSpells(string data, bool forbot = false)
 		{
 			StringBuilder Spells = new StringBuilder();
 			if (data.Contains(","))
 			{
-				if (!data.Split(new char[] { ',' })[1].Contains("+"))
+				if (!data.Split(',')[1].Contains("+"))
 				{
-					if ((SpellsList.CRIT == 0 ? true : Convert.ToInt32(data.Split(new char[] { '+' })[1].Split(new char[] { ',' })[0]) < SpellsList.CRIT))
+					if ((SpellsList.CRIT == 0 ? true : Convert.ToInt32(data.Split('+')[1].Split(',')[0]) < SpellsList.CRIT))
 					{
-						Spells.Append(SpellsList.NormParse(data.Split(new char[] { ',' })[0]));
+						if (forbot)
+							Spells.Append($"{data.Split(',')[0].Split(';')[0]}|{data.Split(',')[0].Split(';')[4]}|{data.Split(',')[0].Split(';')[1]}|false");
+						else
+                            Spells.Append(SpellsList.NormParse(data.Split(',')[0]));
+                    }
+					else
+					{
+						if (forbot)
+							Spells.Append($"{data.Split(',')[0].Split(';')[0]}|{data.Split(',')[0].Split(';')[4]}|{data.Split(',')[0].Split(';')[1]}|true");
+						else
+                            Spells.Append(SpellsList.CritParse(data.Split(',')[0]));
+                    }
+					if (data.Split(',').Count() != 20)
+					{
+						Spells.Append(SpellsList.CaracParse(data, false, forbot));
 					}
 					else
 					{
-						Spells.Append(SpellsList.CritParse(data.Split(new char[] { ',' })[0]));
-					}
-					if (data.Split(new char[] { ',' }).Count<string>() != 20)
-					{
-						Spells.Append(SpellsList.CaracParse(data, false));
-					}
-					else
-					{
-						Spells.Append(SpellsList.CaracParse(data, true));
+						Spells.Append(SpellsList.CaracParse(data, true, forbot));
 					}
 				}
 				else
 				{
-					string n = data.Split(new char[] { ',' })[0];
-					string c = data.Split(new char[] { ',' })[1];
-					NORM = Convert.ToInt32(n.Split(new char[] { '+' })[1]);
-					CRIT = Convert.ToInt32(c.Split(new char[] { '+' })[1]);
-					Spells.Append(string.Concat(SpellsList.NormParse(n), "~", SpellsList.CritParse(c)));
-					if ((data.Contains("true") ? true : data.Contains("false")))
+					string n = data.Split(',')[0];
+					string c = data.Split(',')[1];
+					NORM = Convert.ToInt32(n.Split('+')[1]);
+					CRIT = Convert.ToInt32(c.Split('+')[1]);
+					if (forbot)
+						Spells.Append($"{data.Split(',')[0].Split(';')[0]}|{data.Split(',')[0].Split(';')[4]}|{data.Split(',')[0].Split(';')[1]}|true~{data.Split(',')[0].Split(';')[0]}|{data.Split(',')[0].Split(';')[4]}|{data.Split(',')[0].Split(';')[1]}|true");
+					else
+						Spells.Append(string.Concat(SpellsList.NormParse(n), "~", SpellsList.CritParse(c)));
+                    if ((data.Contains("true") ? true : data.Contains("false")))
 					{
-						if (data.Split(new char[] { ',' }).Count<string>() != 20)
+						if (data.Split(',').Count<string>() != 20)
 						{
-							Spells.Append(SpellsList.CaracParse(data, false));
+							Spells.Append(SpellsList.CaracParse(data, false, forbot));
 						}
 						else
 						{
-							Spells.Append(SpellsList.CaracParse(data, true));
+							Spells.Append(SpellsList.CaracParse(data, true, forbot));
 						}
 					}
 				}
 			}
-			else if ((SpellsList.CRIT == 0 ? true : Convert.ToInt32(data.Split(new char[] { '+' })[1]) < SpellsList.CRIT))
+			else if ((SpellsList.CRIT == 0 ? true : Convert.ToInt32(data.Split('+')[1]) < SpellsList.CRIT))
 			{
-				Spells.Append(SpellsList.NormParse(data));
-			}
+				if (forbot)
+					Spells.Append($"{data.Split(',')[0].Split(';')[0]}|{data.Split(',')[0].Split(';')[4]}|{data.Split(',')[0].Split(';')[1]}|false");
+				else
+                    Spells.Append(SpellsList.NormParse(data));
+            }
 			else
 			{
-				Spells.Append(SpellsList.CritParse(data));
+				if (forbot)
+                    Spells.Append($"{data.Split(',')[0].Split(';')[0]}|{data.Split(',')[0].Split(';')[4]}|{data.Split(',')[0].Split(';')[1]}|true");
+                else
+                    Spells.Append(SpellsList.CritParse(data));
 			}
 			return Spells.ToString();
 		}

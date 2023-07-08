@@ -30,8 +30,8 @@
         {
             this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(PersoSelection));
-            iTalk.ControlRenderer controlRenderer2 = new iTalk.ControlRenderer();
-            iTalk.MSColorTable msColorTable2 = new iTalk.MSColorTable();
+            iTalk.ControlRenderer controlRenderer1 = new iTalk.ControlRenderer();
+            iTalk.MSColorTable msColorTable1 = new iTalk.MSColorTable();
             this.timer1 = new System.Windows.Forms.Timer(this.components);
             this.iTalk_ThemeContainer1 = new iTalk.iTalk_ThemeContainer();
             this.iTalk_TabControl1 = new iTalk.iTalk_TabControl();
@@ -44,12 +44,12 @@
             this.iTalk_Listview1 = new iTalk.iTalk_Listview();
             this.iTalk_ContextMenuStrip1 = new iTalk.iTalk_ContextMenuStrip();
             this.connexionToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.timer2 = new System.Windows.Forms.Timer(this.components);
             this.iTalk_ThemeContainer1.SuspendLayout();
             this.iTalk_TabControl1.SuspendLayout();
             this.tabPage1.SuspendLayout();
             this.iTalk_ContextMenuStrip1.SuspendLayout();
             this.SuspendLayout();
-            // 
             // 
             // iTalk_ThemeContainer1
             // 
@@ -182,9 +182,9 @@
             this.iTalk_ContextMenuStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.connexionToolStripMenuItem});
             this.iTalk_ContextMenuStrip1.Name = "iTalk_ContextMenuStrip1";
-            controlRenderer2.ColorTable = msColorTable2;
-            controlRenderer2.RoundedEdges = true;
-            this.iTalk_ContextMenuStrip1.Renderer = controlRenderer2;
+            controlRenderer1.ColorTable = msColorTable1;
+            controlRenderer1.RoundedEdges = true;
+            this.iTalk_ContextMenuStrip1.Renderer = controlRenderer1;
             this.iTalk_ContextMenuStrip1.Size = new System.Drawing.Size(133, 26);
             // 
             // connexionToolStripMenuItem
@@ -194,6 +194,12 @@
             this.connexionToolStripMenuItem.Size = new System.Drawing.Size(132, 22);
             this.connexionToolStripMenuItem.Text = "Connexion";
             this.connexionToolStripMenuItem.Click += new System.EventHandler(this.connexionToolStripMenuItem_Click);
+            // 
+            // timer2
+            // 
+            this.timer2.Enabled = true;
+            this.timer2.Interval = 1000;
+            this.timer2.Tick += new System.EventHandler(this.timer2_Tick);
             // 
             // PersoSelection
             // 
@@ -231,5 +237,6 @@
         private System.Windows.Forms.ToolStripMenuItem connexionToolStripMenuItem;
         private System.Windows.Forms.Timer timer1;
         private iTalk.iTalk_Label iTalk_Label2;
+        private System.Windows.Forms.Timer timer2;
     }
 }

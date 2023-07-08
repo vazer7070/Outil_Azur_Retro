@@ -28,8 +28,8 @@
         /// </summary>
         private void InitializeComponent()
         {
-            iTalk.ControlRenderer controlRenderer1 = new iTalk.ControlRenderer();
-            iTalk.MSColorTable msColorTable1 = new iTalk.MSColorTable();
+            iTalk.ControlRenderer controlRenderer3 = new iTalk.ControlRenderer();
+            iTalk.MSColorTable msColorTable3 = new iTalk.MSColorTable();
             this.iTalk_ThemeContainer1 = new iTalk.iTalk_ThemeContainer();
             this.iTalk_TabControl1 = new iTalk.iTalk_TabControl();
             this.tabPage2 = new System.Windows.Forms.TabPage();
@@ -59,6 +59,10 @@
             this.nomDeCompteToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.motDePasseToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.supprimerCompteToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.iTalk_Label7 = new iTalk.iTalk_Label();
+            this.iTalk_TextBox_Small7 = new iTalk.iTalk_TextBox_Small();
+            this.iTalk_Label8 = new iTalk.iTalk_Label();
+            this.iTalk_TextBox_Small8 = new iTalk.iTalk_TextBox_Small();
             this.iTalk_ThemeContainer1.SuspendLayout();
             this.iTalk_TabControl1.SuspendLayout();
             this.tabPage2.SuspendLayout();
@@ -238,6 +242,10 @@
             // tabPage3
             // 
             this.tabPage3.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(246)))), ((int)(((byte)(246)))), ((int)(((byte)(246)))));
+            this.tabPage3.Controls.Add(this.iTalk_TextBox_Small8);
+            this.tabPage3.Controls.Add(this.iTalk_Label8);
+            this.tabPage3.Controls.Add(this.iTalk_TextBox_Small7);
+            this.tabPage3.Controls.Add(this.iTalk_Label7);
             this.tabPage3.Controls.Add(this.iTalk_TextBox_Small6);
             this.tabPage3.Controls.Add(this.iTalk_Label6);
             this.tabPage3.Controls.Add(this.iTalk_Label5);
@@ -252,13 +260,14 @@
             this.tabPage3.Size = new System.Drawing.Size(362, 273);
             this.tabPage3.TabIndex = 2;
             this.tabPage3.Text = "Options";
+            this.tabPage3.Click += new System.EventHandler(this.tabPage3_Click);
             // 
             // iTalk_TextBox_Small6
             // 
             this.iTalk_TextBox_Small6.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_TextBox_Small6.Font = new System.Drawing.Font("Tahoma", 11F);
             this.iTalk_TextBox_Small6.ForeColor = System.Drawing.Color.DimGray;
-            this.iTalk_TextBox_Small6.Location = new System.Drawing.Point(102, 153);
+            this.iTalk_TextBox_Small6.Location = new System.Drawing.Point(102, 106);
             this.iTalk_TextBox_Small6.MaxLength = 32767;
             this.iTalk_TextBox_Small6.Multiline = false;
             this.iTalk_TextBox_Small6.Name = "iTalk_TextBox_Small6";
@@ -274,7 +283,7 @@
             this.iTalk_Label6.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label6.Font = new System.Drawing.Font("Segoe UI", 8F);
             this.iTalk_Label6.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label6.Location = new System.Drawing.Point(35, 159);
+            this.iTalk_Label6.Location = new System.Drawing.Point(35, 112);
             this.iTalk_Label6.Name = "iTalk_Label6";
             this.iTalk_Label6.Size = new System.Drawing.Size(48, 13);
             this.iTalk_Label6.TabIndex = 5;
@@ -286,7 +295,7 @@
             this.iTalk_Label5.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label5.Font = new System.Drawing.Font("Segoe UI", 8F);
             this.iTalk_Label5.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label5.Location = new System.Drawing.Point(20, 116);
+            this.iTalk_Label5.Location = new System.Drawing.Point(20, 81);
             this.iTalk_Label5.Name = "iTalk_Label5";
             this.iTalk_Label5.Size = new System.Drawing.Size(64, 13);
             this.iTalk_Label5.TabIndex = 4;
@@ -298,7 +307,7 @@
             this.iTalk_Label4.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label4.Font = new System.Drawing.Font("Segoe UI", 8F);
             this.iTalk_Label4.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label4.Location = new System.Drawing.Point(20, 69);
+            this.iTalk_Label4.Location = new System.Drawing.Point(20, 49);
             this.iTalk_Label4.Name = "iTalk_Label4";
             this.iTalk_Label4.Size = new System.Drawing.Size(63, 13);
             this.iTalk_Label4.TabIndex = 3;
@@ -310,7 +319,7 @@
             this.iTalk_Label3.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label3.Font = new System.Drawing.Font("Segoe UI", 8F);
             this.iTalk_Label3.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
-            this.iTalk_Label3.Location = new System.Drawing.Point(40, 22);
+            this.iTalk_Label3.Location = new System.Drawing.Point(40, 17);
             this.iTalk_Label3.Name = "iTalk_Label3";
             this.iTalk_Label3.Size = new System.Drawing.Size(19, 13);
             this.iTalk_Label3.TabIndex = 2;
@@ -336,7 +345,7 @@
             this.iTalk_TextBox_Small5.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_TextBox_Small5.Font = new System.Drawing.Font("Tahoma", 11F);
             this.iTalk_TextBox_Small5.ForeColor = System.Drawing.Color.DimGray;
-            this.iTalk_TextBox_Small5.Location = new System.Drawing.Point(102, 108);
+            this.iTalk_TextBox_Small5.Location = new System.Drawing.Point(102, 73);
             this.iTalk_TextBox_Small5.MaxLength = 32767;
             this.iTalk_TextBox_Small5.Multiline = false;
             this.iTalk_TextBox_Small5.Name = "iTalk_TextBox_Small5";
@@ -352,7 +361,7 @@
             this.iTalk_TextBox_Small4.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_TextBox_Small4.Font = new System.Drawing.Font("Tahoma", 11F);
             this.iTalk_TextBox_Small4.ForeColor = System.Drawing.Color.DimGray;
-            this.iTalk_TextBox_Small4.Location = new System.Drawing.Point(102, 61);
+            this.iTalk_TextBox_Small4.Location = new System.Drawing.Point(102, 41);
             this.iTalk_TextBox_Small4.MaxLength = 32767;
             this.iTalk_TextBox_Small4.Multiline = false;
             this.iTalk_TextBox_Small4.Name = "iTalk_TextBox_Small4";
@@ -368,7 +377,7 @@
             this.iTalk_TextBox_Small3.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_TextBox_Small3.Font = new System.Drawing.Font("Tahoma", 11F);
             this.iTalk_TextBox_Small3.ForeColor = System.Drawing.Color.DimGray;
-            this.iTalk_TextBox_Small3.Location = new System.Drawing.Point(102, 15);
+            this.iTalk_TextBox_Small3.Location = new System.Drawing.Point(102, 10);
             this.iTalk_TextBox_Small3.MaxLength = 32767;
             this.iTalk_TextBox_Small3.Multiline = false;
             this.iTalk_TextBox_Small3.Name = "iTalk_TextBox_Small3";
@@ -399,17 +408,17 @@
             this.modifierToolStripMenuItem,
             this.supprimerCompteToolStripMenuItem});
             this.iTalk_ContextMenuStrip1.Name = "iTalk_ContextMenuStrip1";
-            controlRenderer1.ColorTable = msColorTable1;
-            controlRenderer1.RoundedEdges = true;
-            this.iTalk_ContextMenuStrip1.Renderer = controlRenderer1;
-            this.iTalk_ContextMenuStrip1.Size = new System.Drawing.Size(181, 92);
+            controlRenderer3.ColorTable = msColorTable3;
+            controlRenderer3.RoundedEdges = true;
+            this.iTalk_ContextMenuStrip1.Renderer = controlRenderer3;
+            this.iTalk_ContextMenuStrip1.Size = new System.Drawing.Size(174, 70);
             this.iTalk_ContextMenuStrip1.Opening += new System.ComponentModel.CancelEventHandler(this.iTalk_ContextMenuStrip1_Opening);
             // 
             // connexionToolStripMenuItem
             // 
             this.connexionToolStripMenuItem.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(80)))), ((int)(((byte)(80)))), ((int)(((byte)(80)))));
             this.connexionToolStripMenuItem.Name = "connexionToolStripMenuItem";
-            this.connexionToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.connexionToolStripMenuItem.Size = new System.Drawing.Size(173, 22);
             this.connexionToolStripMenuItem.Text = "Connexion";
             this.connexionToolStripMenuItem.Click += new System.EventHandler(this.connexionToolStripMenuItem_Click);
             // 
@@ -420,7 +429,7 @@
             this.motDePasseToolStripMenuItem});
             this.modifierToolStripMenuItem.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(80)))), ((int)(((byte)(80)))), ((int)(((byte)(80)))));
             this.modifierToolStripMenuItem.Name = "modifierToolStripMenuItem";
-            this.modifierToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.modifierToolStripMenuItem.Size = new System.Drawing.Size(173, 22);
             this.modifierToolStripMenuItem.Text = "Modifier";
             // 
             // nomDeCompteToolStripMenuItem
@@ -443,9 +452,63 @@
             // 
             this.supprimerCompteToolStripMenuItem.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(80)))), ((int)(((byte)(80)))), ((int)(((byte)(80)))));
             this.supprimerCompteToolStripMenuItem.Name = "supprimerCompteToolStripMenuItem";
-            this.supprimerCompteToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.supprimerCompteToolStripMenuItem.Size = new System.Drawing.Size(173, 22);
             this.supprimerCompteToolStripMenuItem.Text = "Supprimer compte";
             this.supprimerCompteToolStripMenuItem.Click += new System.EventHandler(this.supprimerCompteToolStripMenuItem_Click);
+            // 
+            // iTalk_Label7
+            // 
+            this.iTalk_Label7.AutoSize = true;
+            this.iTalk_Label7.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label7.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label7.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label7.Location = new System.Drawing.Point(35, 146);
+            this.iTalk_Label7.Name = "iTalk_Label7";
+            this.iTalk_Label7.Size = new System.Drawing.Size(54, 13);
+            this.iTalk_Label7.TabIndex = 5;
+            this.iTalk_Label7.Text = "CoreSize:";
+            // 
+            // iTalk_TextBox_Small7
+            // 
+            this.iTalk_TextBox_Small7.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_TextBox_Small7.Font = new System.Drawing.Font("Tahoma", 11F);
+            this.iTalk_TextBox_Small7.ForeColor = System.Drawing.Color.DimGray;
+            this.iTalk_TextBox_Small7.Location = new System.Drawing.Point(102, 140);
+            this.iTalk_TextBox_Small7.MaxLength = 32767;
+            this.iTalk_TextBox_Small7.Multiline = false;
+            this.iTalk_TextBox_Small7.Name = "iTalk_TextBox_Small7";
+            this.iTalk_TextBox_Small7.ReadOnly = false;
+            this.iTalk_TextBox_Small7.Size = new System.Drawing.Size(204, 28);
+            this.iTalk_TextBox_Small7.TabIndex = 6;
+            this.iTalk_TextBox_Small7.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
+            this.iTalk_TextBox_Small7.UseSystemPasswordChar = false;
+            // 
+            // iTalk_Label8
+            // 
+            this.iTalk_Label8.AutoSize = true;
+            this.iTalk_Label8.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_Label8.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.iTalk_Label8.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_Label8.Location = new System.Drawing.Point(24, 179);
+            this.iTalk_Label8.Name = "iTalk_Label8";
+            this.iTalk_Label8.Size = new System.Drawing.Size(65, 13);
+            this.iTalk_Label8.TabIndex = 5;
+            this.iTalk_Label8.Text = "LoaderSize:";
+            // 
+            // iTalk_TextBox_Small8
+            // 
+            this.iTalk_TextBox_Small8.BackColor = System.Drawing.Color.Transparent;
+            this.iTalk_TextBox_Small8.Font = new System.Drawing.Font("Tahoma", 11F);
+            this.iTalk_TextBox_Small8.ForeColor = System.Drawing.Color.DimGray;
+            this.iTalk_TextBox_Small8.Location = new System.Drawing.Point(102, 174);
+            this.iTalk_TextBox_Small8.MaxLength = 32767;
+            this.iTalk_TextBox_Small8.Multiline = false;
+            this.iTalk_TextBox_Small8.Name = "iTalk_TextBox_Small8";
+            this.iTalk_TextBox_Small8.ReadOnly = false;
+            this.iTalk_TextBox_Small8.Size = new System.Drawing.Size(204, 28);
+            this.iTalk_TextBox_Small8.TabIndex = 6;
+            this.iTalk_TextBox_Small8.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
+            this.iTalk_TextBox_Small8.UseSystemPasswordChar = false;
             // 
             // LoginForm
             // 
@@ -503,5 +566,9 @@
         private iTalk.iTalk_TextBox_Small iTalk_TextBox_Small5;
         private iTalk.iTalk_TextBox_Small iTalk_TextBox_Small6;
         private iTalk.iTalk_Label iTalk_Label6;
+        private iTalk.iTalk_TextBox_Small iTalk_TextBox_Small8;
+        private iTalk.iTalk_Label iTalk_Label8;
+        private iTalk.iTalk_TextBox_Small iTalk_TextBox_Small7;
+        private iTalk.iTalk_Label iTalk_Label7;
     }
 }

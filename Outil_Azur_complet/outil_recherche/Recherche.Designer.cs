@@ -184,7 +184,6 @@
             this.iTalk_Label99 = new iTalk.iTalk_Label();
             this.iTalk_Label121 = new iTalk.iTalk_Label();
             this.iTalk_TextBox_Small7 = new iTalk.iTalk_TextBox_Small();
-            this.iTalk_Button_212 = new iTalk.iTalk_Button_2();
             this.iTalk_Button_211 = new iTalk.iTalk_Button_2();
             this.iTalk_Label120 = new iTalk.iTalk_Label();
             this.iTalk_Label117 = new iTalk.iTalk_Label();
@@ -1932,7 +1931,6 @@
             this.tabPage4.Controls.Add(this.iTalk_Panel1);
             this.tabPage4.Controls.Add(this.iTalk_Label121);
             this.tabPage4.Controls.Add(this.iTalk_TextBox_Small7);
-            this.tabPage4.Controls.Add(this.iTalk_Button_212);
             this.tabPage4.Controls.Add(this.iTalk_Button_211);
             this.tabPage4.Controls.Add(this.iTalk_Label120);
             this.tabPage4.Controls.Add(this.iTalk_Label117);
@@ -2431,21 +2429,6 @@
             this.iTalk_TextBox_Small7.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
             this.iTalk_TextBox_Small7.UseSystemPasswordChar = false;
             this.iTalk_TextBox_Small7.TextChanged += new System.EventHandler(this.iTalk_TextBox_Small7_TextChanged);
-            // 
-            // iTalk_Button_212
-            // 
-            this.iTalk_Button_212.BackColor = System.Drawing.Color.Transparent;
-            this.animator1.SetDecoration(this.iTalk_Button_212, AnimatorNS.DecorationType.None);
-            this.iTalk_Button_212.Font = new System.Drawing.Font("Segoe UI", 14F);
-            this.iTalk_Button_212.ForeColor = System.Drawing.Color.White;
-            this.iTalk_Button_212.Image = null;
-            this.iTalk_Button_212.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.iTalk_Button_212.Location = new System.Drawing.Point(237, 345);
-            this.iTalk_Button_212.Name = "iTalk_Button_212";
-            this.iTalk_Button_212.Size = new System.Drawing.Size(166, 40);
-            this.iTalk_Button_212.TabIndex = 4;
-            this.iTalk_Button_212.Text = "Éditeur d\'effets";
-            this.iTalk_Button_212.TextAlignment = System.Drawing.StringAlignment.Center;
             // 
             // iTalk_Button_211
             // 
@@ -3407,7 +3390,6 @@
         private iTalk.iTalk_Label iTalk_Label134;
         private iTalk.iTalk_Label iTalk_Label133;
         private iTalk.iTalk_Label iTalk_Label132;
-        private iTalk.iTalk_Button_2 iTalk_Button_212;
         private iTalk.iTalk_Label iTalk_Label144;
         private iTalk.iTalk_Label iTalk_Label143;
         private iTalk.iTalk_Label iTalk_Label127;

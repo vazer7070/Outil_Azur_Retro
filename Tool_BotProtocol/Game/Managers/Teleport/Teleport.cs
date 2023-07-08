@@ -81,13 +81,13 @@ namespace Tool_BotProtocol.Game.Managers.Teleport
                     return false;
             }
         }
-        private void TeleportTentative()
+        private async void TeleportTentative()
         {
-            account.Connexion.SendPacket($"GA500{CellID};157");
+           await account.Connexion.SendPacket($"GA500{CellID};157");
         }
         public async void InitTeleport()
         {
-            await account.Connexion.SendPacketAsync($"WU{MapID}", false);
+            await account.Connexion.SendPacketAsync($"WU{MapID}");
         }
         private void SetMapEvent()
         {

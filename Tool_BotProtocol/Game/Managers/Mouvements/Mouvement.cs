@@ -133,14 +133,14 @@ namespace Tool_BotProtocol.Game.Managers.Mouvements
             return MoveResults.EXIT;
 
         }
-        private void SendMoveMessage()
+        private async void SendMoveMessage()
         {
             
             if(Account.AccountStates == AccountStates.REGENERATION)
-                Account.Connexion.SendPacket("eU1", true);
+                await Account.Connexion.SendPacket("eU1", true);
 
             string path = PathfinderUtils.GetCleanRoad(ActualPath);
-            Account.Connexion.SendPacket($"GA001{path}", true);
+            await Account.Connexion.SendPacket($"GA001{path}", true);
             Perso.PathFindingMapPerso(ActualPath);
         }
         public async Task EventMoveFisnish(Cell destination, byte type, bool good)
@@ -151,7 +151,7 @@ namespace Tool_BotProtocol.Game.Managers.Mouvements
                 await Task.Delay(PathfinderUtils.GetTimeOnMap(Perso.Cell, ActualPath, Perso.UseMount));
                 if (Account == null || Account.AccountStates == AccountStates.DISCONNECTED)
                     return;
-                Account.Connexion.SendPacket($"GKK{type}");
+                await Account.Connexion.SendPacket($"GKK{type}");
                 Perso.Cell = destination;
             }
             ActualPath = null;

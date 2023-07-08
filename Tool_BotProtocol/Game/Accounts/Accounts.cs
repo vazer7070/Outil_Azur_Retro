@@ -42,13 +42,14 @@ namespace Tool_BotProtocol.Game.Accounts
             Logger = new Logger();
             Game = new GameClass(this);
             AccountCharactersInfo = new ConcurrentDictionary<int, string>();
-            
+            Connexion = new TcpClient(this);
 
         }
-        public void Connect()
+        public async void Connect()
         {
-            Connexion = new TcpClient(this);
-            Connexion.ConnectToServer(IPAddress.Parse(GlobalConfig.IP), int.Parse(GlobalConfig.AUTHPORT));
+            await Connexion.ConnectToServer(IPAddress.Parse(GlobalConfig.IP), int.Parse(GlobalConfig.AUTHPORT));
+            AccountStates = AccountStates.CONNECTED;
+
         }
         public void Disconnect()
         {
@@ -59,12 +60,10 @@ namespace Tool_BotProtocol.Game.Accounts
             _accountState = AccountStates.DISCONNECTED;
             AccountDisconnectEvent?.Invoke();
         }
-        public void SwitchToGameServer(string Coordinate)
+        public async void SwitchToGameServer(string Coordinate)
         {
             Connexion.DisconnectSocket();
-            //MessageBox.Show(Coordinate);
-            Connexion.ConnectToServer(IPAddress.Parse(Coordinate.Split(':')[0]), int.Parse(Coordinate.Split(':')[1]));
-           //Connexion.ConnectToServer(IPAddress.Parse("127.0.0.1"), 5555);
+            await Connexion.ConnectToServer(IPAddress.Parse(Coordinate.Split(':')[0]), int.Parse(Coordinate.Split(':')[1]));
         }
     
         public AccountStates AccountStates

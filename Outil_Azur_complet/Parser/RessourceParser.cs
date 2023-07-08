@@ -66,6 +66,10 @@ namespace Outil_Azur_complet.Parser
                     }else if(iTalk_ComboBox1.SelectedItem.ToString() == "Monstres")
                     {
                         XmlParser.ParseSQLToXML(@".\ressources\Bot\BotMonsters\", "Monstres", true);
+
+                    }else if(iTalk_ComboBox1.SelectedItem.ToString() == "Sorts")
+                    {
+                        XmlParser.ParseSQLToXML(@".\ressources\Bot\BotSorts\", "Sorts", true);
                     }
                     else
                     {

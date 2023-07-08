@@ -21,14 +21,14 @@ namespace Tool_BotProtocol.Frames.Jeu
         public void ActualiseStats(TcpClient client, string message) => client.account.Game.character.RefreshCaracs(message);
 
         [MessageAttribution("PIK")]
-        public void GetGroup(TcpClient client, string message)
+        public void GetGroup(TcpClient client, string message) => Task.Run(async () =>
         {
-           if(client.account.UseMasterCommands == true)
+            if (client.account.UseMasterCommands == true)
             {
                 if (client.account.HasGroup == true)
                 {
-                    Task.Delay(1250);
-                    client.SendPacket("PR");
+                    await Task.Delay(1250);
+                    await client.SendPacket("PR");
                     client.account.Logger.LogInfo("GROUPE", "Vous êtes déjà dans un groupe, rejet de l'invitation.");
 
                 }
@@ -40,21 +40,21 @@ namespace Tool_BotProtocol.Frames.Jeu
                     if (PlayerWhoInvite.ToLower() == LeaderName.ToLower())
                     {
 
-                        Task.Delay(550);
-                        client.account.Connexion.SendPacket("PA");
+                        await Task.Delay(550);
+                        await client.account.Connexion.SendPacket("PA");
                         client.account.Logger.LogInfo("GROUPE", $"Je suis maintenant dans le groupe de {LeaderName}");
                     }
                     else
                     {
-                        client.SendPacket("PR");
+                        await client.SendPacket("PR");
                         client.account.Logger.LogInfo("GROUPE", "Rejet de l'invitation.");
                     }
 
                 }
                 else if (message.Substring(3).Split('|').Length == 1)
                 {
-                    Task.Delay(1250);
-                    client.SendPacket("PR");
+                    await Task.Delay(1250);
+                    await client.SendPacket("PR");
                     client.account.Logger.LogInfo("GROUPE", "Rejet de l'invitation.");
                 }
             }
@@ -62,17 +62,17 @@ namespace Tool_BotProtocol.Frames.Jeu
             {
                 if (client.account.Game.character.InGroupe == true)
                 {
-                    Task.Delay(1250);
-                    client.SendPacket("PR");
+                    await Task.Delay(1250);
+                    await client.SendPacket("PR");
                     client.account.Logger.LogInfo("GROUPE", "Vous êtes déjà dans un groupe, rejet de l'invitation.");
 
                 }
                 else
                 {
-                    client.account.Connexion.SendPacket("PA");
+                    await client.account.Connexion.SendPacket("PA");
                 }
             }
-        }
+        });
         [MessageAttribution("PCK")]
         public void AcceptGroupe(TcpClient client, string message) => client.account.Game.character.InGroupe = true;
 
@@ -118,10 +118,10 @@ namespace Tool_BotProtocol.Frames.Jeu
             client.account.Game.character.EquipLeader = "";
         }
         [MessageAttribution("pong")]
-        public void GetPingPong(TcpClient client, string message) => client.account.Logger.LogInfo("DOFUS", $"Ping: {client.GetPing()} ms");
+        public void GetPingPong(TcpClient client, string message) => client.account.Logger.LogInfo("DOFUS", $"Ping: {client.GetPingAverage()} ms");
 
         [MessageAttribution("Bp")]
-        public void GetAllPing(TcpClient client, string message) => client.SendPacket($"Bp{client.GetPingAverage()}|{client.GetTotalPings()}|50");
+        public Task GetAllPing(TcpClient client, string message) => Task.Run(async () =>  await client.SendPacket($"Bp{client.GetPingAverage()}|{client.GetTotalPings()}|50"));
 
         [MessageAttribution("Ow")]
 
@@ -229,11 +229,11 @@ namespace Tool_BotProtocol.Frames.Jeu
         public void AbandonGroup(TcpClient client, string message) => client.account.Game.character.InGroupe = false;
 
         [MessageAttribution("ERK")]
-        public void AskExchange(TcpClient client, string message)
+        public Task AskExchange(TcpClient client, string message) => Task.Run(async () =>
         {
             client.account.Logger.LogInfo("DOFUS", "Quelqu'un demande un échange");
-            client.SendPacket("EV", true);
-        }
+            await client.SendPacket("EV", true);
+        });
 
         [MessageAttribution("ILS")]
         public void GetRegenTime(TcpClient client, string message)
@@ -247,7 +247,7 @@ namespace Tool_BotProtocol.Frames.Jeu
             {
                 perso.Regen_Timer.Change(Timeout.Infinite, Timeout.Infinite);
                 perso.Regen_Timer.Change(time, time);
-
+                perso.DisplayRegen();
                 A.Logger.LogInfo("DOFUS", $"Votre personnage récupère 1 pdv chaque {time / 1000} secondes");
             }
         }
@@ -282,15 +282,15 @@ namespace Tool_BotProtocol.Frames.Jeu
         }
 
         [MessageAttribution("gJR")]
-        public void HandleGuild(TcpClient client, string message)
+        public Task HandleGuild(TcpClient client, string message) => Task.Run(async () =>
         {
-            if(client.account.Game.character.HasGuild == true)
+            if (client.account.Game.character.HasGuild == true)
             {
-                Task.Delay(100);
+                await Task.Delay(100);
                 client.account.Logger.LogInfo("PERSO", "Invitation à la guilde refusée");
-                client.SendPacket("gJE");
+                await client.SendPacket("gJE");
             }
-        }
+        });
 
 
     }

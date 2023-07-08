@@ -2,6 +2,7 @@ using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Windows.Forms;
 
 namespace Tools_protocol.Query
 {
@@ -18,9 +19,9 @@ namespace Tools_protocol.Query
 			{
 				try
 				{
-					connection.Open();
+					connection?.Open();
 					ConnectionString = connectionString;
-					connection.Close();
+					connection?.Close();
 					connection.Dispose();
 					return true;
 				}

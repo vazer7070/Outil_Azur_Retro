@@ -1,0 +1,16 @@
+###### V-0.120 ###### 
+
+- Refonte du système de socket
+- Refonte du ByPass officiel
+- Mise à jour du gestionnaire pour ajout des XML sorts (bot uniquement)
+- Mise en place des sorts sur le bot
+- Refonte du parsing des sorts (SpellsBrain)
+- Mise en place de la fenêtre de logs
+- Mise en place du Tchat sur le nouveau client
+- Mise en place de la barre d'XP sur le nouveau client
+- Correction de bugs au niveau du login et de la deconnexion
+- Refonte pour correction du système de MP
+- Multiples corrections de bugs dans la gestion des paquets
+- Optimisation du système de connexion du joueur
+- Mise en place du système anti-cheat [part 1]
+- Refonte de la gestion de la visualisation des problèmes de connexion

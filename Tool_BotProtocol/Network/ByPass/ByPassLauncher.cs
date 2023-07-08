@@ -18,95 +18,56 @@ namespace Tool_BotProtocol.Network.ByPass
 {
     public class ByPassLauncher
     {
-        Socket socket { get; set; }
-       
-        public async void StartBypass(int port, int gameId, string login, string pass, bool runOnce)
+       public static async Task<string>GetAPI_key(string login, string pass)
         {
-            var httpClient = new HttpClient();
-            //var tcpListener = new TcpListener(IPAddress.Parse("127.0.0.1"), port);
-            socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            byte[] buffer = new byte[1024];
-            socket.BeginConnect(IPAddress.Parse("127.0.0.1"), port, new AsyncCallback(ConnectCallBack), socket);
-            //tcpListener.Start();
-            while (true)
+            WinHttpHandler handler = new WinHttpHandler();
+            using(HttpClient client = new HttpClient(handler)) 
             {
-                try
+                HttpRequestMessage req = new HttpRequestMessage
                 {
-                    socket.BeginAccept(new AsyncCallback(ConnectAccept), socket);
-                    socket.Receive(buffer, SocketFlags.None);
-                    using (var http2Client = new HttpClient(new Http2CustomHandler()))
+                    RequestUri = new Uri("https://haapi.ankama.com/json/Ankama/v5/Api/CreateApiKey"),
+                    Method = HttpMethod.Post,
+                    Headers =
                     {
-                        var req = new HttpRequestMessage
-                        {
-                            RequestUri = new Uri("https://haapi.ankama.com/json/Ankama/v5/Api/CreateApiKey"),
-                            Method = HttpMethod.Post,
-                            Headers = {
-                { "user-agent", "Zaap 3.6.15" }
-             },
-                            Content = new StringContent($"login={login}&password={pass}&game_id={gameId}&long_life_token=true&shop_key=ZAAP&payment_mode=OK&lang=en", Encoding.UTF8, "text/plain")
-                        };
-
-                        var response = await httpClient.SendAsync(req);
-                        var createKeyResponse = await JsonSerializer.DeserializeAsync<Dictionary<string, object>>(await response.Content.ReadAsStreamAsync());
-                        var apiKey = createKeyResponse?["key"].ToString();
-
-                        var req2 = new HttpRequestMessage
-                        {
-                            RequestUri = new Uri($"https://haapi.ankama.com/json/Ankama/v5/Account/CreateToken?game={gameId}"),
-                            Method = HttpMethod.Get,
-                            Headers =
-            {
-                { "apiKey", $"{apiKey}" },
-                { "user-agent", "Zaap 3.6.15" }
-            }
-                        };
-                        response = await httpClient.SendAsync(req);
-                        var createTokenResponse = await JsonSerializer.DeserializeAsync<Dictionary<string, object>>(await response.Content.ReadAsStreamAsync());
-                        var token = createTokenResponse?["token"].ToString();
-
-                        byte[] bSend = Encoding.UTF8.GetBytes($"auth_getGameToken {token}\0");
-                        socket.Send(bSend);
-                        Console.WriteLine($"> auth_getGameToken {token}");
-                    }
-                }catch(Exception e)
+                        { "user-agent", "Zaap 3.7.4" }
+                    },
+                    Content = new StringContent($"login={login}&password={pass}", Encoding.UTF8, "text/plain")
+                };
+                HttpResponseMessage reponse = await client.SendAsync(req);
+                if(reponse.StatusCode == HttpStatusCode.OK) 
                 {
-                    throw (e);
+                    Dictionary<string, object> Get_APIreponse = await JsonSerializer.DeserializeAsync<Dictionary<string, object>>(await reponse.Content.ReadAsStreamAsync());
+                    string key = Get_APIreponse["key"].ToString();
+                    return key;
                 }
-            }
-        }
-        private void ConnectAccept(IAsyncResult ar)
-        {
-            try
-            {
-                socket = ar.AsyncState as Socket;
-                socket.EndConnect(ar);
-                Console.WriteLine("Le client est là");
-            }
-            catch
-            {
-                Console.WriteLine("eh ben non");
-            }
-        }
-        private void ConnectCallBack(IAsyncResult ar)
-        {
-            try
-            {
-                socket = ar.AsyncState as Socket;
-                socket.EndConnect(ar);
-                Console.WriteLine("Socket connectée correctement");
-            }
-            catch
-            {
-                Console.WriteLine("Impossible de joindre le serveur hôte");
+                return null;
             }
         }
 
-        public class Http2CustomHandler : WinHttpHandler
+        public static async Task<string>Get_Token(string apikey)
         {
-            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, System.Threading.CancellationToken cancellationToken)
+            WinHttpHandler handler = new WinHttpHandler();
+            using(HttpClient client = new HttpClient(handler))
             {
-                request.Version = new Version("2.0");
-                return base.SendAsync(request, cancellationToken);
+                HttpRequestMessage req = new HttpRequestMessage
+                {
+                    RequestUri = new Uri($"https://haapi.ankama.com/json/Ankama/v5/Account/CreateToken?game=101"),
+                    Method = HttpMethod.Get,
+                    Headers =
+                    {
+                        { "apiKey", $"{apikey}" },
+                        { "user-agent", "Zaap 3.7.4" }
+                    }
+                };
+                HttpResponseMessage reponse = await client.SendAsync(req);
+
+                if(reponse?.StatusCode == HttpStatusCode.OK)
+                {
+                    Dictionary<string, object> Get_APIreponse = await JsonSerializer.DeserializeAsync<Dictionary<string, object>>(await reponse.Content.ReadAsStreamAsync());
+                    string token = Get_APIreponse["token"].ToString();
+                    return token;
+                }
+                return null;
             }
         }
     }

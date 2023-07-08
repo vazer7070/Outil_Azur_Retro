@@ -126,23 +126,23 @@ namespace Outil_Azur_complet.Bot
             MessageBox.Show("Impossible de jouer avec le personnage selectionné, veuillez effectuer une déco/reco puis recommencer.", "Impossible d'entrer en jeu", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
             return;
         }
-        public void enterInGame(string label)
+        public async Task enterInGame(string label)
         {
            int id = int.Parse(label.Split('(')[1].Split(')')[0]);
-            A.Connexion.SendPacket($"AS{id}", true);
-            A.Connexion.SendPacket("AF");
+            await A.Connexion.SendPacket($"AS{id}", true);
+            await A.Connexion.SendPacket("AF");
             GameClientFullform GCFF = new GameClientFullform(A);
             GCFF.Show();
             Close();
         }
-        private void iTalk_Button_21_Click(object sender, EventArgs e)
+        private async void iTalk_Button_21_Click(object sender, EventArgs e)
         {
             if(!string.IsNullOrEmpty(LABEL))
-                enterInGame(LABEL);
+                  await enterInGame(LABEL);
         }
-        public void DeleteCharacter(int id)
+        public async Task DeleteCharacter(int id)
         {
-            A.Connexion.SendPacket($"AD{id}|", true);
+            await A.Connexion.SendPacket($"AD{id}|", true);
             ClearAll();
             UpdateCharactersInfo();
         }
@@ -151,49 +151,49 @@ namespace Outil_Azur_complet.Bot
             MessageBox.Show("Impossible de supprimer le personnage, veuillez effectuer une déco/reco puis recommencer.", "Suppression impossible", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
             return;
         }
-        private void iTalk_LinkLabel1_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        private async void iTalk_LinkLabel1_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
 
             if (iTalk_Label6.Text.Contains("("))
             {
                 int id = int.Parse(iTalk_Label6.Text.Split('(')[1].Split(')')[0]);
-                DeleteCharacter(id); 
+                await DeleteCharacter(id); 
             }
         }
 
-        private void iTalk_LinkLabel2_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        private async void iTalk_LinkLabel2_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
             if (iTalk_Label7.Text.Contains("("))
             {
                 int id = int.Parse(iTalk_Label7.Text.Split('(')[1].Split(')')[0]);
-                DeleteCharacter(id);
+                await DeleteCharacter(id);
             }
         }
 
-        private void iTalk_LinkLabel3_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        private async void iTalk_LinkLabel3_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
             if (iTalk_Label8.Text.Contains("("))
             {
                 int id = int.Parse(iTalk_Label8.Text.Split('(')[1].Split(')')[0]);
-                DeleteCharacter(id);
+                await DeleteCharacter(id);
             }
         }
 
-        private void iTalk_LinkLabel4_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        private async void iTalk_LinkLabel4_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
             if (iTalk_Label9.Text.Contains("("))
             {
                int id = int.Parse(iTalk_Label9.Text.Split('(')[1].Split(')')[0]);
-               DeleteCharacter(id);
+               await DeleteCharacter(id);
             }
         }
 
-        private void iTalk_LinkLabel5_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        private async void iTalk_LinkLabel5_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
            if(iTalk_Label10.Text.Contains("("))
             {
                 int id = int.Parse(iTalk_Label10.Text.Split('(')[1].Split(')')[0]);
-                DeleteCharacter(id);
+                await DeleteCharacter(id);
             }
         }
 

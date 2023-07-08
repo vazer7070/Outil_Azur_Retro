@@ -21,8 +21,7 @@ namespace Outil_Azur_complet.Bot
     {
         private bool selected;
         private string selectionned;
-
-
+        
         public LoginForm()
         {
             InitializeComponent();
@@ -50,17 +49,24 @@ namespace Outil_Azur_complet.Bot
         private void LoginForm_Load(object sender, EventArgs e)
         {
             
-                iTalk_Listview1.Columns.Add("Compte", 170, HorizontalAlignment.Left);
+            iTalk_Listview1.Columns.Add("Compte", 170, HorizontalAlignment.Left);
                 iTalk_Listview1.Columns.Add("Lieu", 170, HorizontalAlignment.Left);
                 UpdateListViews();
                 UpdateOptions();
+
+
+        }
+        public void GoToServerPage(AccountConfig A)
+        {
             
-            
+                PersoSelection PS = new PersoSelection(A);
+                PS.Show();
+            Close();
         }
         public bool CheckConnexion()
         {
             Ping MP = new Ping();
-            PingReply PR = MP.Send("185.21.25.12", 1000);
+            PingReply PR = MP.Send(GlobalConfig.IP, 1000);
             if(PR != null)
             {
                 if(PR.Status == IPStatus.Success)
@@ -77,6 +83,8 @@ namespace Outil_Azur_complet.Bot
             iTalk_TextBox_Small4.Text = GlobalConfig.AUTHPORT;
             iTalk_TextBox_Small5.Text = GlobalConfig.GAMEPORT;
             iTalk_TextBox_Small6.Text = GlobalConfig.VERSION;
+            iTalk_TextBox_Small7.Text = GlobalConfig.CORESIZE;
+            iTalk_TextBox_Small8.Text = GlobalConfig.LOADERSIZE;
         }
         private void iTalk_Button_12_Click_1(object sender, EventArgs e)
         {
@@ -97,27 +105,20 @@ namespace Outil_Azur_complet.Bot
                         }
                         else
                         {
+
                             string L = "";
                             if (GlobalConfig.BYPASS)
                                 L = "Officiel";
                             else
                                 L = "Privé";
 
-                            if (GlobalConfig.BYPASS)
-                            {
-                                //mettre bypass launcher officiel retro
-                            }
-                            else
-                            {
-                                AccountConfig A = new AccountConfig(iTalk_TextBox_Small1.Text, iTalk_TextBox_Small2.Text, L);
-                                AccountConfig.AccountsDico.Add(iTalk_TextBox_Small1.Text, A);
-                                AccountConfig.WriteCompte(iTalk_TextBox_Small1.Text, iTalk_TextBox_Small2.Text, L);
-                                UpdateListViews();
-                                AccountConfig.AccountsActive.Add(A);
-                                PersoSelection PS = new PersoSelection(A);
-                                PS.Show();
-                                Close();
-                            }
+                            AccountConfig A = new AccountConfig(iTalk_TextBox_Small1.Text.Trim(), iTalk_TextBox_Small2.Text.Trim(), L);
+                            AccountConfig.AccountsDico.Add(iTalk_TextBox_Small1.Text.Trim(), A);
+                            AccountConfig.WriteCompte(iTalk_TextBox_Small1.Text.Trim(), iTalk_TextBox_Small2.Text.Trim(), L);
+                            UpdateListViews();
+                            AccountConfig.AccountsActive.Add(A);
+                            GoToServerPage(A);
+
 
                         }
 
@@ -148,7 +149,7 @@ namespace Outil_Azur_complet.Bot
             try
             {
                 selected = iTalk_Listview1.SelectedItems[0].Selected;
-                selectionned = iTalk_Listview1.SelectedItems[0].Text;
+                selectionned = iTalk_Listview1.SelectedItems[0].Text.Trim();
                 if (selected)
                     iTalk_ContextMenuStrip1.Show(Cursor.Position.X, Cursor.Position.Y);
             }
@@ -163,18 +164,14 @@ namespace Outil_Azur_complet.Bot
         {
             if (CheckConnexion())
             {
-                if (GlobalConfig.BYPASS)
-                {
-
-                }
+                AccountConfig A = AccountConfig.ReturnAccountInfo(selectionned);
+                AccountConfig.AccountsActive.Add(A);
+                if (A.Lieu == "Officiel")
+                    GlobalConfig.BYPASS = true;
                 else
-                {
-                    AccountConfig A = AccountConfig.ReturnAccountInfo(selectionned);
-                    AccountConfig.AccountsActive.Add(A);
-                    PersoSelection PS = new PersoSelection(A);
-                    PS.Show();
-                    this.Close();
-                }
+                    GlobalConfig.BYPASS = false;
+                GoToServerPage(A);
+
             }
             else
             {
@@ -195,8 +192,13 @@ namespace Outil_Azur_complet.Bot
         private void iTalk_RadioButton2_CheckedChanged(object sender)
         {
             if(iTalk_RadioButton2.Checked == true)
+            {
                 GlobalConfig.BYPASS = true;
-               
+                GlobalConfig.writenewconfig(GlobalConfig.OFFICIALIP, GlobalConfig.OFFICIALPORT, iTalk_TextBox_Small5.Text, iTalk_TextBox_Small6.Text, iTalk_TextBox_Small7.Text, iTalk_TextBox_Small8.Text);
+
+            }
+
+
         }
 
         private void nomDeCompteToolStripMenuItem_Click(object sender, EventArgs e)
@@ -256,6 +258,16 @@ namespace Outil_Azur_complet.Bot
                 iTalk_TextBox_Small5.BackColor = Color.Red;
                 isgood = false;
             }
+            if (!int.TryParse(iTalk_TextBox_Small7.Text, out int val))
+            {
+                iTalk_TextBox_Small7.BackColor = Color.Red;
+                isgood = false;
+            }
+            if (!int.TryParse(iTalk_TextBox_Small8.Text, out int va))
+            {
+                iTalk_TextBox_Small8.BackColor = Color.Red;
+                isgood = false;
+            }
             else
             {
                 isgood = true;
@@ -264,7 +276,7 @@ namespace Outil_Azur_complet.Bot
 
             if (isgood)
             {
-                GlobalConfig.writenewconfig(iTalk_TextBox_Small3.Text, iTalk_TextBox_Small4.Text, iTalk_TextBox_Small5.Text, iTalk_TextBox_Small6.Text);
+                GlobalConfig.writenewconfig(iTalk_TextBox_Small3.Text, iTalk_TextBox_Small4.Text, iTalk_TextBox_Small5.Text, iTalk_TextBox_Small6.Text, iTalk_TextBox_Small7.Text, iTalk_TextBox_Small8.Text);
                 MessageBox.Show("Les changements ont été appliqués.", "Modifications effectuées", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 UpdateOptions();
                 return;
@@ -275,10 +287,20 @@ namespace Outil_Azur_complet.Bot
         private void iTalk_RadioButton1_CheckedChanged(object sender)
         {
             if (iTalk_RadioButton1.Checked == true)
+            {
                 GlobalConfig.BYPASS = false;
+                GlobalConfig.writenewconfig(iTalk_TextBox_Small3.Text, iTalk_TextBox_Small4.Text, iTalk_TextBox_Small5.Text, iTalk_TextBox_Small6.Text, iTalk_TextBox_Small7.Text, iTalk_TextBox_Small8.Text);
+
+            }
+
         }
 
         private void iTalk_ContextMenuStrip1_Opening(object sender, CancelEventArgs e)
+        {
+
+        }
+
+        private void tabPage3_Click(object sender, EventArgs e)
         {
 
         }

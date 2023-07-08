@@ -56,6 +56,7 @@
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System" />
     <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs">
@@ -69,6 +70,7 @@
     <Compile Include="Tools_protocol.Kryone.Database\MapsList.cs" />
     <Compile Include="Tools_protocol.Kryone.Database\NPCList.cs" />
     <Compile Include="Tools_protocol.Kryone.Database\NPCTemplateList.cs" />
+    <Compile Include="Tools_protocol.Kryone.Database\SpellsBrain.cs" />
     <Compile Include="Tools_protocol.Kryone.Database\ZaapiList.cs" />
     <Compile Include="Tools_protocol.Kryone.Database\ZaapsList.cs" />
     <Compile Include="Tools_protocol.Parser\XML\XmlParser.cs" />

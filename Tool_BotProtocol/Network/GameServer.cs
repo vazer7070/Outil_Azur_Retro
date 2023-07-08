@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Network.Enums;
 using Tool_BotProtocol.Utils.Interfaces;
@@ -17,21 +18,24 @@ namespace Tool_BotProtocol.Network
         private bool Disposed = false;
         public event Action<string> FoundOrNotFriend;
         public event Action<string> RandomName;
+        public Action<string> WrongVersion;
+        public Action<string> IsBanned;
         public event Action AlreadyConnected;
         public event Action UpdateCharacterMenu;
         public event Action AddServerInMenu;
         public event Action CharacterDeleteFail;
         public event Action FailCreatePerso;
         public event Action FailSelectPerso;
+        public event Action WrongCredential;
         public bool ExitCreationMenu = false;
         public string NameNewCharacter;
-
-        public GameServer() => RefreshData(0, "UNDEFINED", ServerStates.OFFLINE);
+        public Dictionary<int, ServerStates> Servers = new Dictionary<int, ServerStates>();
         public void RefreshData(int S_Id, string S_Name, ServerStates S_states)
         {
             ServerID = S_Id;
             ServerName = S_Name;
             ServerStates = S_states;
+            Servers.Add(S_Id,S_states);
         }
         public string GetState(ServerStates state)
         {
@@ -46,6 +50,18 @@ namespace Tool_BotProtocol.Network
                 default:
                     return "";
             }
+        }
+        public void DisplayIsBanned(string time)
+        {
+            IsBanned?.Invoke(time);
+        }
+        public void WrongVer(string version)
+        {
+            WrongVersion?.Invoke(version);
+        }
+        public void WrongCred()
+        {
+            WrongCredential?.Invoke();
         }
         public void FailPeroSelect()
         {

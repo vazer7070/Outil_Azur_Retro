@@ -17,7 +17,6 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
         private Accounts.Accounts Account;
         static string ItemPath = @".\ressources\Bot\BotObjets";
         private ConcurrentDictionary<uint, InventoryObjects> PlayerItems;
-        private bool disposed;
 
         public int Kamas { get; set; }
         public short Actual_pods { get; set; }
@@ -81,7 +80,7 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
                 }
             }
         }
-        public void Delete_Item(InventoryObjects I, int qua, bool DeleteMessage)
+        public async void Delete_Item(InventoryObjects I, int qua, bool DeleteMessage)
         {
             if (I == null)
                 return;
@@ -100,7 +99,7 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
             }
             if (DeleteMessage)
             {
-                Account.Connexion.SendPacket($"Od{I.Inventory_ID}|{qua}");
+                await Account.Connexion.SendPacket($"Od{I.Inventory_ID}|{qua}");
                 Account.Logger.LogInfo("INVENTAIRE", $"{qua} {I.Name} retiré(s)");
             }
 
@@ -113,7 +112,7 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
 
             Delete_Item(I, qua, DeleteMessage);
         }
-        public bool Equip_item(InventoryObjects I)
+        public async Task<bool> Equip_item(InventoryObjects I)
         {
             if(I == null || I.Qua == 0 || Account.Isbusy())
             {
@@ -140,7 +139,7 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
             {
                 if(GetObjetsPosition(I_S) == null)
                 {
-                    Account.Connexion.SendPacket($"OM{I.Inventory_ID}|{I_S}", true);
+                    await Account.Connexion.SendPacket($"OM{I.Inventory_ID}|{I_S}", true);
                     Account.Logger.LogInfo("INVENTAIRE", $"L'objet {I.Name} est équipé");
                     I.position = I_S;
                     RefreshInventory?.Invoke(true);
@@ -150,9 +149,9 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
             if(PlayerItems.TryGetValue(GetObjetsPosition(Possible_P[0]).Inventory_ID, out InventoryObjects H))
             {
                 H.position = InventorySlots.NOT_EQUIPPED;
-                Account.Connexion.SendPacket($"OM{H.Inventory_ID}|{InventorySlots.NOT_EQUIPPED}");
+                await Account.Connexion.SendPacket($"OM{H.Inventory_ID}|{InventorySlots.NOT_EQUIPPED}");
             }
-            Account.Connexion.SendPacket($"OM{H.Inventory_ID}|{Possible_P[0]}");
+            await Account.Connexion.SendPacket($"OM{H.Inventory_ID}|{Possible_P[0]}");
 
             if(I.Qua == 1)
                 I.position = Possible_P[0];
@@ -161,25 +160,25 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
             RefreshInventory?.Invoke(true);
             return true;
         }
-        public bool Desequip_Item(InventoryObjects O)
+        public async Task<bool> Desequip_Item(InventoryObjects O)
         {
             if (O == null)
                 return false;
             if(O.position == InventorySlots.NOT_EQUIPPED)
                 return false;
-            Account.Connexion.SendPacket($"OM{O.Inventory_ID}|{InventorySlots.NOT_EQUIPPED}");
+            await Account.Connexion.SendPacket($"OM{O.Inventory_ID}|{InventorySlots.NOT_EQUIPPED}");
             O.position = InventorySlots.NOT_EQUIPPED;
             Account.Logger.LogInfo("INVENTAIRE", $"{O.Name} déséquipé");
             RefreshInventory.Invoke(true);
             return true;
         }
-        public void Use_Item(InventoryObjects G)
+        public async void Use_Item(InventoryObjects G)
         {
             if (G == null)
                 return;
             if (G.Qua == 0)
                 return;
-            Account.Connexion.SendPacket($"OU{G.Inventory_ID}|");
+            await Account.Connexion.SendPacket($"OU{G.Inventory_ID}|");
             Delete_Item(G, 1, false);
             Account.Logger.LogInfo("INVENTAIRE", $"Objet {G.Name} utilisé");
 

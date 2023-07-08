@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Network;
@@ -12,11 +13,11 @@ namespace Tool_BotProtocol.Frames.Auth
      class AuthFrame :Frame
     {
         [MessageAttribution("AlEf")]
-        public void WrongCredential(TcpClient client, string message)
+        public Task WrongCredential(TcpClient client, string message) => Task.Run(() =>
         {
-            client.account.Logger.LogError("[LOGIN]", "Connexion rejetée. Nom de compte ou mot de passe incorrect.");
+            client.account.Game.Server.WrongCred();
             client.account.Disconnect();
-        }
+        });
         [MessageAttribution("AlEa")]
         public void AlreadyConnected(TcpClient client, string message)
         {
@@ -24,19 +25,19 @@ namespace Tool_BotProtocol.Frames.Auth
             client.account.Disconnect();
         }
         [MessageAttribution("AlEv")]
-        public void WrongVersion(TcpClient client, string message)
+        public Task WrongVersion(TcpClient client, string message) => Task.Run(() =>
         {
-            client.account.Logger.LogError("[LOGIN]", $"La version {GlobalConfig.VERSION} n'est pas correcte.");
+            client.account.Game.Server.WrongVer(GlobalConfig.VERSION);
             client.account.Disconnect();
-        }
+        });
         [MessageAttribution("AlEd")]
-        public void PlayerAlreadyInGame(TcpClient client, string message)
+        public Task PlayerAlreadyInGame(TcpClient client, string message) => Task.Run(() =>
         {
             client.account.Game.Server.DisplayErrorConnected();
             client.account.Disconnect();
-        }
+        });
         [MessageAttribution("AlEk")]
-        public void AccountBanned(TcpClient client, string message)
+        public Task AccountBanned(TcpClient client, string message) => Task.Run(() =>
         {
             string[] BanInfo = message.Substring(3).Split('|');
             int days = int.Parse(BanInfo[0].Substring(1)), hours = int.Parse(BanInfo[1]), min = int.Parse(BanInfo[2]);
@@ -47,8 +48,8 @@ namespace Tool_BotProtocol.Frames.Auth
                 SB.Append($"{hours} heure(s)");
             if (min > 0)
                 SB.Append($"{min} minute(s)");
-            client.account.Logger.LogError("[LOGIN]", SB.ToString());
+            client.account.Game.Server.DisplayIsBanned(SB.ToString());
             client.account.Disconnect();
-        }
+        });
     }
 }

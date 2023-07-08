@@ -23,6 +23,12 @@ namespace Tool_BotProtocol.Json
             [JsonProperty("Version")]
             public string Version { get; set; }
 
+            [JsonProperty("CoreSize")]
+            public string Coresize { get; set; }
+
+            [JsonProperty("LoaderSize")]
+            public string Loadersize { get; set; }
+
             public class DataEntries
             {
                 [JsonProperty("Config")]

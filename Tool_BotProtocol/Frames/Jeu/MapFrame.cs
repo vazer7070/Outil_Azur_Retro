@@ -21,15 +21,15 @@ namespace Tool_BotProtocol.Frames.Jeu
     internal class MapFrame : Frame
     {
         [MessageAttribution("GM")]
-        public async Task GetPersoMouvement(TcpClient client, string message)
+        public Task GetPersoMouvement(TcpClient client, string message) => Task.Factory.StartNew(async () =>
         {
             Accounts A = client.account;
             string[] part = message.Substring(3).Split('|'), Info;
             string loc, TemplateName, type, monsterstar;
-            for(int i = 0; i < part.Length; ++i)
+            for (int i = 0; i < part.Length; ++i)
             {
                 loc = part[i];
-                if(loc.Length != 0)
+                if (loc.Length != 0)
                 {
                     Info = loc.Substring(1).Split(';');
                     if (loc[0].Equals('+'))
@@ -40,7 +40,7 @@ namespace Tool_BotProtocol.Frames.Jeu
                         Dictionary<string, Cell> Predico = new Dictionary<string, Cell>();
                         Predico.Add(message.Split(';')[4], cell);
                         if (!A.Game.PersoInWorld.ContainsKey(id))
-                            A.Game.PersoInWorld.GetOrAdd(id,Predico);
+                            A.Game.PersoInWorld.GetOrAdd(id, Predico);
                         TemplateName = Info[4];
                         type = Info[5];
                         if (type.Contains(","))
@@ -72,7 +72,7 @@ namespace Tool_BotProtocol.Frames.Jeu
                                 for (int m = 0; m < Template.Length; ++m)
                                     monstres.MobsInGroupe.Add(new Monstres(id, int.Parse(Template[m]), cell, int.Parse(Level[m]), monstres.GroupeLeader.Star));
                                 A.Game.Map.Entites.TryAdd(id, monstres);
-                                
+
                                 break;
                             case -4: //PNJ
                                 A.Game.Map.Entites.TryAdd(id, new PNJ(id, int.Parse(TemplateName), cell));
@@ -84,13 +84,13 @@ namespace Tool_BotProtocol.Frames.Jeu
                             case -10:
                                 break;
                             default:
-                                if(A.AccountStates != AccountStates.FIGHTING)
+                                if (A.AccountStates != AccountStates.FIGHTING)
                                 {
                                     if (A.Game.character.id != id)
                                         A.Game.Map.Entites.GetOrAdd(id, new Personnages(id, TemplateName, byte.Parse(Info[7].ToString()), cell));
                                     else
                                         A.Game.character.Cell = cell;
-                                    
+
                                 }
                                 else
                                 {
@@ -102,13 +102,13 @@ namespace Tool_BotProtocol.Frames.Jeu
                                     //ajouter combat ici
 
                                     await Task.Delay(1800);
-                                    A.Connexion.SendPacket("GR1");
+                                    await A.Connexion.SendPacket("GR1");
                                 }
                                 break;
                         }
-                    }else if (loc[0].Equals('-'))
+                    } else if (loc[0].Equals('-'))
                     {
-                        if(A.AccountStates != AccountStates.FIGHTING)
+                        if (A.AccountStates != AccountStates.FIGHTING)
                         {
                             int id = int.Parse(loc.Substring(1));
                             A.Game.Map.Entites.TryRemove(id, out Entites E);
@@ -117,16 +117,17 @@ namespace Tool_BotProtocol.Frames.Jeu
                 }
             }
 
-        }
+        }, TaskCreationOptions.LongRunning);
+
         [MessageAttribution("GA")]
-        public async Task InitGA(TcpClient client, string message)
+        public Task InitGA(TcpClient client, string message) => Task.Run(async () =>
         {
             string[] part = message.Substring(2).Split(';');
             int idACtion = int.Parse(part[1]);
             Accounts A = client.account;
             CharacterClass perso = A.Game.character;
 
-            if(idACtion > 0)
+            if (idACtion > 0)
             {
                 Dictionary<string, Cell> T = new Dictionary<string, Cell>();
                 string name = "";
@@ -134,7 +135,7 @@ namespace Tool_BotProtocol.Frames.Jeu
                 int IDEntite = int.Parse(part[2]);
                 byte MoveType;
                 Cell cell;
-                //luchadores
+                //combattants
                 Map map = A.Game.Map;
                 Fights fight = A.Game.Fight;
                 if (T.Count > 0)
@@ -145,11 +146,12 @@ namespace Tool_BotProtocol.Frames.Jeu
                         cell = map.GetCellFromId(Hash.Get_Cell_From_Hash(part[3].Substring(part[3].Length - 2)));
                         if (!A.IsFighting())
                         {
-                            if(IDEntite == perso.id && cell.CellID > 0 && perso.Cell.CellID != cell.CellID)
+                            if (IDEntite == perso.id && cell.CellID > 0 && perso.Cell.CellID != cell.CellID)
                             {
                                 MoveType = byte.Parse(part[0]);
                                 await A.Game.Manager.Mouvements.EventMoveFisnish(cell, MoveType, true);
-                            }else if(map.Entites.TryGetValue(IDEntite, out Entites E))
+                            }
+                            else if (map.Entites.TryGetValue(IDEntite, out Entites E))
                             {
                                 E.Cell = cell;
                                 if (A.Game.PersoInWorld.ContainsKey(IDEntite))
@@ -160,15 +162,15 @@ namespace Tool_BotProtocol.Frames.Jeu
 
                                     if (U != null || T.Count != 0)
                                     {
-                                        if(U != cell)
+                                        if (U != cell)
                                         {
-                                           U = cell;
-                                           T.Remove(name);
-                                           T.Add(name, U);
-                                           A.Game.PersoInWorld.TryUpdate(IDEntite, T, T);
+                                            U = cell;
+                                            T.Remove(name);
+                                            T.Add(name, U);
+                                            A.Game.PersoInWorld.TryUpdate(IDEntite, T, T);
                                         }
                                     }
-                                    A.Logger.LogInfo("MONDE", $"Mouvement détecté sur la cellule {cell.CellID} par le filling {name}");
+                                    A.Logger.LogInfo("MONDE", $"Mouvement détecté sur la cellule {cell.CellID} par l'entité {name}");
                                 }
                                 else
                                     A.Logger.LogInfo("MONDE", $"Mouvement détecté sur la cellule {cell.CellID} par l'entité {E.id}");
@@ -181,17 +183,17 @@ namespace Tool_BotProtocol.Frames.Jeu
                         }
                         else
                         {
-                            //luchadores ici
+                            //combattants ici
                         }
                         break;
-                        case 4:
+                    case 4:
                         part = part[3].Split(';');
                         cell = map.GetCellFromId(short.Parse(part[1]));
-                        if(!A.IsFighting() && IDEntite == perso.id && cell.CellID > 0 && perso.Cell.CellID != cell.CellID)
+                        if (!A.IsFighting() && IDEntite == perso.id && cell.CellID > 0 && perso.Cell.CellID != cell.CellID)
                         {
                             perso.Cell = cell;
                             await Task.Delay(150);
-                            A.Connexion.SendPacket("GKK1");
+                            await A.Connexion.SendPacket("GKK1");
                             map.GetEntitiesRefreshEvent();
                             A.Game.Manager.Mouvements.AcutaliseMove(true);
                         }
@@ -199,19 +201,22 @@ namespace Tool_BotProtocol.Frames.Jeu
 
                 }
             }
-            
-        }
+
+        });
+
         [MessageAttribution("GAF")]
-        public void FinalizeAction(TcpClient client, string message)
+        public Task FinalizeAction(TcpClient client, string message) => Task.Run(async () =>
         {
-            string[] idEndAction = message.Substring(3).Split('|');
-            client.account.Connexion.SendPacket($"GKK{idEndAction[0]}");
-        }
+            {
+                string[] idEndAction = message.Substring(3).Split('|');
+                await client.account.Connexion.SendPacket($"GKK{idEndAction[0]}");
+            }
+        });
         [MessageAttribution("GAS")]
         public async Task GetAction(TcpClient client, string message) => await Task.Delay(200);
 
         [MessageAttribution("GDF")]
-        public void GetinteractiveState(TcpClient client, string message)
+        public Task GetinteractiveState(TcpClient client, string message) => Task.Factory.StartNew(() =>
         {
             if (message.Contains("|"))
             {
@@ -250,16 +255,19 @@ namespace Tool_BotProtocol.Frames.Jeu
                     }
                 }
             }
-        }
+        }, TaskCreationOptions.LongRunning);
+
         [MessageAttribution("GDM")]
-        public void GetNewMap(TcpClient client, string message)
+        public Task GetNewMap(TcpClient client, string message) => Task.Run(async () =>
         {
-            client.account.Connexion.SendPacket("GI");
+            { 
+            await client.account.Connexion.SendPacket("GI");
             client.account.Game.Map.SetRefreshMap(message.Substring(4));
-        }
+
+        } });
         [MessageAttribution("GDK")]
         public void GetMap(TcpClient client, string message) => client.account.Game.Map.GetMapRefreshEvent();
         [MessageAttribution("GV")]
-        public void Reinit(TcpClient client, string message) => client.account.Connexion.SendPacket("GC1");
+        public Task Reinit(TcpClient client, string message) => Task.Run(async() => await client.account.Connexion.SendPacket("GC1"));
     }
 }

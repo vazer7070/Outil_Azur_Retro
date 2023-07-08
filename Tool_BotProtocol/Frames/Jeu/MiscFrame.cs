@@ -24,16 +24,16 @@ namespace Tool_BotProtocol.Frames.Jeu
             client.account.Logger.LogInfo("[DOFUS]", $"Dernière connexion à votre compte effectuée le {M.Split('~')[0]}/{M.Split('~')[1]}/{M.Split('~')[2]} à {M.Split('~')[3]}:{M.Split('~')[4]} avec l'ip: {M.Split('~')[5]}");
         }
         [MessageAttribution("Im0153")]
-        public async void NewConnexionMessage(TcpClient client, string message)
+        public Task NewConnexionMessage(TcpClient client, string message) => Task.Run(async () =>
         {
             client.account.Logger.LogInfo("[DOFUS]", $"Votre adresse ip actuelle est {message.Substring(3).Split(';')[1]}");
-            if(client.account.IsGroupLeader == true && client.account.HasGroup == true)
+            if (client.account.IsGroupLeader == true && client.account.HasGroup == true)
             {
-                foreach(var M in client.account.Groupe.Membres)
+                foreach (var M in client.account.Groupe.Membres)
                 {
                     await Task.Delay(780);
 
-                    if((M.AccountStates == Game.Accounts.AccountStates.CONNECTED || M.AccountStates == Game.Accounts.AccountStates.CONNECTED_INACTIVE))
+                    if ((M.AccountStates == Game.Accounts.AccountStates.CONNECTED || M.AccountStates == Game.Accounts.AccountStates.CONNECTED_INACTIVE))
                     {
                         client.account.Logger.LogInfo("[GROUPE]", $"Demande de groupe pour le joueur {M.Game.character.Name}");
                         client.SendPacket($"PI{M.Game.character.Name}");
@@ -41,15 +41,16 @@ namespace Tool_BotProtocol.Frames.Jeu
                         await Task.Delay(1080);
                     }
                 }
-            }else if(client.account.HasGroup == true &&(client.account.Groupe.leader.AccountStates == Game.Accounts.AccountStates.CONNECTED || client.account.Groupe.leader.AccountStates == Game.Accounts.AccountStates.CONNECTED_INACTIVE))
+            }
+            else if (client.account.HasGroup == true && (client.account.Groupe.leader.AccountStates == Game.Accounts.AccountStates.CONNECTED || client.account.Groupe.leader.AccountStates == Game.Accounts.AccountStates.CONNECTED_INACTIVE))
             {
                 await Task.Delay(580);
                 Accounts leader = client.account.Groupe.leader;
-                leader.Connexion.SendPacket($"PI{client.account.Game.character.Name}");
+                await leader.Connexion.SendPacket($"PI{client.account.Game.character.Name}");
                 leader.Logger.LogInfo("[GROUPE]", $"Demande de groupe pour le joueur {client.account.Game.character.Name}.");
                 await Task.Delay(1080);
             }
-        }
+        });
         [MessageAttribution("Im020")]
         public void OpenChestLoseKamas(TcpClient client, string message) => client.account.Logger.LogInfo("[DOFUS]", $"Ouvrir ce coffre vous a couté {message.Split(';')[1]} kamas.");
         [MessageAttribution("Im025")]

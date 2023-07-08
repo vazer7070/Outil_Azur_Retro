@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,6 +11,7 @@ using Tool_BotProtocol.Game.Jobs;
 using Tool_BotProtocol.Game.Maps;
 using Tool_BotProtocol.Game.Maps.Interfaces;
 using Tool_BotProtocol.Game.Perso.Inventory;
+using Tool_BotProtocol.Game.Perso.Spells;
 using Tool_BotProtocol.Game.Perso.Stats;
 using Tool_BotProtocol.Utils.Interfaces;
 
@@ -26,6 +28,7 @@ namespace Tool_BotProtocol.Game.Perso
         private Accounts.Accounts Accounts { get; set; }
         public CharacterStats stats { get; set; }
         public InventoryClass Inventory { get; set; }
+        public Dictionary<short, Spell> Spells { get; set; }
         public int Carac_Points { get; set; } = 0;
         public int Kamas { get; set; }
         public Timer Regen_Timer { get; set; }
@@ -35,7 +38,6 @@ namespace Tool_BotProtocol.Game.Perso
         public string EquipLeader { get; set; }
         public List<Jobs.Jobs> Jobs { get; private set; }
 
-        private bool disposed;
         public bool HasGuild { get; set; }
         public ConcurrentDictionary<string, bool> InEquip;
 
@@ -51,6 +53,7 @@ namespace Tool_BotProtocol.Game.Perso
         public event Action Jobs_Refresh;
         public event Action PNJ_receiveAnswer;
         public event Action PNJ_StopSpeaking;
+        public event Action SeeLifeRegen;
         public event Action<List<Cell>> MoveMinimapPathfinding;
 
         public CharacterClass(Accounts.Accounts A)
@@ -60,10 +63,14 @@ namespace Tool_BotProtocol.Game.Perso
             Inventory = new InventoryClass(A);
             AFK_Timer = new Timer(No_AFK, null, Timeout.Infinite, Timeout.Infinite);
             Regen_Timer = new Timer(RegenCallback, null, Timeout.Infinite, Timeout.Infinite);
-
+            Spells = new Dictionary<short, Spell>();
             stats = new CharacterStats();
             Jobs = new List<Jobs.Jobs>();
 
+        }
+        public void DisplayRegen()
+        {
+            SeeLifeRegen?.Invoke();
         }
         public void CheckWhoSpeak(string who)
         {
@@ -95,12 +102,12 @@ namespace Tool_BotProtocol.Game.Perso
         public IEnumerable<short> GetSkillsForRecolte() => Jobs.SelectMany(x => x.Skills.Where(y => !y.CanCraft).Select(y => y.Id));
         public IEnumerable<JobSkills> GetAvailableSkills() => Jobs.SelectMany(Jobs => Jobs.Skills.Select(s => s));
 
-        private void No_AFK(object state)
+        private async void No_AFK(object state)
         {
             try
             {
                 if (Accounts.AccountStates != AccountStates.DISCONNECTED)
-                    Accounts.Connexion.SendPacket("ping");
+                    await Accounts.Connexion.SendPacket("ping");
             }catch (Exception e)
             {
                 Accounts.Logger.LogError("[NO AFK TIMER]", $"{e.Message}");
@@ -197,6 +204,7 @@ namespace Tool_BotProtocol.Game.Perso
             }
             RefreshCaracteristiques?.Invoke();
         }
+
         private void RegenCallback(object state)
         {
             try

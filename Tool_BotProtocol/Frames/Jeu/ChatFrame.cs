@@ -23,45 +23,55 @@ namespace Tool_BotProtocol.Frames.Jeu
             {
                 case "?":
                     canal = "RECRUTEMENT";
+                    client.account.Logger.LogRecruitTchat(canal, $"{part[2]}:{part[3]}");
                     break;
 
                 case ":":
                     canal = "COMMERCE";
+                    client.account.Logger.LogCommerceTchat(canal, $"{part[2]}:{part[3]}");
                     break;
 
                 case "^":
                     canal = "INCARNAM";
+                    client.account.Logger.log_normal(canal, $"{part[2]}:{part[3]}");
                     break;
 
                 case "i":
                     canal = "INFORMATION";
+                    client.account.Logger.log_normal(canal, $"{part[2]}:{part[3]}");
                     break;
 
                 case "#":
                     canal = "EQUIPE";
+                    client.account.Logger.LogTchatTeam(canal, $"{part[2]}:{part[3]}");
                     break;
 
                 case "$":
                     canal = "GROUPE";
+                    client.account.Logger.LogTchatGroupe(canal, $"{part[2]}:{part[3]}");
                     break;
 
                 case "%":
                     canal = "GUILDE";
+                    client.account.Logger.LogTchatGuild(canal, $"{part[2]}:{part[3]}");
+                    break;
+                case "@":
+                    canal = "ADMIN";
+                    client.account.Logger.LogAdminTchat(canal, $"{part[2]}:{part[3]}");
                     break;
                 case "F":
-                    client.account.Logger.log_privado("[MESSAGE RECU]", $"{part[2]}:{part[3]}");
+                    client.account.Logger.LogTchatPrivate("MP reçu", $"{part[2]}:{part[3]}");
                     client.account.Game.character.CheckWhoSpeak(part[2]);
                     // réponse auto en privé
                     break;
                 case "T":
-                    client.account.Logger.log_privado("[MESSAGE ENVOYÉ]", $"{part[2]}:{part[3]}");
+                    client.account.Logger.LogTchatPrivate("MP envoyé", $"{part[2]}:{part[3]}");
                     break;
                     default:
                     canal = "GÉNÉRAL";
+                    client.account.Logger.log_normal(canal, $"{part[2]}:{part[3]}");
                     break;
             }
-            if(!canal.Equals(string.Empty))
-                client.account.Logger.log_normal(canal, $"{part[2]}:{part[3]}");
         }
     }
 }
