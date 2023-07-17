@@ -19,8 +19,8 @@ Je ferais des mises à jour quand je pourrais, en corrigeant des bugs remontés 
 
 ## Installation
 
-L'outil peut se gérer en local mais alors certains outils ne seront pas disponible faute de BDD active.
-(compatible WAMP/XAMPP)
+L'outil peut se gérer en local mais alors certains outils ne seront pas disponible faute de BDD active (compatible WAMP/XAMPP).
+
 Il prends ses mises à jours sur un serveur distant, ça veut donc dire que à chaque fois que je publie une mise à jour, si vous avez laissés le système tel quel, ça s'installera et vous aurez le changelog sur ce GIT.
 
 Si il manque les images pour l'éditeur de carte, il s'agit des mêmes que pour **Astria Map Editor** avec juste des noms de dossiers différents (parce que why not), vous ne pourrez pas le lancer si il ne les trouves pas.
