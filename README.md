@@ -8,7 +8,7 @@ Ne pouvant pas le finir comme je voudrais, je le place ici en open source, je co
 Je pense parler dans le vide mais au moins je le dis, si vous voulez faire grandir l'émulation ou du moins faire perdurer ce qu'il en reste, agissons en groupe solidaire, pour la passion plus que pour l'argent.
 (il suffit de voir le GIT de [TrinityCore](https://github.com/TrinityCore/TrinityCore) pour WOW pour voir que eux ils ont compris et ça fait des années que ce projet perdure).
 
-A l'instar de moi, il reste des vieux de l'émulation encore plus ou moins actif, qui ont connus l'ère de Britana, Aidemu, Worldemu, l'apogée de DOE et bien d'autres forums éphémères, c'est peutêtre peine perdu mais arrêtez d'être cynique et con avec les nouveaux, c'est comme ça que l'on regresse de plus en plus et que maintenant on se retrouve avec des leechers et non plus de vrais devscar il n'existe plus rien de concret, l'émulation rétro est hispanique pour la plus stable (une vague version de StarLoco et encore...) et la 2.x est morte, certains innovent un peu mais les git meurent faute de commit et Stump est comme la licence SW de Disney et puis...c'est tout...hélas.
+A l'instar de moi, il reste des vieux de l'émulation encore plus ou moins actif, qui ont connus l'ère de Britana, Aidemu, Worldemu, l'apogée de DOE et bien d'autres forums éphémères, c'est peut-être peine perdu mais arrêtez d'être cynique et con avec les nouveaux, c'est comme ça que l'on regresse de plus en plus et que maintenant on se retrouve avec des leechers et non plus de vrais devscar il n'existe plus rien de concret, l'émulation rétro est hispanique pour la plus stable (une vague version de StarLoco et encore...) et la 2.x est morte, certains innovent un peu mais les git meurent faute de commit et Stump est comme la licence SW de Disney et puis...c'est tout...hélas.
 
 Je partage ce projet pour vous montrer qu'il est possible de faire de gros projet en commun, certains vont le prendre, le repomper et si ils trouvent des pigeons essayer de le vendre, certains vont le prendre pour eux et l'étudier, le faire à sa sauce mais j'ose espérer que hormis me dire "il y a un bug là", "ça on dirait tel code PLAGIAT" ou que sais-je, certains tenteront l'aventure de le faire perdurer et grandir.
 
@@ -74,4 +74,8 @@ Ils utilisent des ressources présentes dans la racine de l'application, donc fa
 Si ces outils présentent les effets de façon brut c'est qu'il ne les connait pas, n'hésitez pas à les rajouter au besoin afin qu'ils puissent vous donner le résultat le plus juste possible.
 
  
+### Créateur d'objet
+Cet outil permet de créer un objet depuis 0 avec toutes les possibilités de conditions et d'effets possibles. Vous pourrez le générer en SQL et en SWF avec possibilités d'injection directe dans les 2 cas (**à l'instant T de ces lignes, les librairies SWF ne permettent pas encore de le faire mais une maj le prévoit**) mais il est aussi possible de générer les lignes pour une injection ultérieure pour le SQL comme le SWF.
+
+Il est possible aussi de l'ajouter à une panoplie existante (vanilla ou crée par vous préalablement) ainsi que le rendre fabricable de faire la recette directement depuis cette interface.
 
