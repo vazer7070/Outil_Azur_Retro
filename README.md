@@ -94,3 +94,16 @@ La fonction d'extraction XML permet notamment d'utiliser les informations de la 
 Vous pouvez définir un chemin spécifique uniquement lors d'une extractions simple, sinon le gestionnaire place lui-même les fichiers à la racine du bot afin d'éviter toute erreur empêchant son bon fonctionnement.
 
 A terme, il sera possible de décoder et de créer des SWF, de lire les paquets en transit (MITM) comme peut le faire le bot mais sans le lancer, juste un sniffer ainsi que vous permettre d'agrandir sa bibliothèque d'image en son sein en allant en cherchant et les plaçant selon le type et la dénomination.
+
+### Éditeur de cartes
+Cet outil est basé sur le design de **Astria Map Editor** (je suis un brêle en design pur), il est également partiellement repris en terme de code sans pour autant que ce soit du C/C ( j'ai recodé et corrigé toutes les classes notamment la gestion de la création et du placement des tuiles).
+
+Il en possède toute les fonctions de base mais peut également placer des PNJs et des groupes de monstres, des interactives (zaaps, établies, etc...) ainsi que des enclos (et gérer si ils sont privés ou publics).
+
+Il est possible de lire les fichiers AME (qui ne sont au final que des fichiers binaires avec une extension custom) ainsi que les fichiers SWF du client officiel pour les consulter et les modifier, il possède également un autre système pour la compilation des SWF afin d'éviter le risque de corruption de fichier et d'être à jour avec les nouvelles versions SWF.
+
+L'éditeur ne peut pas être lancé si l'application ne détecte pas les fichiers d'images nécéssaires à son bon fonctionnement, il est donc important de vérifier leurs présence et que ce soit bien des images de tuiles de carte correspondantes aux dossiers présents à la racine d'AzurToolRetro.
+
+### Client AzurToolBot
+Voici donc la re-création complète du client Dofus retro en C#, similaire à un bot full socket mais qui peut très bien juste être une alternative sans triche du client officiel.
+
