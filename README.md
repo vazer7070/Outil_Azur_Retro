@@ -8,7 +8,7 @@ Ne pouvant pas le finir comme je voudrais, je le place ici en open source, je co
 Je pense parler dans le vide mais au moins je le dis, si vous voulez faire grandir l'émulation ou du moins faire perdurer ce qu'il en reste, agissons en groupe solidaire, pour la passion plus que pour l'argent.
 (il suffit de voir le GIT de [TrinityCore](https://github.com/TrinityCore/TrinityCore) pour WOW pour voir que eux ils ont compris et ça fait des années que ce projet perdure).
 
-A l'instar de moi, il reste des vieux de l'émulation encore plus ou moins actif, qui ont connus l'ère de Britana, Aidemu, Worldemu, l'apogée de DOE et bien d'autres forums éphémères, c'est peut-être peine perdu mais arrêtez d'être cynique et con avec les nouveaux, c'est comme ça que l'on regresse de plus en plus et que maintenant on se retrouve avec des leechers et non plus de vrais devscar il n'existe plus rien de concret, l'émulation rétro est hispanique pour la plus stable (une vague version de StarLoco et encore...) et la 2.x est morte, certains innovent un peu mais les git meurent faute de commit et Stump est comme la licence SW de Disney et puis...c'est tout...hélas.
+A l'instar de moi, il reste des vieux de l'émulation encore plus ou moins actif, qui ont connus l'ère de Britana, Aidemu, Worldemu, l'apogée de DOE et bien d'autres forums éphémères, c'est peut-être peine perdu mais arrêtez d'être cynique et con avec les nouveaux, c'est comme ça que l'on regresse de plus en plus et que maintenant on se retrouve avec des leechers et non plus de vrais devs car il n'existe plus rien de concret, l'émulation rétro est hispanique pour la plus stable (une vague version de StarLoco et encore...) et la 2.x est morte, certains innovent un peu mais les git meurent faute de commit et Stump est comme la licence SW de Disney et puis...c'est tout...hélas.
 
 Je partage ce projet pour vous montrer qu'il est possible de faire de gros projet en commun, certains vont le prendre, le repomper et si ils trouvent des pigeons essayer de le vendre, certains vont le prendre pour eux et l'étudier, le faire à sa sauce mais j'ose espérer que hormis me dire "il y a un bug là", "ça on dirait tel code PLAGIAT" ou que sais-je, certains tenteront l'aventure de le faire perdurer et grandir.
 
@@ -79,3 +79,18 @@ Cet outil permet de créer un objet depuis 0 avec toutes les possibilités de co
 
 Il est possible aussi de l'ajouter à une panoplie existante (vanilla ou crée par vous préalablement) ainsi que le rendre fabricable de faire la recette directement depuis cette interface.
 
+### Éditeur d'inventaire
+Cet outil liste le contenu de l'inventaire de chaque personnage avec la possibilité de le modifier que ce soit en rajoutant comme en supprimant des objets, il est possible de voir les détails et de faire un lien avec l'éditeur d'objet.
+
+Les kamas du personnage se modifient dans l'éditeur de personnage et non pas sur cette interface.
+
+*Attention à bien faire une déco/reco du personnage après modification de l'inventaire afin d'appliquer correctement les modifications*
+
+### Gestionnaire de ressources
+Cet outil permet de faire sortir les données de la base de données sous différents formats (XML/lignes SQL(**pas encore implanté pour le SQL**))
+
+La fonction d'extraction XML permet notamment d'utiliser les informations de la BDD que vous utilisez pour les rendres compatibles avec le bot. Pas toute les données sont compatibles avec lui mais le gestionnaire fait le tri lui même, que ce soit pour le type de données comme pour les informations à lintérieur des tables.
+
+Vous pouvez définir un chemin spécifique uniquement lors d'une extractions simple, sinon le gestionnaire place lui-même les fichiers à la racine du bot afin d'éviter toute erreur empêchant son bon fonctionnement.
+
+A terme, il sera possible de décoder et de créer des SWF, de lire les paquets en transit (MITM) comme peut le faire le bot mais sans le lancer, juste un sniffer ainsi que vous permettre d'agrandir sa bibliothèque d'image en son sein en allant en cherchant et les plaçant selon le type et la dénomination.
