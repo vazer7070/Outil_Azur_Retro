@@ -105,5 +105,27 @@ Il est possible de lire les fichiers AME (qui ne sont au final que des fichiers 
 L'éditeur ne peut pas être lancé si l'application ne détecte pas les fichiers d'images nécéssaires à son bon fonctionnement, il est donc important de vérifier leurs présence et que ce soit bien des images de tuiles de carte correspondantes aux dossiers présents à la racine d'AzurToolRetro.
 
 ### Client AzurToolBot
-Voici donc la re-création complète du client Dofus retro en C#, similaire à un bot full socket mais qui peut très bien juste être une alternative sans triche du client officiel.
+Voici donc la re-création complète du client Dofus retro en C#, similaire à un bot full socket multi-version mais qui peut très bien juste être une alternative sans triche du client officiel.
 
+Basé sur le bot de **Salesprendes**, il en reprends certaines fonctions (fonctions anti-cheat (améliorée), bypass token launcher, etc..) tout en les améliorants et permettant de lier botting, jeu et gestion complète d'un serveur de jeu au travers des 3 modes qu'il propose. En effet, le client possède 3 modes: **auto**, **manuel** et **admin**.
+
+* **Admin**: permet une gestion complète et en temps réel de son serveur en connectant le client à la base de données utilisée par l'application **AzurTool**, ce qui donne accès aux fonctions de ban,
+d'invocation, de modifications et gestion des joueurs (outils de modération/administration) tout en étant sur le serveur parmi les autres joueurs et ce sans avoir à manipuler d'autres applications.
+
+* **Manuel**: ce mode est le plus simple, il permet juste de jouer, avec ce mode le client est juste une alternative au client officiel avec un visuel constant en mode tactique.
+
+* **Automatique**: ce mode est complètement un bot, en effet, avec des plugins C# (comme les plugins *Stumps*) et/ou avec des scripts *LUA*, il est possible de complètement automatiser le client pour qu'il soit automatique et joue à votre place. Une série de script pré-chargés sont fournis avec le client et permettent déjà de voir ce qu'il est possible de faire sachant que techniquement, la seule limite c'est vous.
+
+Si jamais vous vous faites bannir, la responsabilité est vôtre, je décline toute responsabilité si vous vous faites attraper et que vous perdez votre compte suite à l'utilisation du client **AzurToolRétro**.
+
+Il est important de noter que à ce jour, le client est un prototype, son contenu, fonctionnement et aspect peuvent être amenés à changer.
+
+Il est possible de mettre à jour les ressources utilisées par le client via le gestionnaire si vous avez des cartes, des pnjs ou créatures qui ne sont pas des ressources officielles (ça permet de les voirs en jeux et de vous y rendre correctement (pour les cartes)).
+
+# Remerciement
+Toute les personnes citées ici ont contribuées d'une façon ou d'une autre au dévelloppement de l'application et je tiens à les remercier.
+(si vous devenez un contributeur, vous y serez aussi et au-delà d'un nom cité, vous serez une personne qui a aidée à faire grandir la communauté de l'émulation FR).
+
+* [Salesprendes](https://github.com/salesprendes)
+* [Zano](https://github.com/ZanoQuentin)
+* Adlesne (créateur de *AdCreator*)
