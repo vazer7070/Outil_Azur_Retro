@@ -10,15 +10,7 @@
         /// <summary>
         /// Clean up any resources being used.
         /// </summary>
-        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing && (components != null))
-            {
-                components.Dispose();
-            }
-            base.Dispose(disposing);
-        }
+      
 
         #region Windows Form Designer generated code
 
@@ -136,7 +128,7 @@
             this.iTalk_ThemeContainer1.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.iTalk_ThemeContainer1.TabIndex = 0;
             this.iTalk_ThemeContainer1.Text = "Éditeur de compte";
-            this.iTalk_ThemeContainer1.Click += new System.EventHandler(this.iTalk_ThemeContainer1_Click);
+          //  this.iTalk_ThemeContainer1.Click += new System.EventHandler(this.iTalk_ThemeContainer1_Click);
             // 
             // iTalk_Label15
             // 
@@ -172,7 +164,7 @@
             this.iTalk_Button_22.TabIndex = 17;
             this.iTalk_Button_22.Text = "Appliquer";
             this.iTalk_Button_22.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_22.Click += new System.EventHandler(this.iTalk_Button_22_Click);
+           // this.iTalk_Button_22.Click += new System.EventHandler(this.iTalk_Button_22_Click);
             // 
             // iTalk_Button_15
             // 
@@ -186,7 +178,7 @@
             this.iTalk_Button_15.TabIndex = 16;
             this.iTalk_Button_15.Text = "X";
             this.iTalk_Button_15.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_15.Click += new System.EventHandler(this.iTalk_Button_15_Click);
+           // this.iTalk_Button_15.Click += new System.EventHandler(this.iTalk_Button_15_Click);
             // 
             // iTalk_Button_14
             // 
@@ -200,7 +192,7 @@
             this.iTalk_Button_14.TabIndex = 15;
             this.iTalk_Button_14.Text = "Créer un compte";
             this.iTalk_Button_14.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_14.Click += new System.EventHandler(this.iTalk_Button_14_Click_1);
+            //this.iTalk_Button_14.Click += new System.EventHandler(this.iTalk_Button_14_Click_1);
             // 
             // iTalk_Label9
             // 
@@ -227,8 +219,8 @@
             this.iTalk_Button_21.TabIndex = 13;
             this.iTalk_Button_21.Text = "Éditeur de personnage";
             this.iTalk_Button_21.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_21.Click += new System.EventHandler(this.iTalk_Button_21_Click);
-            // 
+            //this.iTalk_Button_21.Click += new System.EventHandler(this.iTalk_Button_21_Click);
+           // 
             // iTalk_ComboBox1
             // 
             this.iTalk_ComboBox1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(246)))), ((int)(((byte)(246)))), ((int)(((byte)(246)))));
@@ -246,7 +238,7 @@
             this.iTalk_ComboBox1.Size = new System.Drawing.Size(268, 26);
             this.iTalk_ComboBox1.StartIndex = 0;
             this.iTalk_ComboBox1.TabIndex = 12;
-            this.iTalk_ComboBox1.Click += new System.EventHandler(this.iTalk_Button_21_Click);
+           // this.iTalk_ComboBox1.Click += new System.EventHandler(this.iTalk_Button_21_Click);
             // 
             // iTalk_Button_13
             // 
@@ -260,7 +252,7 @@
             this.iTalk_Button_13.TabIndex = 11;
             this.iTalk_Button_13.Text = "VIP/Normal";
             this.iTalk_Button_13.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_13.Click += new System.EventHandler(this.iTalk_Button_13_Click);
+         //   this.iTalk_Button_13.Click += new System.EventHandler(this.iTalk_Button_13_Click);
             // 
             // iTalk_Button_12
             // 
@@ -274,7 +266,7 @@
             this.iTalk_Button_12.TabIndex = 11;
             this.iTalk_Button_12.Text = "Ban/Deban compte";
             this.iTalk_Button_12.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_12.Click += new System.EventHandler(this.iTalk_Button_12_Click);
+          //  this.iTalk_Button_12.Click += new System.EventHandler(this.iTalk_Button_12_Click);
             // 
             // iTalk_Button_11
             // 
@@ -288,7 +280,7 @@
             this.iTalk_Button_11.TabIndex = 11;
             this.iTalk_Button_11.Text = "Supprimer compte";
             this.iTalk_Button_11.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
+          //  this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
             // 
             // textBox1
             // 
@@ -296,7 +288,7 @@
             this.textBox1.Name = "textBox1";
             this.textBox1.Size = new System.Drawing.Size(209, 22);
             this.textBox1.TabIndex = 10;
-            this.textBox1.TextChanged += new System.EventHandler(this.textBox1_TextChanged);
+           // this.textBox1.TextChanged += new System.EventHandler(this.textBox1_TextChanged);
             // 
             // label1
             // 
@@ -322,7 +314,7 @@
             this.iTalk_LinkLabel10.TabStop = true;
             this.iTalk_LinkLabel10.Text = "Modifier";
             this.iTalk_LinkLabel10.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-            this.iTalk_LinkLabel10.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel10_LinkClicked);
+          //  this.iTalk_LinkLabel10.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel10_LinkClicked);
             // 
             // iTalk_LinkLabel9
             // 
@@ -339,7 +331,7 @@
             this.iTalk_LinkLabel9.TabStop = true;
             this.iTalk_LinkLabel9.Text = "Modifier";
             this.iTalk_LinkLabel9.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-            this.iTalk_LinkLabel9.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel9_LinkClicked);
+            //this.iTalk_LinkLabel9.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel9_LinkClicked);
             // 
             // iTalk_LinkLabel7
             // 
@@ -356,7 +348,7 @@
             this.iTalk_LinkLabel7.TabStop = true;
             this.iTalk_LinkLabel7.Text = "Modifier";
             this.iTalk_LinkLabel7.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-            this.iTalk_LinkLabel7.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel7_LinkClicked);
+          //  this.iTalk_LinkLabel7.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel7_LinkClicked);
             // 
             // iTalk_LinkLabel6
             // 
@@ -373,7 +365,7 @@
             this.iTalk_LinkLabel6.TabStop = true;
             this.iTalk_LinkLabel6.Text = "Modifier";
             this.iTalk_LinkLabel6.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-            this.iTalk_LinkLabel6.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel6_LinkClicked);
+           // this.iTalk_LinkLabel6.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel6_LinkClicked);
             // 
             // iTalk_LinkLabel4
             // 
@@ -390,7 +382,7 @@
             this.iTalk_LinkLabel4.TabStop = true;
             this.iTalk_LinkLabel4.Text = "Modifier";
             this.iTalk_LinkLabel4.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-            this.iTalk_LinkLabel4.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel4_LinkClicked);
+           // this.iTalk_LinkLabel4.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel4_LinkClicked);
             // 
             // iTalk_LinkLabel3
             // 
@@ -407,7 +399,7 @@
             this.iTalk_LinkLabel3.TabStop = true;
             this.iTalk_LinkLabel3.Text = "Modifier";
             this.iTalk_LinkLabel3.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-            this.iTalk_LinkLabel3.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel3_LinkClicked);
+         //   this.iTalk_LinkLabel3.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel3_LinkClicked);
             // 
             // iTalk_LinkLabel2
             // 
@@ -424,7 +416,7 @@
             this.iTalk_LinkLabel2.TabStop = true;
             this.iTalk_LinkLabel2.Text = "Modifier";
             this.iTalk_LinkLabel2.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-            this.iTalk_LinkLabel2.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel2_LinkClicked);
+          //  this.iTalk_LinkLabel2.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel2_LinkClicked);
             // 
             // iTalk_Label14
             // 
@@ -449,7 +441,7 @@
             this.iTalk_Label13.Size = new System.Drawing.Size(121, 13);
             this.iTalk_Label13.TabIndex = 5;
             this.iTalk_Label13.Text = "Personnages associés:";
-            this.iTalk_Label13.Click += new System.EventHandler(this.iTalk_Button_21_Click);
+           // this.iTalk_Label13.Click += new System.EventHandler(this.iTalk_Button_21_Click);
             // 
             // iTalk_TextBox_Small4
             // 
@@ -740,7 +732,7 @@
             this.listBox1.Name = "listBox1";
             this.listBox1.Size = new System.Drawing.Size(216, 420);
             this.listBox1.TabIndex = 1;
-            this.listBox1.SelectedIndexChanged += new System.EventHandler(this.listBox1_SelectedIndexChanged);
+          //  this.listBox1.SelectedIndexChanged += new System.EventHandler(this.listBox1_SelectedIndexChanged);
             // 
             // editeurcompte
             // 
@@ -756,7 +748,7 @@
             this.Text = "Éditeur de compte";
             this.TransparencyKey = System.Drawing.Color.Fuchsia;
             this.Load += new System.EventHandler(this.editeurcompte_Load);
-            this.Leave += new System.EventHandler(this.editeurcompte_Leave);
+           // this.Leave += new System.EventHandler(this.editeurcompte_Leave);
             this.iTalk_ThemeContainer1.ResumeLayout(false);
             this.iTalk_ThemeContainer1.PerformLayout();
             this.ResumeLayout(false);

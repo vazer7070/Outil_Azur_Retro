@@ -213,7 +213,7 @@ namespace Outil_Azur_complet
             }
             menu.Show();
         }
-        private void Load_Misc()
+        private async void Load_Misc()
         {
             
             try
@@ -232,7 +232,7 @@ namespace Outil_Azur_complet
                     iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"Mise en cache des GUID...({ItemList.ItemsId.Count})\n";
                     SpellsList.Load_Spells();
                     SpellsBrain SB = new SpellsBrain();
-                    SB.TradAndUnderstandSpells();
+                  //  await SB.TradAndUnderstandSpellsAsync();
                     iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{SpellsList.CountSpells} sorts chargés.\n";
                     ItemSetList.LoadPano();
                     iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{ItemSetList.Count_Pano} panoplies chargées.\n";

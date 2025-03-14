@@ -17,7 +17,7 @@ namespace Outil_Azur_complet.maps
 {
     public partial class MainEditeur : Form
     {
-       
+
 
         public MainEditeur()
         {
@@ -68,16 +68,25 @@ namespace Outil_Azur_complet.maps
             Fight1,
             Fight2
         }
-
+        public bool AlreadyOpen (int ID)
+        {
+            foreach(MapForm f in OpenMap)
+                if(f.ID == ID)
+                    return true;
+            return false;
+        }
         public void OpenNewMap(int x, int y)
         {
-
+            int r = new Random().Next(0,999);
+            if(AlreadyOpen(r))
+                r = new Random().Next(r + 1, 999 - r);
             MapForm NewMap = new MapForm();
             NewMap.MdiParent = this;
             MapSelected = NewMap;
             NewMap.W = x;
             NewMap.H = y;
             NewMap.Text = $"MapID: {Mapcount + 1}";
+            NewMap.ID = r;
             Mapcount += 1;
             NewMap.Show();
             OpenMap.Add(NewMap);
@@ -91,7 +100,7 @@ namespace Outil_Azur_complet.maps
         }
         public void AddTrigger(int mapid, int cellid, MapForm M)
         {
-            if(CellTrigger == 0)
+            if (CellTrigger == 0)
             {
                 NbTrigger += 1;
                 CellTrigger = cellid;
@@ -114,11 +123,11 @@ namespace Outil_Azur_complet.maps
                 M.DrawAll();
 
                 DialogResult DR = MessageBox.Show("Les triggers ont été enregistrés, continuer.?", "Ajout des triggers", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-                if(DR == DialogResult.Yes)
+                if (DR == DialogResult.Yes)
                 {
                     MessageBox.Show("Merci de cliquer sur la cellule initiale", "Ajout de triggers", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
-                else if(DR == DialogResult.No)
+                else if (DR == DialogResult.No)
                 {
                     M.ModeTrigger = false;
                     T = Tools.Brush;
@@ -134,14 +143,14 @@ namespace Outil_Azur_complet.maps
         }
         public void AddEndFightAction(Map M, int cellid)
         {
-            if(EndFightMap == null)
+            if (EndFightMap == null)
             {
                 EndFightMap = M;
                 MessageBox.Show("Merci de selectionner la cellule initiale", "Selection de la cellule de départ", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             else
             {
-                if(M.ID != EndFightMap.ID)
+                if (M.ID != EndFightMap.ID)
                 {
                     MessageBox.Show($"La carte {EndFightMap.ID} téléportera le joueur vers la carte {M.ID} cellule: {cellid} \n" +
                         $"Vous pouvez gérer cette action dans le gestionnaire de carte.");
@@ -182,7 +191,43 @@ namespace Outil_Azur_complet.maps
             OFD.Multiselect = true;
             if (OFD.ShowDialog() == DialogResult.OK)
             {
-
+                foreach(string file in OFD.FileNames)
+                {
+                   TradMap(file);
+                }
+            }
+        }
+        public void TradMap(string name, string key = "")
+        {
+           
+           Map mapcharged = SwfReader.UnPackerSwf(name);
+            if(mapcharged == null)
+            {
+                MessageBox.Show("La carte demandée n'est pas valide.", "Carte ilisible", MessageBoxButtons.OK, MessageBoxIcon.Error );
+                return;
+            }
+            mapcharged.Key = key;
+            OpenMapProject(mapcharged);
+        }
+        public void OpenMapProject(Map m)
+        {
+            if (m.IsEditing)
+                MessageBox.Show($"La carte {m.ID} est déjà en cours d'édition.", "Carte déjà ouverte", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+            else 
+            {
+                MapForm NewMap = new MapForm();
+                NewMap.New(m);
+                NewMap.MdiParent = this;
+                MapSelected = NewMap;
+                NewMap.W = m.X;
+                NewMap.H = m.Y;
+                NewMap.Text = $"MapID: {m.ID}";
+                NewMap.ID = m.ID;
+                Mapcount += 1;
+                NewMap.Show();
+                OpenMap.Add(NewMap);
+                iTalk_NotificationNumber3.Value = MapSelected.W;
+                iTalk_NotificationNumber2.Value = MapSelected.H;
             }
         }
         public void GlobalLoading()
@@ -196,7 +241,7 @@ namespace Outil_Azur_complet.maps
             SearchManager.SearchGrounds(FolderSols, treeView1.Nodes[0]);
             SearchManager.SearchObject(FolderObjets, treeView1.Nodes[1]);
             SearchManager.SearchZik(@".\ressources\maps\musics");
-           
+
             foreach (string h in SearchManager.Song)
             {
                 iTalk_ComboBox2.Items.Add(h);
@@ -210,13 +255,13 @@ namespace Outil_Azur_complet.maps
         public Bitmap Image(string path)
         {
             return (Bitmap)System.Drawing.Image.FromFile(path);
-               
+
         }
 
-       
 
-      
-      
+
+
+
 
         private void MainEditeur_Load(object sender, EventArgs e)
         {
@@ -238,7 +283,7 @@ namespace Outil_Azur_complet.maps
             {
                 pictureBox1.BackgroundImage = Bi;
             }
-            
+
         }
 
         private void iTalk_Button_21_Click(object sender, EventArgs e)
@@ -253,7 +298,7 @@ namespace Outil_Azur_complet.maps
                 BG_Select B = new BG_Select();
                 B.New(MapSelected);
                 B.ShowDialog();
-                if(B.I != null)
+                if (B.I != null)
                     Bi = B.I;
                 DrawMiniBack();
 
@@ -295,7 +340,7 @@ namespace Outil_Azur_complet.maps
                 m.Show_Grid = grid;
             }
         }
-    
+
         private void RefreshAllMap()
         {
             foreach (MapForm m in OpenMap)
@@ -310,7 +355,7 @@ namespace Outil_Azur_complet.maps
                 m.Show_CellID = showCell;
             }
         }
-    
+
 
         private void afficherCellIDToolStripMenuItem_Click(object sender, EventArgs e)
         {
@@ -336,9 +381,9 @@ namespace Outil_Azur_complet.maps
         private void taillePersonnaliséeToolStripMenuItem_Click(object sender, EventArgs e)
         {
             OtherSizeForm O = new OtherSizeForm();
-            O.ShowDialog();
-            if(O.IsOk)
-                OpenNewMap(O.value1, O.value2 );
+           // O.ShowDialog();
+           // if (O.IsOk)
+              //  OpenNewMap(O.value1, O.value2);
         }
 
         private void toolStripButton20_Click(object sender, EventArgs e)
@@ -348,7 +393,7 @@ namespace Outil_Azur_complet.maps
 
         private void triggersToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if(donjonsToolStripMenuItem.Checked == true)
+            if (donjonsToolStripMenuItem.Checked == true)
             {
                 donjonsToolStripMenuItem.Checked = false;
                 MapSelected.EndFight = false;
@@ -373,7 +418,7 @@ namespace Outil_Azur_complet.maps
 
         private void donjonsToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if(Mapcount >= 2)
+            if (Mapcount >= 2)
             {
                 if (triggersToolStripMenuItem.Checked == true)
                 {
@@ -393,7 +438,7 @@ namespace Outil_Azur_complet.maps
                     T = Tools.CellMode;
                     Donjonmode(true, true);
                 }
-               
+
                 RefreshAllMap();
             }
             else
@@ -411,11 +456,11 @@ namespace Outil_Azur_complet.maps
                 m.EndFight = endfight;
             }
 
-        }  
-            private void afficherFondToolStripMenuItem_Click(object sender, EventArgs e)
+        }
+        private void afficherFondToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            
-            if(afficherFondToolStripMenuItem.Checked == true)
+
+            if (afficherFondToolStripMenuItem.Checked == true)
             {
                 afficherFondToolStripMenuItem.Checked = false;
                 Show_Back = false;
@@ -435,11 +480,11 @@ namespace Outil_Azur_complet.maps
             {
                 m.Show_Back = showback;
             }
-        
+
         }
         private void afficherSolToolStripMenuItem_Click(object sender, EventArgs e)
-        { 
-            if(afficherSolToolStripMenuItem.Checked == true)
+        {
+            if (afficherSolToolStripMenuItem.Checked == true)
             {
                 afficherSolToolStripMenuItem.Checked = false;
                 Show_ground = false;
@@ -459,11 +504,11 @@ namespace Outil_Azur_complet.maps
             {
                 m.Show_ground = showground;
             }
-        
+
         }
         private void afficherCalque1ToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if(afficherCalque1ToolStripMenuItem.Checked == true)
+            if (afficherCalque1ToolStripMenuItem.Checked == true)
             {
                 afficherCalque1ToolStripMenuItem.Checked = false;
                 Show_calque1 = false;
@@ -490,7 +535,7 @@ namespace Outil_Azur_complet.maps
                 m.Show_calque2 = calque2;
             }
         }
-            private void afficherCalque2ToolStripMenuItem_Click(object sender, EventArgs e)
+        private void afficherCalque2ToolStripMenuItem_Click(object sender, EventArgs e)
         {
             if (afficherCalque2ToolStripMenuItem.Checked == true)
             {
@@ -508,7 +553,7 @@ namespace Outil_Azur_complet.maps
 
         private void listView1_SelectedIndexChanged(object sender, EventArgs e)
         {
-           
+
             if (listView1.SelectedItems.Count == 0 || listView1.SelectedItems == null)
                 return;
             if (treeView1.SelectedNode.FullPath.Contains("sols"))
@@ -524,8 +569,8 @@ namespace Outil_Azur_complet.maps
                 int id = Convert.ToInt32(listView1.SelectedItems[0].Text);
                 SelectedTile = TilesData.ListObject[id];
             }
-            
-            if(MapSelected != null)
+
+            if (MapSelected != null)
             {
                 T = Tools.Brush;
                 MapSelected.IsCellTool = false;
@@ -559,7 +604,7 @@ namespace Outil_Azur_complet.maps
                     {
                         IL.Images.Add(Image(file.FullName));
                         TilesData.ListGrounds[id] = new TilesData(id, file.FullName, file.DirectoryName.Split('\\')[9], TilesData.TileType.ground);
-                        
+
                     }
                     catch
                     {
@@ -570,13 +615,13 @@ namespace Outil_Azur_complet.maps
                 IL.ImageSize = new Size(32, 32);
                 listView1.LargeImageList = IL;
                 int i = 0;
-                foreach(TilesData T in TilesData.ListGrounds)
+                foreach (TilesData T in TilesData.ListGrounds)
                 {
-                    if(T != null)
+                    if (T != null)
                     {
-                        if(T.Folder == treeView1.SelectedNode.Text)
+                        if (T.Folder == treeView1.SelectedNode.Text)
                         {
-                           
+
                             ListViewItem item = new ListViewItem();
                             listView1.Items.Add(T.ID.ToString(), i);
                             i += 1;
@@ -627,7 +672,7 @@ namespace Outil_Azur_complet.maps
 
         private void afficherFightCellsToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if(afficherFightCellsToolStripMenuItem.Checked == true)
+            if (afficherFightCellsToolStripMenuItem.Checked == true)
             {
                 afficherFightCellsToolStripMenuItem.Checked = false;
             }
@@ -639,11 +684,12 @@ namespace Outil_Azur_complet.maps
 
         private void toolStripButton5_Click(object sender, EventArgs e)
         {
-           if(toolStripButton5.Checked == true)
+            if (toolStripButton5.Checked == true)
             {
                 toolStripButton5.Checked = false;
 
-            }else if(toolStripButton5.Checked == false)
+            }
+            else if (toolStripButton5.Checked == false)
             {
                 toolStripButton5.Checked = true;
                 CellMod = CellMode.Null;
@@ -677,6 +723,25 @@ namespace Outil_Azur_complet.maps
 
         }
 
-        
+
+        private void afficherMonstresToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void treeView1_AfterSelect(object sender, TreeViewEventArgs e)
+        {
+
+        }
+
+        private void toolStripButton3_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void toolStripButton1_Click(object sender, EventArgs e)
+        {
+
+        }
     }
 }

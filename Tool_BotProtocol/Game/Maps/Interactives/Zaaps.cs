@@ -18,23 +18,32 @@ namespace Tool_BotProtocol.Game.Maps.Interactives
         public static ConcurrentDictionary<int, int> Z = new ConcurrentDictionary<int, int>();
 
         static string ZPath = @".\ressources\Bot\BotZaaps";
-        public static void LoadZaaps()
+        public static async Task LoadZaapsAsync()
         {
             try
             {
-                DirectoryInfo MapFolder = new DirectoryInfo($"{ZPath}");
-                foreach (FileInfo f in MapFolder.GetFiles())
-                {
-                    if (f.Exists)
-                    {
-                        XElement xmlmap = XElement.Load(f.FullName);
+                DirectoryInfo zaapsFolder = new DirectoryInfo(ZPath);
+                FileInfo[] files = zaapsFolder.GetFiles();
 
-                        MapId = int.Parse(xmlmap.Element("MAP").Value);
-                        CellId = int.Parse(xmlmap.Element("CELLULE").Value);
+                List<Task> tasks = new List<Task>();
+
+                foreach (FileInfo file in files)
+                {
+                    if (file.Exists)
+                    {
+                        tasks.Add(Task.Run(async () =>
+                        {
+                            XElement xmlmap = await Task.Run(() => XElement.Load(file.FullName));
+
+                            int MapId = int.Parse(xmlmap.Element("MAP").Value);
+                            int CellId = int.Parse(xmlmap.Element("CELLULE").Value);
+
+                            Z.TryAdd(MapId, CellId);
+                        }));
                     }
-                    Z.TryAdd(MapId, CellId);
                 }
-                
+
+                await Task.WhenAll(tasks);
             }
             catch (Exception ex)
             {
@@ -42,7 +51,8 @@ namespace Tool_BotProtocol.Game.Maps.Interactives
                 return;
             }
         }
-       
-        
+
+
+
     }
 }

@@ -292,7 +292,8 @@ namespace Tool_Editor.maps.data
 						break;
                 }
             }
-			G.DrawImage(Pic, new Rectangle(new Point(Location[3].X + SizeCell - posX, Location[2].Y - (SizeCell / 2) - posY), ImageSize));
+            
+            G.DrawImage(Pic, new Rectangle(new Point(Location[3].X + SizeCell - posX, Location[2].Y - (SizeCell / 2) - posY), ImageSize));
 			Pic.Dispose();
 			return G;
 			

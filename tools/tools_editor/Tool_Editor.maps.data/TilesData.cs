@@ -29,7 +29,7 @@ namespace Tool_Editor.maps.data
 
         public static TilesData[] Backgrounds_Tiles = new TilesData[10000];
 
-      
+
 
         public static TilesData[] ListGrounds = new TilesData[10000];
         public static TilesData[] ListObject = new TilesData[100000];
@@ -38,7 +38,7 @@ namespace Tool_Editor.maps.data
         static TilesData()
         {
 
-            
+
         }
 
         public TilesData(int id, string p, string f, TileType T)
@@ -47,7 +47,7 @@ namespace Tool_Editor.maps.data
             Path = p;
             Folder = f;
             type = T;
-       
+
         }
 
         public static void ClearCache()
@@ -86,15 +86,15 @@ namespace Tool_Editor.maps.data
 
         public static Pos Get_Object(int id)
         {
-           Pos po = PosObject.FirstOrDefault((Pos x) => x.ID == id);
+            Pos po = PosObject.FirstOrDefault((Pos x) => x.ID == id);
             return po;
         }
 
         public static TilesData GetBackgrounds(int id)
         {
-           foreach(TilesData T in Backgrounds_Tiles)
+            foreach (TilesData T in Backgrounds_Tiles)
             {
-                if(T != null)
+                if (T != null)
                 {
                     if (T.ID == id)
                         return T;
@@ -144,9 +144,9 @@ namespace Tool_Editor.maps.data
         public static int Count_Ground()
         {
             int num = 0;
-            foreach(Pos P in PosGround)
+            foreach (Pos P in PosGround)
             {
-                if(P.ID != 0)
+                if (P.ID != 0)
                 {
                     num += 1;
                 }

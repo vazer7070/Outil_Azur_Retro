@@ -147,16 +147,19 @@ namespace Outil_Azur_complet.Bot
                 SetAlignPerso();
             }
         }
-        private void SendBoost(string message, int cost)
+        private Task SendBoost(string message, int cost)
         {
-            if (ACC != null && ACC.Game.character.Carac_Points >= cost)
-            {
-                ACC.Connexion.SendPacket(message, true);
-                SetCaracPerso();
-                SetSelectionnedPerso();
-                Thread.Sleep(700);
-                ACC.Connexion.SendPacket("BD");
-            }
+            Task.Run(async ()=> {
+                if (ACC != null && ACC.Game.character.Carac_Points >= cost)
+                {
+                    await ACC.Connexion.SendPacket(message, true);
+                    SetCaracPerso();
+                    SetSelectionnedPerso();
+                    Thread.Sleep(700);
+                    await ACC.Connexion.SendPacket("BD");
+                }
+            });
+            return null;
         }
         private void button2_Click(object sender, EventArgs e)
         {

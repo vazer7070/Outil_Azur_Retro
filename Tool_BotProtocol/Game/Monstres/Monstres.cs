@@ -46,25 +46,32 @@ namespace Tool_BotProtocol.Game.Monstres
         }
         
         public static Monstres ReturnMonsters(int template) => AllMonstersTemplate[template];
-        public static void LoadAllMonstrers()
+        public static async Task LoadAllMonstersAsync()
         {
             try
             {
-                DirectoryInfo MapFolder = new DirectoryInfo($"{MonstersPath}");
-                foreach (FileInfo f in MapFolder.GetFiles())
+                DirectoryInfo monstersFolder = new DirectoryInfo(MonstersPath);
+                List<Task> tasks = new List<Task>();
+
+                foreach (FileInfo file in monstersFolder.GetFiles())
                 {
-                    if (f.Exists)
+                    if (file.Exists)
                     {
-                        XElement xmlmap = XElement.Load(f.FullName);
-                        Monstres M = new Monstres
+                        tasks.Add(Task.Run(async () =>
                         {
-                            TemplateID = int.Parse(xmlmap.Element("ID").Value),
-                            Name = xmlmap.Element("NAME").Value,
-                            GFX = int.Parse(xmlmap.Element("GFX").Value)
-                        };
-                        AllMonstersTemplate.TryAdd(M.TemplateID, M);
+                            XElement xmlmap = await Task.Run(() => XElement.Load(file.FullName));
+                            Monstres M = new Monstres
+                            {
+                                TemplateID = int.Parse(xmlmap.Element("ID").Value),
+                                Name = xmlmap.Element("NAME").Value,
+                                GFX = int.Parse(xmlmap.Element("GFX").Value)
+                            };
+                            AllMonstersTemplate.TryAdd(M.TemplateID, M);
+                        }));
                     }
                 }
+
+                await Task.WhenAll(tasks);
             }
             catch (Exception ex)
             {
@@ -72,6 +79,7 @@ namespace Tool_BotProtocol.Game.Monstres
                 return;
             }
         }
+
         public bool GroupHasThisMob(int id)
         {
             if(GroupeLeader.TemplateID == id)

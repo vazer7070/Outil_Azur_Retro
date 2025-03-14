@@ -73,7 +73,7 @@ namespace Outil_Azur_complet.maps
             this.iTalk_Button_11.TabIndex = 3;
             this.iTalk_Button_11.Text = "X";
             this.iTalk_Button_11.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
+          //  this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
             // 
             // iTalk_Label2
             // 
@@ -112,7 +112,7 @@ namespace Outil_Azur_complet.maps
             this.iTalk_Button_21.TabIndex = 1;
             this.iTalk_Button_21.Text = "Valider";
             this.iTalk_Button_21.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_21.Click += new System.EventHandler(this.iTalk_Button_21_Click);
+         //  this.iTalk_Button_21.Click += new System.EventHandler(this.iTalk_Button_21_Click);
             // 
             // iTalk_TextBox_Small1
             // 

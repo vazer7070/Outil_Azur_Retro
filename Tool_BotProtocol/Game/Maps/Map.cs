@@ -42,36 +42,44 @@ namespace Tool_BotProtocol.Game.Maps
             Interactives = new ConcurrentDictionary<int, Interactives.Interactives>();
             TeleportCells = new Dictionary<TeleportCellsEnum, List<short>>();
         }
-        public static void LoadAllMaps()
+        public static async Task LoadAllMapsAsync()
         {
             try
             {
-                DirectoryInfo MapFolder = new DirectoryInfo($"{MapPath}");
-                foreach (FileInfo f in MapFolder.GetFiles())
+                DirectoryInfo mapFolder = new DirectoryInfo(MapPath);
+                List<Task> tasks = new List<Task>();
+
+                foreach (FileInfo file in mapFolder.GetFiles())
                 {
-                    if (f.Exists)
+                    if (file.Exists)
                     {
-                        XElement xmlmap = XElement.Load(f.FullName);
-                        Map L = new Map()
+                        tasks.Add(Task.Run(async () =>
                         {
-                            MapID = int.Parse(xmlmap.Element("ID").Value),
-                            MapWidth = byte.Parse(xmlmap.Element("LARGEUR").Value),
-                            MapHeight = byte.Parse(xmlmap.Element("LONGUEUR").Value),
-                            X = sbyte.Parse(xmlmap.Element("X").Value),
-                            Y = sbyte.Parse(xmlmap.Element("Y").Value),
-                            MapData = xmlmap.Element("MAP_DATA").Value,
-                            Back_ID = int.Parse(xmlmap.Element("BACK").Value)
-                        };
-                        AllBotMaps.TryAdd(L.MapID, L);
+                            XElement xmlmap = await Task.Run(() => XElement.Load(file.FullName));
+                            Map L = new Map()
+                            {
+                                MapID = int.Parse(xmlmap.Element("ID").Value),
+                                MapWidth = byte.Parse(xmlmap.Element("LARGEUR").Value),
+                                MapHeight = byte.Parse(xmlmap.Element("LONGUEUR").Value),
+                                X = sbyte.Parse(xmlmap.Element("X").Value),
+                                Y = sbyte.Parse(xmlmap.Element("Y").Value),
+                                MapData = xmlmap.Element("MAP_DATA").Value,
+                                Back_ID = int.Parse(xmlmap.Element("BACK").Value)
+                            };
+                            AllBotMaps.TryAdd(L.MapID, L);
+                        }));
                     }
                 }
-            }catch (Exception ex)
+
+                await Task.WhenAll(tasks);
+            }
+            catch (Exception ex)
             {
                 MessageBox.Show(ex.Message);
                 return;
             }
-
         }
+
         public Map ReturnMapInfo(int MAPID)
         {
             return AllBotMaps[MAPID];

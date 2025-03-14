@@ -12,15 +12,7 @@ namespace Outil_Azur_complet.editeur_perso
         /// <summary>
         /// Clean up any resources being used.
         /// </summary>
-        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing && (components != null))
-            {
-                components.Dispose();
-            }
-            base.Dispose(disposing);
-        }
+       
 
         #region Windows Form Designer generated code
 
@@ -261,7 +253,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_ThemeContainer1.TabIndex = 1;
             this.iTalk_ThemeContainer1.Tag = "Éditeur de personnage";
             this.iTalk_ThemeContainer1.Text = " ";
-            this.iTalk_ThemeContainer1.Click += new System.EventHandler(this.iTalk_ThemeContainer1_Click);
+           // this.iTalk_ThemeContainer1.Click += new System.EventHandler(this.iTalk_ThemeContainer1_Click);
             // 
             // iTalk_NotificationNumber1
             // 
@@ -324,7 +316,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_Button_23.TabIndex = 12;
             this.iTalk_Button_23.Text = "Éditeur de métier";
             this.iTalk_Button_23.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_23.Click += new System.EventHandler(this.iTalk_Button_23_Click);
+           // this.iTalk_Button_23.Click += new System.EventHandler(this.iTalk_Button_23_Click);
             // 
             // iTalk_Button_22
             // 
@@ -353,7 +345,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_Button_21.TabIndex = 10;
             this.iTalk_Button_21.Text = "Éditeur d\'items";
             this.iTalk_Button_21.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_21.Click += new System.EventHandler(this.iTalk_Button_21_Click);
+          //  this.iTalk_Button_21.Click += new System.EventHandler(this.iTalk_Button_21_Click);
             // 
             // iTalk_Button_12
             // 
@@ -367,7 +359,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_Button_12.TabIndex = 9;
             this.iTalk_Button_12.Text = "Supprimer personnage";
             this.iTalk_Button_12.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_12.Click += new System.EventHandler(this.iTalk_Button_11_Click);
+           // this.iTalk_Button_12.Click += new System.EventHandler(this.iTalk_Button_11_Click);
             // 
             // iTalk_Button_11
             // 
@@ -381,7 +373,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_Button_11.TabIndex = 9;
             this.iTalk_Button_11.Text = "Bannir personnage";
             this.iTalk_Button_11.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
+           // this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
             // 
             // iTalk_LinkLabel17
             // 
@@ -542,7 +534,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_LinkLabel6.TabStop = true;
             this.iTalk_LinkLabel6.Text = "Modifier";
             this.iTalk_LinkLabel6.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-            this.iTalk_LinkLabel6.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel6_LinkClicked);
+           // this.iTalk_LinkLabel6.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel6_LinkClicked);
             // 
             // iTalk_LinkLabel5
             // 
@@ -559,7 +551,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_LinkLabel5.TabStop = true;
             this.iTalk_LinkLabel5.Text = "Modifier";
             this.iTalk_LinkLabel5.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-            this.iTalk_LinkLabel5.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel5_LinkClicked);
+          // this.iTalk_LinkLabel5.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel5_LinkClicked);
             // 
             // iTalk_LinkLabel29
             // 
@@ -704,7 +696,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_LinkLabel19.TabStop = true;
             this.iTalk_LinkLabel19.Text = "Modifier";
             this.iTalk_LinkLabel19.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-            this.iTalk_LinkLabel19.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel19_LinkClicked);
+          //  this.iTalk_LinkLabel19.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel19_LinkClicked);
             // 
             // iTalk_LinkLabel32
             // 
@@ -943,7 +935,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.iTalk_TextBox_Small11.TabIndex = 5;
             this.iTalk_TextBox_Small11.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
             this.iTalk_TextBox_Small11.UseSystemPasswordChar = false;
-            this.iTalk_TextBox_Small11.TextChanged += new System.EventHandler(this.iTalk_TextBox_Small11_TextChanged);
+           // this.iTalk_TextBox_Small11.TextChanged += new System.EventHandler(this.iTalk_TextBox_Small11_TextChanged);
             // 
             // iTalk_TextBox_Small10
             // 
@@ -1713,7 +1705,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.textBox1.Name = "textBox1";
             this.textBox1.Size = new System.Drawing.Size(168, 22);
             this.textBox1.TabIndex = 2;
-            this.textBox1.TextChanged += new System.EventHandler(this.textBox1_TextChanged);
+          //  this.textBox1.TextChanged += new System.EventHandler(this.textBox1_TextChanged);
             // 
             // listBox1
             // 
@@ -1722,7 +1714,7 @@ namespace Outil_Azur_complet.editeur_perso
             this.listBox1.Name = "listBox1";
             this.listBox1.Size = new System.Drawing.Size(168, 407);
             this.listBox1.TabIndex = 1;
-            this.listBox1.SelectedIndexChanged += new System.EventHandler(this.listBox1_SelectedIndexChanged);
+          /// this.listBox1.SelectedIndexChanged += new System.EventHandler(this.listBox1_SelectedIndexChanged);
             // 
             // iTalk_ControlBox1
             // 

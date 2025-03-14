@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.VisualBasic;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -32,8 +33,8 @@ namespace Tool_Editor.maps.data
         public int Ambiance = 0;
         public bool IsOutDoor = false;
         public int Capabilities = 0;
-        public  int Width = 15;
-        public  int Height = 17;
+        public int Width = 15;
+        public int Height = 17;
         public string Key = "";
         public string MapData = "";
         public string fightPlaces = "";
@@ -54,15 +55,13 @@ namespace Tool_Editor.maps.data
         public string GroupFixe_Mobs = "";
         public int Groupefixe_Cell = 0;
 
-       
         public void Load()
         {
-            
             if (MapData != "")
             {
-                if(Key == "" && IsCrypt())
+                if (Key == "" && IsCrypt())
                 {
-                    MessageBox.Show("Impossible de charger la carte, celle-ci est chiffrée", "Lecture impossible", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+                    Key = Interaction.InputBox("Impossible de charger la carte, celle-ci est chiffrée", "Lecture impossible");
                     return;
                 }
                 CellsData[] cell = new CellsData[Height * (Width * 2 - 1) - Width];
@@ -81,57 +80,57 @@ namespace Tool_Editor.maps.data
                 Background = TilesData.GetBackgrounds(BackGroundID);
         }
 
-
         private bool IsCrypt()
         {
             int num = 0;
-            foreach(char a in MapData.ToCharArray())
+            foreach (char a in MapData)
             {
                 if (char.IsNumber(a))
                     num += 1;
-                continue;
             }
-            if (num >= 1000)
-                return true;
-            return false;
+            return num >= 1000;
         }
+
         public void SaveFightCell()
         {
             fightPlaces = (string)FightCellManager.GetHashCode(this);
         }
+
         public void LoadFightCell()
         {
             if (fightPlaces != "")
                 Cells = FightCellManager.ParseCellFight(fightPlaces, Cells);
         }
+
         public void DecompressCells(string cell, int CellID)
         {
-            int[] intArray = new int[] { 10 - 1 };
+            int[] intArray = new int[10];
 
-            for (int i = 0; i < cell.Length - 1; i++)
+            for (int i = 0; i < cell.Length; i++)
             {
-                intArray[i] = Convert.ToInt32(DecryptClass.HashCode(Convert.ToString(cell.ToCharArray(cell.Length, i))));
+                intArray[i] = (int)DecryptClass.HashCode(cell[i].ToString());
             }
+
             Cells[CellID].Los = (intArray[0] & 1) > 0;
             Cells[CellID].RotaGFX1 = (intArray[1] & 0x30) >> 4;
             Cells[CellID].NivSol = (intArray[1] & 15);
             Cells[CellID].Type(((intArray[2] & 0x38) >> 3) & -1025);
             Cells[CellID].GFX1 = TilesData.GetGrounds((((intArray[0] & 0x18) << 6) + ((intArray[2] & 7) << 6)) + intArray[3]);
             Cells[CellID].IncliSol = ((intArray[4] & 60) >> 2);
-            Cells[CellID].FlipGFX1 = (((intArray[4] & 2) >> 1) > 0);
+            Cells[CellID].FlipGFX1 = (intArray[4] & 2) >> 1 > 0;
             Cells[CellID].GFX2 = TilesData.GetObjects((((((intArray[0] & 4) << 11) + ((intArray[4] & 1) << 12)) + (intArray[5] << 6)) + intArray[6]));
-            Cells[CellID].RotaGFX2 = ((intArray[7] & 0x30) >> 4);
-            Cells[CellID].FlipGFX2 = (((intArray[7] & 8) >> 3) > 0);
-            Cells[CellID].FlipGFX3 = (((intArray[7] & 4) >> 2) > 0);
-            Cells[CellID].IO = ((intArray[7] & 2) >> 1) > 0;
+            Cells[CellID].RotaGFX2 = (intArray[7] & 0x30) >> 4;
+            Cells[CellID].FlipGFX2 = (intArray[7] & 8) >> 3 > 0;
+            Cells[CellID].FlipGFX3 = (intArray[7] & 4) >> 2 > 0;
+            Cells[CellID].IO = (intArray[7] & 2) >> 1 > 0;
             Cells[CellID].GFX3 = TilesData.GetObjects((((((intArray[0] & 2) << 12) + ((intArray[7] & 1) << 12)) + (intArray[8] << 6)) + intArray[9]));
         }
+
         public void DecompressMap()
         {
             try
             {
-
-                if(Key != "")
+                if (Key != "")
                 {
                     Key = Key.Trim();
                     Key = Key.Replace("\r", "").Replace("\n", "").Replace("\r\n", "");
@@ -140,60 +139,42 @@ namespace Tool_Editor.maps.data
                     MapData = DecryptClass.DecypherData(MapData, Key, check);
                     Key = "";
                 }
-
-            }catch(Exception e)
+            }
+            catch (Exception e)
             {
                 MessageBox.Show(e.Message);
                 return;
             }
-            int num8 = ((Cells.Length * 10) - 10);
-            int i = 0;
-            while(i <= num8)
+
+            int num8 = (Cells.Length * 10) - 10;
+            for (int i = 0; i <= num8; i += 10)
             {
-                DecompressCells(MapData.Substring(i, 10), Convert.ToInt32(Math.Round(Convert.ToDouble(i / 10))));
-                i = (i + 10);
+                DecompressCells(MapData.Substring(i, 10), i / 10);
             }
         }
+
         #region Functions
+
         [NonSerialized]
-        public static List<Map> MapList = new List<Map>();
+        public static Dictionary<int, Map> MapList = new Dictionary<int, Map>();
 
         public static void AddMap(Map M)
         {
-            bool OK = true;
-            foreach(Map map in MapList)
+            if (!MapList.ContainsKey(M.ID))
             {
-                if (map.ID == M.ID)
-                {
-                    OK = false;
-                }
-                if (OK)
-                {
-                    M.IDClient = MapList.Count;
-                    MapList.Add(M);
-                }
-                else
-                {
-                    return;
-                }
+                M.IDClient = MapList.Count;
+                MapList.Add(M.ID, M);
             }
         }
 
         public static bool IDAlreadyLoad(Map M)
         {
-            foreach (Map map in MapList)
-            {
-                if (map.ID == M.ID && map.MapData == M.MapData)
-                {
-                    return true;
-                }
-            }
-            return false;
+            return MapList.Values.Any(map => map.ID == M.ID && map.MapData == M.MapData);
         }
 
         public static Map GetByID(int id)
         {
-            return MapList.FirstOrDefault(x => x.ID == id);
+            return MapList.TryGetValue(id, out Map map) ? map : null;
         }
 
         public static string Get_Capabilities(bool cantp, bool cansave, bool canattack, bool canhall)
@@ -201,6 +182,8 @@ namespace Tool_Editor.maps.data
             string S = (!cantp ? "1" : "0") + (!cansave ? "1" : "0") + (!canattack ? "1" : "0") + (!canhall ? "1" : "0");
             return S;
         }
+
         #endregion
     }
+
 }

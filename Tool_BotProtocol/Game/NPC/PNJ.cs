@@ -62,37 +62,46 @@ namespace Tool_BotProtocol.Game.NPC
                 return null;
             }
         }
-        public static void LoadAllNPC()
+        public static async Task LoadAllNPCAsync()
         {
             try
             {
-                DirectoryInfo MapFolder = new DirectoryInfo($"{pnjpath}");
-                foreach (FileInfo f in MapFolder.GetFiles())
+                DirectoryInfo npcFolder = new DirectoryInfo(pnjpath);
+                FileInfo[] files = npcFolder.GetFiles("*.xml");
+
+                List<Task> tasks = new List<Task>();
+
+                foreach (FileInfo file in files)
                 {
-                    if (f.Exists && f.Extension.Equals(".xml"))
+                    tasks.Add(Task.Run(async () =>
                     {
-                        XElement xmlnpc = XElement.Load(f.FullName);
-                        PNJ P = new PNJ
+                        using (FileStream fs = file.OpenRead())
                         {
-                            id = int.Parse(xmlnpc.Element("ID").Value),
-                            Name = xmlnpc.Element("NOM").Value,
-                            MapId = int.Parse(xmlnpc.Element("MAP").Value),
-                            CellId = int.Parse(xmlnpc.Element("CELLULE").Value),
-                            Orientation = int.Parse(xmlnpc.Element("ORIENTATION").Value),
-                            GFX = int.Parse(xmlnpc.Element("GFX").Value),
-                            Sexe = int.Parse(xmlnpc.Element("SEXE").Value)
-                        };
-                        AllPNJ.TryAdd(P.id, P);
-                    }
+                            XElement xmlnpc = await Task.Run(() => XElement.Load(fs));
+                            PNJ P = new PNJ
+                            {
+                                id = int.Parse(xmlnpc.Element("ID").Value),
+                                Name = xmlnpc.Element("NOM").Value,
+                                MapId = int.Parse(xmlnpc.Element("MAP").Value),
+                                CellId = int.Parse(xmlnpc.Element("CELLULE").Value),
+                                Orientation = int.Parse(xmlnpc.Element("ORIENTATION").Value),
+                                GFX = int.Parse(xmlnpc.Element("GFX").Value),
+                                Sexe = int.Parse(xmlnpc.Element("SEXE").Value)
+                            };
+                            AllPNJ.TryAdd(P.id, P);
+                        }
+                    }));
                 }
+
+                await Task.WhenAll(tasks);
             }
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message);
                 return;
             }
-
         }
+
         PNJ() => Dispose(true);
 
         public void Dispose() => Dispose(true);

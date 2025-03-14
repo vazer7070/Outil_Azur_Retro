@@ -1,11 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using Tools_protocol.Kryone.Database;
 
@@ -13,103 +6,198 @@ namespace Outil_Azur_complet.editeur_compte
 {
     public partial class CreateForm : Form
     {
-        int select;
+        private const int MIN_USERNAME_LENGTH = 5;
+        private const int MIN_PASSWORD_LENGTH = 8;
+        private const int MIN_QUESTION_LENGTH = 6;
+        private const int MIN_ANSWER_LENGTH = 6;
+
+        private readonly ErrorProvider _errorProvider;
+        private int _selectedHashMethod = -1;
+
         public CreateForm()
         {
             InitializeComponent();
+            _errorProvider = new ErrorProvider();
+            InitializeControls();
         }
 
-        private void iTalk_TextBox_Small1_TextChanged(object sender, EventArgs e)
+        private void InitializeControls()
         {
+            radioButton1.CheckedChanged += HandleHashMethodChanged;
+            radioButton2.CheckedChanged += HandleHashMethodChanged;
+            radioButton3.CheckedChanged += HandleHashMethodChanged;
 
+            iTalk_TextBox_Small1.TextChanged += ValidateInput;
+            iTalk_TextBox_Small2.TextChanged += ValidateInput;
+            iTalk_TextBox_Small3.TextChanged += ValidateInput;
+            iTalk_TextBox_Small4.TextChanged += ValidateInput;
+        }
+
+        private void HandleHashMethodChanged(object sender, EventArgs e)
+        {
+            var radioButton = sender as RadioButton;
+            if (radioButton?.Checked == true)
+            {
+                switch (radioButton.Name)
+                {
+                    case "radioButton1":
+                        _selectedHashMethod = 0;
+                        break;
+                    case "radioButton2":
+                        _selectedHashMethod = 1;
+                        break;
+                    case "radioButton3":
+                        _selectedHashMethod = 2;
+                        break;
+                }
+                ValidateInput(sender, e);
+            }
+        }
+
+        private void ValidateInput(object sender, EventArgs e)
+        {
+            var control = sender as Control;
+            if (control == null) return;
+
+            string error = null;
+            switch (control.Name)
+            {
+                case "iTalk_TextBox_Small1":
+                    if (string.IsNullOrWhiteSpace(iTalk_TextBox_Small1.Text))
+                        error = "Le nom d'utilisateur est requis";
+                    else if (iTalk_TextBox_Small1.Text.Length < MIN_USERNAME_LENGTH)
+                        error = $"Le nom d'utilisateur doit contenir au moins {MIN_USERNAME_LENGTH} caractères";
+                    break;
+
+                case "iTalk_TextBox_Small2":
+                    if (string.IsNullOrWhiteSpace(iTalk_TextBox_Small2.Text))
+                        error = "Le mot de passe est requis";
+                    else if (iTalk_TextBox_Small2.Text.Length < MIN_PASSWORD_LENGTH)
+                        error = $"Le mot de passe doit contenir au moins {MIN_PASSWORD_LENGTH} caractères";
+                    break;
+
+                case "iTalk_TextBox_Small3":
+                    if (string.IsNullOrWhiteSpace(iTalk_TextBox_Small3.Text))
+                        error = "La question secrète est requise";
+                    else if (iTalk_TextBox_Small3.Text.Length < MIN_QUESTION_LENGTH)
+                        error = $"La question secrète doit contenir au moins {MIN_QUESTION_LENGTH} caractères";
+                    break;
+
+                case "iTalk_TextBox_Small4":
+                    if (string.IsNullOrWhiteSpace(iTalk_TextBox_Small4.Text))
+                        error = "La réponse secrète est requise";
+                    else if (iTalk_TextBox_Small4.Text.Length < MIN_ANSWER_LENGTH)
+                        error = $"La réponse secrète doit contenir au moins {MIN_ANSWER_LENGTH} caractères";
+                    break;
+            }
+
+            _errorProvider.SetError(control, error);
+        }
+
+        private bool ValidateForm()
+        {
+            if (_selectedHashMethod == -1)
+            {
+                ShowError("Vous devez sélectionner une méthode de hachage");
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(iTalk_TextBox_Small1.Text) ||
+                string.IsNullOrWhiteSpace(iTalk_TextBox_Small2.Text) ||
+                string.IsNullOrWhiteSpace(iTalk_TextBox_Small3.Text) ||
+                string.IsNullOrWhiteSpace(iTalk_TextBox_Small4.Text))
+            {
+                ShowError("Veuillez remplir tous les champs requis");
+                return false;
+            }
+
+            if (iTalk_TextBox_Small1.Text.Length < MIN_USERNAME_LENGTH ||
+                iTalk_TextBox_Small2.Text.Length < MIN_PASSWORD_LENGTH ||
+                iTalk_TextBox_Small3.Text.Length < MIN_QUESTION_LENGTH ||
+                iTalk_TextBox_Small4.Text.Length < MIN_ANSWER_LENGTH)
+            {
+                ShowError($"Longueurs minimales requises :\n" +
+                         $"- Nom d'utilisateur : {MIN_USERNAME_LENGTH} caractères\n" +
+                         $"- Mot de passe : {MIN_PASSWORD_LENGTH} caractères\n" +
+                         $"- Question : {MIN_QUESTION_LENGTH} caractères\n" +
+                         $"- Réponse : {MIN_ANSWER_LENGTH} caractères");
+                return false;
+            }
+
+            if (AccountList.AllAccount.ContainsKey(iTalk_TextBox_Small1.Text))
+            {
+                ShowError("Ce nom d'utilisateur existe déjà");
+                return false;
+            }
+
+            return true;
+        }
+
+        private void ShowError(string message)
+        {
+            MessageBox.Show(message, "Erreur de validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
+        private void ResetForm()
+        {
+            iTalk_TextBox_Small1.Text = string.Empty;
+            iTalk_TextBox_Small2.Text = string.Empty;
+            iTalk_TextBox_Small3.Text = string.Empty;
+            iTalk_TextBox_Small4.Text = string.Empty;
+            radioButton1.Checked = false;
+            radioButton2.Checked = false;
+            radioButton3.Checked = false;
+            _selectedHashMethod = -1;
+            _errorProvider.Clear();
         }
 
         private void iTalk_Button_21_Click(object sender, EventArgs e)
         {
-            if (!string.IsNullOrWhiteSpace(iTalk_TextBox_Small1.Text) || !String.IsNullOrWhiteSpace(iTalk_TextBox_Small2.Text) || !string.IsNullOrWhiteSpace(iTalk_TextBox_Small3.Text) || !string.IsNullOrWhiteSpace(iTalk_TextBox_Small4.Text))
+            if (!ValidateForm()) return;
+
+            try
             {
-                if(iTalk_TextBox_Small1.Text.Length >= 5 || iTalk_TextBox_Small2.Text.Length >= 8 || iTalk_TextBox_Small3.Text.Length >= 6 || iTalk_TextBox_Small4.Text.Length >= 6)
-                {
-                    if(radioButton1.Checked.Equals(true) || radioButton2.Checked.Equals(true) || radioButton3.Checked.Equals(true))
-                    {
-                        if (!AccountList.AllAccount.ContainsKey(iTalk_TextBox_Small1.Text))
-                        {
-                            if (radioButton1.Checked.Equals(true))
-                            {
-                                select = 0;
-                            }
-                            else if (radioButton2.Checked.Equals(true))
-                            {
-                                select = 1;
-                            }
-                            else if (radioButton3.Checked.Equals(true))
-                            {
-                                select = 2;
-                            }
-                            try
-                            {
-                                if (!AccountList.AllAccount.ContainsKey(iTalk_TextBox_Small1.Text))
-                                {
-                                    AccountList.CreateAccount(iTalk_TextBox_Small4.Text, select, iTalk_TextBox_Small3.Text, iTalk_TextBox_Small2.Text, iTalk_TextBox_Small1.Text);
-                                    MessageBox.Show($"Le compte {iTalk_TextBox_Small4.Text} a été crée avec succès.!", "Création du compte réussie", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                                    iTalk_TextBox_Small4.Text = "";
-                                    iTalk_TextBox_Small3.Text = "";
-                                    iTalk_TextBox_Small2.Text = "";
-                                    iTalk_TextBox_Small1.Text = "";
-                                    radioButton1.Checked = false;
-                                    radioButton2.Checked = false;
-                                    radioButton3.Checked = false;
-                                    DialogResult = DialogResult.OK;
-                                }
-                                else
-                                {
-                                    MessageBox.Show($"Le compte {iTalk_TextBox_Small4.Text} existe déjà, merci de changer les informations.", "Création impossible", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-                                    return;
-                                }
+                AccountList.CreateAccount(
+                    iTalk_TextBox_Small4.Text,
+                    _selectedHashMethod,
+                    iTalk_TextBox_Small3.Text,
+                    iTalk_TextBox_Small2.Text,
+                    iTalk_TextBox_Small1.Text
+                );
 
-                            }
-                            catch(Exception u)
-                            {
-                                MessageBox.Show(u.Message, u.Source, MessageBoxButtons.OK, MessageBoxIcon.Error);
-                                return;
-                            }
-                        }
-                        else
-                        {
-                            MessageBox.Show("Le nom de compte voulu existe déjà, merci de le changer", "Requête impossible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            return;
-                        }
-                    }
-                    else
-                    {
-                        MessageBox.Show("Vous êtes obligé de choisir une méthode de hash.!", "Requête impossible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        return;
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("La longueur des paramètres n'est pas correcte, il faut au minimum:" + "\n" + "5 caractères pour le nom, 8 pour le mot de passe, 6 pour la question et 6 pour la réponse." + "\n" + "Veuillez vérifier vos informations.", "Requête impossible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
+                MessageBox.Show(
+                    $"Le compte {iTalk_TextBox_Small1.Text} a été créé avec succès !",
+                    "Création réussie",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
 
-
+                ResetForm();
+                DialogResult = DialogResult.OK;
             }
-            else
+            catch (Exception ex)
             {
-                MessageBox.Show("Veuillez remplir correctement les informations demandées.", "Requête impossible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                MessageBox.Show(
+                    $"Erreur lors de la création du compte : {ex.Message}",
+                    "Erreur",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
             }
-            
-        }
-
-        private void radioButton1_CheckedChanged(object sender, EventArgs e)
-        {
-
         }
 
         private void iTalk_Button_11_Click(object sender, EventArgs e)
         {
             Close();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _errorProvider?.Dispose();
+            }
+            base.Dispose(disposing);
         }
     }
 }

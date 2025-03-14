@@ -23,6 +23,7 @@ using Tool_BotProtocol.Game.Monstres;
 using Tool_BotProtocol.Game.NPC;
 using Tool_BotProtocol.Game.Perso;
 using Tool_BotProtocol.Utils.Pics;
+using System.Diagnostics;
 
 namespace Outil_Azur_complet.Bot.Controls
 {
@@ -44,17 +45,17 @@ namespace Outil_Azur_complet.Bot.Controls
         private bool ShowCell;
         private Bitmap TriggerPic = Properties.Resources._21000;
         SfToolTip sf = new SfToolTip();
-       
-        private readonly int[] DoorGFX = { 6750, 6749, 6744, 6745, 6746, 6747, 6748, 6751, 6752, 6753, 6754, 6755, 6756, 6757, 6758, 6759, 6760, 6762, 6763, 6764, 6765, 6766, 6767, 6768, 6772, 6773, 6774, 6775, 6776 };
-        private readonly int[] StatueGFX = { 1854 ,708 ,922, 1351, 1470, 1570, 1591, 1592, 1583, 1597, 1598,1845, 1853, 1854, 1855, 1856, 1857, 1858, 1859, 1860, 1861, 1862, 2054  };
-        private readonly int[] MiscGFX = { 7352, 260, 261, 262, 263, 264, 265, 266, 267 ,268, 938, 939, 940, 941, 942, 943, 944, 945, 946, 2520, 2521, 2522, 2523, 2524 ,2525, 2526, 2527, 2528, 2529, 2530, 2531, 2532, 2533, 2534, 2535, 2536, 2537, 2538, 2538, 2539, 2540, 2541, 2542, 7519, 7041, 7042, 7043, 7044, 7045, 7046, 7001, 7002, 7003, 7004, 7005, 7006, 7007, 7008, 7009, 7010, 7011, 7012, 7013, 7014, 7015, 7016, 7017,7019, 7020, 7021, 7022, 7023, 7024, 7025, 7027, 7028, 7032, 7033, 7034, 7035, 7036, 7037, 7038, 7039, 7350, 7351, 7353 };
-        private readonly int[] TreeGFX = { 7500, 215, 211, 217, 219, 211, 212, 947, 948, 949, 950, 951, 1657, 1658, 1666, 1667, 1668, 1669, 2726, 2727, 2728, 2729, 2932, 2733,7542, 7557, 7541, 7509 };
 
-        private readonly int[] RecolteGFX = {7511, 7512, 7513, 7514, 7515, 7516, 7517, 7518};
-       
+        private readonly int[] DoorGFX = { 6750, 6749, 6744, 6745, 6746, 6747, 6748, 6751, 6752, 6753, 6754, 6755, 6756, 6757, 6758, 6759, 6760, 6762, 6763, 6764, 6765, 6766, 6767, 6768, 6772, 6773, 6774, 6775, 6776 };
+        private readonly int[] StatueGFX = { 1854, 708, 922, 1351, 1470, 1570, 1591, 1592, 1583, 1597, 1598, 1845, 1853, 1854, 1855, 1856, 1857, 1858, 1859, 1860, 1861, 1862, 2054 };
+        private readonly int[] MiscGFX = { 7352, 260, 261, 262, 263, 264, 265, 266, 267, 268, 938, 939, 940, 941, 942, 943, 944, 945, 946, 2520, 2521, 2522, 2523, 2524, 2525, 2526, 2527, 2528, 2529, 2530, 2531, 2532, 2533, 2534, 2535, 2536, 2537, 2538, 2538, 2539, 2540, 2541, 2542, 7519, 7041, 7042, 7043, 7044, 7045, 7046, 7001, 7002, 7003, 7004, 7005, 7006, 7007, 7008, 7009, 7010, 7011, 7012, 7013, 7014, 7015, 7016, 7017, 7019, 7020, 7021, 7022, 7023, 7024, 7025, 7027, 7028, 7032, 7033, 7034, 7035, 7036, 7037, 7038, 7039, 7350, 7351, 7353 };
+        private readonly int[] TreeGFX = { 7500, 215, 211, 217, 219, 211, 212, 947, 948, 949, 950, 951, 1657, 1658, 1666, 1667, 1668, 1669, 2726, 2727, 2728, 2729, 2932, 2733, 7542, 7557, 7541, 7509 };
+
+        private readonly int[] RecolteGFX = { 7511, 7512, 7513, 7514, 7515, 7516, 7517, 7518 };
+
 
         [Browsable(false)]
-        public int RealCellHeight { get;  private set; }
+        public int RealCellHeight { get; private set; }
         [Browsable(false)]
         public int RealcellWidth { get; private set; }
         public Color CellInactive { get; set; }
@@ -74,7 +75,7 @@ namespace Outil_Azur_complet.Bot.Controls
             set
             {
                 ShowAnim = value;
-                if(ShowAnim)
+                if (ShowAnim)
                     AnimTimer.Start();
             }
         }
@@ -102,8 +103,15 @@ namespace Outil_Azur_complet.Bot.Controls
 
         public UserMapControl()
         {
-            DoubleBuffered = true;
-            SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
+            // Configuration du double buffering
+            SetStyle(ControlStyles.OptimizedDoubleBuffer | 
+                    ControlStyles.AllPaintingInWmPaint | 
+                    ControlStyles.UserPaint, true);
+            
+            // Initialisation des composants de base
+            InitializeComponent();
+            
+            // Initialisation des propriétés
             MQ = MapQuality.HAUT;
             H = 17;
             W = 15;
@@ -111,21 +119,146 @@ namespace Outil_Azur_complet.Bot.Controls
             CellInactive = Color.DarkGray;
             CellActive = Color.Azure;
             ShowAnim = true;
+            
+            // Initialisation des collections et timers
             Anim = new ConcurrentDictionary<int, Animations>();
             AnimTimer = new System.Timers.Timer(80);
             AnimTimer.Elapsed += FinalizeAnimations;
-
-           
+            
+            // Initialisation de la grille
             SetCellNum();
             DrawGrille();
-            InitializeComponent();
         }
+
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            if (sf != null)
+            {
+                sf.ToolTipShowing += Sf_ToolTipShowing;
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                if (AnimTimer != null)
+                {
+                    AnimTimer.Stop();
+                    AnimTimer.Dispose();
+                }
+                
+                if (Anim != null)
+                {
+                    foreach (var animation in Anim.Values)
+                    {
+                        animation?.Dispose();
+                    }
+                    Anim.Clear();
+                }
+                
+                if (sf != null)
+                {
+                    sf.Dispose();
+                }
+            }
+            base.Dispose(disposing);
+        }
+
+        public void SetCellNum()
+        {
+            try
+            {
+                Cells = new UserMapCell[2 * H * W];
+                for (short cellid = 0; cellid < Cells.Length; cellid++)
+                {
+                    Cells[cellid] = new UserMapCell(cellid);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Erreur dans SetCellNum: {ex.Message}");
+            }
+        }
+        private double GetMaxHight()
+        {
+            double CellLarge = Width / (double)(W + 1);
+            double CellLong = Height / (double)(H + 1);
+            CellLarge = Math.Min(CellLong * 2, CellLarge);
+
+            return CellLarge;
+        }
+        public void DrawGrille()
+        {
+            try
+            {
+                if (Cells == null || Cells.Length == 0)
+                {
+                    Debug.WriteLine("Cells n'est pas initialisé");
+                    return;
+                }
+
+                int cellid = 0;
+                double cellwidth = GetMaxHight();
+                double cellheight = Math.Ceiling(cellwidth / 2);
+
+                int offsetX = Convert.ToInt32((Width - ((W + 0.5) * cellwidth)) / 2);
+                var offsetY = Convert.ToInt32((Height - ((H + 0.5) * cellheight)) / 2);
+
+                double midCellHeight = cellheight / 2;
+                double midCellWidth = cellwidth / 2;
+
+                for (int y = 0; y <= (2 * H) - 1; ++y)
+                {
+                    if ((y % 2) == 0)
+                    {
+                        for (int x = 0; x <= W - 1; x++)
+                        {
+                            if (cellid >= Cells.Length) break;
+                            
+                            Point left = new Point(Convert.ToInt32(offsetX + (x * cellwidth)), Convert.ToInt32(offsetY + (y * midCellHeight) + midCellHeight));
+                            Point top = new Point(Convert.ToInt32(offsetX + (x * cellwidth) + midCellWidth), Convert.ToInt32(offsetY + (y * midCellHeight)));
+                            Point right = new Point(Convert.ToInt32(offsetX + (x * cellwidth) + cellwidth), Convert.ToInt32(offsetY + (y * midCellHeight) + midCellHeight));
+                            Point down = new Point(Convert.ToInt32(offsetX + (x * cellwidth) + midCellWidth), Convert.ToInt32(offsetY + (y * midCellHeight) + cellheight));
+                            
+                            Cells[cellid].Points = new Point[] { left, top, right, down };
+                            cellid++;
+                        }
+                    }
+                    else
+                    {
+                        for (int x = 0; x <= W - 2; x++)
+                        {
+                            if (cellid >= Cells.Length) break;
+                            
+                            Point left = new Point(Convert.ToInt32(offsetX + (x * cellwidth) + midCellWidth), Convert.ToInt32(offsetY + (y * midCellHeight) + midCellHeight));
+                            Point top = new Point(Convert.ToInt32(offsetX + (x * cellwidth) + cellwidth), Convert.ToInt32(offsetY + (y * midCellHeight)));
+                            Point right = new Point(Convert.ToInt32(offsetX + (x * cellwidth) + cellwidth + midCellWidth), Convert.ToInt32(offsetY + (y * midCellHeight) + midCellHeight));
+                            Point down = new Point(Convert.ToInt32(offsetX + (x * cellwidth) + cellwidth), Convert.ToInt32(offsetY + (y * midCellHeight) + cellheight));
+                            
+                            Cells[cellid].Points = new Point[] { left, top, right, down };
+                            cellid++;
+                        }
+                    }
+                }
+                RealCellHeight = (int)cellheight;
+                RealcellWidth = (int)cellwidth;
+                Invalidate();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Erreur dans DrawGrille: {ex.Message}");
+            }
+        }
+
         private void FinalizeAnimations(object sender, ElapsedEventArgs e)
         {
-            if(Anim.Count > 0)
+            if (Anim.Count > 0)
             {
                 Invalidate();
-            }else if (!ShowAnim)
+            }
+            else if (!ShowAnim)
             {
                 AnimTimer.Stop();
             }
@@ -161,78 +294,6 @@ namespace Outil_Azur_complet.Bot.Controls
             }
         }
 
-        public void SetCellNum()
-        {
-            Cells = new UserMapCell[2 * H * W];
-            short cellid = 0;
-            UserMapCell cell;
-            for (int i = 0; i < H; i++)
-            {
-                for(int j = 0; j < W *2; j++)
-                {
-                    cell = new UserMapCell(cellid++);
-                    Cells[cell.id] = cell;
-                }
-            }
-            
-        }
-        private double GetMaxHight()
-        {
-            double CellLarge = Width / (double)(W + 1);
-            double CellLong = Height / (double)(H + 1);
-            CellLarge = Math.Min(CellLong * 2, CellLarge);
-
-            return CellLarge;
-        }
-        
-        public void DrawGrille()
-        {
-            try
-            {
-                int cellid = 0;
-                double cellwidth = GetMaxHight();
-                double cellheight = Math.Ceiling(cellwidth / 2);
-
-                int offsetX = Convert.ToInt32((Width - ((W + 0.5) * cellwidth)) / 2);
-                var offsetY = Convert.ToInt32((Height - ((H + 0.5) * cellheight)) / 2);
-
-                double midCellHeight = cellheight / 2;
-                double midCellWidth = cellwidth / 2;
-
-                for (int y = 0; y <= (2 * H) -1; ++y)
-                {
-                    if ((y % 2) == 0)
-                    {
-                        for (int x = 0; x <= W - 1; x++)
-                        {
-                            Point left = new Point(Convert.ToInt32(offsetX + (x * cellwidth)), Convert.ToInt32(offsetY + (y * midCellHeight) + midCellHeight));
-                            Point top = new Point(Convert.ToInt32(offsetX + (x * cellwidth) + midCellWidth), Convert.ToInt32(offsetY + (y * midCellHeight)));
-                            Point right = new Point(Convert.ToInt32(offsetX + (x * cellwidth) + cellwidth), Convert.ToInt32(offsetY + (y * midCellHeight) + midCellHeight));
-                            Point down = new Point(Convert.ToInt32(offsetX + (x * cellwidth) + midCellWidth), Convert.ToInt32(offsetY + (y * midCellHeight) + cellheight));
-                            //MessageBox.Show($"cellid(188): {cellid++}, {left}; {top}; {right}; {down};");
-                            Cells[cellid++].Points = new Point[] { left, top, right, down };
-                        }
-                    }
-                    else
-                    {
-                        for (int x = 0; x <= W - 2; x++)
-                        {
-                            Point left = new Point(Convert.ToInt32(offsetX + (x * cellwidth) + midCellWidth), Convert.ToInt32(offsetY + (y * midCellHeight) + midCellHeight));
-                            Point top = new Point(Convert.ToInt32(offsetX + (x * cellwidth) + cellwidth), Convert.ToInt32(offsetY + (y * midCellHeight)));
-                            Point right = new Point(Convert.ToInt32(offsetX + (x * cellwidth) + cellwidth + midCellWidth), Convert.ToInt32(offsetY + (y * midCellHeight) + midCellHeight));
-                            Point down = new Point(Convert.ToInt32(offsetX + (x * cellwidth) + cellwidth), Convert.ToInt32(offsetY + (y* midCellHeight) + cellheight));
-                            //MessageBox.Show($"cellid: {cellid++}, {left}; {top}; {right}; {down};");
-                            Cells[cellid++].Points = new Point[] { left, top, right, down };
-                        }
-                    }
-                }
-                RealCellHeight = (int)cellheight;
-                RealcellWidth = (int)cellwidth;
-                Invalidate();
-            }
-            catch { }
-
-        }
         public virtual void DrawUniqueCell(Graphics G, UserMapCell cell)
         {
             if (cell.IsRectangle(G.ClipBounds))
@@ -326,7 +387,7 @@ namespace Outil_Azur_complet.Bot.Controls
                         cell.Draw_FillingPie(G, Color.DarkRed, RealCellHeight / 2);
                     else if (Account.Game.Map.Entites.Values.Where(x => x is PNJ).FirstOrDefault(x => x.Cell.CellID == cell.id && !Anim.ContainsKey(x.id)) != null)
                     {
-                        
+
                         PNJ P = PNJ.ReturnNpc(Account.Game.Map.NPC_List().FirstOrDefault(x => x.Cell.CellID == cell.id).NPc_ID, true);
                         if (P != null)
                         {
@@ -347,14 +408,14 @@ namespace Outil_Azur_complet.Bot.Controls
                 }
             }
         }
-        public static Bitmap ReturnMonsterStar(int star) 
+        public static Bitmap ReturnMonsterStar(int star)
         {
-            
+
             switch (star)
             {
                 case 0:
                     return Properties.Resources.re11_1;
-                    case 15:
+                case 15:
                     return Properties.Resources.re1_1;
                 case 30:
                     return Properties.Resources.re2_1;
@@ -382,7 +443,7 @@ namespace Outil_Azur_complet.Bot.Controls
         {
             ApplyQuality(G);
             G.Clear(BackColor);
-            foreach(UserMapCell cell in Cells)
+            foreach (UserMapCell cell in Cells)
             {
                 DrawUniqueCell(G, cell);
                 DrawAnim(G);
@@ -409,12 +470,12 @@ namespace Outil_Azur_complet.Bot.Controls
         }
         private void DrawAnim(Graphics G)
         {
-            foreach(Animations A in Anim.Values)
+            foreach (Animations A in Anim.Values)
             {
-                if(A.Path == null)
+                if (A.Path == null)
                     continue;
-                using(SolidBrush S = new SolidBrush(AnimColor(A)))
-                    G.FillPie(S, A.Actual_point.X - (RealCellHeight /2 /2), A.Actual_point.Y - RealCellHeight /2 /2, RealCellHeight /2, RealCellHeight /2, 0, 360);
+                using (SolidBrush S = new SolidBrush(AnimColor(A)))
+                    G.FillPie(S, A.Actual_point.X - (RealCellHeight / 2 / 2), A.Actual_point.Y - RealCellHeight / 2 / 2, RealCellHeight / 2, RealCellHeight / 2, 0, 360);
             }
         }
         private Color AnimColor(Animations A)
@@ -431,7 +492,7 @@ namespace Outil_Azur_complet.Bot.Controls
         }
         public void RefreshMap()
         {
-            
+
             if (Account.Game.Map == null)
                 return;
             Anim.Clear();
@@ -441,10 +502,10 @@ namespace Outil_Azur_complet.Bot.Controls
             Cell[] MapCells = Account.Game.Map.MapCells;
             if (MapCells == null)
                 return;
-            
-            foreach(Cell cell in MapCells)
+
+            foreach (Cell cell in MapCells)
             {
-                if(cell != null)
+                if (cell != null)
                 {
 
                     Cells[cell.CellID].State = CellState.NO_WALKABLE;
@@ -460,7 +521,7 @@ namespace Outil_Azur_complet.Bot.Controls
                         Cells[cell.CellID].State = CellState.INTERACTIVE;
                     }
                 }
-                    
+
             }
             AnimTimer.Start();
             Invalidate();
@@ -469,13 +530,13 @@ namespace Outil_Azur_complet.Bot.Controls
         {
             UserMapCell C = new UserMapCell();
             C = Cells.FirstOrDefault(x => x.IsRectangle(new Rectangle(P.X - RealcellWidth, P.Y - RealCellHeight, RealcellWidth, RealCellHeight)) && pointPoly(x.Points, P));
-            
+
             return C;
         }
 
         public bool pointPoly(Point[] poly, Point P)
         {
-           if(poly != null)
+            if (poly != null)
             {
                 int XA, YA, XN, YN, x1, y1, x2, y2;
                 bool inside = false;
@@ -527,7 +588,7 @@ namespace Outil_Azur_complet.Bot.Controls
         private void Sf_ToolTipShowing(object sender, ToolTipShowingEventArgs e)
         {
             e.Location = CellH.Centre;
-            
+
         }
         protected override void OnMouseMove(MouseEventArgs e)
         {
@@ -583,10 +644,10 @@ namespace Outil_Azur_complet.Bot.Controls
                         List<string> names = new List<string>();
                         string S = "";
                         Tinfo.Items.Clear();
-                        foreach( var n in Account.Game.Map.MonsterList().FirstOrDefault(x => x.Cell.CellID == CellH.id).MobsInGroupe)
+                        foreach (var n in Account.Game.Map.MonsterList().FirstOrDefault(x => x.Cell.CellID == CellH.id).MobsInGroupe)
                             groups.Add($"{n.TemplateID}|{n.Level}|{n.Star}");
 
-                        foreach(string s in groups)
+                        foreach (string s in groups)
                         {
                             names.Add($"{Monstres.ReturnMonsters(int.Parse(s.Split('|')[0])).Name}({s.Split('|')[1]})");
                             S = s.Split('|')[2];
@@ -624,29 +685,29 @@ namespace Outil_Azur_complet.Bot.Controls
             if (MouseIn)
             {
                 UserMapCell cell = GetCell(e.Location);
-                if(CellH != null && CellH != cell)
+                if (CellH != null && CellH != cell)
                 {
                     OnCellclicked(CellH, e.Button, true);
                     CellH = cell;
                 }
-                if(cell != null)
+                if (cell != null)
                 {
-                    
+
                     OnCellclicked(cell, e.Button, true);
                 }
-                    
+
             }
-           
+
             base.OnMouseMove(e);
         }
-        
+
         protected override void OnMouseDown(MouseEventArgs e)
         {
             UserMapCell cell = GetCell(e.Location);
-            if(cell != null)
+            if (cell != null)
             {
                 CellH = CellBottom = cell;
-                
+
             }
             MouseIn = true;
             base.OnMouseDown(e);
@@ -655,9 +716,9 @@ namespace Outil_Azur_complet.Bot.Controls
         {
             MouseIn = false;
             UserMapCell cell = GetCell(e.Location);
-            if(CellH != null)
+            if (CellH != null)
             {
-                
+
                 OnCellclicked(CellH, e.Button, cell != CellBottom);
                 CellH = null;
             }
@@ -666,7 +727,7 @@ namespace Outil_Azur_complet.Bot.Controls
 
         private void UserMapControl_Paint(object sender, PaintEventArgs e)
         {
-            
+
         }
     }
 }

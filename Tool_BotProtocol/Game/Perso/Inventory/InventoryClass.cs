@@ -204,29 +204,42 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
                 disposed = true;
             }
         }
-        public static void LoadAllObjects()
+        public static async Task LoadAllObjectsAsync()
         {
             try
             {
-                DirectoryInfo MapFolder = new DirectoryInfo($"{ItemPath}");
-                foreach (FileInfo f in MapFolder.GetFiles())
+                DirectoryInfo itemsFolder = new DirectoryInfo(ItemPath);
+                FileInfo[] files = itemsFolder.GetFiles();
+
+                ConcurrentDictionary<int, InventoryObjects> inventoryObjects = new ConcurrentDictionary<int, InventoryObjects>();
+                List<Task> tasks = new List<Task>();
+
+                foreach (FileInfo file in files)
                 {
-                    if (f.Exists)
+                    if (file.Exists)
                     {
-                        XElement xmlmap = XElement.Load(f.FullName);
-                        InventoryObjects L = new InventoryObjects()
+                        tasks.Add(Task.Run(async () =>
                         {
-                            ID = int.Parse(xmlmap.Element("ID").Value),
-                            Type = byte.Parse(xmlmap.Element("TYPE").Value),
-                            Name = xmlmap.Element("NOM").Value,
-                            pods = short.Parse(xmlmap.Element("PODS").Value),
-                            Level = short.Parse(xmlmap.Element("NIVEAU").Value),
-                            Stats = xmlmap.Element("STATS").Value,
-                            Conditions = xmlmap.Element("CONDITIONS").Value
-                        };
-                        InventoryObjects.FullInventory.GetOrAdd(L.ID, L);
+                            XElement xmlmap = await Task.Run(() => XElement.Load(file.FullName));
+
+                            InventoryObjects L = new InventoryObjects()
+                            {
+                                ID = int.Parse(xmlmap.Element("ID").Value),
+                                Type = byte.Parse(xmlmap.Element("TYPE").Value),
+                                Name = xmlmap.Element("NOM").Value,
+                                pods = short.Parse(xmlmap.Element("PODS").Value),
+                                Level = short.Parse(xmlmap.Element("NIVEAU").Value),
+                                Stats = xmlmap.Element("STATS").Value,
+                                Conditions = xmlmap.Element("CONDITIONS").Value
+                            };
+
+                            inventoryObjects.TryAdd(L.ID, L);
+                        }));
                     }
                 }
+
+                await Task.WhenAll(tasks);
+                InventoryObjects.FullInventory = inventoryObjects;
             }
             catch (Exception ex)
             {
@@ -234,5 +247,6 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
                 return;
             }
         }
+
     }
 }

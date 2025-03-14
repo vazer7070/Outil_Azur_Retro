@@ -653,7 +653,8 @@ namespace Outil_Azur_complet.Bot
 
         private void roundedButton9_Click(object sender, EventArgs e)
         {
-
+            PersoForm PF = new PersoForm(ActualCompte);
+            PF.Show();
         }
     }
 }

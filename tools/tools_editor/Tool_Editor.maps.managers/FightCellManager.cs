@@ -1,6 +1,7 @@
 ﻿using System;
 using Tool_Editor.maps.data;
 using Microsoft.VisualBasic;
+using System.Collections.Generic;
 
 namespace Tool_Editor.maps.managers
 {
@@ -11,7 +12,7 @@ namespace Tool_Editor.maps.managers
         public static object GetHashCode(Map map)
         {
             string hashcode = "";
-            foreach(CellsData C in map.Cells)
+            foreach (CellsData C in map.Cells)
             {
                 if (C == null)
                     continue;
@@ -19,7 +20,7 @@ namespace Tool_Editor.maps.managers
                     hashcode += HashCell(C.ID);
             }
             hashcode = (hashcode + "|");
-            foreach(CellsData C2 in map.Cells)
+            foreach (CellsData C2 in map.Cells)
             {
                 if (C2 == null)
                     continue;

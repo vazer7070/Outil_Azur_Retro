@@ -22,24 +22,31 @@ namespace Tool_BotProtocol.Game.Jobs
         public static ConcurrentDictionary<int, Jobs> AllJobs = new ConcurrentDictionary<int, Jobs>();
 
         static string Jobspath = @".\ressources\Bot\BotJobs";
-        public static void LoadAllJobs()
+        public static async Task LoadAllJobsAsync()
         {
             try
             {
-                DirectoryInfo jobFolder = new DirectoryInfo($"{Jobspath}");
-                foreach (FileInfo f in jobFolder.GetFiles())
+                DirectoryInfo jobFolder = new DirectoryInfo(Jobspath);
+                List<Task> tasks = new List<Task>();
+
+                foreach (FileInfo file in jobFolder.GetFiles())
                 {
-                    if (f.Exists)
+                    if (file.Exists)
                     {
-                        XElement xmlmap = XElement.Load(f.FullName);
-                        Jobs J = new Jobs();
+                        tasks.Add(Task.Run(async () =>
                         {
-                            J.ID = int.Parse(xmlmap.Element("ID").Value);
-                            J.name = xmlmap.Element("NOM").Value;
-                        };
-                        AllJobs.GetOrAdd(J.ID, J);
+                            XElement xmlmap = await Task.Run(() => XElement.Load(file.FullName));
+                            Jobs J = new Jobs()
+                            {
+                                ID = int.Parse(xmlmap.Element("ID").Value),
+                                name = xmlmap.Element("NOM").Value
+                            };
+                            AllJobs.GetOrAdd(J.ID, J);
+                        }));
                     }
                 }
+
+                await Task.WhenAll(tasks);
             }
             catch (Exception ex)
             {
@@ -47,6 +54,7 @@ namespace Tool_BotProtocol.Game.Jobs
                 return;
             }
         }
+
         public Jobs(int id = 0)
         {
             if(id != 0)

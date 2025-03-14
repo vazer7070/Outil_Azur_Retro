@@ -23,38 +23,42 @@ namespace Outil_Azur_complet.Bot
         public LoadingBotForm()
         {
             InitializeComponent();
-            backgroundWorker1.DoWork += backgroundWorker1_DoWork;
-            backgroundWorker1.WorkerReportsProgress = true;
-
-            Directory.CreateDirectory(@".\ressources\Bot\BotMaps");
-            Directory.CreateDirectory(@".\ressources\Bot\BotObjets");
-            Directory.CreateDirectory(@".\ressources\Bot\BotJobs");
-            Directory.CreateDirectory(@".\ressources\Bot\AccountSingle");
-            Directory.CreateDirectory(@".\ressources\Bot\BotZaaps");
-            Directory.CreateDirectory(@".\ressources\Bot\BotNPCs");
-            Directory.CreateDirectory(@".\ressources\Bot\BotMonsters\");
         }
 
-        private void LoadingBotForm_Load(object sender, EventArgs e)
+        private async void LoadingBotForm_Load(object sender, EventArgs e)
         {
-            backgroundWorker1.RunWorkerAsync();
-        }
-        private void backgroundWorker1_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
-        {
-            MessagesReception.Init();
-            Jobs.LoadAllJobs();
-            Map.LoadAllMaps();
-            Monstres.LoadAllMonstrers();
-            PNJ.LoadAllNPC();
-            Zaaps.LoadZaaps();
-            InventoryClass.LoadAllObjects();
+            await LoadDataAsync();
+            OpenLoginForm();
         }
 
-        private void backgroundWorker1_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+        private async Task LoadDataAsync()
+        {
+            await Task.Run(async () =>
+            {
+                Directory.CreateDirectory(@".\ressources\Bot\BotMaps");
+                Directory.CreateDirectory(@".\ressources\Bot\BotObjets");
+                Directory.CreateDirectory(@".\ressources\Bot\BotJobs");
+                Directory.CreateDirectory(@".\ressources\Bot\AccountSingle");
+                Directory.CreateDirectory(@".\ressources\Bot\BotZaaps");
+                Directory.CreateDirectory(@".\ressources\Bot\BotNPCs");
+                Directory.CreateDirectory(@".\ressources\Bot\BotMonsters\");
+
+                MessagesReception.Init();
+                await Jobs.LoadAllJobsAsync();
+                await Map.LoadAllMapsAsync();
+                await Monstres.LoadAllMonstersAsync();
+                await PNJ.LoadAllNPCAsync();
+                await Zaaps.LoadZaapsAsync();
+                await InventoryClass.LoadAllObjectsAsync();
+            });
+        }
+
+        private void OpenLoginForm()
         {
             LoginForm LF = new LoginForm();
             LF.Show();
             Close();
         }
     }
+
 }

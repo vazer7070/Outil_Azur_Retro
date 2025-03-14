@@ -42,9 +42,11 @@
             this.tabPage4 = new System.Windows.Forms.TabPage();
             this.tabPage5 = new System.Windows.Forms.TabPage();
             this.iTalk_Button_11 = new iTalk.iTalk_Button_1();
+            this.iTalk_ComboBox2 = new iTalk.iTalk_ComboBox();
             this.iTalk_ThemeContainer1.SuspendLayout();
             this.iTalk_TabControl1.SuspendLayout();
             this.tabPage2.SuspendLayout();
+            this.tabPage3.SuspendLayout();
             this.SuspendLayout();
             // 
             // iTalk_ThemeContainer1
@@ -216,11 +218,12 @@
             // tabPage3
             // 
             this.tabPage3.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(246)))), ((int)(((byte)(246)))), ((int)(((byte)(246)))));
+            this.tabPage3.Controls.Add(this.iTalk_ComboBox2);
             this.tabPage3.Location = new System.Drawing.Point(139, 4);
             this.tabPage3.Name = "tabPage3";
             this.tabPage3.Size = new System.Drawing.Size(665, 398);
             this.tabPage3.TabIndex = 2;
-            this.tabPage3.Text = "SWF";
+            this.tabPage3.Text = "Déchiffrement";
             // 
             // tabPage4
             // 
@@ -255,6 +258,26 @@
             this.iTalk_Button_11.TextAlignment = System.Drawing.StringAlignment.Center;
             this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
             // 
+            // iTalk_ComboBox2
+            // 
+            this.iTalk_ComboBox2.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(246)))), ((int)(((byte)(246)))), ((int)(((byte)(246)))));
+            this.iTalk_ComboBox2.DrawMode = System.Windows.Forms.DrawMode.OwnerDrawFixed;
+            this.iTalk_ComboBox2.DropDownHeight = 100;
+            this.iTalk_ComboBox2.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.iTalk_ComboBox2.Font = new System.Drawing.Font("Segoe UI", 10F);
+            this.iTalk_ComboBox2.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(142)))), ((int)(((byte)(142)))), ((int)(((byte)(142)))));
+            this.iTalk_ComboBox2.FormattingEnabled = true;
+            this.iTalk_ComboBox2.HoverSelectionColor = System.Drawing.Color.FromArgb(((int)(((byte)(241)))), ((int)(((byte)(241)))), ((int)(((byte)(241)))));
+            this.iTalk_ComboBox2.IntegralHeight = false;
+            this.iTalk_ComboBox2.ItemHeight = 20;
+            this.iTalk_ComboBox2.Items.AddRange(new object[] {
+            "Map (rétro)"});
+            this.iTalk_ComboBox2.Location = new System.Drawing.Point(207, 44);
+            this.iTalk_ComboBox2.Name = "iTalk_ComboBox2";
+            this.iTalk_ComboBox2.Size = new System.Drawing.Size(208, 26);
+            this.iTalk_ComboBox2.StartIndex = 0;
+            this.iTalk_ComboBox2.TabIndex = 0;
+            // 
             // RessourceParser
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -270,6 +293,7 @@
             this.iTalk_TabControl1.ResumeLayout(false);
             this.tabPage2.ResumeLayout(false);
             this.tabPage2.PerformLayout();
+            this.tabPage3.ResumeLayout(false);
             this.ResumeLayout(false);
 
         }
@@ -290,5 +314,6 @@
         private System.Windows.Forms.TabPage tabPage5;
         private iTalk.iTalk_TextBox_Small iTalk_TextBox_Small1;
         private iTalk.iTalk_LinkLabel iTalk_LinkLabel1;
+        private iTalk.iTalk_ComboBox iTalk_ComboBox2;
     }
 }

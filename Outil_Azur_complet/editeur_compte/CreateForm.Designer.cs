@@ -10,15 +10,7 @@
         /// <summary>
         /// Clean up any resources being used.
         /// </summary>
-        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing && (components != null))
-            {
-                components.Dispose();
-            }
-            base.Dispose(disposing);
-        }
+       
 
         #region Windows Form Designer generated code
 
@@ -151,7 +143,7 @@
             this.iTalk_TextBox_Small1.TabIndex = 3;
             this.iTalk_TextBox_Small1.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
             this.iTalk_TextBox_Small1.UseSystemPasswordChar = false;
-            this.iTalk_TextBox_Small1.TextChanged += new System.EventHandler(this.iTalk_TextBox_Small1_TextChanged);
+            //this.iTalk_TextBox_Small1.TextChanged += new System.EventHandler(this.iTalk_TextBox_Small1_TextChanged);
             // 
             // radioButton3
             // 
@@ -185,7 +177,7 @@
             this.radioButton1.TabStop = true;
             this.radioButton1.Text = "Aucun";
             this.radioButton1.UseVisualStyleBackColor = true;
-            this.radioButton1.CheckedChanged += new System.EventHandler(this.radioButton1_CheckedChanged);
+           // this.radioButton1.CheckedChanged += new System.EventHandler(this.radioButton1_CheckedChanged);
             // 
             // iTalk_Label5
             // 

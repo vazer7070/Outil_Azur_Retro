@@ -11,7 +11,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 using Org.BouncyCastle.Ocsp;
-using Ubiety.Dns.Core;
 using System.Net.Sockets;
 
 namespace Tool_BotProtocol.Network.ByPass

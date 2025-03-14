@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            this.components = new System.ComponentModel.Container();
             this.iTalk_ThemeContainer1 = new iTalk.iTalk_ThemeContainer();
             this.iTalk_TabControl1 = new iTalk.iTalk_TabControl();
             this.tabPage1 = new System.Windows.Forms.TabPage();
@@ -36,10 +37,12 @@
             this.treeView1 = new System.Windows.Forms.TreeView();
             this.iTalk_Listview1 = new iTalk.iTalk_Listview();
             this.iTalk_Button_11 = new iTalk.iTalk_Button_1();
+            this.bindingSource1 = new System.Windows.Forms.BindingSource(this.components);
             this.iTalk_ThemeContainer1.SuspendLayout();
             this.iTalk_TabControl1.SuspendLayout();
             this.tabPage1.SuspendLayout();
             this.tabPage2.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.bindingSource1)).BeginInit();
             this.SuspendLayout();
             // 
             // iTalk_ThemeContainer1
@@ -158,6 +161,7 @@
             this.iTalk_TabControl1.ResumeLayout(false);
             this.tabPage1.ResumeLayout(false);
             this.tabPage2.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)(this.bindingSource1)).EndInit();
             this.ResumeLayout(false);
 
         }
@@ -172,5 +176,6 @@
         private System.Windows.Forms.TreeView treeView1;
         private iTalk.iTalk_Listview iTalk_Listview1;
         private System.Windows.Forms.RichTextBox richTextBox1;
+        private System.Windows.Forms.BindingSource bindingSource1;
     }
 }

@@ -27,7 +27,7 @@ namespace Tool_BotProtocol.Game.Managers
 
         public void Clear()
         {
-            Mouvements.Clear();
+            
             Recolte.Clear();
             Teleport.Dispose();
         }

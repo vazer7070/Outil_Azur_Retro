@@ -23,7 +23,7 @@ namespace Outil_Azur_complet.maps
             InitializeComponent();
         }
         public ImageList IM = new ImageList();
-        
+
 
         private void iTalk_Button_11_Click(object sender, EventArgs e)
         {
@@ -36,14 +36,14 @@ namespace Outil_Azur_complet.maps
         private void BG_Select_Load(object sender, EventArgs e)
         {
             TopMost = true;
-            
+
             IM.ImageSize = new Size(166, 100);
             IM.ColorDepth = ColorDepth.Depth32Bit;
 
             int i = 0;
-            foreach(TilesData T in TilesData.Backgrounds_Tiles)
+            foreach (TilesData T in TilesData.Backgrounds_Tiles)
             {
-                if(T != null)
+                if (T != null)
                 {
                     iTalk_Listview1.Items.Add(T.ID.ToString(), i);
                     IM.Images.Add(T.Image());

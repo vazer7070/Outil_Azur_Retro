@@ -64,25 +64,32 @@ namespace Outil_Azur_complet.Bot.Interfaces
 
         private void UserMapClic(UserMapCell cell, MouseButtons buttons, bool A)
         {
-            Map M = Account.Game.Map;
-            
-            Cell C = Account.Game.character.Cell, C2 = M.GetCellFromId(cell.id);
-
-            if(buttons == MouseButtons.Left && C.CellID != 0 && C2.CellID != 0 && !A)
+            try
             {
-               // MessageBox.Show($"C: {C.CellID} // C2: {C2.CellID}");
-              switch(Account.Game.Manager.Mouvements.GetCellsMove(C2, M.CellsOccuped()))
+                Map M = Account.Game.Map;
+
+                Cell C = Account.Game.character.Cell, C2 = M.GetCellFromId(cell.id);
+
+                if (C != null && buttons == MouseButtons.Left && C.CellID != 0 && C2.CellID != 0 && !A)
                 {
-                    case MoveResults.EXIT:
-                        Account.Logger.LogInfo("MAP", $"Le personnage se déplace vers la cellule {C2.CellID}");
-                        break;
-                    case MoveResults.SAMECELL:
-                        Account.Logger.LogError("MAP", "Vous êtes déjà sur la cellule de destination");
-                        break;
+                    // MessageBox.Show($"C: {C.CellID} // C2: {C2.CellID}");
+                    switch (Account.Game.Manager.Mouvements.GetCellsMove(C2, M.CellsOccuped()))
+                    {
+                        case MoveResults.EXIT:
+                            Account.Logger.LogInfo("MAP", $"Le personnage se déplace vers la cellule {C2.CellID}");
+                            break;
+                        case MoveResults.SAMECELL:
+                            Account.Logger.LogError("MAP", "Vous êtes déjà sur la cellule de destination");
+                            break;
                         default:
-                        Account.Logger.LogError("MAP", $"Impossible de se déplacer sur la cellule {C2.CellID} cause: [{Account.Game.Manager.Mouvements.GetCellsMove(C2, M.CellsOccuped())}]");
-                        break;
+                            Account.Logger.LogError("MAP", $"Impossible de se déplacer sur la cellule {C2.CellID} cause: [{Account.Game.Manager.Mouvements.GetCellsMove(C2, M.CellsOccuped())}]");
+                            break;
+                    }
                 }
+            }catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+                return;
             }
         }
         private void GetPathfinding(List<Cell> Cellslist) => Task.Run(() => UserMap.AddAnimations(Account.Game.character.id, Cellslist, PathfinderUtils.GetTimeOnMap(Cellslist.First(), Cellslist), AnimationType.PERSONNAGE));

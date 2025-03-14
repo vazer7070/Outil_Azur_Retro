@@ -21,5 +21,10 @@ namespace Outil_Azur_complet.maps
         {
             Hide();
         }
+
+        private void iTalk_Button_21_Click(object sender, EventArgs e)
+        {
+
+        }
     }
 }

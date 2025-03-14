@@ -65,7 +65,7 @@
             // 
             // backgroundWorker1
             // 
-            this.backgroundWorker1.RunWorkerCompleted += new System.ComponentModel.RunWorkerCompletedEventHandler(this.backgroundWorker1_RunWorkerCompleted);
+            
             // 
             // LoadingBotForm
             // 

@@ -14,3 +14,17 @@
 - Optimisation du système de connexion du joueur
 - Mise en place du système anti-cheat [part 1]
 - Refonte de la gestion de la visualisation des problèmes de connexion
+
+###### V-0.130 ######
+
+- Optimisation de l'éditeur de carte.
+- Optimisation du système de connexion SQL.
+- Optimisation du système de socket.
+- Optimisation du chargements du bot.
+- Correction du placement des tuiles.
+- Première itération du SpellBrain.
+- Correction du redimmensionnement de la zone de travail (MapForm).
+- Première itération de l'ouverture des cartes (swf).
+- Optimisation de l'interface de carte du bot.
+- Correction de nombreux petits bugs.
+- Préparation pour les futures mises à jour plus lourdes sur l'ensemble du code.

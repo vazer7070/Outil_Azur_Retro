@@ -14,6 +14,7 @@ namespace Outil_Azur_complet.maps
     public partial class MapForm : Form
     {
         MainEditeur E = new MainEditeur();
+        public int ID = 0;
         const int Sleep = 800;
         public static int SizeBaseCell = 26;
         public int W;
@@ -112,7 +113,6 @@ namespace Outil_Azur_complet.maps
                             return C.ID;
                     }
                 }
-
             }
             catch (Exception e)
             {
@@ -122,7 +122,6 @@ namespace Outil_Azur_complet.maps
         }
         public void GenerateGrid()
         {
-
             for (int n = 0; n <= H - 1; n++)
             {
                 for (int i = 0; i <= W; i++)
@@ -130,9 +129,9 @@ namespace Outil_Azur_complet.maps
                     int E_H = n * SizeCell;
                     int E_W = i * SizeCell * 2;
                     Point A = new Point(SizeCell + E_W, E_H);
-                    Point B = new Point(SizeCell * 2 + E_W, SizeCell / 2 + E_H);
+                    Point B = new Point(SizeCell * 2 + E_W, SizeCell/2 + E_H);
                     Point C = new Point(SizeCell + E_W, SizeCell + E_H);
-                    Point D = new Point(E_W, SizeCell / 2 + E_H);
+                    Point D = new Point(E_W, SizeCell/2 + E_H);
 
                     int ID = i + (n * W * 2) - n;
 
@@ -145,7 +144,6 @@ namespace Outil_Azur_complet.maps
                             NewCell.ID = ID;
                             NewCell.Location = new Point[] { A, B, C, D };
                             MyMap.Cells[NewCell.ID] = NewCell;
-
                         }
                         else
                         {
@@ -153,9 +151,6 @@ namespace Outil_Azur_complet.maps
                             MyMap.Cells[ID].Location = new Point[] { A, B, C, D };
                         }
                     }
-
-
-
                 }
             }
 
@@ -163,15 +158,14 @@ namespace Outil_Azur_complet.maps
             {
                 for (int o = 0; o <= W - 2; o++)
                 {
-                    int E_H = (u * SizeCell) + (SizeCell / 2);
+                    int E_H = (u * SizeCell) + (SizeCell/2);
                     int E_W = (o * SizeCell * 2) + SizeCell;
                     Point A = new Point(SizeCell + E_W, E_H);
-                    Point B = new Point(SizeCell * 2 + E_W, SizeCell / 2 + E_H);
+                    Point B = new Point(SizeCell * 2 + E_W, SizeCell/2 + E_H);
                     Point C = new Point(SizeCell + E_W, SizeCell + E_H);
-                    Point D = new Point(E_W, SizeCell / 2 + E_H);
+                    Point D = new Point(E_W, SizeCell/2 + E_H);
 
                     int ID = o + (u * (W * 2) + W) - u;
-
 
                     if (ID <= MyMap.Cells.Length - 1)
                     {
@@ -181,7 +175,6 @@ namespace Outil_Azur_complet.maps
                             CD.New(this);
                             CD.ID = ID;
                             CD.Location = new Point[] { A, B, C, D };
-
                             MyMap.Cells[CD.ID] = CD;
                         }
                         else
@@ -190,11 +183,8 @@ namespace Outil_Azur_complet.maps
                             MyMap.Cells[ID].Location = new Point[] { A, B, C, D };
                         }
                     }
-
                 }
             }
-
-
         }
 
         public void DrawAll(bool showlimit = true)
@@ -209,7 +199,7 @@ namespace Outil_Azur_complet.maps
                     int backPosX = (int)(TilesData.Get_Grounds(MyMap.Background.ID).X * CellsData.PourceTile);
                     int backPosY = (int)(TilesData.Get_Grounds(MyMap.Background.ID).Y * CellsData.PourceTile);
                     Rectangle R = new Rectangle(new Point(CellsData.SizeCell - backPosX, Convert.ToInt32(CellsData.SizeCell / 2) - backPosY), PicSize);
-                    G.DrawImage(MyMap.Background.Image(), R);
+                    G.DrawImage(MyMap.Background.ImageLoaded, R);
 
                 }
             }
@@ -328,7 +318,7 @@ namespace Outil_Azur_complet.maps
         {
             if (MyMap.Background != null)
             {
-                pictureBox1.BackgroundImage = MyMap.Background.Image();
+                pictureBox1.BackgroundImage = MyMap.Background.ImageLoaded;
 
             }
             else
@@ -343,9 +333,9 @@ namespace Outil_Azur_complet.maps
             {
                 MyMap.Background = image;
 
-            }
-            else
-            {
+                    }
+                    else
+                    {
                 MyMap.Background = null;
             }
 
@@ -364,24 +354,34 @@ namespace Outil_Azur_complet.maps
 
         private void MapForm_SizeChanged(object sender, EventArgs e)
         {
-            
-           
+            if (!SettingsManager.LockSize)
+            {
+                MapForm_ResizeEnd(sender, e);
+
+
+            }
         }
 
         private void pictureBox1_MouseMove(object sender, MouseEventArgs e)
         {
-            int id = Get_CellID(pictureBox1.PointToClient(MousePosition));
+            Point adjustedLocation = e.Location;
+            int id = Get_CellID(e.Location);
 
             if (id != HoverCell && id != -1)
             {
                 G.Clear(Color.Black);
+                if (ME.Show_Back && MyMap.Background != null)
+                {
+                    int backPosX = (int)(TilesData.Get_Grounds(MyMap.Background.ID).X * CellsData.PourceTile);
+                    int backPosY = (int)(TilesData.Get_Grounds(MyMap.Background.ID).Y * CellsData.PourceTile);
+                    Rectangle R = new Rectangle(new Point(CellsData.SizeCell - backPosX, Convert.ToInt32(CellsData.SizeCell / 2) - backPosY), PicSize);
+                    G.DrawImage(MyMap.Background.ImageLoaded, R);
+                }
                 G.DrawImage(Grid, new Point(0, 0));
                 HoverCell = id;
                 MyMap.Cells[HoverCell].Border(G, Brushes.BlueViolet);
                 pictureBox1.Image = MyPic;
             }
-
-
         }
 
         private void pictureBox1_MouseDown(object sender, MouseEventArgs e)
@@ -636,25 +636,26 @@ namespace Outil_Azur_complet.maps
         {
             if (TilesData.SelectedTiles != null)
             {
-
+                int correctedCell = SelectedCell - 15;
+                
                 switch (TilesData.SelectedTiles.type)
                 {
                     case TilesData.TileType.ground:
-                        MyMap.Cells[SelectedCell].GFX1 = TilesData.SelectedTiles;
-                        MyMap.Cells[SelectedCell].FlipGFX1 = E.SelectedFlip;
-                        MyMap.Cells[SelectedCell].RotaGFX1 = E.SelectedRotate;
+                        MyMap.Cells[correctedCell].GFX1 = TilesData.SelectedTiles;
+                        MyMap.Cells[correctedCell].FlipGFX1 = E.SelectedFlip;
+                        MyMap.Cells[correctedCell].RotaGFX1 = E.SelectedRotate;
                         break;
                     case TilesData.TileType.objet:
                         switch (E.Calque)
                         {
                             case 1:
-                                MyMap.Cells[SelectedCell].GFX2 = TilesData.SelectedTiles;
-                                MyMap.Cells[SelectedCell].FlipGFX2 = E.SelectedFlip;
-                                MyMap.Cells[SelectedCell].RotaGFX2 = E.SelectedRotate;
+                                MyMap.Cells[correctedCell].GFX2 = TilesData.SelectedTiles;
+                                MyMap.Cells[correctedCell].FlipGFX2 = E.SelectedFlip;
+                                MyMap.Cells[correctedCell].RotaGFX2 = E.SelectedRotate;
                                 break;
                             case 2:
-                                MyMap.Cells[SelectedCell].GFX3 = TilesData.SelectedTiles;
-                                MyMap.Cells[SelectedCell].FlipGFX3 = E.SelectedFlip;
+                                MyMap.Cells[correctedCell].GFX3 = TilesData.SelectedTiles;
+                                MyMap.Cells[correctedCell].FlipGFX3 = E.SelectedFlip;
                                 break;
                         }
                         break;
@@ -679,41 +680,65 @@ namespace Outil_Azur_complet.maps
 
         private void MapForm_ResizeEnd(object sender, EventArgs e)
         {
-           if (SettingsManager.LockSize)
+            if (SettingsManager.LockSize)
             {
+                // Taille fixe
                 PicSize = new Size(W * SizeCell * 2, H * SizeCell);
                 Size = new Size(PicSize.Width + 16, PicSize.Height + 38);
-                MyPic = new Bitmap(PicSize.Width, PicSize.Height);
-                Grid = new Bitmap(PicSize.Width, PicSize.Height);
-                G = Graphics.FromImage(MyPic);
-                pictureBox1.Image = MyPic;
-                CellsData.PourceTile = SizeCell / SizeBaseCell;
-                GenerateGrid();
-                DrawAll();
             }
             else
             {
-                int x = Convert.ToInt32(pictureBox1.Width / (W * 2 + 1));
-                int y = Convert.ToInt32(pictureBox1.Height / (H + 2));
-                if (x < y)
-                {
-                    CellsData.SizeCell = x;
-                }
-                else
-                {
-                    CellsData.SizeCell = y;
-                }
-                PicSize = new Size(W * CellsData.SizeCell * 2, H * CellsData.SizeCell);
-                MyPic = new Bitmap(PicSize.Width, PicSize.Height);
-                G = Graphics.FromImage(MyPic);
-                CellsData.PourceTile = CellsData.SizeCell / SizeBaseCell;
-                pictureBox1.Image = MyPic;
-                Size = new Size(PicSize.Width + 16, PicSize.Height + 38);
-                GenerateGrid();
-                DrawAll();
+                // Ajuster la taille du formulaire pour maintenir les proportions
+                int availableWidth = Width - 16;
+                int availableHeight = Height - 38;
+                
+                // Calculer la taille des cellules en préservant le ratio 2:1 (W:H)
+                int maxCellWidth = availableWidth / (W * 2);
+                int maxCellHeight = availableHeight / H;
+                
+                // Prendre la plus petite valeur pour maintenir les proportions
+                int newSize = Math.Min(maxCellWidth, maxCellHeight);
+                newSize = Math.Max(newSize, 1); // Éviter une taille de 0
+                
+                // Mettre à jour les tailles
+                SizeCell = newSize;
+                CellsData.SizeCell = newSize;
+                
+                // Calculer les nouvelles dimensions du PictureBox
+                PicSize = new Size(W * SizeCell * 2, H * SizeCell);
             }
 
+            // Recréer les bitmaps avec les nouvelles dimensions
+            if (MyPic != null) MyPic.Dispose();
+            if (Grid != null) Grid.Dispose();
+            if (G != null) G.Dispose();
+            
+            MyPic = new Bitmap(PicSize.Width, PicSize.Height);
+            Grid = new Bitmap(PicSize.Width, PicSize.Height);
+            G = Graphics.FromImage(MyPic);
+
+            // Mettre à jour les ratios
+            PourceOfTile = (float)SizeCell / SizeBaseCell;
+            CellsData.PourceTile = PourceOfTile;
+
+            // Configurer le PictureBox
+            pictureBox1.Size = PicSize;
+            pictureBox1.SizeMode = PictureBoxSizeMode.CenterImage;
+            pictureBox1.Image = MyPic;
+
+            // Régénérer la grille
+            GenerateGrid();
+            
+            // Redessiner tout
+            DrawAll();
+            
+            // Forcer le rafraîchissement
+            pictureBox1.Invalidate();
         }
+
+       
+
+       
     }
 }
 

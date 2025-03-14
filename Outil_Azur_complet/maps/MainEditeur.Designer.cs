@@ -86,16 +86,12 @@ namespace Outil_Azur_complet.maps
             this.xpTaskPage1 = new Syncfusion.Windows.Forms.Tools.XPTaskPage();
             this.tabControlAdv1 = new Syncfusion.Windows.Forms.Tools.TabControlAdv();
             this.tabPageAdv1 = new Syncfusion.Windows.Forms.Tools.TabPageAdv();
-            this.sfComboBox1 = new Syncfusion.WinForms.ListView.SfComboBox();
-            this.sfComboBox2 = new Syncfusion.WinForms.ListView.SfComboBox();
-            this.pictureBox1 = new System.Windows.Forms.PictureBox();
-            this.tabPageAdv2 = new Syncfusion.Windows.Forms.Tools.TabPageAdv();
-            this.sfButton3 = new Syncfusion.WinForms.Controls.SfButton();
-            this.sfButton2 = new Syncfusion.WinForms.Controls.SfButton();
-            this.sfButton1 = new Syncfusion.WinForms.Controls.SfButton();
             this.iTalk_NumericUpDown10 = new iTalk.iTalk_NumericUpDown();
             this.iTalk_NumericUpDown9 = new iTalk.iTalk_NumericUpDown();
             this.iTalk_NumericUpDown8 = new iTalk.iTalk_NumericUpDown();
+            this.sfComboBox1 = new Syncfusion.WinForms.ListView.SfComboBox();
+            this.sfComboBox2 = new Syncfusion.WinForms.ListView.SfComboBox();
+            this.pictureBox1 = new System.Windows.Forms.PictureBox();
             this.iTalk_Panel1 = new iTalk.iTalk_Panel();
             this.iTalk_CheckBox1 = new iTalk.iTalk_CheckBox();
             this.iTalk_CheckBox2 = new iTalk.iTalk_CheckBox();
@@ -127,6 +123,7 @@ namespace Outil_Azur_complet.maps
             this.iTalk_Label11 = new iTalk.iTalk_Label();
             this.iTalk_Label9 = new iTalk.iTalk_Label();
             this.iTalk_Label8 = new iTalk.iTalk_Label();
+            this.tabPageAdv2 = new Syncfusion.Windows.Forms.Tools.TabPageAdv();
             this.iTalk_NumericUpDown4 = new iTalk.iTalk_NumericUpDown();
             this.iTalk_Panel2 = new iTalk.iTalk_Panel();
             this.iTalk_CheckBox10 = new iTalk.iTalk_CheckBox();
@@ -138,6 +135,9 @@ namespace Outil_Azur_complet.maps
             this.iTalk_CheckBox11 = new iTalk.iTalk_CheckBox();
             this.iTalk_NumericUpDown3 = new iTalk.iTalk_NumericUpDown();
             this.iTalk_Label17 = new iTalk.iTalk_Label();
+            this.sfButton3 = new Syncfusion.WinForms.Controls.SfButton();
+            this.sfButton2 = new Syncfusion.WinForms.Controls.SfButton();
+            this.sfButton1 = new Syncfusion.WinForms.Controls.SfButton();
             this.iTalk_Label16 = new iTalk.iTalk_Label();
             this.iTalk_Label18 = new iTalk.iTalk_Label();
             this.iTalk_Label25 = new iTalk.iTalk_Label();
@@ -159,8 +159,8 @@ namespace Outil_Azur_complet.maps
             ((System.ComponentModel.ISupportInitialize)(this.sfComboBox1)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.sfComboBox2)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
-            this.tabPageAdv2.SuspendLayout();
             this.iTalk_Panel1.SuspendLayout();
+            this.tabPageAdv2.SuspendLayout();
             this.iTalk_Panel2.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -410,18 +410,19 @@ namespace Outil_Azur_complet.maps
             this.toolStripButton1.Name = "toolStripButton1";
             this.toolStripButton1.Size = new System.Drawing.Size(53, 22);
             this.toolStripButton1.Text = "Ouvrir";
+            this.toolStripButton1.Click += new System.EventHandler(this.toolStripButton1_Click);
             // 
             // sWFToolStripMenuItem
             // 
             this.sWFToolStripMenuItem.Name = "sWFToolStripMenuItem";
-            this.sWFToolStripMenuItem.Size = new System.Drawing.Size(97, 22);
+            this.sWFToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
             this.sWFToolStripMenuItem.Text = "SWF";
             this.sWFToolStripMenuItem.Click += new System.EventHandler(this.sWFToolStripMenuItem_Click);
             // 
             // bDDToolStripMenuItem
             // 
             this.bDDToolStripMenuItem.Name = "bDDToolStripMenuItem";
-            this.bDDToolStripMenuItem.Size = new System.Drawing.Size(97, 22);
+            this.bDDToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
             this.bDDToolStripMenuItem.Text = "BDD";
             // 
             // toolStripButton2
@@ -443,6 +444,7 @@ namespace Outil_Azur_complet.maps
             this.toolStripButton3.Name = "toolStripButton3";
             this.toolStripButton3.Size = new System.Drawing.Size(70, 22);
             this.toolStripButton3.Text = "Paramètres";
+            this.toolStripButton3.Click += new System.EventHandler(this.toolStripButton3_Click);
             // 
             // toolStripDropDownButton2
             // 
@@ -680,100 +682,6 @@ namespace Outil_Azur_complet.maps
             this.tabPageAdv1.Text = "Map";
             this.tabPageAdv1.ThemesEnabled = true;
             // 
-            // sfComboBox1
-            // 
-            this.sfComboBox1.AutoCompleteMode = System.Windows.Forms.AutoCompleteMode.Suggest;
-            this.sfComboBox1.DropDownPosition = Syncfusion.WinForms.Core.Enums.PopupRelativeAlignment.Center;
-            this.sfComboBox1.Location = new System.Drawing.Point(19, 775);
-            this.sfComboBox1.Name = "sfComboBox1";
-            this.sfComboBox1.Size = new System.Drawing.Size(137, 28);
-            this.sfComboBox1.Style.DropDownStyle.BorderColor = System.Drawing.Color.FromArgb(((int)(((byte)(100)))), ((int)(((byte)(100)))), ((int)(((byte)(100)))));
-            this.sfComboBox1.Style.TokenStyle.CloseButtonBackColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(255)))), ((int)(((byte)(255)))));
-            this.sfComboBox1.TabIndex = 16;
-            // 
-            // sfComboBox2
-            // 
-            this.sfComboBox2.AutoCompleteMode = System.Windows.Forms.AutoCompleteMode.Suggest;
-            this.sfComboBox2.DropDownPosition = Syncfusion.WinForms.Core.Enums.PopupRelativeAlignment.Center;
-            this.sfComboBox2.Location = new System.Drawing.Point(20, 825);
-            this.sfComboBox2.Name = "sfComboBox2";
-            this.sfComboBox2.Size = new System.Drawing.Size(136, 28);
-            this.sfComboBox2.Style.DropDownStyle.BorderColor = System.Drawing.Color.FromArgb(((int)(((byte)(100)))), ((int)(((byte)(100)))), ((int)(((byte)(100)))));
-            this.sfComboBox2.Style.TokenStyle.CloseButtonBackColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(255)))), ((int)(((byte)(255)))));
-            this.sfComboBox2.TabIndex = 16;
-            // 
-            // pictureBox1
-            // 
-            this.pictureBox1.BackColor = System.Drawing.SystemColors.ActiveCaptionText;
-            this.pictureBox1.BackgroundImageLayout = System.Windows.Forms.ImageLayout.Stretch;
-            this.pictureBox1.Location = new System.Drawing.Point(39, 326);
-            this.pictureBox1.Name = "pictureBox1";
-            this.pictureBox1.Size = new System.Drawing.Size(101, 94);
-            this.pictureBox1.TabIndex = 14;
-            this.pictureBox1.TabStop = false;
-            // 
-            // tabPageAdv2
-            // 
-            this.tabPageAdv2.Controls.Add(this.iTalk_NumericUpDown4);
-            this.tabPageAdv2.Controls.Add(this.iTalk_Panel2);
-            this.tabPageAdv2.Controls.Add(this.iTalk_NumericUpDown3);
-            this.tabPageAdv2.Controls.Add(this.iTalk_Label17);
-            this.tabPageAdv2.Controls.Add(this.pictureBox5);
-            this.tabPageAdv2.Controls.Add(this.pictureBox4);
-            this.tabPageAdv2.Controls.Add(this.sfButton3);
-            this.tabPageAdv2.Controls.Add(this.sfButton2);
-            this.tabPageAdv2.Controls.Add(this.sfButton1);
-            this.tabPageAdv2.Controls.Add(this.pictureBox3);
-            this.tabPageAdv2.Controls.Add(this.iTalk_Label16);
-            this.tabPageAdv2.Controls.Add(this.iTalk_Label18);
-            this.tabPageAdv2.Controls.Add(this.iTalk_Label25);
-            this.tabPageAdv2.Controls.Add(this.iTalk_Label20);
-            this.tabPageAdv2.Controls.Add(this.iTalk_Label23);
-            this.tabPageAdv2.Controls.Add(this.iTalk_Label19);
-            this.tabPageAdv2.Controls.Add(this.iTalk_Label21);
-            this.tabPageAdv2.Controls.Add(this.iTalk_Label24);
-            this.tabPageAdv2.Controls.Add(this.iTalk_Label22);
-            this.tabPageAdv2.Image = null;
-            this.tabPageAdv2.ImageSize = new System.Drawing.Size(16, 16);
-            this.tabPageAdv2.Location = new System.Drawing.Point(3, 27);
-            this.tabPageAdv2.Name = "tabPageAdv2";
-            this.tabPageAdv2.ShowCloseButton = true;
-            this.tabPageAdv2.Size = new System.Drawing.Size(177, 779);
-            this.tabPageAdv2.TabIndex = 2;
-            this.tabPageAdv2.Text = "Cellule";
-            this.tabPageAdv2.ThemesEnabled = true;
-            this.tabPageAdv2.Click += new System.EventHandler(this.tabPageAdv2_Click);
-            // 
-            // sfButton3
-            // 
-            this.sfButton3.AccessibleName = "Button";
-            this.sfButton3.Font = new System.Drawing.Font("Segoe UI Semibold", 9F);
-            this.sfButton3.Location = new System.Drawing.Point(125, 319);
-            this.sfButton3.Name = "sfButton3";
-            this.sfButton3.Size = new System.Drawing.Size(27, 30);
-            this.sfButton3.Style.Image = ((System.Drawing.Image)(resources.GetObject("resource.Image")));
-            this.sfButton3.TabIndex = 19;
-            // 
-            // sfButton2
-            // 
-            this.sfButton2.AccessibleName = "Button";
-            this.sfButton2.Font = new System.Drawing.Font("Segoe UI Semibold", 9F);
-            this.sfButton2.Location = new System.Drawing.Point(125, 206);
-            this.sfButton2.Name = "sfButton2";
-            this.sfButton2.Size = new System.Drawing.Size(27, 30);
-            this.sfButton2.Style.Image = ((System.Drawing.Image)(resources.GetObject("resource.Image1")));
-            this.sfButton2.TabIndex = 19;
-            // 
-            // sfButton1
-            // 
-            this.sfButton1.AccessibleName = "Button";
-            this.sfButton1.Font = new System.Drawing.Font("Segoe UI Semibold", 9F);
-            this.sfButton1.Location = new System.Drawing.Point(125, 96);
-            this.sfButton1.Name = "sfButton1";
-            this.sfButton1.Size = new System.Drawing.Size(27, 30);
-            this.sfButton1.Style.Image = ((System.Drawing.Image)(resources.GetObject("resource.Image2")));
-            this.sfButton1.TabIndex = 19;
-            // 
             // iTalk_NumericUpDown10
             // 
             this.iTalk_NumericUpDown10.BackColor = System.Drawing.Color.Transparent;
@@ -821,6 +729,38 @@ namespace Outil_Azur_complet.maps
             this.iTalk_NumericUpDown8.Text = "iTalk_NumericUpDown8";
             this.iTalk_NumericUpDown8.TextAlignment = iTalk.iTalk_NumericUpDown._TextAlignment.Near;
             this.iTalk_NumericUpDown8.Value = ((long)(0));
+            // 
+            // sfComboBox1
+            // 
+            this.sfComboBox1.AutoCompleteMode = System.Windows.Forms.AutoCompleteMode.Suggest;
+            this.sfComboBox1.DropDownPosition = Syncfusion.WinForms.Core.Enums.PopupRelativeAlignment.Center;
+            this.sfComboBox1.Location = new System.Drawing.Point(19, 775);
+            this.sfComboBox1.Name = "sfComboBox1";
+            this.sfComboBox1.Size = new System.Drawing.Size(137, 28);
+            this.sfComboBox1.Style.DropDownStyle.BorderColor = System.Drawing.Color.FromArgb(((int)(((byte)(100)))), ((int)(((byte)(100)))), ((int)(((byte)(100)))));
+            this.sfComboBox1.Style.TokenStyle.CloseButtonBackColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(255)))), ((int)(((byte)(255)))));
+            this.sfComboBox1.TabIndex = 16;
+            // 
+            // sfComboBox2
+            // 
+            this.sfComboBox2.AutoCompleteMode = System.Windows.Forms.AutoCompleteMode.Suggest;
+            this.sfComboBox2.DropDownPosition = Syncfusion.WinForms.Core.Enums.PopupRelativeAlignment.Center;
+            this.sfComboBox2.Location = new System.Drawing.Point(20, 825);
+            this.sfComboBox2.Name = "sfComboBox2";
+            this.sfComboBox2.Size = new System.Drawing.Size(136, 28);
+            this.sfComboBox2.Style.DropDownStyle.BorderColor = System.Drawing.Color.FromArgb(((int)(((byte)(100)))), ((int)(((byte)(100)))), ((int)(((byte)(100)))));
+            this.sfComboBox2.Style.TokenStyle.CloseButtonBackColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(255)))), ((int)(((byte)(255)))));
+            this.sfComboBox2.TabIndex = 16;
+            // 
+            // pictureBox1
+            // 
+            this.pictureBox1.BackColor = System.Drawing.SystemColors.ActiveCaptionText;
+            this.pictureBox1.BackgroundImageLayout = System.Windows.Forms.ImageLayout.Stretch;
+            this.pictureBox1.Location = new System.Drawing.Point(39, 326);
+            this.pictureBox1.Name = "pictureBox1";
+            this.pictureBox1.Size = new System.Drawing.Size(101, 94);
+            this.pictureBox1.TabIndex = 14;
+            this.pictureBox1.TabStop = false;
             // 
             // iTalk_Panel1
             // 
@@ -1233,6 +1173,38 @@ namespace Outil_Azur_complet.maps
             this.iTalk_Label8.Text = "ARRIERE-PLAN:";
             this.iTalk_Label8.Click += new System.EventHandler(this.iTalk_Label8_Click);
             // 
+            // tabPageAdv2
+            // 
+            this.tabPageAdv2.Controls.Add(this.iTalk_NumericUpDown4);
+            this.tabPageAdv2.Controls.Add(this.iTalk_Panel2);
+            this.tabPageAdv2.Controls.Add(this.iTalk_NumericUpDown3);
+            this.tabPageAdv2.Controls.Add(this.iTalk_Label17);
+            this.tabPageAdv2.Controls.Add(this.pictureBox5);
+            this.tabPageAdv2.Controls.Add(this.pictureBox4);
+            this.tabPageAdv2.Controls.Add(this.sfButton3);
+            this.tabPageAdv2.Controls.Add(this.sfButton2);
+            this.tabPageAdv2.Controls.Add(this.sfButton1);
+            this.tabPageAdv2.Controls.Add(this.pictureBox3);
+            this.tabPageAdv2.Controls.Add(this.iTalk_Label16);
+            this.tabPageAdv2.Controls.Add(this.iTalk_Label18);
+            this.tabPageAdv2.Controls.Add(this.iTalk_Label25);
+            this.tabPageAdv2.Controls.Add(this.iTalk_Label20);
+            this.tabPageAdv2.Controls.Add(this.iTalk_Label23);
+            this.tabPageAdv2.Controls.Add(this.iTalk_Label19);
+            this.tabPageAdv2.Controls.Add(this.iTalk_Label21);
+            this.tabPageAdv2.Controls.Add(this.iTalk_Label24);
+            this.tabPageAdv2.Controls.Add(this.iTalk_Label22);
+            this.tabPageAdv2.Image = null;
+            this.tabPageAdv2.ImageSize = new System.Drawing.Size(16, 16);
+            this.tabPageAdv2.Location = new System.Drawing.Point(3, 27);
+            this.tabPageAdv2.Name = "tabPageAdv2";
+            this.tabPageAdv2.ShowCloseButton = true;
+            this.tabPageAdv2.Size = new System.Drawing.Size(177, 779);
+            this.tabPageAdv2.TabIndex = 2;
+            this.tabPageAdv2.Text = "Cellule";
+            this.tabPageAdv2.ThemesEnabled = true;
+            this.tabPageAdv2.Click += new System.EventHandler(this.tabPageAdv2_Click);
+            // 
             // iTalk_NumericUpDown4
             // 
             this.iTalk_NumericUpDown4.BackColor = System.Drawing.Color.Transparent;
@@ -1370,6 +1342,36 @@ namespace Outil_Azur_complet.maps
             this.iTalk_Label17.Size = new System.Drawing.Size(74, 13);
             this.iTalk_Label17.TabIndex = 15;
             this.iTalk_Label17.Text = "Pente du sol:";
+            // 
+            // sfButton3
+            // 
+            this.sfButton3.AccessibleName = "Button";
+            this.sfButton3.Font = new System.Drawing.Font("Segoe UI Semibold", 9F);
+            this.sfButton3.Location = new System.Drawing.Point(125, 319);
+            this.sfButton3.Name = "sfButton3";
+            this.sfButton3.Size = new System.Drawing.Size(27, 30);
+            this.sfButton3.Style.Image = ((System.Drawing.Image)(resources.GetObject("resource.Image")));
+            this.sfButton3.TabIndex = 19;
+            // 
+            // sfButton2
+            // 
+            this.sfButton2.AccessibleName = "Button";
+            this.sfButton2.Font = new System.Drawing.Font("Segoe UI Semibold", 9F);
+            this.sfButton2.Location = new System.Drawing.Point(125, 206);
+            this.sfButton2.Name = "sfButton2";
+            this.sfButton2.Size = new System.Drawing.Size(27, 30);
+            this.sfButton2.Style.Image = ((System.Drawing.Image)(resources.GetObject("resource.Image1")));
+            this.sfButton2.TabIndex = 19;
+            // 
+            // sfButton1
+            // 
+            this.sfButton1.AccessibleName = "Button";
+            this.sfButton1.Font = new System.Drawing.Font("Segoe UI Semibold", 9F);
+            this.sfButton1.Location = new System.Drawing.Point(125, 96);
+            this.sfButton1.Name = "sfButton1";
+            this.sfButton1.Size = new System.Drawing.Size(27, 30);
+            this.sfButton1.Style.Image = ((System.Drawing.Image)(resources.GetObject("resource.Image2")));
+            this.sfButton1.TabIndex = 19;
             // 
             // iTalk_Label16
             // 
@@ -1509,9 +1511,9 @@ namespace Outil_Azur_complet.maps
             ((System.ComponentModel.ISupportInitialize)(this.sfComboBox1)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.sfComboBox2)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).EndInit();
+            this.iTalk_Panel1.ResumeLayout(false);
             this.tabPageAdv2.ResumeLayout(false);
             this.tabPageAdv2.PerformLayout();
-            this.iTalk_Panel1.ResumeLayout(false);
             this.iTalk_Panel2.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
@@ -1636,6 +1638,3 @@ namespace Outil_Azur_complet.maps
         private Syncfusion.WinForms.Controls.SfButton sfButton2;
     }
 }
-
-
-
