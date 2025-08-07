@@ -213,50 +213,50 @@ namespace Outil_Azur_complet
             }
             menu.Show();
         }
-        private async void Load_Misc()
+        private void Load_Misc()
         {
-            
+
             try
             {
 
-                    AccountList.AllAccounts();
-                    iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{AccountList.AccountListCount} compte(s) chargé(s).\n";
-                    GroupesList.groupe();
-                    CharacterList.AllPerso();
-                    iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{CharacterList.PersoCount} personnage(s) chargé(s).\n";
-                    ConditionsListing.ConditionsLoad(@".\ressources\conditions.txt");
-                    iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{ConditionsListing.ConditionsDico.Count} conditions chargées.\n";
-                    ItemTemplateList.Load_Item();
-                    iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{ItemTemplateList.CountItems} items chargés.\n";
-                    ItemList.AddItemIdToList();
-                    iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"Mise en cache des GUID...({ItemList.ItemsId.Count})\n";
-                    SpellsList.Load_Spells();
-                    SpellsBrain SB = new SpellsBrain();
-                  //  await SB.TradAndUnderstandSpellsAsync();
-                    iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{SpellsList.CountSpells} sorts chargés.\n";
-                    ItemSetList.LoadPano();
-                    iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{ItemSetList.Count_Pano} panoplies chargées.\n";
-                    EffectsListing.Load_effects(@".\ressources\effects.txt");
-                    EffectsListing.Load_ItemEffects(@".\ressources\itemeffects.txt");
-                    EffectsListing.Load_SpellsEffects(@".\ressources\spellseffects.txt");
-                    iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{EffectsListing.Effects_count} + {EffectsListing.ItemEffects_count} + {EffectsListing.SpellsEffects_count} effets chargés.\n";
-                    DropsList.Load_Drops();
-                    iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{DropsList.Drops_Count} drops chargés.\n";
-                    MonsterList.Load_Monster();
-                    iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{MonsterList.Monsters_count} monstres chargés.\n";
-                    GiftList.LoadAllgifts();
-                    iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{GiftList.GiftsCount} gift(s) chargé(s).\n";
-                    MapsList.LoadAllMaps();
-                    iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{MapsList.MapsCount} cartes chargées.\n";
-                    JobsList.ANPE();
-                    iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{JobsList.JobsCount} métiers chargés.\n";
-                    NPCList.LoadAllPnj();
-                    iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{NPCList.NpcCount} PNJs chargés.\n";
-                    NPCTemplateList.LoadAllPnjTemplate();
-                    NPCList.AddNameToPnj(@".\ressources\Bot\BotNPCs\NPC_name.txt");
-                    iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{NPCTemplateList.PNJcount} templates de PNJs chargés.\n";
-                    ZaapsList.LoadallZaaps();
-                    iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{ZaapsList.ZaapsCount} zaaps chargés.\n";
+                AccountList.AllAccounts();
+                iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{AccountList.AccountListCount} compte(s) chargé(s).\n";
+                GroupesList.groupe();
+                CharacterList.AllPerso();
+                iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{CharacterList.PersoCount} personnage(s) chargé(s).\n";
+                ConditionsListing.ConditionsLoad(@".\ressources\conditions.txt");
+                iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{ConditionsListing.ConditionsDico.Count} conditions chargées.\n";
+                ItemTemplateList.Load_Item();
+                iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{ItemTemplateList.CountItems} items chargés.\n";
+                ItemList.AddItemIdToList();
+                iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"Mise en cache des GUID...({ItemList.ItemsId.Count})\n";
+                SpellsList.Load_Spells();
+                SpellsBrain SB = new SpellsBrain();
+                //  await SB.TradAndUnderstandSpellsAsync(); il va revenir
+                iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{SpellsList.CountSpells} sorts chargés.\n";
+                ItemSetList.LoadPano();
+                iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{ItemSetList.Count_Pano} panoplies chargées.\n";
+                EffectsListing.Load_effects(@".\ressources\effects.txt");
+                EffectsListing.Load_ItemEffects(@".\ressources\itemeffects.txt");
+                EffectsListing.Load_SpellsEffects(@".\ressources\spellseffects.txt");
+                iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{EffectsListing.Effects_count} + {EffectsListing.ItemEffects_count} + {EffectsListing.SpellsEffects_count} effets chargés.\n";
+                DropsList.Load_Drops();
+                iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{DropsList.Drops_Count} drops chargés.\n";
+                MonsterList.Load_Monster();
+                iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{MonsterList.Monsters_count} monstres chargés.\n";
+                GiftList.LoadAllgifts();
+                iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{GiftList.GiftsCount} gift(s) chargé(s).\n";
+                MapsList.LoadAllMaps();
+                iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{MapsList.MapsCount} cartes chargées.\n";
+                JobsList.ANPE();
+                iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{JobsList.JobsCount} métiers chargés.\n";
+                NPCList.LoadAllPnj();
+                iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{NPCList.NpcCount} PNJs chargés.\n";
+                NPCTemplateList.LoadAllPnjTemplate();
+                NPCList.AddNameToPnj(@".\ressources\Bot\BotNPCs\NPC_name.txt");
+                iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{NPCTemplateList.PNJcount} templates de PNJs chargés.\n";
+                ZaapsList.LoadallZaaps();
+                iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"{ZaapsList.ZaapsCount} zaaps chargés.\n";
                 VerifAssetsFolders();
 
             }

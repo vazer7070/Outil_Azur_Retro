@@ -19,19 +19,56 @@ namespace Tools_protocol.Data
 		public ConditionsListing()
 		{
 		}
+        private static List<string> Conditions = new List<string>
+{
+    "BI=Inutilisable",
+    "QE=Quete en cours",
+    "QT=Quete terminee",
+    "CI=Ajoute de l'intelligence",
+    "CA=Ajoute de l'agilite",
+    "CW=Ajoute de la sagesse",
+    "CC=Ajoute de la chance",
+    "CS=Ajoute de la force",
+    "CV=Ajoute de la vitalite",
+    "CM=Ajoute un PM",
+    "Ci=Recupere l'intelligence",
+    "Cs=Recupere la force",
+    "Cv=Recupere la vitalite",
+    "Ca=Recupere l'agilite",
+    "Cw=Recupere la sagesse",
+    "Cc=Recupere la chance",
+    "Ps=Alignement du personnage",
+    "Pa=Promotion de l'alignement du personnage",
+    "PP=Niveau de l'alignement du personnage",
+    "PL=Niveau du personnage",
+    "PK=Kamas dans l'inventaire du personnage",
+    "PO=Relatif a un objet en inventaire",
+    "PG=Classe du personnage",
+    "PS=Sexe du personnage",
+    "PZ=Abonnement",
+    "PN=Nom du personnage",
+    "PJ=Relatif au metier",
+    "MK=est du metier",
+    "Pg=Relatif au don",
+    "PR=Relatif au mariage",
+    "PX=Verification si administrateur",
+    "PW=Relatif au poids",
+    "PB=ID Zone du personnage",
+    "SI=ID Map du personnage",
+    "MiS=ID du personnage"
+};
 
-		public static void ConditionsLoad(string path)
+        public static void ConditionsLoad(string path)
 		{
-			if (File.Exists(path))
-			{
-				string[] strArrays = File.ReadAllLines(path);
-				for (int i = 0; i < (int)strArrays.Length; i++)
-				{
-					string line = strArrays[i];
-					ConditionsListing.ConditionsDico.Add(line.Split(new char[] { '=' })[0], line.Split(new char[] { '=' })[1]);
-				}
-			}
-		}
+			if (!File.Exists(path))
+				File.WriteAllLines(path, Conditions);
+            string[] strArrays = File.ReadAllLines(path);
+            for (int i = 0; i < (int)strArrays.Length; i++)
+            {
+                string line = strArrays[i];
+                ConditionsListing.ConditionsDico.Add(line.Split(new char[] { '=' })[0], line.Split(new char[] { '=' })[1]);
+            }
+        }
 
 		public static string ReturnConditionIdByName(string name)
 		{

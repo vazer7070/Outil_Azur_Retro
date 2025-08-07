@@ -28,3 +28,8 @@
 - Optimisation de l'interface de carte du bot.
 - Correction de nombreux petits bugs.
 - Préparation pour les futures mises à jour plus lourdes sur l'ensemble du code.
+
+###### V-0.131 ######
+
+- Ajout de la création automatique des fichiers nécéssaires à l'éditeur d'objets.
+
