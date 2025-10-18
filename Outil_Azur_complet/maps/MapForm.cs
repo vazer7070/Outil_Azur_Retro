@@ -1,4 +1,3 @@
-﻿using Microsoft.Web.Services3.Referral;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -13,7 +12,7 @@ namespace Outil_Azur_complet.maps
 {
     public partial class MapForm : Form
     {
-        MainEditeur E = new MainEditeur();
+        private MainEditeur _editor;
         public int ID = 0;
         const int Sleep = 800;
         public static int SizeBaseCell = 26;
@@ -47,7 +46,36 @@ namespace Outil_Azur_complet.maps
         public bool ModeTrigger = false;
         public bool EndFight = false;
 
-        public MainEditeur ME = new MainEditeur();
+        public void AttachEditor(MainEditeur editor)
+        {
+            _editor = editor ?? throw new ArgumentNullException(nameof(editor));
+            Show_Back = editor.Show_Back;
+            Show_ground = editor.Show_ground;
+            Show_calque1 = editor.Show_calque1;
+            Show_calque2 = editor.Show_calque2;
+            Show_Grid = editor.Show_Grid;
+            Show_CellID = editor.Show_CellID;
+        }
+
+        private MainEditeur Editor
+        {
+            get
+            {
+                if (_editor == null)
+                {
+                    if (MdiParent is MainEditeur parent)
+                    {
+                        AttachEditor(parent);
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException("MapForm must be attached to a MainEditeur before use.");
+                    }
+                }
+
+                return _editor;
+            }
+        }
 
 
         public void New(Map map = null)
@@ -67,6 +95,10 @@ namespace Outil_Azur_complet.maps
         private void MapForm_Load(object sender, EventArgs e)
         {
             KeyPreview = true;
+            if (_editor == null && MdiParent is MainEditeur parent)
+            {
+                AttachEditor(parent);
+            }
             if (MyMap == null)
             {
                 MyMap = new Map();
@@ -192,7 +224,7 @@ namespace Outil_Azur_complet.maps
            
             G.Clear(Color.Black);
 
-            if (ME.Show_Back)
+            if (Show_Back)
             {
                 if (MyMap.Background != null)
                 {
@@ -370,7 +402,7 @@ namespace Outil_Azur_complet.maps
             if (id != HoverCell && id != -1)
             {
                 G.Clear(Color.Black);
-                if (ME.Show_Back && MyMap.Background != null)
+                if (Show_Back && MyMap.Background != null)
                 {
                     int backPosX = (int)(TilesData.Get_Grounds(MyMap.Background.ID).X * CellsData.PourceTile);
                     int backPosY = (int)(TilesData.Get_Grounds(MyMap.Background.ID).Y * CellsData.PourceTile);
@@ -390,7 +422,7 @@ namespace Outil_Azur_complet.maps
             {
                 SelectedCell = HoverCell;
             }
-            if ((TilesData.SelectedTiles != null) || (E.T != MainEditeur.Tools.Selector))
+            if ((TilesData.SelectedTiles != null) || (Editor.T != MainEditeur.Tools.Selector))
             {
                 Edited = true;
                 if (e.Button == MouseButtons.Middle)
@@ -401,12 +433,12 @@ namespace Outil_Azur_complet.maps
                 {
                     if (ModeTrigger)
                     {
-                        E.AddTrigger(MyMap.ID, SelectedCell, this);
+                        Editor.AddTrigger(MyMap.ID, SelectedCell, this);
                         return;
                     }
                     if (EndFight)
                     {
-                        E.AddEndFightAction(MyMap, SelectedCell);
+                        Editor.AddEndFightAction(MyMap, SelectedCell);
                         return;
                     }
                     if (!IsCellTool)
@@ -443,7 +475,7 @@ namespace Outil_Azur_complet.maps
         public void AddCellType(bool add, int cellid)
         {
             
-            switch (E.CellMod)
+            switch (Editor.CellMod)
             {
                 case MainEditeur.CellMode.UnWalkable:
                     if(MyMap.Cells[cellid].UnWalk != add)
@@ -531,26 +563,31 @@ namespace Outil_Azur_complet.maps
         }
         public void DeleteTile(int calque = 0)
         {
-            if(calque == 0)
+            if (calque == 0)
             {
-                if(MyMap.Cells[SelectedCell].GFX2 != null && MyMap.Cells[SelectedCell].GFX3 != null)
+                if (MyMap.Cells[SelectedCell].GFX2 != null && MyMap.Cells[SelectedCell].GFX3 != null)
                 {
-                    if (E.Calque == 1)
+                    if (Editor.Calque == 1)
+                    {
                         MyMap.Cells[SelectedCell].GFX2 = null;
-                    if (E.Calque == 2)
+                    }
+                    if (Editor.Calque == 2)
+                    {
                         MyMap.Cells[SelectedCell].GFX3 = null;
+                    }
                     DrawAll();
-                }else if(MyMap.Cells[SelectedCell].GFX3 != null)
+                }
+                else if (MyMap.Cells[SelectedCell].GFX3 != null)
                 {
                     MyMap.Cells[SelectedCell].GFX3 = null;
                     DrawAll();
-
-                }else if(MyMap.Cells[SelectedCell].GFX2 != null)
+                }
+                else if (MyMap.Cells[SelectedCell].GFX2 != null)
                 {
                     MyMap.Cells[SelectedCell].GFX2 = null;
                     DrawAll();
-
-                }else if(MyMap.Cells[SelectedCell].GFX1 != null)
+                }
+                else if (MyMap.Cells[SelectedCell].GFX1 != null)
                 {
                     MyMap.Cells[SelectedCell].GFX1 = null;
                     DrawAll();
@@ -558,13 +595,15 @@ namespace Outil_Azur_complet.maps
             }
             else
             {
-                if(calque == 3)
+                if (calque == 3)
                 {
                     MyMap.Cells[SelectedCell].GFX3 = null;
-                }else if(calque == 2)
+                }
+                else if (calque == 2)
                 {
                     MyMap.Cells[SelectedCell].GFX2 = null;
-                }else if(calque == 1)
+                }
+                else if (calque == 1)
                 {
                     MyMap.Cells[SelectedCell].GFX1 = null;
                 }
@@ -577,12 +616,12 @@ namespace Outil_Azur_complet.maps
             {
                 if (MyMap.Cells[SelectedCell].GFX2 != null && MyMap.Cells[SelectedCell].GFX3 != null)
                 {
-                    if (E.Calque == 1)
+                    if (Editor.Calque == 1)
                     {
                         TilesData.SelectedTiles = MyMap.Cells[SelectedCell].GFX2;
                         MyMap.Cells[SelectedCell].GFX2 = null;
                     }
-                    if (E.Calque == 2)
+                    if (Editor.Calque == 2)
                     {
                         TilesData.SelectedTiles = MyMap.Cells[SelectedCell].GFX3;
                         MyMap.Cells[SelectedCell].GFX3 = null;
@@ -642,20 +681,20 @@ namespace Outil_Azur_complet.maps
                 {
                     case TilesData.TileType.ground:
                         MyMap.Cells[correctedCell].GFX1 = TilesData.SelectedTiles;
-                        MyMap.Cells[correctedCell].FlipGFX1 = E.SelectedFlip;
-                        MyMap.Cells[correctedCell].RotaGFX1 = E.SelectedRotate;
+                        MyMap.Cells[correctedCell].FlipGFX1 = Editor.SelectedFlip;
+                        MyMap.Cells[correctedCell].RotaGFX1 = Editor.SelectedRotate;
                         break;
                     case TilesData.TileType.objet:
-                        switch (E.Calque)
+                        switch (Editor.Calque)
                         {
                             case 1:
                                 MyMap.Cells[correctedCell].GFX2 = TilesData.SelectedTiles;
-                                MyMap.Cells[correctedCell].FlipGFX2 = E.SelectedFlip;
-                                MyMap.Cells[correctedCell].RotaGFX2 = E.SelectedRotate;
+                                MyMap.Cells[correctedCell].FlipGFX2 = Editor.SelectedFlip;
+                                MyMap.Cells[correctedCell].RotaGFX2 = Editor.SelectedRotate;
                                 break;
                             case 2:
                                 MyMap.Cells[correctedCell].GFX3 = TilesData.SelectedTiles;
-                                MyMap.Cells[correctedCell].FlipGFX3 = E.SelectedFlip;
+                                MyMap.Cells[correctedCell].FlipGFX3 = Editor.SelectedFlip;
                                 break;
                         }
                         break;

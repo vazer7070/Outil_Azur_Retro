@@ -81,6 +81,7 @@ namespace Outil_Azur_complet.maps
             if(AlreadyOpen(r))
                 r = new Random().Next(r + 1, 999 - r);
             MapForm NewMap = new MapForm();
+            NewMap.AttachEditor(this);
             NewMap.MdiParent = this;
             MapSelected = NewMap;
             NewMap.W = x;
@@ -216,6 +217,7 @@ namespace Outil_Azur_complet.maps
             else 
             {
                 MapForm NewMap = new MapForm();
+                NewMap.AttachEditor(this);
                 NewMap.New(m);
                 NewMap.MdiParent = this;
                 MapSelected = NewMap;

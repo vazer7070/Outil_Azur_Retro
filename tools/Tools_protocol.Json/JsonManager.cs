@@ -132,11 +132,11 @@ namespace Tools_protocol.Json
 			return confok;
 		}
 
-		public static bool LectureConfig(string path)
-		{
-			
-			bool confok = false;
-			if (!File.Exists(path))
+                public static bool LectureConfig(string path)
+                {
+
+                        bool confok = false;
+                        if (!File.Exists(path))
 			{
 				WriteConfig("config", path);
 			}
@@ -148,14 +148,15 @@ namespace Tools_protocol.Json
 					WriteConfig("config", path);
 					LectureConfig(path);
 				}
-				else
-				{
-					ConfigEnums.ConfigEntries config = JsonConvert.DeserializeObject<ConfigEnums.Data>(lect).ConfigEntries;
-					Configuration.Add("hote", config.hote);
-					Configuration.Add("user", config.user);
-					Configuration.Add("mdp", config.mdp);
-					Configuration.Add("auth", config.Cauth);
-					Configuration.Add("world", config.Cworld);
+                                else
+                                {
+                                        ConfigEnums.ConfigEntries config = JsonConvert.DeserializeObject<ConfigEnums.Data>(lect).ConfigEntries;
+                                        Configuration.Clear();
+                                        Configuration.Add("hote", config.hote);
+                                        Configuration.Add("user", config.user);
+                                        Configuration.Add("mdp", config.mdp);
+                                        Configuration.Add("auth", config.Cauth);
+                                        Configuration.Add("world", config.Cworld);
 					Configuration.Add("emu", config.emu);
 					confok = true;
 				}

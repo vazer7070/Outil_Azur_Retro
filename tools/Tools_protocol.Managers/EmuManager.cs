@@ -17,12 +17,18 @@ namespace Tools_protocol.Managers
 
 
         public static void InitEmu(string emu)
-		{
-			if (!Emu.Contains(emu))
-			{
-				NOEMU = true;
-			}
-		}
+                {
+                        if (Emu.Contains(emu))
+                        {
+                                EMUSELECTED = emu;
+                                NOEMU = false;
+                        }
+                        else
+                        {
+                                EMUSELECTED = null;
+                                NOEMU = true;
+                        }
+                }
 
 		public static string ReturnAccountsInfo(string emu, string name, int sw)
 		{
