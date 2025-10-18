@@ -64,13 +64,17 @@ namespace Tools_protocol.Kryone.Database
 			Bonus = (string)reader["bonus"];
 		}
 
-		public static void LoadPano()
-		{
-			string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TableSet, "", "");
-			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
-			{
-				try
-				{
+                public static void LoadPano()
+                {
+                        AllItemsInSet.Clear();
+                        SetName.Clear();
+                        Name_Effects.Clear();
+                        Count_Pano = 0;
+                        string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TableSet, "", "");
+                        using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
+                        {
+                                try
+                                {
 					connection.Open();
 					ItemSetList set = null;
 					MySqlDataReader R = new MySqlCommand(query, connection).ExecuteReader();
