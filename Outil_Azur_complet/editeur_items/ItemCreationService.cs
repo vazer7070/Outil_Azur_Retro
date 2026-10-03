@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using Tools_protocol.Managers;
 using Tools_protocol.Query;
+using Tools_protocol.Emulators;
 
 namespace Outil_Azur_complet.editeur_items
 {
@@ -83,8 +84,7 @@ namespace Outil_Azur_complet.editeur_items
 
         internal static void Inject(IReadOnlyDictionary<string, string> queries, int templateId, int itemGuid)
         {
-            if (!string.Equals(EmuManager.EMUSELECTED, "Kryone", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("La création directe est disponible pour Kryone uniquement.");
+            ServerSql.Require(EmulatorFeature.ItemCreation);
             if (queries == null || !queries.ContainsKey("template") || !queries.ContainsKey("item") ||
                 templateId <= 0 || itemGuid <= 0)
                 throw new ArgumentException("La création d'objet est incomplète.");
@@ -99,10 +99,10 @@ namespace Outil_Azur_complet.editeur_items
 
             var targets = new Dictionary<string, Tuple<string, string>>(StringComparer.Ordinal)
             {
-                { "template", Tuple.Create(Identifier(auth.Database), Identifier(EmuManager.ReturnTable("Template", "Kryone"))) },
-                { "item", Tuple.Create(Identifier(world.Database), Identifier(EmuManager.ReturnTable("items", "Kryone"))) },
-                { "craft", Tuple.Create(Identifier(auth.Database), Identifier(EmuManager.ReturnTable("crafts", "Kryone"))) },
-                { "pano", Tuple.Create(Identifier(auth.Database), Identifier(EmuManager.ReturnTable("panoplies", "Kryone"))) }
+                { "template", Tuple.Create(Identifier(auth.Database), Identifier(EmulatorRegistry.Current.Table("Template"))) },
+                { "item", Tuple.Create(Identifier(world.Database), Identifier(EmulatorRegistry.Current.Table("items"))) },
+                { "craft", Tuple.Create(Identifier(auth.Database), Identifier(EmulatorRegistry.Current.Table("crafts"))) },
+                { "pano", Tuple.Create(Identifier(auth.Database), Identifier(EmulatorRegistry.Current.Table("panoplies"))) }
             };
             foreach (var query in queries)
                 if (!targets.ContainsKey(query.Key) || string.IsNullOrWhiteSpace(query.Value))

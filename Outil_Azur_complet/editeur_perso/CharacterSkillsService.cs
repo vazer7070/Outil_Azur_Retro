@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Linq;
 using MySql.Data.MySqlClient;
 using Tools_protocol.Kryone.Database;
+using Tools_protocol.Emulators;
 
 namespace Outil_Azur_complet.editeur_perso
 {
@@ -43,7 +44,7 @@ namespace Outil_Azur_complet.editeur_perso
             string column = Column(kind);
             var result = new CharacterSkillsSnapshot
             {
-                CharacterId = characterId, Kind = kind, ConnectionString = ServerSql.AuthConnection(),
+                CharacterId = characterId, Kind = kind, ConnectionString = ServerSql.AuthConnection(EmulatorFeature.Characters),
                 PlayerTable = CharacterList.TablePerso, AccountTable = AccountList.TableCompte,
                 TemplateTable = kind == CharacterSkillKind.Spells ? SpellsList.TableSort : JobsList.TableJobs
             };
@@ -111,7 +112,7 @@ namespace Outil_Azur_complet.editeur_perso
         public static string Save(CharacterSkillsSnapshot snapshot, IEnumerable<CharacterSkillEntry> entries)
         {
             if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
-            ServerSql.RequireKryone();
+            ServerSql.Require(EmulatorFeature.Characters);
             var list = entries?.ToArray() ?? throw new ArgumentNullException(nameof(entries));
             string data = Serialize(list, snapshot.Kind);
             string column = Column(snapshot.Kind);

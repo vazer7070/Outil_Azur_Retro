@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Tools_protocol.Kryone.Database;
 using Tools_protocol.Query;
+using Tools_protocol.Emulators;
 
 namespace Outil_Azur_complet.editeur_perso
 {
@@ -311,7 +312,7 @@ namespace Outil_Azur_complet.editeur_perso
         private void UpdateModerationControls(CharacterList character)
         {
             bool canAct = !_moderationBusy && character != null && character.Logged == 0 &&
-                string.Equals(InitializeForm.EMUSELECT, "Kryone", StringComparison.OrdinalIgnoreCase);
+                EmulatorRegistry.Current.Supports(EmulatorFeature.Characters);
             iTalk_Button_11.Enabled = canAct;
             iTalk_Button_12.Enabled = canAct;
             iTalk_Button_21.Enabled = character != null;
@@ -506,7 +507,7 @@ namespace Outil_Azur_complet.editeur_perso
         private static void ApplyCharacterChanges(string table, Dictionary<int, Dictionary<string, object>> prepared,
             Dictionary<int, Dictionary<string, object>> originals)
         {
-            ServerSql.RequireKryone();
+            ServerSql.Require(EmulatorFeature.Characters);
             ServerSql.Identifier(table);
             string accountTable = AccountList.TableCompte;
             string accounts = ServerSql.Identifier(accountTable);
@@ -520,7 +521,7 @@ namespace Outil_Azur_complet.editeur_perso
             var renamed = prepared.Where(entry => entry.Value.ContainsKey("name")).Select(entry => Convert.ToString(entry.Value["name"])).ToArray();
             if (renamed.Distinct(StringComparer.OrdinalIgnoreCase).Count() != renamed.Length)
                 throw new InvalidOperationException("Deux personnages ne peuvent pas recevoir le même nom.");
-            using (var connection = new MySqlConnection(ServerSql.AuthConnection()))
+            using (var connection = new MySqlConnection(ServerSql.AuthConnection(EmulatorFeature.Characters)))
             {
                 connection.Open();
                 ServerSql.RequireInnoDb(connection, table, accountTable);

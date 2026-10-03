@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
 using Tools_protocol.Json;
+using Tools_protocol.Emulators;
 
 namespace Outil_Azur_complet
 {
@@ -24,6 +25,7 @@ namespace Outil_Azur_complet
             layout.Field("Versions",iTalk_LinkLabel1,"Journal des versions","Ouvrir le journal des modifications.");
             layout.Action(iTalk_Button_21,"Connecter les bases",190);layout.Action(iTalk_Button_23,"Configurer les tables",190);layout.Action(iTalk_Button_22,"Appliquer l'émulateur",190);layout.Action(iTalk_Button_12,"Vérifier les mises à jour",215);layout.Action(iTalk_Button_11,"Fermer",110);
             layout.Status.Text="Les changements de configuration peuvent nécessiter un redémarrage d'Azur.";
+            iTalk_ComboBox1.SelectedIndexChanged+=(s,e)=>{var emulator=EmulatorRegistry.Find(iTalk_ComboBox1.SelectedItem?.ToString());if(emulator!=null)layout.Status.Text=emulator.DisplayName+" : "+emulator.Summary;};
         }
     }
 }

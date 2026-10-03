@@ -179,6 +179,9 @@
       <AutoGen>false</AutoGen>
       <DesignTimeSharedInput>false</DesignTimeSharedInput>
     </Compile>
+    <Compile Include="Tools_protocol.Emulators\EmulatorProfile.cs" />
+    <Compile Include="Tools_protocol.Emulators\EmulatorRegistry.cs" />
+    <Compile Include="Tools_protocol.Emulators\Profiles.cs" />
     <Compile Include="Tools_protocol.Managers\EmuManager.cs">
       <AutoGen>false</AutoGen>
       <DesignTimeSharedInput>false</DesignTimeSharedInput>

@@ -16,6 +16,7 @@ using System.Collections.Concurrent;
 using System.Linq;
 using System.Collections;
 using System.Text.RegularExpressions;
+using Tools_protocol.Emulators;
 
 namespace Outil_Azur_complet.editeur_compte
 {
@@ -41,7 +42,8 @@ namespace Outil_Azur_complet.editeur_compte
             public string OriginalValue { get; set; }
         }
 
-        public string TableCompte => EmuManager.GetEmulatorVariable(InitializeForm.EMUSELECT, "AccountList", "TableCompte", null,null, null) as string;
+        public string TableCompte => EmulatorRegistry.Current.Table("comptes");
+        private static bool CanEditAccounts => EmulatorRegistry.Current.Supports(EmulatorFeature.AccountEditing);
         public string TablePerso => EmuManager.ReturnTable("perso", InitializeForm.EMUSELECT);
 
         public editeurcompte()
@@ -136,7 +138,7 @@ namespace Outil_Azur_complet.editeur_compte
                     }
                 }
                 UpdateAccountCount();
-                bool canEditKryone = string.Equals(emu, "Kryone", StringComparison.OrdinalIgnoreCase);
+                bool canEditKryone = CanEditAccounts;
                 iTalk_Button_22.Enabled = canEditKryone;
                 iTalk_Button_14.Enabled = canEditKryone;
                 iTalk_Button_13.Enabled = canEditKryone;
@@ -189,7 +191,7 @@ namespace Outil_Azur_complet.editeur_compte
                 if (account == null) return;
 
                 UpdateAccountFields(account);
-                if (string.Equals(InitializeForm.EMUSELECT, "Kryone", StringComparison.OrdinalIgnoreCase))
+                if (EmulatorRegistry.Current.Supports(EmulatorFeature.Characters))
                 {
                     UpdateConnectionStatus();
                     await LoadCharactersAsync();
@@ -283,8 +285,7 @@ namespace Outil_Azur_complet.editeur_compte
             iTalk_Label9.ForeColor = isOffline ? System.Drawing.Color.Red :
                 account != null && account.Guid == accountId && account.Logged == 1 ? System.Drawing.Color.Green :
                 System.Drawing.Color.DarkOrange;
-            bool canModerate = string.Equals(InitializeForm.EMUSELECT, "Kryone",
-                StringComparison.OrdinalIgnoreCase) && !_saving;
+            bool canModerate = CanEditAccounts && !_saving;
             iTalk_Button_11.Enabled = canModerate && isOffline;
             if (account == null) return;
             iTalk_Button_12.Text = account.Banned == 0 ? "Bannir compte" : "Débannir compte";
@@ -293,8 +294,7 @@ namespace Outil_Azur_complet.editeur_compte
 
         private void QueueAccountChange(string field, string value)
         {
-            if (_disposed || _loadingFields || _saving || !string.Equals(InitializeForm.EMUSELECT,
-                "Kryone", StringComparison.OrdinalIgnoreCase) ||
+            if (_disposed || _loadingFields || _saving || !CanEditAccounts ||
                 listBox1.SelectedItem == null ||
                 !uint.TryParse(iTalk_TextBox_Small1.Text, out uint accountId)) return;
 
@@ -379,8 +379,7 @@ namespace Outil_Azur_complet.editeur_compte
                 _saving = false;
                 _updateSemaphore.Release();
                 if (!_disposed)
-                    iTalk_Button_22.Enabled = string.Equals(InitializeForm.EMUSELECT, "Kryone",
-                        StringComparison.OrdinalIgnoreCase);
+                    iTalk_Button_22.Enabled = CanEditAccounts;
             }
         }
 
@@ -494,8 +493,7 @@ namespace Outil_Azur_complet.editeur_compte
                 _saving = false;
                 if (!_disposed)
                 {
-                    iTalk_Button_22.Enabled = string.Equals(InitializeForm.EMUSELECT, "Kryone",
-                        StringComparison.OrdinalIgnoreCase);
+                    iTalk_Button_22.Enabled = CanEditAccounts;
                     foreach (var control in editableControls) control.Enabled = true;
                     UpdateConnectionStatus();
                 }
@@ -505,8 +503,7 @@ namespace Outil_Azur_complet.editeur_compte
 
         private static void ApplyAccountChanges(string table, KeyValuePair<string, PendingAccountChange>[] changes)
         {
-            if (!string.Equals(InitializeForm.EMUSELECT, "Kryone", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Cette action est disponible pour Kryone uniquement.");
+            ServerSql.Require(EmulatorFeature.AccountEditing);
             if (string.IsNullOrWhiteSpace(DatabaseManager.ConnectionString))
                 throw new InvalidOperationException("La connexion auth doit être active.");
             if (string.IsNullOrWhiteSpace(table) ||

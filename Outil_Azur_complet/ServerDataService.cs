@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using MySql.Data.MySqlClient;
 using Tools_protocol.Json;
+using Tools_protocol.Emulators;
 
 namespace Outil_Azur_complet
 {
@@ -66,7 +67,7 @@ namespace Outil_Azur_complet
         {
             string key = Key(kind);
             var snapshot = new ServerDataSnapshot { Kind = kind, MapId = mapId, CellCount = cellCount,
-                ConnectionString = ServerSql.AuthConnection(), Table = JsonManager.SearchAuth(key), Defaults = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase) };
+                ConnectionString = ServerSql.AuthConnection(EmulatorFeature.ResourceEditors), Table = JsonManager.SearchAuth(key), Defaults = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase) };
             if (kind == ServerResourceKind.Npcs) snapshot.NpcTemplateTable = JsonManager.SearchAuth("npc_template");
             foreach (string related in new[] { "Template", "panoplies", "crafts", "monstres", "drops", "npc_questions", "npc_reponse", "npc_template", "npcs" })
                 snapshot.RelatedTables[related] = JsonManager.SearchAuth(related);
@@ -336,7 +337,7 @@ namespace Outil_Azur_complet
         }
         public static int Save(ServerDataSnapshot snapshot)
         {
-            ServerSql.RequireKryone();
+            ServerSql.Require(EmulatorFeature.ResourceEditors);
             if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
             if (snapshot.Keys.Length == 0) throw new NotSupportedException("Cette table exige une clé primaire ou un index unique pour être modifiée.");
             DataTable changes = snapshot.Data.GetChanges();
@@ -407,7 +408,7 @@ namespace Outil_Azur_complet
         }
         public static int ExportAllSql(string tableKey,string path)
         {
-            string connectionString=ServerSql.AuthConnection(),table=ServerSql.Identifier(JsonManager.SearchAuth(tableKey));
+            string connectionString=ServerSql.AuthConnection(EmulatorFeature.ResourceEditors),table=ServerSql.Identifier(JsonManager.SearchAuth(tableKey));
             string fullPath=Path.GetFullPath(path);Directory.CreateDirectory(Path.GetDirectoryName(fullPath));string temp=fullPath+".tmp-"+Guid.NewGuid().ToString("N");int count=0;
             try
             {

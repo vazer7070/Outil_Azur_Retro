@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Tools_protocol.Json;
 using Tools_protocol.Query;
+using Tools_protocol.Emulators;
 
 namespace Outil_Azur_complet
 {
@@ -25,6 +26,9 @@ namespace Outil_Azur_complet
         public SettingsForm()
         {
             InitializeComponent();
+            iTalk_ComboBox1.Items.Clear();
+            foreach (EmulatorProfile emulator in EmulatorRegistry.All)
+                iTalk_ComboBox1.Items.Add(emulator.Id);
             BuildEditorLayout();
         }
        public void New(string h, string u, string pass, string a, string w)

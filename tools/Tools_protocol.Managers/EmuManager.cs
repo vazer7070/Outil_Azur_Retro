@@ -4,15 +4,18 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Windows.Forms;
+using Tools_protocol.Emulators;
 using Tools_protocol.Json;
-using Tools_protocol.Kryone.Database;
 using Tools_protocol.Query;
 
 namespace Tools_protocol.Managers
 {
+    /// <summary>
+    /// Marque les classes de donn√©es propres √† un √©mulateur (par exemple la liste des comptes).
+    /// Le choix de l'√©mulateur et la r√©solution des tables passent par <see cref="EmulatorRegistry"/>.
+    /// </summary>
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-    public  class EmuManager : Attribute
+    public class EmuManager : Attribute
     {
         public string Emulator { get; }
         public string Context { get; }
@@ -22,441 +25,105 @@ namespace Tools_protocol.Managers
             Emulator = emulator;
             Context = context;
         }
-        public static object GetEmulatorVariable(
-    string emulator,
-    string context,
-    string variableName,
-    object[] constructorParams,
-    string methodToCallBeforeGettingVariable,
-    Assembly[] assembliesToSearch)
+
+        /// <summary>Identifiant de l'√©mulateur configur√© ; une valeur inconnue s√©lectionne le profil vide.</summary>
+        public static string EMUSELECTED
         {
-            if (assembliesToSearch == null)
-                assembliesToSearch = AppDomain.CurrentDomain.GetAssemblies();
-
-            Type targetType = null;
-
-            foreach (Assembly assembly in assembliesToSearch)
-            {
-                Type[] types;
-                try
-                {
-                    types = assembly.GetTypes();
-                }
-                catch (ReflectionTypeLoadException ex)
-                {
-                    types = ex.Types.Where(t => t != null).ToArray();
-                }
-
-                foreach (Type type in types)
-                {
-                    object[] attrs = type.GetCustomAttributes(typeof(EmuManager), false);
-                    foreach (object attr in attrs)
-                    {
-                        EmuManager emuAttr = attr as EmuManager;
-                        if (emuAttr != null &&
-                            string.Equals(emuAttr.Emulator, emulator, StringComparison.OrdinalIgnoreCase) &&
-                            string.Equals(emuAttr.Context, context, StringComparison.OrdinalIgnoreCase))
-                        {
-                            targetType = type;
-                            break;
-                        }
-                    }
-
-                    if (targetType != null)
-                        break;
-                }
-
-                if (targetType != null)
-                    break;
-            }
-
-            if (targetType == null)
-            {
-                MessageBox.Show("Aucune classe trouvÈe pour '" + emulator + "' / contexte '" + context + "'", "Erreur", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return null;
-            }
-
-            object instance = CreateInstanceWithParameters(targetType, constructorParams);
-
-            if (!string.IsNullOrEmpty(methodToCallBeforeGettingVariable))
-            {
-                MethodInfo method = targetType.GetMethod(methodToCallBeforeGettingVariable, BindingFlags.Public | BindingFlags.Instance);
-                if (method != null)
-                {
-                    method.Invoke(instance, null);
-                }
-                else
-                {
-                    MessageBox.Show("MÈthode '" + methodToCallBeforeGettingVariable + "' introuvable.", "Erreur", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-            }
-
-            PropertyInfo prop = targetType.GetProperty(variableName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.IgnoreCase);
-            if (prop != null && prop.CanRead)
-            {
-                return prop.GetValue(prop.GetGetMethod().IsStatic ? null : instance, null);
-            }
-
-            FieldInfo field = targetType.GetField(variableName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.IgnoreCase);
-            if (field != null)
-            {
-                return field.GetValue(field.IsStatic ? null : instance);
-            }
-
-            MessageBox.Show("Variable '" + variableName + "' introuvable dans '" + targetType.Name + "'.", "Erreur", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            return null;
-        }
-
-
-
-        private static bool ParametersMatch(ParameterInfo[] methodParams, object[] providedParams)
-        {
-            if (providedParams == null)
-                return methodParams.Length == 0;
-
-            if (methodParams.Length != providedParams.Length)
-                return false;
-
-            for (int i = 0; i < methodParams.Length; i++)
-            {
-                if (providedParams[i] == null)
-                    continue;
-
-                if (!methodParams[i].ParameterType.IsAssignableFrom(providedParams[i].GetType()))
-                    return false;
-            }
-
-            return true;
-        }
-
-        private static object CreateInstanceWithParameters(Type type, object[] constructorParams)
-        {
-            if (constructorParams == null)
-                constructorParams = new object[0];
-
-            var constructors = type.GetConstructors();
-
-            foreach (var ctor in constructors)
-            {
-                var parameters = ctor.GetParameters();
-                if (ParametersMatch(parameters, constructorParams))
-                {
-                    return ctor.Invoke(constructorParams);
-                }
-            }
-
-            MessageBox.Show($"Aucun constructeur valide trouvÈ pour le type '{type.Name}'", "Erreur", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            return null;
+            get { return EmulatorRegistry.Current.Id; }
+            set { EmulatorRegistry.Select(value); }
         }
 
         public static List<Dictionary<string, object>> GetAllAccountPropertiesForEmulator(string emulatorName)
         {
-            var results = new List<Dictionary<string, object>>();
-            var asm = Assembly.GetExecutingAssembly();
+            Type targetType = FindType(emulatorName, "AccountList")
+                ?? throw new InvalidOperationException($"La lecture des comptes n'est pas disponible pour l'√©mulateur ¬´ {emulatorName} ¬ª.");
 
-            var targetType = asm.GetTypes()
-                .FirstOrDefault(t =>
-                {
-                    var attr = (EmuManager)Attribute.GetCustomAttribute(t, typeof(EmuManager));
-                    return attr != null && string.Equals(attr.Emulator, emulatorName, StringComparison.OrdinalIgnoreCase) && string.Equals(attr.Context, "AccountList", StringComparison.OrdinalIgnoreCase);
-                });
-
-            if (targetType == null)
-                throw new Exception($"Classe avec [EmuManager(\"{emulatorName}\")] introuvable.");
-
-            var instance = Activator.CreateInstance(targetType);
-
-
-            var field = targetType.GetField("AllAccount", BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-            object dictObj = field?.GetValue(field.IsStatic ? null : instance);
-
-            if (dictObj == null)
-                throw new Exception("Le dictionnaire 'AllAccount' est introuvable ou vide.");
-
-            var dict = dictObj as IDictionary;
-            if (dict == null)
-                throw new Exception("'AllAccount' n'est pas un IDictionary.");
+            object instance = Activator.CreateInstance(targetType);
+            FieldInfo field = targetType.GetField("AllAccount", BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            IDictionary dict = field?.GetValue(field.IsStatic ? null : instance) as IDictionary
+                ?? throw new InvalidOperationException($"La liste des comptes de {targetType.FullName} est introuvable.");
 
             if (dict.Count == 0)
             {
-                var loadMethod = targetType.GetMethod("AllAccounts", BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-                loadMethod?.Invoke(loadMethod.IsStatic ? null : instance, null);
+                MethodInfo load = targetType.GetMethod("AllAccounts", BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+                load?.Invoke(load.IsStatic ? null : instance, null);
             }
 
-            foreach (var val in dict.Values)
+            var results = new List<Dictionary<string, object>>();
+            foreach (object account in dict.Values)
             {
-                var valType = val.GetType();
-
-                // RÈcupËre toutes les propriÈtÈs publiques simples
-                var props = valType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                    .Where(p => p.CanRead && IsSimpleType(p.PropertyType));
-
-                var accountData = new Dictionary<string, object>();
-
-                foreach (var prop in props)
+                var row = new Dictionary<string, object>();
+                foreach (PropertyInfo property in account.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
                 {
-                    var value = prop.GetValue(val);
-                    accountData[prop.Name] = value;
+                    if (property.CanRead && IsSimpleType(property.PropertyType))
+                        row[property.Name] = property.GetValue(account);
                 }
-
-                results.Add(accountData);
+                results.Add(row);
             }
-
             return results;
+        }
+
+        private static Type FindType(string emulator, string context)
+        {
+            return Assembly.GetExecutingAssembly().GetTypes().FirstOrDefault(type =>
+            {
+                var attribute = (EmuManager)GetCustomAttribute(type, typeof(EmuManager));
+                return attribute != null &&
+                       string.Equals(attribute.Emulator, emulator, StringComparison.OrdinalIgnoreCase) &&
+                       string.Equals(attribute.Context, context, StringComparison.OrdinalIgnoreCase);
+            });
         }
 
         private static bool IsSimpleType(Type type)
         {
-            return
-                type.IsPrimitive ||
-                type == typeof(string) ||
-                type == typeof(decimal) ||
-                type == typeof(Guid) ||
-                type == typeof(DateTime);
+            return type.IsPrimitive || type == typeof(string) || type == typeof(decimal) ||
+                   type == typeof(Guid) || type == typeof(DateTime);
         }
 
-
-        public static object FindAndCallEmuHandler(string emulator, string context, string methodName = "init", object[] parameters = null)
+        /// <summary>Nom r√©el d'une table logique pour l'√©mulateur indiqu√©, ou cha√Æne vide.</summary>
+        public static string ReturnTable(string table, string emu)
         {
-            var types = Assembly.GetExecutingAssembly().GetTypes();
-
-            var targetType = types.FirstOrDefault(t =>
-            {
-                var attr = (EmuManager)Attribute.GetCustomAttribute(t, typeof(EmuManager));
-                return attr != null &&
-                       attr.Emulator.Equals(emulator, StringComparison.OrdinalIgnoreCase) &&
-                       attr.Context.Equals(context, StringComparison.OrdinalIgnoreCase);
-            });
-
-            if (targetType == null)
-            {
-                MessageBox.Show($"Aucune classe trouvÈe pour líÈmulateur '{emulator}' avec le contexte '{context}'.", "Erreur", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return null;
-            }
-
-            var instance = Activator.CreateInstance(targetType);
-            var method = targetType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)
-                .FirstOrDefault(m =>
-                    m.Name.Equals(methodName, StringComparison.OrdinalIgnoreCase) &&
-                    ParametersMatch(m.GetParameters(), parameters));
-
-            if (method == null)
-            {
-                MessageBox.Show($"MÈthode '{methodName}' introuvable dans '{targetType.Name}' avec les paramËtres fournis.", "Erreur", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return null;
-            }
-
-            return method.Invoke(method.IsStatic ? null : instance, parameters);
-        }
-        private static bool VariableParametersMatch(ParameterInfo[] methodParams, object[] providedParams)
-        {
-            if (providedParams == null) return methodParams.Length == 0;
-            if (methodParams.Length != providedParams.Length) return false;
-
-            for (int i = 0; i < methodParams.Length; i++)
-            {
-                if (providedParams[i] == null)
-                    continue;
-
-                if (!methodParams[i].ParameterType.IsAssignableFrom(providedParams[i].GetType()))
-                    return false;
-            }
-
-            return true;
+            return (EmulatorRegistry.Find(emu) ?? EmulatorRegistry.None).Table(table);
         }
 
-        public static MethodInfo FindEmuMethod(object target, string emulator, string context)
-        {
-            if (!Emu.Contains(emulator, StringComparer.OrdinalIgnoreCase))
-            {
-                MessageBox.Show("…mulateur non reconnu: " + emulator, "…mulateur introuvable", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return null;
-            }
+        private static bool CanCreateItems => EmulatorRegistry.Current.Supports(EmulatorFeature.ItemCreation);
 
-            return target.GetType().GetMethods()
-                .FirstOrDefault(m =>
+        public static string RecupPanoRow(string panocol, string panoname)
+        {
+            if (!CanCreateItems) return "";
+            string query = QueryBuilder.SelectFromQuery(new[] { panocol }, JsonManager.SearchAuth("panoplies"), "name", panoname);
+            try
+            {
+                using (var connection = new MySqlConnection(DatabaseManager.ConnectionString))
+                using (var command = new MySqlCommand(query, connection))
                 {
-                    var attr = (EmuManager)Attribute.GetCustomAttribute(m, typeof(EmuManager));
-                    return attr != null &&
-                           attr.Emulator.Equals(emulator, StringComparison.OrdinalIgnoreCase) &&
-                           attr.Context.Equals(context, StringComparison.OrdinalIgnoreCase);
-                });
+                    connection.Open();
+                    string row = "";
+                    using (MySqlDataReader reader = command.ExecuteReader())
+                        while (reader.Read())
+                            row = reader.GetString(panocol);
+                    return row;
+                }
+            }
+            catch (MySqlException) { return null; }
         }
 
-
-        public static string EMUSELECTED;
-
-		 public static bool NOEMU = false;
-
-		private static string[] Emu = new string[] { "Kryone", "Sunshine", "Codebreak" };
-
-
-        public static void InitEmu(string emu)
-		{
-			if (!Emu.Contains(emu))
-			{
-				NOEMU = true;
-			}
-		}
-
-
-		public static string RecupPanoRow(string panocol, string panoname)
+        public static string ReturnInfoCol(string table)
         {
-			string row = "";
-            switch (EMUSELECTED)
-            {
-				case "Kryone":
-					string query = QueryBuilder.SelectFromQuery(new string[] { panocol }, JsonManager.SearchAuth("panoplies"), "name", panoname);
-					using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
-					{
-						try
-						{
-							connection.Open();
-							MySqlDataReader R = new MySqlCommand(query, connection).ExecuteReader();
-							while (R.Read())
-							{
-								row = R.GetString(panocol);
-							}
-							R.Close();
-							R.Dispose();
-							connection.Close();
-							connection.Dispose();
-							return row;
-						}
-						catch (MySqlException) { return null; }
-					}
-            }
-			return row;
+            return CanCreateItems && table == "pano" ? "name" : "";
         }
-		public static string ReturnInfoCol(string table)
-        {
-			string colSelected = "";
-            switch (EMUSELECTED)
-            {
-				case "Kryone":
-                    switch (table)
-                    {
-						case "pano":
-							colSelected = "name";
-							break;
-                    }
-					break;
-            }
-			return colSelected;
-        }
-		public static string UpdateRowPano(string panorow, string IDtemplate)
-        {
-			List<string> iteminpano = new List<string>();
-			string newRow = "";
-            switch (EMUSELECTED)
-            {
-				case "Kryone":
-                    if (!string.IsNullOrEmpty(panorow))
-                    {
-                        if (panorow.Contains(","))
-                        {
-							foreach (string h in panorow.Split(','))
-							{
-								iteminpano.Add(h);
 
-							}
-							iteminpano.Add(IDtemplate);
-							newRow = string.Join(",", iteminpano);
-						}
-                        else
-                        {
-							iteminpano.Add(panorow);
-							iteminpano.Add(IDtemplate);
-							newRow = string.Join(",", iteminpano);
-						}
-                    }
-                    else
-                    {
-						newRow = IDtemplate;
-                    }
-					return newRow;
-            }
-			return newRow;
-        }
-		public static string ReturnPanoCol()
+        /// <summary>Ajoute un mod√®le √† la liste d'objets d'une panoplie (identifiants s√©par√©s par des virgules).</summary>
+        public static string UpdateRowPano(string panorow, string IDtemplate)
         {
-			string C = "";
-            switch (EMUSELECTED)
-            {
-				case "Kryone":
-					C = "items";
-					return C;
-            }
-			return C;
+            if (!CanCreateItems) return "";
+            if (string.IsNullOrEmpty(panorow)) return IDtemplate;
+            return panorow + "," + IDtemplate;
         }
-		public static void ExecuteQueryByEmu(string key, string query)
+
+        public static string ReturnPanoCol()
         {
-            switch (EMUSELECTED)
-            {
-				case "Kryone":
-                    switch (key)
-                    {
-						case "pano":
-							DatabaseManager.UpdateQuery(query);
-							break;
-						case "craft":
-							DatabaseManager.UpdateQuery(query);
-							break;
-						case "template":
-							DatabaseManager.UpdateQuery(query);
-							break;
-						case "item":
-							DatabaseManager2.UpdateQuery(query);
-							break;
-                    }
-					break;
-            }
+            return CanCreateItems ? "items" : "";
         }
-		public static string ReturnTable(string table, string emu)
-		{
-            switch (emu)
-            {
-				case "Kryone":
-					switch (table)
-					{
-						case "comptes":
-							return JsonManager.SearchAuth(table);
-						case "perso":
-							return JsonManager.SearchAuth(table);
-						case "Template":
-							return JsonManager.SearchAuth(table);
-						case "crafts":
-							return JsonManager.SearchAuth(table);
-						case "panoplies":
-							return JsonManager.SearchAuth(table);
-						case "cellule":
-							return JsonManager.SearchAuth(table);
-						case "items":
-							return JsonManager.SearchWorld(table);
-						case "endfight":
-							return JsonManager.SearchAuth(table);
-						case "groupe_monstre":
-							return JsonManager.SearchAuth(table);
-					}
-					break;
-				case "Codebreak":
-                    switch (table)
-                    {
-						case "comptes":
-							return JsonManager.SearchAuth(table);
-						case "perso":
-							return JsonManager.SearchWorld(table);
-					}
-					break;
-					case "Sunshine":
-                    switch (table)
-					{
-                        case "comptes":
-                            return JsonManager.SearchAuth(table);
-                    }
-					break;
-            }
-			return "";
-		}
-	}
+    }
 }
