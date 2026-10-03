@@ -269,6 +269,9 @@
     <Compile Include="Bot\GameClientFullform.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="Bot\GameClientFullform.Interactions.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Bot\GameClientFullform.Designer.cs">
       <DependentUpon>GameClientFullform.cs</DependentUpon>
     </Compile>
