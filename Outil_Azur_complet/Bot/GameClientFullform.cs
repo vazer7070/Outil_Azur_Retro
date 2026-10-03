@@ -111,8 +111,9 @@ namespace Outil_Azur_complet.Bot
             zoomTools.Controls.Add(MiniButton("Adapter", (s,e) => mapControl?.Fit(), 78));
             mapBar.Controls.Add(mapStatus); mapBar.Controls.Add(zoomTools);
             combatTools = new FlowLayoutPanel { Dock = DockStyle.Right, Width = 0, WrapContents = false, Visible = false, Margin = new Padding(0) };
-            ready = MiniButton("Prêt", async (s,e) => await ToggleReady(), 62);
+            ready = MiniButton("Prêt", async (s,e) => await ToggleReady(), 62); ((ClientButton)ready).Primary = true;
             passTurn = MiniButton("Passer", async (s,e) => await PassTurn(), 67);
+            ((ClientButton)passTurn).Glyph = ClientAssets.Icon("tour-suivant-haut", 18); // flèche de fin de tour du client
             ready.AccessibleName = "Prêt pour le combat (F1)"; passTurn.AccessibleName = "Passer le tour (F2)";
             toolTips.SetToolTip(ready, "Confirmer ou annuler votre préparation (F1)");
             toolTips.SetToolTip(passTurn, "Terminer votre tour (F2)");
@@ -144,15 +145,16 @@ namespace Outil_Azur_complet.Bot
             shortcuts.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             var icons = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = new Padding(0) };
             var resources = new System.ComponentModel.ComponentResourceManager(typeof(GameClientFullform));
-            icons.Controls.Add(IconButton(resources, "roundedButton9.Image", "Caractéristiques (C)", (s,e) => ShowPanel(0)));
-            icons.Controls.Add(IconButton(resources, "roundedButton1.Image", "Sorts (S)", (s,e) => ShowPanel(2)));
-            icons.Controls.Add(IconButton(resources, "roundedButton2.Image", "Inventaire (I)", (s,e) => ShowPanel(1)));
-            icons.Controls.Add(IconButton(resources, "roundedButton3.Image", "Quêtes : interface à compléter", null));
-            icons.Controls.Add(IconButton(resources, "roundedButton4.Image", "Géoposition : ajuster la carte", (s,e) => mapControl?.Fit()));
-            icons.Controls.Add(IconButton(resources, "roundedButton5.Image", "Amis : interface à compléter", null));
-            icons.Controls.Add(IconButton(resources, "roundedButton6.Image", "Guilde : interface à compléter", null));
-            icons.Controls.Add(IconButton(resources, "roundedButton7.Image", "Monture : interface à compléter", null));
-            icons.Controls.Add(IconButton(resources, "roundedButton8.Image", "Conquête : interface à compléter", null));
+            // Icônes du bandeau du client fourni (UI_Banner*Icon de core.swf) ; celles du .resx servent de repli.
+            icons.Controls.Add(IconButton(resources, "roundedButton9.Image", "icone-caracteristiques", "Caractéristiques (C)", (s,e) => ShowPanel(0)));
+            icons.Controls.Add(IconButton(resources, "roundedButton1.Image", "icone-sorts", "Sorts (S)", (s,e) => ShowPanel(2)));
+            icons.Controls.Add(IconButton(resources, "roundedButton2.Image", "icone-inventaire", "Inventaire (I)", (s,e) => ShowPanel(1)));
+            icons.Controls.Add(IconButton(resources, "roundedButton3.Image", "icone-quetes", "Quêtes : interface à compléter", null));
+            icons.Controls.Add(IconButton(resources, "roundedButton4.Image", "icone-carte", "Géoposition : ajuster la carte", (s,e) => mapControl?.Fit()));
+            icons.Controls.Add(IconButton(resources, "roundedButton5.Image", "icone-amis", "Amis : interface à compléter", null));
+            icons.Controls.Add(IconButton(resources, "roundedButton6.Image", "icone-guilde", "Guilde : interface à compléter", null));
+            icons.Controls.Add(IconButton(resources, "roundedButton7.Image", "icone-monture", "Monture : interface à compléter", null));
+            icons.Controls.Add(IconButton(resources, "roundedButton8.Image", "icone-pvp", "Conquête : interface à compléter", null));
             shortcuts.Controls.Add(icons, 0, 0);
             summary = BotUi.Label("Personnage en cours de chargement", 8); summary.Dock = DockStyle.Fill;
             summary.ForeColor = BotUi.Gold; summary.AutoEllipsis = true; shortcuts.Controls.Add(summary, 0, 1);
@@ -280,10 +282,10 @@ namespace Outil_Azur_complet.Bot
             button.Height = 24; button.Font = new Font("Tahoma",8); button.Tag = "client-icon"; button.Margin = new Padding(1,0,1,0);
             return button;
         }
-        private Button IconButton(System.ComponentModel.ComponentResourceManager resources, string imageKey, string title, EventHandler click)
+        private Button IconButton(System.ComponentModel.ComponentResourceManager resources, string imageKey, string clientIcon, string title, EventHandler click)
         {
             var button = new Controls.buttons.RoundedButton { Width = 33, Height = 32, FlatStyle = FlatStyle.Flat,
-                Image = resources.GetObject(imageKey) as Image, BackColor = BotUi.Paper,
+                Image = ClientAssets.Icon(clientIcon, 24) ?? resources.GetObject(imageKey) as Image, BackColor = BotUi.Paper,
                 Margin = new Padding(2,0,2,0), Cursor = Cursors.Hand, Tag = "client-icon",
                 AccessibleName = title, Enabled = click != null };
             button.FlatAppearance.BorderColor = BotUi.Gold;

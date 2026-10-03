@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [switch]$Integration,
     [switch]$NoBuild,
@@ -45,7 +45,7 @@ try {
     $azurTests += 'AllEditorsWorkflowSmoke'
     $azurTests += 'ItemClientSwfSmoke'
     $azurTests += @('NetworkCaptureSmoke', 'BotTransportSmoke')
-    $azurTests += @('BotConfigSmoke', 'BotHandshakeSmoke', 'BotGameplaySmoke', 'BotSpellsSmoke', 'BotSpellXmlSmoke', 'BotMapViewSmoke', 'BotUiSmoke')
+    $azurTests += @('BotConfigSmoke', 'BotHandshakeSmoke', 'BotGameplaySmoke', 'BotSpellsSmoke', 'BotSpellXmlSmoke', 'BotMapViewSmoke', 'BotUiSmoke', 'BotClientSkinSmoke')
     $azurTests += @('BotCombatSmoke', 'BotCombatUiSmoke', 'BotEntitiesSmoke')
     $azurTests += 'ResourceManagerSmoke'
     $azurTests += 'EmulatorProfileSmoke'

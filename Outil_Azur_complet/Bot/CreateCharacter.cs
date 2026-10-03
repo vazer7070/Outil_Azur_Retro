@@ -39,18 +39,20 @@ namespace Outil_Azur_complet.Bot
                 colors[i].Dock=DockStyle.Top;
                 var colorInput=new Panel { Dock=DockStyle.Fill,Padding=new Padding(0,4,7,0) };colorInput.Controls.Add(colors[i]);
                 var colorTitle=BotUi.Label("Couleur "+(i+1),9,true);colorTitle.Dock=DockStyle.Left;colorTitle.Width=86;colorTitle.TextAlign=ContentAlignment.MiddleLeft;
-                var choose=BotUi.Button("Choisir…",(s,e)=>PickColor(index),false,110);choose.Dock=DockStyle.Right;
+                var choose=BotUi.Button("Choisir…",(s,e)=>PickColor(index),false,110);choose.Dock=DockStyle.Right;((ClientButton)choose).Glyph=ClientAssets.Icon("de-couleur",22);
                 line.Controls.Add(colorInput);line.Controls.Add(choose);line.Controls.Add(colorTitle);
                 fields.Controls.Add(line,0,fields.RowCount++);
             }
             var scroll=new Panel { Dock=DockStyle.Fill,AutoScroll=true,Padding=new Padding(0,0,12,0) };scroll.Controls.Add(fields);
-            var preview=new ClientPanel { Dock=DockStyle.Fill,BackColor=BotUi.PaperLight,Padding=new Padding(14),Margin=new Padding(0) };
+            // Le fond de l'aperçu reprend le parchemin de l'écran de création du client pour que le socle s'y fonde.
+            var socle=ClientAssets.Get("socle");Color paper=socle==null?BotUi.PaperLight:Color.FromArgb(255,socle.GetPixel(socle.Width-30,socle.Height/2));
+            var preview=new ClientPanel { Dock=DockStyle.Fill,BackColor=paper,Padding=new Padding(14),Margin=new Padding(0) };
             identity=BotUi.Label("",13,true);identity.Dock=DockStyle.Top;identity.Height=35;identity.TextAlign=ContentAlignment.MiddleCenter;
             var previewTitle=BotUi.Label("Aperçu de la classe",10,true);previewTitle.Dock=DockStyle.Top;previewTitle.Height=27;previewTitle.TextAlign=ContentAlignment.MiddleCenter;
-            portrait=new CharacterPortrait { Dock=DockStyle.Fill,BackColor=BotUi.PaperLight,ForeColor=BotUi.Muted };
+            portrait=new CharacterPortrait { Dock=DockStyle.Fill,BackColor=paper,ForeColor=BotUi.Muted };
             var previewNote=BotUi.Label("Le portrait montre les couleurs d’origine. Vos couleurs choisies seront appliquées au personnage en jeu.",9);
             previewNote.Dock=DockStyle.Bottom;previewNote.Height=55;previewNote.ForeColor=BotUi.Muted;previewNote.TextAlign=ContentAlignment.MiddleCenter;
-            var palette=new TableLayoutPanel { Dock=DockStyle.Bottom,Height=72,ColumnCount=3,RowCount=2,BackColor=BotUi.PaperLight };
+            var palette=new TableLayoutPanel { Dock=DockStyle.Bottom,Height=72,ColumnCount=3,RowCount=2,BackColor=paper };
             palette.RowStyles.Add(new RowStyle(SizeType.Absolute,27));palette.RowStyles.Add(new RowStyle(SizeType.Percent,100));
             swatches=new Panel[3];colorDescriptions=new Label[3];
             for(int i=0;i<3;i++) {
@@ -114,11 +116,17 @@ namespace Outil_Azur_complet.Bot
                     TextRenderer.DrawText(args.Graphics,"Portrait indisponible\npour cette apparence",Font,ClientRectangle,ForeColor,
                         TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter|TextFormatFlags.WordBreak);return;
                 }
-                float scale=Math.Min(3f,Math.Min((Width-24f)/appearance.Width,(Height-38f)/appearance.Height));
+                // Socle et blason de l'écran de création du client fourni ; le personnage se tient dessus comme dans le client.
+                var socle=ClientAssets.Get("socle");float socleHeight=socle==null?0:Math.Min(Height*0.34f,Width*0.5f*socle.Height/socle.Width);
+                float scale=Math.Min(3f,Math.Min((Width-24f)/appearance.Width,(Height-38f-socleHeight*0.55f)/appearance.Height));
                 int width=Math.Max(1,(int)(appearance.Width*scale)),height=Math.Max(1,(int)(appearance.Height*scale));
-                var bounds=new Rectangle((Width-width)/2,(Height-height)/2,width,height);
+                var bounds=new Rectangle((Width-width)/2,(int)((Height-socleHeight*0.55f-height)/2),width,height);
                 args.Graphics.SmoothingMode=SmoothingMode.AntiAlias;
-                using(var shadow=new SolidBrush(Color.FromArgb(38,BotUi.FrameLight)))
+                if(socle!=null) {
+                    float socleWidth=socleHeight*socle.Width/socle.Height;
+                    // Le centre du socle (à 78 % de sa hauteur) reçoit les pieds du personnage.
+                    ClientAssets.DrawFit(args.Graphics,socle,new RectangleF((Width-socleWidth)/2,bounds.Bottom-socleHeight*0.78f,socleWidth,socleHeight));
+                } else using(var shadow=new SolidBrush(Color.FromArgb(38,BotUi.FrameLight)))
                     args.Graphics.FillEllipse(shadow,Width/2f-width*0.42f,bounds.Bottom-5,width*0.84f,12);
                 args.Graphics.InterpolationMode=InterpolationMode.HighQualityBicubic;args.Graphics.PixelOffsetMode=PixelOffsetMode.HighQuality;
                 args.Graphics.DrawImage(appearance,bounds);
