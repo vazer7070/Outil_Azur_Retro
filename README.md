@@ -1,6 +1,17 @@
 ﻿# Outil Azur Retro
 
-L’état des fonctions corrigées, les écarts encore présents avec ce README et les critères de validation sont décrits dans [l’état du projet](docs/ETAT_PROJET.md). La suite reproductible compte **23 tests : 15 sans base et 8 d'intégration**, réussis en Debug et Release le 1er octobre 2026 ; voir [les tests](tests/README.md). Pour reprendre le projet rapidement, consulter aussi l'[inventaire de reprise](docs/INVENTAIRE_REPRISE.md).
+L’état des fonctions corrigées, les écarts encore présents avec ce README et les critères de validation sont décrits dans [l’état du projet](docs/ETAT_PROJET.md). La suite reproductible compte **34 tests : 26 sans base et 8 d'intégration** ; voir [les tests](tests/README.md). Pour reprendre le projet rapidement, consulter aussi l'[inventaire de reprise](docs/INVENTAIRE_REPRISE.md).
+
+## Émulateurs pris en charge
+
+Azur décrit chaque émulateur par un **profil** (`tools/Tools_protocol.Emulators`) : où se trouve chaque table (base auth ou world), quelles fonctions l'outil sait y utiliser et ce qu'il charge au démarrage. Le menu grise les outils qu'un profil ne gère pas et en donne la raison ; la configuration affiche la prise en charge de chaque émulateur. Ajouter un émulateur revient à ajouter un profil.
+
+| Émulateur | Pris en charge aujourd'hui |
+| --- | --- |
+| **Kryone V2** (kauth / kworld) | Tous les outils : comptes, personnages, inventaires, création d'objets, 24 éditeurs de ressources, recherche, placements et export XML vers le bot. C'est la seule cible vérifiée par les tests d'intégration. |
+| **StarLoco** | Le client bot (connexion Login/Game, personnages, déplacements, sorts). Les éditeurs SQL attendent la correspondance de ses tables `login`/`game`, qui ne sont pas interchangeables avec celles de Kryone. L'éditeur de cartes, les objets du client et le gestionnaire fonctionnent sans base. |
+| **Sunshine** | Consultation des comptes uniquement. |
+| **Codebreak** | Connexion aux bases uniquement ; les outils SQL ne sont pas encore adaptés à son schéma. |
 
 Le schéma `kauth.sql` fourni a permis de vérifier **58 tables InnoDB**, dont `accounts` et `players`, sans importer les comptes ni les personnages réels. Les corrections et les réglages nécessaires sont décrits dans [la compatibilité Kryone/kauth](docs/KAUTH_COMPATIBILITE.md).
 
@@ -10,7 +21,7 @@ La [carte des sources StarLoco pour le bot](docs/STARLOCO_SOURCES_ANALYSE.md) d�
 
 L’éditeur importe maintenant les cartes SWF FWS/CWS à affectations AVM1 simples et exporte des SWF binaires. Les projets AME Azur versions 1, 2 et 3 sont lisibles. Un pack de 108 cartes CWS a permis de vérifier le nombre de cellules et de corriger l'import des autorisations supérieures à 15. Les formats acceptés, les limites et la validation encore nécessaire dans le client de jeu sont décrits dans [le guide des cartes SWF](docs/FORMAT_SWF_CARTES.md).
 
-L'**Atelier Azur** regroupe les outils par domaine. Comptes, personnages, inventaires, cartes, configuration et **24 éditeurs de ressources** utilisent une interface commune : navigation par rubrique, fiches blanches, champs en français et enregistrement explicite. Les modèles d'objets, panoplies, recettes, butins, dialogues, quêtes et mécanismes disposent aussi d'éditeurs fonctionnels. Voir [le guide des éditeurs](docs/GUIDE_EDITEURS.md).
+L'**Atelier Azur** regroupe les outils par domaine. Comptes, personnages, inventaires, cartes, configuration et **24 éditeurs de ressources** utilisent une interface commune, dans la palette du client Dofus Retro partagée avec le bot : navigation par rubrique, fiches parchemin, champs en français avec leur aide en infobulle, et enregistrement explicite. Les modèles d'objets, panoplies, recettes, butins, dialogues, quêtes et mécanismes disposent aussi d'éditeurs fonctionnels. Voir [le guide des éditeurs](docs/GUIDE_EDITEURS.md).
 
 ![forthebadge](https://forthebadge.com/images/badges/made-with-c-sharp.svg)
 
@@ -39,8 +50,10 @@ Si il manque les images pour l'éditeur de carte, il s'agit des mêmes que pour 
 
 Les bibliothèques fournies sous `Outil_Azur_complet/bin/Debug/ressources` sont maintenant copiées automatiquement dans les autres configurations à la compilation. Les outils utilisent le dossier de l'exécutable au démarrage, même si Azur est lancé depuis un autre dossier.
 
+La solution se compile avec Visual Studio 2019 ou plus récent (`Outil_Azur_complet.sln`, .NET Framework 4.8), après restauration NuGet. Les identifiants SQL sont dans `config.json`, à côté de l'exécutable ; ce fichier est ignoré par Git et aucune configuration locale n'est versionnée.
+
 Vous pouvez modifier les identifiants de la/des BDD dans le panneau de configuration et relancer la connexion depuis ce dernier pour vous permettre de lancer les outils manquants.
-Les outils de recherche et les éditeurs ciblent **Kryone V2**. La connexion **auth** doit accéder aux comptes (`accounts`), personnages (`players`) et ressources statiques de `kauth` ; la connexion **world** doit accéder aux exemplaires d'objets (`items`), présents dans `kworldsave.sql`. Les deux connexions restent à configurer pour votre installation.
+Les outils de recherche et les éditeurs ciblent **Kryone V2**. La connexion **auth** doit accéder aux comptes (`accounts`), personnages (`players`) et ressources statiques de `kauth` ; la connexion **world** doit accéder aux exemplaires d'objets (`items`), présents dans `kworldsave.sql`. Les deux connexions restent à configurer pour votre installation. Pour les autres émulateurs, voir le tableau ci-dessus.
 
 Les correspondances sont enregistrées dans **auth/auth_tables.json** et **world/world_tables.json**, sous le dossier de l'exécutable. Les nouvelles configurations utilisent les noms corrigés de `kauth`. Les anciens JSON personnalisés sont conservés : vérifiez leurs noms dans **Configuration → Configurer les tables → Correspondances**, notamment `coffre → coffres`, `extra_monstres → extra_monster`, `object_action → objectsactions`, `schema_fight → schemafights` et `titres → titre`.
 
@@ -125,18 +138,15 @@ Le bouton **Placements serveur** superpose les PNJ, groupes fixes, zaaps et encl
 L'éditeur ne peut pas être lancé si l'application ne détecte pas les fichiers d'images nécéssaires à son bon fonctionnement, il est donc important de vérifier leurs présence et que ce soit bien des images de tuiles de carte correspondantes aux dossiers présents à la racine d'AzurToolRetro.
 
 ### Client AzurToolBot
-La refonte du **2 octobre 2026** apporte un parcours de connexion et des écrans communs aux éditeurs, ainsi qu’un protocole Login/Game testé sur boucle locale d’après les sources StarLoco. Le [guide du bot](docs/BOT_STARLOCO.md) décrit son utilisation et ses limites. Les modes automatique/admin et les scripts/plugins décrits ci-dessous restent à réaliser ; ils ne sont pas présentés comme disponibles dans l’interface actuelle.
+Le client est une re-création en C# du client Dofus Retro, qui parle directement le protocole **Login/Game de StarLoco** (connexion, serveurs, sélection et création de personnage, cartes, déplacements, discussion, caractéristiques, inventaire, sorts et métiers). Il reprend des éléments du bot de **Salesprendes**. Son interface suit la composition du client d'origine : grande carte, bandeau de jeu en bas, fiches refermables. Le [guide du bot](docs/BOT_STARLOCO.md) décrit son utilisation et ses limites.
 
-Voici donc la re-création complète du client Dofus retro en C#, similaire à un bot full socket multi-version mais qui peut très bien juste être une alternative sans triche du client officiel.
+Ce qui est vérifié aujourd'hui l'est par des tests sur boucle locale avec des serveurs fictifs ; la connexion à un vrai StarLoco reste à valider. Le combat et les interactions sont partiels.
 
-Basé sur le bot de **Salesprendes**, il en reprends certaines fonctions (fonctions anti-cheat (améliorée), bypass token launcher, etc..) tout en les améliorants et permettant de lier botting, jeu et gestion complète d'un serveur de jeu au travers des 3 modes qu'il propose. En effet, le client possède 3 modes: **auto**, **manuel** et **admin**.
+Les trois modes historiquement annoncés ne sont **pas disponibles** et ne sont pas proposés dans l'interface :
 
-* **Admin**: permet une gestion complète et en temps réel de son serveur en connectant le client à la base de données utilisée par l'application **AzurTool**, ce qui donne accès aux fonctions de ban,
-d'invocation, de modifications et gestion des joueurs (outils de modération/administration) tout en étant sur le serveur parmi les autres joueurs et ce sans avoir à manipuler d'autres applications.
-
-* **Manuel**: ce mode est le plus simple, il permet juste de jouer, avec ce mode le client est juste une alternative au client officiel avec un visuel constant en mode tactique.
-
-* **Automatique**: ce mode est complètement un bot, en effet, avec des plugins C# (comme les plugins *Stumps*) et/ou avec des scripts *LUA*, il est possible de complètement automatiser le client pour qu'il soit automatique et joue à votre place. Une série de script pré-chargés sont fournis avec le client et permettent déjà de voir ce qu'il est possible de faire sachant que techniquement, la seule limite c'est vous.
+* **Manuel** : jouer avec le client comme alternative au client officiel. C'est le mode actuel, en cours de validation.
+* **Admin** : moderer son serveur depuis le client (bannir, invoquer, modifier les joueurs) en le reliant aux bases d'Azur. Non réalisé.
+* **Automatique** : automatiser le client avec des plugins C# ou des scripts Lua. Non réalisé ; aucun script n'est fourni.
 
 Si jamais vous vous faites bannir, la responsabilité est vôtre, je décline toute responsabilité si vous vous faites attraper et que vous perdez votre compte suite à l'utilisation du client **AzurToolRétro**.
 

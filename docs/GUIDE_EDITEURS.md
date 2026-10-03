@@ -1,6 +1,6 @@
 ﻿# Utiliser les éditeurs Azur
 
-Les éditeurs utilisent une interface commune : barre Azur, navigation par rubrique, fiches blanches, champs en français, aides et actions explicites. Le menu **Atelier Azur** regroupe les outils par domaine. La configuration et le gestionnaire utilisent aussi cette présentation. Ce guide correspond aux corrections du **1er octobre 2026**.
+Les éditeurs utilisent une interface commune, dans la palette du client Dofus Retro partagée avec le bot : barre Azur, navigation par rubrique, fiches parchemin, champs en français dont l'aide s'affiche en infobulle, et actions explicites. Le menu **Atelier Azur** regroupe les outils par domaine ; un outil que l'émulateur configuré ne gère pas apparaît grisé avec la raison. La configuration et le gestionnaire utilisent aussi cette présentation. Ce guide correspond aux corrections du **3 octobre 2026**.
 
 ## Ouvrir un éditeur
 
