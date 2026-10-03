@@ -46,7 +46,7 @@ Les écritures de comptes, personnages, inventaire, modération et création d�
 .\tests\Run-Tests.ps1 -Configuration Release -Integration
 ```
 
-La suite contient **35 tests** : vingt-six sans base, neuf avec une instance MySQL 8.4 indépendante. Le serveur de test utilise le port `43306`, possède un dossier de données neuf et est arrêté à la fin. La configuration SQL du logiciel n’est jamais utilisée par cette suite. Voir [les instructions des tests](../tests/README.md).
+La suite contient **36 tests** : vingt-sept sans base, neuf avec une instance MySQL 8.4 indépendante. Le serveur de test utilise le port `43306`, possède un dossier de données neuf et est arrêté à la fin. La configuration SQL du logiciel n’est jamais utilisée par cette suite. Voir [les instructions des tests](../tests/README.md).
 
 Les tests réseau et de conversion couvrent le décodeur et le relais TCP local (fragments, UTF-8, masquage, fermeture partielle, arrêt et redémarrage), le transport du bot et le cycle de connexion des comptes, puis le convertisseur de cartes et l'interface de capture. Ils vérifient les 479 cellules, la conservation des métadonnées AME, les filtres, la vue compacte et l'arrêt du relais à la fermeture du gestionnaire. Tous les échanges réseau utilisent des messages fictifs sur la boucle locale.
 

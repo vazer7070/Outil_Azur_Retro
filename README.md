@@ -1,6 +1,6 @@
 # Outil Azur Retro
 
-L’état des fonctions corrigées, les écarts encore présents avec ce README et les critères de validation sont décrits dans [l’état du projet](docs/ETAT_PROJET.md). La suite reproductible compte **35 tests : 26 sans base et 9 d'intégration** ; voir [les tests](tests/README.md). Pour reprendre le projet rapidement, consulter aussi l'[inventaire de reprise](docs/INVENTAIRE_REPRISE.md).
+L’état des fonctions corrigées, les écarts encore présents avec ce README et les critères de validation sont décrits dans [l’état du projet](docs/ETAT_PROJET.md). La suite reproductible compte **36 tests : 27 sans base et 9 d'intégration** ; voir [les tests](tests/README.md). Pour reprendre le projet rapidement, consulter aussi l'[inventaire de reprise](docs/INVENTAIRE_REPRISE.md).
 
 ## Émulateurs pris en charge
 
