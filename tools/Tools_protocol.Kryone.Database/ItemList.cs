@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Runtime.CompilerServices;
-using Tools_protocol.Json;
+using Tools_protocol.Emulators;
 using Tools_protocol.Query;
 
 namespace Tools_protocol.Kryone.Database
@@ -43,11 +43,12 @@ namespace Tools_protocol.Kryone.Database
 			set;
 		}
 
+		/// <summary>Table des exemplaires d'objets selon le profil d'émulateur courant.</summary>
 		public static string TableItems
 		{
 			get
 			{
-				return JsonManager.SearchWorld("items");
+				return EmulatorRegistry.Current.Table("items");
 			}
 		}
 
@@ -57,27 +58,33 @@ namespace Tools_protocol.Kryone.Database
 			set;
 		}
 
+		/// <summary>
+		/// Lit un exemplaire : les colonnes portent les noms réels du profil courant
+		/// (guid/qua/pos pour Kryone, id/quantity/position pour StarLoco).
+		/// </summary>
 		public ItemList(IDataReader reader)
 		{
-			Guid = Convert.ToInt32(reader["guid"]);
-			Template = Convert.ToInt32(reader["template"]);
-			Qua = Convert.ToInt32(reader["qua"]);
-			Pos = Convert.ToInt32(reader["pos"]);
-			Stat = Convert.ToString(reader["stats"]);
-			Puit = Convert.ToInt32(reader["puit"]);
+			EmulatorProfile emulator = EmulatorRegistry.Current;
+			Guid = Convert.ToInt32(reader[emulator.ItemColumn("guid")]);
+			Template = Convert.ToInt32(reader[emulator.ItemColumn("template")]);
+			Qua = Convert.ToInt32(reader[emulator.ItemColumn("qua")]);
+			Pos = Convert.ToInt32(reader[emulator.ItemColumn("pos")]);
+			Stat = Convert.ToString(reader[emulator.ItemColumn("stats")]);
+			Puit = Convert.ToInt32(reader[emulator.ItemColumn("puit")]);
 		}
-		
+
 		public static void AddItemIdToList()
 		{
 			string[] args = new string[] { "*" };
 			string query = QueryBuilder.SelectFromQuery(args, TableItems, "", "");
 
-			using (MySqlConnection connection = new MySqlConnection(DatabaseManager2.ConnectionString))
+			using (MySqlConnection connection = new MySqlConnection(EmulatorRegistry.ConnectionFor("items")))
 			{
 				try
 				{
 					connection.Open();
 					ItemsId.Clear();
+					ItemsList.Clear();
 					ItemList G = null;
 					MySqlDataReader lecteur = new MySqlCommand(query, connection).ExecuteReader();
 					while (lecteur.Read())

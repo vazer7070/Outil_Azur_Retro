@@ -8,7 +8,7 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
-using Tools_protocol.Json;
+using Tools_protocol.Emulators;
 using Tools_protocol.Managers;
 using Tools_protocol.Query;
 
@@ -40,11 +40,12 @@ namespace Tools_protocol.Kryone.Database
 
 		public string Reponse { get; set; }
 
+		/// <summary>Table des comptes selon le profil d'émulateur courant.</summary>
 		public static string TableCompte
 		{
 			get
 			{
-				return JsonManager.SearchAuth("comptes");
+				return EmulatorRegistry.Current.Table("comptes");
 			}
 		}
 
@@ -76,7 +77,7 @@ namespace Tools_protocol.Kryone.Database
 			string query = QueryBuilder.SelectFromQuery(args, AccountList.TableCompte, "", "");
 			var accounts = new Dictionary<string, AccountList>(StringComparer.OrdinalIgnoreCase);
 			var namesById = new Dictionary<int, string>();
-			using (var connection = new MySqlConnection(DatabaseManager.ConnectionString))
+			using (var connection = new MySqlConnection(EmulatorRegistry.ConnectionFor("comptes")))
 			using (var command = new MySqlCommand(query, connection))
 			{
 				connection.Open();
@@ -98,8 +99,7 @@ namespace Tools_protocol.Kryone.Database
 		public static void CreateAccount(string compte, int hash, string mdp, string question, string reponse)
 		{
 			string tableName = TableCompte;
-			if (string.IsNullOrEmpty(tableName) ||
-				!Regex.IsMatch(tableName, @"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant))
+			if (!QueryBuilder.IsIdentifier(tableName))
 				throw new InvalidOperationException("Le nom de la table des comptes est invalide.");
 
 			var knownValues = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
@@ -120,7 +120,7 @@ namespace Tools_protocol.Kryone.Database
 				["dateRegister"] = DateTime.Today.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)
 			};
 			AccountList account;
-			using (var connection = new MySqlConnection(DatabaseManager.ConnectionString))
+			using (var connection = new MySqlConnection(EmulatorRegistry.ConnectionFor("comptes")))
 			{
 				connection.Open();
 				using (var engineCommand = new MySqlCommand(
