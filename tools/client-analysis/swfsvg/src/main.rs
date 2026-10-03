@@ -604,12 +604,20 @@ impl<'a> Exporter<'a> {
 }
 
 fn decode_jpeg(data: &[u8]) -> Option<image::RgbaImage> {
-    // Certains JPEG Flash commencent par un marqueur EOI/SOI parasite.
-    let mut d = data;
-    if d.len() > 4 && d[0] == 0xff && d[1] == 0xd9 && d[2] == 0xff && d[3] == 0xd8 {
-        d = &d[4..];
+    // Les JPEG Flash enchaînent souvent un segment de tables et l'image : « FF D9 FF D8 » (EOI puis SOI)
+    // apparaît au début ou au milieu des données et arrête les décodeurs classiques. On retire ces
+    // paires ; la jonction JPEGTables + DefineBits se corrige de la même façon.
+    let mut d = Vec::with_capacity(data.len());
+    let mut i = 0;
+    while i < data.len() {
+        if i + 3 < data.len() && data[i] == 0xff && data[i + 1] == 0xd9 && data[i + 2] == 0xff && data[i + 3] == 0xd8 {
+            i += 4;
+            continue;
+        }
+        d.push(data[i]);
+        i += 1;
     }
-    image::load_from_memory_with_format(d, image::ImageFormat::Jpeg).ok().map(|i| i.to_rgba8())
+    image::load_from_memory_with_format(&d, image::ImageFormat::Jpeg).ok().map(|i| i.to_rgba8())
 }
 
 fn safe_name(n: &str) -> String {
