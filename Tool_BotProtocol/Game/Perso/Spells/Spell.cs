@@ -183,6 +183,7 @@ namespace Tool_BotProtocol.Game.Perso.Spells
         private static bool ByteAttribute(XElement node, string name, out byte value)
         {
             XAttribute attribute = node.Attribute(name);
+            value = 0;
             return attribute != null && byte.TryParse(attribute.Value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
         }
         private static bool BoolAttribute(XElement node, string name)
