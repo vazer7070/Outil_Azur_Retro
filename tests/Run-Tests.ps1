@@ -75,6 +75,7 @@ try {
         $azurTests += @('InventoryIntegrationSmoke', 'ModerationIntegrationSmoke', 'ItemCreationIntegrationSmoke', 'ResourceExportIntegrationSmoke', 'MapActionIntegrationSmoke', 'ServerEditingIntegrationSmoke')
         $azurTests += 'AllEditorsIntegrationSmoke'
         $azurTests += 'KauthSchemaIntegrationSmoke'
+        $azurTests += 'StarLocoSchemaIntegrationSmoke'
     }
 
     Push-Location -LiteralPath $azurWork
