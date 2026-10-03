@@ -360,9 +360,10 @@ impl<'a> Exporter<'a> {
                 match self.bitmap(*bid) {
                     Some((w, h, b64)) => {
                         let id = self.next_id("p");
-                        let bm = m.mul(&M::from_swf(matrix));
-                        // La matrice d'un remplissage bitmap est exprimée en twips : 20 unités par pixel.
-                        let bm = M { a: bm.a * 20.0, b: bm.b * 20.0, c: bm.c * 20.0, d: bm.d * 20.0, tx: bm.tx, ty: bm.ty };
+                        // La matrice d'un remplissage bitmap envoie les pixels de l'image vers l'espace de la forme
+                        // en twips (20 par pixel) : en pixels, sa partie linéaire est donc divisée par 20.
+                        let fm = M::from_swf(matrix);
+                        let bm = m.mul(&M { a: fm.a / 20.0, b: fm.b / 20.0, c: fm.c / 20.0, d: fm.d / 20.0, tx: fm.tx, ty: fm.ty });
                         let _ = is_repeating; // un motif non répété est rarement débordé par sa forme
                         let (pw, ph) = (w, h);
                         let _ = write!(self.defs, "<pattern id=\"{}\" patternUnits=\"userSpaceOnUse\" width=\"{}\" height=\"{}\" patternTransform=\"{}\"><image width=\"{}\" height=\"{}\" href=\"data:image/png;base64,{}\"/></pattern>", id, pw, ph, bm.svg(), w, h, b64);

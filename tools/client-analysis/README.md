@@ -41,6 +41,6 @@ python3 exporter_png.py svg/ png/ 1
 
 ## Limites connues
 
-- Les JPEG Flash (segment de tables puis image, `FF D9 FF D8` au milieu des données, `JPEGTables` partagé) sont recollés avant décodage ; les bitmaps encore illisibles sont signalés dans `index.tsv`. Les parchemins `UI_Document*` (JPEG3) ressortent noirs.
+- Les JPEG Flash (segment de tables puis image, `FF D9 FF D8` au milieu des données, `JPEGTables` partagé) sont recollés avant décodage ; un bitmap encore illisible est signalé dans `index.tsv` et sa zone reste vide.
 - Les écrans construits à l'exécution (bandeau, inventaire, sorts, options) n'ont que peu d'art statique : seul leur cadre est exporté.
 - La décompilation est une pseudo-décompilation : elle suffit à lire les formats de paquets, pas à recompiler le client.
