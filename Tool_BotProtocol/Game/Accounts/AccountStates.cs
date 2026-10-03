@@ -19,6 +19,8 @@ namespace Tool_BotProtocol.Game.Accounts
         EXCHANGE,
         BUYING,
         SELLING,
-        REGENERATION
+        REGENERATION,
+        /// <summary>Fenêtre des zaaps ouverte (WC reçu, WV attendu).</summary>
+        ZAAP
     }
 }

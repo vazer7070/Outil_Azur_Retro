@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -20,9 +21,11 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
         public short pods { get; set; }
         public short Level { get; set; } = 0;
         public byte Type { get;  set; }
-        public short Regen { get; }
+        public short Regen { get; private set; }
         public string Stats { get; set; }
         public string Conditions { get; set; }
+        /// <summary>Vrai lorsque la fiche du modèle est disponible dans <c>ressources/Bot/BotObjets</c>.</summary>
+        public bool HasMetadata { get; private set; }
         public static ConcurrentDictionary<int, InventoryObjects> FullInventory = new ConcurrentDictionary<int, InventoryObjects>();
         public InventoryObjectsTypes Inventory { get; private set; } = InventoryObjectsTypes.UNKNOWN;
         public InventoryObjects()
@@ -35,35 +38,62 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
                 return InventoryObjects.FullInventory[id];
             return null;
         }
-        public InventoryObjects(string paquet)
+        /// <summary>Nom à afficher pour un modèle d'objet : la fiche BotObjets si elle existe, sinon « Objet n° X ».</summary>
+        public static string DisplayName(int templateId)
         {
-            string[] parse = paquet.Split('~');
-            Inventory_ID = Convert.ToUInt32(parse[0], 16);
-            ID = Convert.ToInt32(parse[1], 16);
-            Qua = Convert.ToInt32(parse[2], 16);
-
-            if(!string.IsNullOrEmpty(parse[3]))
-                position = (InventorySlots)Convert.ToSByte(parse[3], 16);
-            string [] S = parse[4].Split(',');
-            foreach(string stats in S)
+            InventoryObjects template = ReturnInventory(templateId);
+            return template != null && !string.IsNullOrEmpty(template.Name) ? template.Name : "Objet n° " + templateId;
+        }
+        /// <summary>
+        /// Lit une fiche d'objet au format du client 1.34 (<c>CharactersManager.getItemObjectFromData</c>) :
+        /// <c>id~modèle~quantité~position~effets</c>, les quatre premiers champs en hexadécimal, la position vide valant -1.
+        /// Retourne null si la fiche est illisible au lieu de lever une exception.
+        /// </summary>
+        public static InventoryObjects Parse(string record)
+        {
+            if (string.IsNullOrWhiteSpace(record)) return null;
+            string[] parse = record.Split('~');
+            if (parse.Length < 4) return null;
+            if (!uint.TryParse(parse[0], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint inventoryId)
+                || !int.TryParse(parse[1], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int template)
+                || !int.TryParse(parse[2], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int quantity)) return null;
+            var item = new InventoryObjects { Inventory_ID = inventoryId, ID = template, Qua = quantity };
+            if (!string.IsNullOrEmpty(parse[3]))
+            {
+                if (!int.TryParse(parse[3], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int slot)) return null;
+                item.position = (InventorySlots)slot;
+            }
+            item.Stats = parse.Length > 4 ? parse[4] : string.Empty;
+            foreach (string stats in item.Stats.Split(','))
             {
                 string[] Parse_stats = stats.Split('#');
-                string id = Parse_stats[0];
-
-                if(string.IsNullOrEmpty(id))
-                    continue;
-                int stats_id = Convert.ToInt32(id, 16);
-                if(stats_id == 110)
-                    Regen = Convert.ToInt16(Parse_stats[1], 16);
+                if (string.IsNullOrEmpty(Parse_stats[0])) continue;
+                if (!int.TryParse(Parse_stats[0], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int statsId)) continue;
+                if (statsId == 110 && Parse_stats.Length > 1
+                    && short.TryParse(Parse_stats[1], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out short regen))
+                    item.Regen = regen;
             }
-            if (InventoryObjects.FullInventory.ContainsKey((int)ID))
+            InventoryObjects metadata = ReturnInventory(template);
+            if (metadata != null)
             {
-                Name = ReturnInventory(ID).Name;
-                pods = ReturnInventory(ID).pods;
-                Type = ReturnInventory(ID).Type;
-                Level = ReturnInventory(ID).Level;
-                Inventory = InventoryUtilities.GetTypeForObjectInInventory(Type);
+                item.Name = metadata.Name;
+                item.pods = metadata.pods;
+                item.Type = metadata.Type;
+                item.Level = metadata.Level;
+                item.Conditions = metadata.Conditions;
+                item.Inventory = InventoryUtilities.GetTypeForObjectInInventory(metadata.Type);
+                item.HasMetadata = true;
             }
+            else item.Name = "Objet n° " + template;
+            return item;
+        }
+        public InventoryObjects(string paquet)
+        {
+            InventoryObjects parsed = Parse(paquet);
+            if (parsed == null) throw new FormatException("Fiche d'objet illisible : " + paquet);
+            Inventory_ID = parsed.Inventory_ID; ID = parsed.ID; Qua = parsed.Qua; position = parsed.position;
+            Stats = parsed.Stats; Regen = parsed.Regen; Name = parsed.Name; pods = parsed.pods; Type = parsed.Type;
+            Level = parsed.Level; Conditions = parsed.Conditions; Inventory = parsed.Inventory; HasMetadata = parsed.HasMetadata;
         }
         public bool IsEquipped() => position > InventorySlots.NOT_EQUIPPED;
     }

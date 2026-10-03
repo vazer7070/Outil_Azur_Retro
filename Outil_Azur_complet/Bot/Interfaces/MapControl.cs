@@ -9,9 +9,11 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Tool_BotProtocol.Game.Accounts;
+using Tool_BotProtocol.Game.Interactions;
 using Tool_BotProtocol.Game.Managers.Mouvements;
 using Tool_BotProtocol.Game.Maps;
 using Tool_BotProtocol.Game.Maps.Mouvements;
+using Tool_BotProtocol.Game.NPC;
 
 namespace Outil_Azur_complet.Bot.Interfaces
 {
@@ -135,9 +137,28 @@ namespace Outil_Azur_complet.Bot.Interfaces
 
         private async void UserMapClic(UserMapCell cell, MouseButtons buttons, bool dragged)
         {
-            if (cell == null || buttons != MouseButtons.Left || dragged) return;
-            try { await HandleCellActionAsync(cell.id); }
+            if (cell == null || dragged) return;
+            try
+            {
+                if (buttons == MouseButtons.Left) await HandleCellActionAsync(cell.id);
+                else if (buttons == MouseButtons.Right) await HandleNpcTradeAsync(cell.id);
+            }
             catch (Exception ex) { ActionFeedback?.Invoke("Action impossible : " + ex.Message); }
+        }
+
+        /// <summary>
+        /// Clic droit sur un PNJ : l'entrée « Échanger » du menu du client, soit <c>ER0|&lt;pnj&gt;</c>.
+        /// StarLoco n'ouvre la boutique d'un PNJ que sur ce paquet (<c>ECK0|&lt;pnj&gt;</c> puis <c>EL</c>), jamais depuis une réponse de dialogue.
+        /// </summary>
+        public async Task HandleNpcTradeAsync(short cellId)
+        {
+            Map map = Account.Game?.Map;
+            if (map == null || Account.Game.character.Cell == null) { ActionFeedback?.Invoke("Cette cellule n’est pas disponible."); return; }
+            if (Account.Connexion == null || !Account.Connexion.IsConnected()) { ActionFeedback?.Invoke("Connectez le personnage pour agir sur la carte."); return; }
+            PNJ npc = map.NPC_List().FirstOrDefault(entity => entity.Cell != null && entity.Cell.CellID == cellId);
+            if (npc == null) { ActionFeedback?.Invoke("Clic droit : visez un personnage non joueur pour ouvrir sa boutique."); return; }
+            InteractionResult trade = await Account.Game.Interactions.Shop.OpenAsync(npc.id);
+            ActionFeedback?.Invoke(trade.Message); Account.Logger.LogInfo("CARTE", trade.Message);
         }
 
         public async Task HandleCellActionAsync(short cellId)
@@ -155,6 +176,17 @@ namespace Outil_Azur_complet.Bot.Interfaces
             if (fight.IsInFight) {
                 var combat = fight.IsPlacement ? await fight.PlaceAsync(cellId) : await fight.MoveAsync(cellId);
                 ActionFeedback?.Invoke(combat.Message); return;
+            }
+            // Comme le client : un clic sur un PNJ envoie DC<pnj>, un clic sur le zaap envoie GA500<cellule>;114.
+            InteractionsClass interactions = Account.Game.Interactions;
+            PNJ npc = map.NPC_List().FirstOrDefault(entity => entity.Cell != null && entity.Cell.CellID == cellId);
+            if (npc != null) {
+                InteractionResult talk = await interactions.Npc.OpenAsync(npc.id);
+                ActionFeedback?.Invoke(talk.Message); Account.Logger.LogInfo("CARTE", talk.Message); return;
+            }
+            if (interactions.Zaap.IsZaapCell(cellId)) {
+                InteractionResult zaap = await interactions.Zaap.OpenAsync(cellId);
+                ActionFeedback?.Invoke(zaap.Message); Account.Logger.LogInfo("CARTE", zaap.Message); return;
             }
             MoveResults result = Account.Game.Manager.Mouvements.GetCellsMove(destination, map.CellsOccuped());
             string message;

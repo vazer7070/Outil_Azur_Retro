@@ -47,6 +47,7 @@ try {
     $azurTests += @('NetworkCaptureSmoke', 'BotTransportSmoke')
     $azurTests += @('BotConfigSmoke', 'BotHandshakeSmoke', 'BotGameplaySmoke', 'BotSpellsSmoke', 'BotSpellXmlSmoke', 'BotMapViewSmoke', 'BotUiSmoke', 'BotClientSkinSmoke')
     $azurTests += @('BotCombatSmoke', 'BotCombatUiSmoke', 'BotEntitiesSmoke')
+    $azurTests += @('BotDialogsSmoke', 'BotShopSmoke')
     $azurTests += 'ResourceManagerSmoke'
     $azurTests += 'EmulatorProfileSmoke'
 

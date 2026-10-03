@@ -134,6 +134,7 @@
     <Compile Include="Frames\Jeu\CharacterFrame.cs" />
     <Compile Include="Frames\Jeu\CombatFrame.cs" />
     <Compile Include="Frames\Jeu\ChatFrame.cs" />
+    <Compile Include="Frames\Jeu\InteractionFrame.cs" />
     <Compile Include="Frames\Jeu\MapFrame.cs" />
     <Compile Include="Frames\Jeu\MiscFrame.cs" />
     <Compile Include="Frames\Jeu\NoCheatFrame.cs" />
@@ -146,6 +147,10 @@
     <Compile Include="Game\Accounts\AccountStates.cs" />
     <Compile Include="Game\Combats\Fights.cs" />
     <Compile Include="Game\GameClass.cs" />
+    <Compile Include="Game\Interactions\Interactions.cs" />
+    <Compile Include="Game\Interactions\NpcDialog.cs" />
+    <Compile Include="Game\Interactions\NpcShop.cs" />
+    <Compile Include="Game\Interactions\ZaapDialog.cs" />
     <Compile Include="Game\Groupes\Groupe.cs" />
     <Compile Include="Game\Groupes\Regroupement.cs" />
     <Compile Include="Game\Jobs\Jobs.cs" />

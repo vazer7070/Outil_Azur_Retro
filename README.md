@@ -1,6 +1,6 @@
 # Outil Azur Retro
 
-L’état des fonctions corrigées, les écarts encore présents avec ce README et les critères de validation sont décrits dans [l’état du projet](docs/ETAT_PROJET.md). La suite reproductible compte **36 tests : 27 sans base et 9 d'intégration** ; voir [les tests](tests/README.md). Pour reprendre le projet rapidement, consulter aussi l'[inventaire de reprise](docs/INVENTAIRE_REPRISE.md).
+L’état des fonctions corrigées, les écarts encore présents avec ce README et les critères de validation sont décrits dans [l’état du projet](docs/ETAT_PROJET.md). La suite reproductible compte **38 tests : 29 sans base et 9 d'intégration** ; voir [les tests](tests/README.md). Pour reprendre le projet rapidement, consulter aussi l'[inventaire de reprise](docs/INVENTAIRE_REPRISE.md).
 
 ## Émulateurs pris en charge
 
@@ -138,9 +138,9 @@ Le bouton **Placements serveur** superpose les PNJ, groupes fixes, zaaps et encl
 L'éditeur ne peut pas être lancé si l'application ne détecte pas les fichiers d'images nécéssaires à son bon fonctionnement, il est donc important de vérifier leurs présence et que ce soit bien des images de tuiles de carte correspondantes aux dossiers présents à la racine d'AzurToolRetro.
 
 ### Client AzurToolBot
-Le client est une re-création en C# du client Dofus Retro, qui parle directement le protocole **Login/Game de StarLoco** (connexion, serveurs, sélection et création de personnage, cartes, déplacements, discussion, caractéristiques, inventaire, sorts et métiers). Il reprend des éléments du bot de **Salesprendes**. Son interface suit la composition du client d'origine : grande carte, bandeau de jeu en bas, fiches refermables. Ses boutons, le bandeau de connexion, le socle de l'aperçu de création et les icônes du bandeau de jeu sont les éléments graphiques du client Dofus 1.34 fourni, exportés de `core.swf` ([provenance](Outil_Azur_complet/Resources/Bot/Client/PROVENANCE.md)). Les formats de paquets que le bot suit sont ceux relevés dans le code du client : [référence du protocole](docs/PROTOCOLE_CLIENT_1_34.md), produite par les outils de [`tools/client-analysis`](tools/client-analysis/README.md). Le [guide du bot](docs/BOT_STARLOCO.md) décrit son utilisation et ses limites.
+Le client est une re-création en C# du client Dofus Retro, qui parle directement le protocole **Login/Game de StarLoco** (connexion, serveurs, sélection et création de personnage, cartes, déplacements, discussion, caractéristiques, inventaire, dialogues PNJ, zaaps, boutique PNJ, sorts et métiers). Il reprend des éléments du bot de **Salesprendes**. Son interface suit la composition du client d'origine : grande carte, bandeau de jeu en bas, fiches refermables. Ses boutons, le bandeau de connexion, le socle de l'aperçu de création et les icônes du bandeau de jeu sont les éléments graphiques du client Dofus 1.34 fourni, exportés de `core.swf` ([provenance](Outil_Azur_complet/Resources/Bot/Client/PROVENANCE.md)). Les formats de paquets que le bot suit sont ceux relevés dans le code du client : [référence du protocole](docs/PROTOCOLE_CLIENT_1_34.md), produite par les outils de [`tools/client-analysis`](tools/client-analysis/README.md). Le [guide du bot](docs/BOT_STARLOCO.md) décrit son utilisation et ses limites.
 
-Ce qui est vérifié aujourd'hui l'est par des tests sur boucle locale avec des serveurs fictifs ; la connexion à un vrai StarLoco reste à valider. Le combat et les interactions sont partiels.
+Ce qui est vérifié aujourd'hui l'est par des tests sur boucle locale avec des serveurs fictifs ; la connexion à un vrai StarLoco reste à valider. Le combat reste partiel ; les dialogues PNJ, les zaaps, la boutique PNJ et les actions d'inventaire (équiper, utiliser, jeter) sont vérifiés avec des paquets fictifs aux formats du client 1.34 et de StarLoco, sans validation en jeu réel.
 
 Les trois modes historiquement annoncés ne sont **pas disponibles** et ne sont pas proposés dans l'interface :
 

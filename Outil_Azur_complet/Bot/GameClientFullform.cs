@@ -252,6 +252,7 @@ namespace Outil_Azur_complet.Bot
             upgradeSpell = BotUi.Button("Améliorer de 1 niveau", async (s,e) => await UpgradeSpell(), true, 210);
             spells.Parent.Controls.Add(spellHelp); spells.Parent.Controls.Add(BotUi.Actions(upgradeSpell));
             spells.SelectedIndexChanged += (s,e) => UpdateSpellSelection();
+            BuildInteractionPanels();
             drawer.Controls.Add(panels); drawer.Controls.Add(top); host.Controls.Add(drawer); drawer.BringToFront();
             host.Resize += (s,e) => LayoutDrawer(); LayoutDrawer();
         }
@@ -392,6 +393,7 @@ namespace Outil_Azur_complet.Bot
         private void Subscribe()
         {
             ActualCompte.Logger.log_event+=Log;ActualCompte.Logger.log_eventChat+=ChatLog;ActualCompte.AccountStateEvent+=RefreshState;ActualCompte.AccountDisconnectEvent+=RefreshState;ActualCompte.Game.character.SeeLifeRegen+=displaylife;ActualCompte.Game.character.ChatPrivate+=AddPrivateToList;ActualCompte.Game.character.RefreshCaracteristiques+=RefreshState;ActualCompte.Game.character.Spells_Refresh+=RefreshState;ActualCompte.Game.Map.RefreshMap+=MapChanged;ActualCompte.Game.Fight.CombatChanged+=RefreshState;
+            SubscribeInteractions();
         }
         private void Log(LogsMessages message,string color) { BotUi.OnUi(this,()=>BotUi.Append(journal,BotPacketRedactor.Redact(message.ToString(),ActualCompte),color)); }
         private void ChatLog(LogsMessages message,string color) { BotUi.OnUi(this,()=>BotUi.Append(chat,BotPacketRedactor.Redact(message.ToString(),ActualCompte),color)); }
@@ -433,16 +435,20 @@ namespace Outil_Azur_complet.Bot
                 mapStatus.Text=ActualCompte.Game.Map.LoadError??("Carte "+ActualCompte.Game.Map.MapID+" · "+ActualCompte.Game.Map.GetCoordinates+" · Cellule "+(c.Cell==null?"?":c.Cell.CellID.ToString()));
                 if (mapControl != null && mapControl.MissingAssetCount > 0) mapStatus.Text += " · " + mapControl.MissingAssetCount + " ressource(s) absente(s)";
                 stats.BeginUpdate();stats.Items.Clear();Row(stats,"Vie",s.VitalityActual+" / "+s.MaxVitality);Row(stats,"Énergie",s.ActualEnergy+" / "+s.EnergyMax);Row(stats,"Expérience",s.ActualEXP+" / "+s.ExpNivNext);Row(stats,"Points de caractéristiques",c.Carac_Points);Row(stats,"Points d’action",s.PA.StatsTotal);Row(stats,"Points de mouvement",s.PM.StatsTotal);Row(stats,"Vitalité",s.Vita.StatsTotal);Row(stats,"Sagesse",s.Sagesse.StatsTotal);Row(stats,"Force",s.Force.StatsTotal);Row(stats,"Intelligence",s.Intell.StatsTotal);Row(stats,"Chance",s.Chance.StatsTotal);Row(stats,"Agilité",s.Agility.StatsTotal);Row(stats,"Pods",c.Inventory.Actual_pods+" / "+c.Inventory.Pods_Max);stats.EndUpdate();
-                inventory.BeginUpdate();inventory.Items.Clear();foreach(var item in c.Inventory.Objets)Row(inventory,string.IsNullOrEmpty(item.Name)?"Objet #"+item.ID:item.Name,item.Qua,InventoryPosition(item.position.ToString()));inventory.EndUpdate();
+                uint selectedItem=inventory.SelectedItems.Count==0?0u:(uint)inventory.SelectedItems[0].Tag;
+                refreshingLists=true;
+                try { inventory.BeginUpdate();inventory.Items.Clear();foreach(var item in c.Inventory.Objets.OrderBy(x=>x.IsEquipped()?0:1).ThenBy(x=>x.Name,StringComparer.CurrentCultureIgnoreCase)) { var row=inventory.Items.Add(string.IsNullOrEmpty(item.Name)?"Objet n° "+item.ID:item.Name);row.SubItems.Add(item.Qua.ToString());row.SubItems.Add(InventoryPosition(item.position.ToString()));row.Tag=item.Inventory_ID;if(item.Inventory_ID==selectedItem)row.Selected=true; }inventory.EndUpdate(); }
+                finally { refreshingLists=false; }
                 jobs.BeginUpdate();jobs.Items.Clear();foreach(var job in c.GetJobsSnapshot())Row(jobs,string.IsNullOrEmpty(job.name)?"Métier #"+job.ID:job.name,job.Level);jobs.EndUpdate();
                 short selectedSpell=spells.SelectedItems.Count==0?(short)-1:(short)spells.SelectedItems[0].Tag;
                 spells.BeginUpdate();spells.Items.Clear();foreach(var spell in c.Spells.OrderBy(x=>x.Value.Name,StringComparer.CurrentCultureIgnoreCase)) { var row=spells.Items.Add(string.IsNullOrEmpty(spell.Value.Name)?"Sort #"+spell.Key:spell.Value.Name);row.SubItems.Add(spell.Value.Level.ToString());row.Tag=spell.Key;if(spell.Key==selectedSpell)row.Selected=true; }spells.EndUpdate();UpdateSpellSelection();UpdateQuickSpells();
                 int cost=BoostCost();boostHelp.Text=c.Carac_Points+" point(s) disponible(s). Coût estimé : "+cost+" point(s).";boost.Enabled=!boosting&&!fight.IsInFight&&send.Enabled&&c.id>0&&cost>0&&c.Carac_Points>=cost;
+                RefreshInteractionPanels();
             });
         }
         private static string StateName(AccountStates value)
         {
-            switch(value) { case AccountStates.DISCONNECTED:return "Déconnecté";case AccountStates.CONNECTED:return "Connexion en cours";case AccountStates.CONNECTED_INACTIVE:return "Disponible";case AccountStates.MOVING:return "Déplacement";case AccountStates.FIGHTING:return "Combat";case AccountStates.GATHERING:return "Récolte";case AccountStates.DIALOG:return "Dialogue";case AccountStates.STORAGE:return "Stockage";case AccountStates.EXCHANGE:return "Échange";case AccountStates.BUYING:return "Achat";case AccountStates.SELLING:return "Vente";case AccountStates.REGENERATION:return "Régénération";default:return value.ToString(); }
+            switch(value) { case AccountStates.DISCONNECTED:return "Déconnecté";case AccountStates.CONNECTED:return "Connexion en cours";case AccountStates.CONNECTED_INACTIVE:return "Disponible";case AccountStates.MOVING:return "Déplacement";case AccountStates.FIGHTING:return "Combat";case AccountStates.GATHERING:return "Récolte";case AccountStates.DIALOG:return "Dialogue";case AccountStates.STORAGE:return "Stockage";case AccountStates.EXCHANGE:return "Échange";case AccountStates.BUYING:return "Achat";case AccountStates.SELLING:return "Vente";case AccountStates.REGENERATION:return "Régénération";case AccountStates.ZAAP:return "Zaap";default:return value.ToString(); }
         }
         private static void Row(ListView list,string title,params object[] values) { var row=list.Items.Add(title);foreach(var value in values)row.SubItems.Add(Convert.ToString(value)); }
         private int BoostCost() { var stat=new[] { StatsEnum.VITALITE,StatsEnum.SAGESSE,StatsEnum.FORCE,StatsEnum.INTELLIGENCE,StatsEnum.CHANCE,StatsEnum.AGILITE }[boostStat.SelectedIndex];return ActualCompte.Game.character.stats.GetCapitalStatsBoost(ActualCompte.Game.character.Race_ID,stat); }
@@ -504,6 +510,7 @@ namespace Outil_Azur_complet.Bot
             if (mapControl != null) { mapControl.DisplayStateChanged -= UpdateMapDisplay; mapControl.SpellSelectionChanged -= SpellSelectionChanged; mapControl.ActionFeedback -= ShowActionFeedback; }
             foreach (var icon in spellIcons.Values) icon?.Dispose(); spellIcons.Clear();
             if(FG!=null&&!FG.IsDisposed)FG.Close();
+            UnsubscribeInteractions();
             ActualCompte.Logger.log_event-=Log;ActualCompte.Logger.log_eventChat-=ChatLog;ActualCompte.AccountStateEvent-=RefreshState;ActualCompte.AccountDisconnectEvent-=RefreshState;ActualCompte.Game.character.SeeLifeRegen-=displaylife;ActualCompte.Game.character.ChatPrivate-=AddPrivateToList;ActualCompte.Game.character.RefreshCaracteristiques-=RefreshState;ActualCompte.Game.character.Spells_Refresh-=RefreshState;ActualCompte.Game.Map.RefreshMap-=MapChanged;ActualCompte.Game.Fight.CombatChanged-=RefreshState;ActualCompte.Dispose();
         }
     }
