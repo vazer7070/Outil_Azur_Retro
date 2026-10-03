@@ -13,15 +13,6 @@ Azur décrit chaque émulateur par un **profil** (`tools/Tools_protocol.Emulator
 | **Sunshine** | Consultation des comptes uniquement. |
 | **Codebreak** | Connexion aux bases uniquement ; les outils SQL ne sont pas encore adaptés à son schéma. |
 
-Le schéma `kauth.sql` fourni a permis de vérifier **58 tables InnoDB**, dont `accounts` et `players`, sans importer les comptes ni les personnages réels. Les corrections et les réglages nécessaires sont décrits dans [la compatibilité Kryone/kauth](docs/KAUTH_COMPATIBILITE.md).
-
-Le kit de test fourni dans `F:\kit` contient maintenant les serveurs **StarLoco Login et Game** et un client **Dofus 1.34**. Les essais en jeu restent à réaliser. L'[inventaire détaillé du kit](docs/INVENTAIRE_F_KIT.md) recense ses 41 280 fichiers, ses rôles, ses ports, ses dumps SQL et les points sensibles. Les éditeurs SQL sont validés sur les schémas Kryone (kauth) et StarLoco (`login`/`game`) ; la compatibilité réseau avec StarLoco doit être vérifiée séparément.
-
-La [carte des sources StarLoco pour le bot](docs/STARLOCO_SOURCES_ANALYSE.md) décrit le handshake Login/Game, les familles de paquets, le relais interne, l’encodage des cellules et les corrections prioritaires relevées dans le code.
-
-L’éditeur importe maintenant les cartes SWF FWS/CWS à affectations AVM1 simples et exporte des SWF binaires. Les projets AME Azur versions 1, 2 et 3 sont lisibles. Un pack de 108 cartes CWS a permis de vérifier le nombre de cellules et de corriger l'import des autorisations supérieures à 15. Les formats acceptés, les limites et la validation encore nécessaire dans le client de jeu sont décrits dans [le guide des cartes SWF](docs/FORMAT_SWF_CARTES.md).
-
-L'**Atelier Azur** regroupe les outils par domaine. Comptes, personnages, inventaires, cartes, configuration et **24 éditeurs de ressources** utilisent une interface commune, dans la palette du client Dofus Retro partagée avec le bot : navigation par rubrique, fiches parchemin, champs en français avec leur aide en infobulle, et enregistrement explicite. Les modèles d'objets, panoplies, recettes, butins, dialogues, quêtes et mécanismes disposent aussi d'éditeurs fonctionnels. Voir [le guide des éditeurs](docs/GUIDE_EDITEURS.md).
 
 ![forthebadge](https://forthebadge.com/images/badges/made-with-c-sharp.svg)
 
