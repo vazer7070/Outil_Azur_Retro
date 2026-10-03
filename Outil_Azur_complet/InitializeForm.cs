@@ -3,6 +3,7 @@ using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
 using Tools_protocol.Data;
+using Tools_protocol.Emulators;
 using Tools_protocol.Json;
 using Tools_protocol.Kryone.Database;
 using Tools_protocol.Managers;
@@ -14,7 +15,13 @@ namespace Outil_Azur_complet
     {
         Menu menu = new Menu();
 
-        public static string EMUSELECT;
+        /// <summary>Identifiant de l'émulateur configuré ; l'affectation sélectionne son profil dans EmulatorRegistry.</summary>
+        public static string EMUSELECT
+        {
+            get { return EmulatorRegistry.HasEmulator ? EmulatorRegistry.Current.Id : emulatorRequested; }
+            set { emulatorRequested = value; EmulatorRegistry.Select(value); }
+        }
+        private static string emulatorRequested;
         public static bool MapEditorOK;
         public static bool NoDB;
         public static bool Reboot;
@@ -29,8 +36,7 @@ namespace Outil_Azur_complet
         {
             InitializeComponent();
         }
-        #region Kryone
-        [EmuManager("Kryone", "init")]
+        #region Connexions
         public void DB_auth()
         {
             iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + "Connexion SQL auth...\n";
@@ -39,7 +45,10 @@ namespace Outil_Azur_complet
                 NoDB = false;
                 // DatabaseManager.Connect(JsonManager.Hôte, JsonManager.User, JsonManager.MDP, JsonManager.Aauth);
                 iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + "Connexion établie.!\n";
-                DB_world();
+                if (EmulatorRegistry.Current.UsesWorldDatabase)
+                    DB_world();
+                else
+                    Load_Misc();
             }
             else
             {
@@ -195,26 +204,22 @@ namespace Outil_Azur_complet
                 {
                     iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + "Initialisation Json...OK\n";
                     EMUSELECT = JsonManager.SearchConfig("emu");
-                    EmuManager.EMUSELECTED = JsonManager.SearchConfig("emu");
-                    EmuManager.InitEmu(EMUSELECT);
-                    if (string.IsNullOrEmpty(EMUSELECT) || string.IsNullOrWhiteSpace(EMUSELECT))
+                    if (string.IsNullOrWhiteSpace(EMUSELECT))
                     {
-                        iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"Merci de choisir un émulateur.!\n";
+                        iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + "Merci de choisir un émulateur.!\n";
                         NoDB = true;
                         VerifAssetsFolders();
                         return;
                     }
-                    else if (EmuManager.NOEMU)
+                    if (!EmulatorRegistry.HasEmulator)
                     {
                         iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"L'émulateur {EMUSELECT} n'est pas reconnu, merci de choisir un émulateur compatible.\n";
                         NoDB = true;
                         VerifAssetsFolders();
                         return;
                     }
-                    else
-                    {
-                        iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"Émulateur choisi: {EMUSELECT}\n";
-                    }
+                    EMUSELECT = EmulatorRegistry.Current.Id;
+                    iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"Émulateur choisi: {EmulatorRegistry.Current.DisplayName}\n";
                 }
                 else
                 {
@@ -223,15 +228,7 @@ namespace Outil_Azur_complet
                     VerifAssetsFolders();
                     return;
                 }
-                var method = EmuManager.FindEmuMethod(this, EMUSELECT, "init");
-
-                if (method != null)
-                    method.Invoke(this, null);
-                else
-                {
-                    NoDB = true;
-                    VerifAssetsFolders();
-                }
+                DB_auth();
             }
             catch
             {
@@ -279,27 +276,6 @@ namespace Outil_Azur_complet
             menu.Show();
         }
         #endregion
-        [EmuManager("Sunshine", "init")]
-        public void DB_auth_sun()
-        {
-            iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + "Connexion SQL auth...\n";
-            if (DatabaseManager.IsServerConnected(JsonManager.Hôte, JsonManager.User, JsonManager.MDP, JsonManager.Aauth))
-            {
-                NoDB = false;
-                // DatabaseManager.Connect(JsonManager.Hôte, JsonManager.User, JsonManager.MDP, JsonManager.Aauth);
-                Load_Misc();
-            }
-            else
-            {      NoAuth = true;
-                    NoDB = true;
-                    SettingsForm SF = new SettingsForm();
-                    SF.New(JsonManager.Hôte, JsonManager.User, JsonManager.MDP, JsonManager.Aauth, JsonManager.Aworld);
-                    SF.ShowDialog();
-                    VerifAssetsFolders();
-            }
-
-
-        }
         private void iTalk_ThemeContainer1_Click(object sender, EventArgs e)
         {
         }
@@ -310,9 +286,7 @@ namespace Outil_Azur_complet
 
             try
             {
-                EmuManager.FindAndCallEmuHandler(EMUSELECT, "AccountList", "AllAccounts");
-                GroupesList.groupe();
-                CharacterList.AllPerso();
+                EmulatorRegistry.Current.LoadCaches();
                 /*ConditionsListing.ConditionsLoad(@".\ressources\conditions.txt");
                 ItemTemplateList.Load_Item();
                 ItemList.AddItemIdToList();

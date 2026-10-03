@@ -2,6 +2,7 @@ using System;
 using System.Text.RegularExpressions;
 using MySql.Data.MySqlClient;
 using Tools_protocol.Query;
+using Tools_protocol.Emulators;
 
 namespace Outil_Azur_complet
 {
@@ -36,10 +37,13 @@ namespace Outil_Azur_complet
             }
         }
 
-        internal static void RequireKryone()
+        internal static void Require(EmulatorFeature feature)
         {
-            if (!string.Equals(InitializeForm.EMUSELECT, "Kryone", StringComparison.OrdinalIgnoreCase))
-                throw new NotSupportedException("Cette écriture est disponible pour Kryone uniquement.");
+            EmulatorProfile emulator = EmulatorRegistry.Current;
+            if (!EmulatorRegistry.HasEmulator)
+                throw new NotSupportedException("Aucun émulateur n'est configuré : choisissez-en un dans la configuration d'Azur.");
+            if (!emulator.Supports(feature))
+                throw new NotSupportedException("Cette fonction n'est pas disponible pour l'émulateur " + emulator.DisplayName + ".");
         }
         internal static string Identifier(string value)
         {
@@ -47,9 +51,9 @@ namespace Outil_Azur_complet
                 throw new InvalidOperationException("Un nom de base ou de table SQL est invalide.");
             return "`" + value + "`";
         }
-        internal static string AuthConnection()
+        internal static string AuthConnection(EmulatorFeature feature)
         {
-            RequireKryone();
+            Require(feature);
             if (string.IsNullOrWhiteSpace(DatabaseManager.ConnectionString)) throw new InvalidOperationException("Connectez la base auth.");
             var builder = new MySqlConnectionStringBuilder(DatabaseManager.ConnectionString);
             Identifier(builder.Database);

@@ -12,6 +12,7 @@ using Tools_protocol.Json;
 using Tools_protocol.Kryone.Database;
 using Tools_protocol.Managers;
 using Tools_protocol.Query;
+using Tools_protocol.Emulators;
 
 namespace Tools_protocol.Parser.XML
 {
@@ -26,8 +27,8 @@ namespace Tools_protocol.Parser.XML
 
         public static Task<int> ParseSQLToXML(string path, string type, bool ForBot = false)
         {
-            if (EmuManager.EMUSELECTED != "Kryone")
-                throw new NotSupportedException("L'export de ressources est actuellement pris en charge pour Kryone.");
+            if (!EmulatorRegistry.Current.Supports(EmulatorFeature.BotResourceExport))
+                throw new NotSupportedException("L'export de ressources n'est pas disponible pour l'émulateur " + EmulatorRegistry.Current.DisplayName + ".");
             if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("Choisissez un dossier de sortie.", nameof(path));
             if (type == null || !Tables.TryGetValue(type, out string key))
                 throw new ArgumentException("Ce type de ressource n'est pas pris en charge.", nameof(type));

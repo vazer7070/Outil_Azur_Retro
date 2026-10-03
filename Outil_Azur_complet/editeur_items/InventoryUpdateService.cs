@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using Tools_protocol.Kryone.Database;
 using Tools_protocol.Query;
+using Tools_protocol.Emulators;
 
 namespace Outil_Azur_complet.editeur_items
 {
@@ -95,8 +96,7 @@ namespace Outil_Azur_complet.editeur_items
 
         private static Tables ResolveTables()
         {
-            if (!string.Equals(InitializeForm.EMUSELECT, "Kryone", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("L'écriture de l'inventaire est disponible pour Kryone uniquement.");
+            ServerSql.Require(EmulatorFeature.Inventory);
             if (string.IsNullOrWhiteSpace(DatabaseManager.ConnectionString) ||
                 string.IsNullOrWhiteSpace(DatabaseManager2.ConnectionString))
                 throw new InvalidOperationException("Les connexions auth et world doivent être actives.");

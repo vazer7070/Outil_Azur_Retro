@@ -8,6 +8,7 @@ using Tools_protocol.Json;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
+using Tools_protocol.Emulators;
 
 namespace Outil_Azur_complet
 {
@@ -65,6 +66,32 @@ namespace Outil_Azur_complet
         private void AddEditor(string title,ServerResourceKind kind)
         { _formFactories[title]=()=>new ServerDataForm(kind,title);iTalk_ComboBox1.Items.Add(title); }
 
+        // Outils qui n'ont pas besoin de base de données : disponibles quel que soit l'émulateur.
+        private static readonly HashSet<string> OfflineTools = new HashSet<string> { "Éditeur de maps", "Gestionnaire", "AzurBot", "Objets du client" };
+
+        internal static EmulatorFeature RequiredFeature(string tool)
+        {
+            switch (tool)
+            {
+                case "Éditeur de compte": return EmulatorFeature.Accounts;
+                case "Éditeur de personnage": return EmulatorFeature.Characters;
+                case "Outil de recherche": return EmulatorFeature.Search;
+                case "Éditeur d'objets": return EmulatorFeature.ItemCreation | EmulatorFeature.Inventory;
+                default: return OfflineTools.Contains(tool) ? EmulatorFeature.None : EmulatorFeature.ResourceEditors;
+            }
+        }
+
+        /// <summary>Raison pour laquelle un outil est indisponible, ou null s'il peut être ouvert.</summary>
+        internal static string Unavailability(string tool)
+        {
+            if (OfflineTools.Contains(tool)) return null;
+            if (InitializeForm.NoDB) return "Cet outil nécessite une connexion aux bases de données.";
+            EmulatorProfile emulator = EmulatorRegistry.Current;
+            if (!emulator.Supports(RequiredFeature(tool)))
+                return EmulatorRegistry.HasEmulator ? "Non pris en charge pour " + emulator.DisplayName + "." : "Choisissez un émulateur dans la configuration.";
+            return null;
+        }
+
         private void iTalk_Button_11_Click(object sender, EventArgs e)
         {
             if (iTalk_ComboBox1.SelectedItem == null) return;
@@ -73,12 +100,10 @@ namespace Outil_Azur_complet
             
             if (!_formFactories.ContainsKey(selection)) return;
 
-            if (selection != "Éditeur de maps" && selection != "Gestionnaire" && selection != "AzurBot" && selection != "Objets du client" && InitializeForm.NoDB)
+            string unavailable = Unavailability(selection);
+            if (unavailable != null)
             {
-                MessageBox.Show("Cette fonctionnalité nécessite une connexion à la base de données.", 
-                    "Accès impossible", 
-                    MessageBoxButtons.OK, 
-                    MessageBoxIcon.Warning);
+                MessageBox.Show(unavailable, "Outil indisponible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 

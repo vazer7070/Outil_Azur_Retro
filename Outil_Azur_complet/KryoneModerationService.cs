@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using Tools_protocol.Kryone.Database;
 using Tools_protocol.Query;
+using Tools_protocol.Emulators;
 
 namespace Outil_Azur_complet
 {
@@ -275,8 +276,7 @@ namespace Outil_Azur_complet
 
         private static Tables ResolveTables(bool requireWorld)
         {
-            if (!string.Equals(InitializeForm.EMUSELECT, "Kryone", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Cette action est disponible pour Kryone uniquement.");
+            ServerSql.Require(EmulatorFeature.AccountEditing);
             if (string.IsNullOrWhiteSpace(DatabaseManager.ConnectionString))
                 throw new InvalidOperationException("La connexion auth doit être active.");
             var auth = new MySqlConnectionStringBuilder(DatabaseManager.ConnectionString);
