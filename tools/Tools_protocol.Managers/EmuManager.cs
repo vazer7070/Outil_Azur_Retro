@@ -36,7 +36,9 @@ namespace Tools_protocol.Managers
         public static List<Dictionary<string, object>> GetAllAccountPropertiesForEmulator(string emulatorName)
         {
             Type targetType = FindType(emulatorName, "AccountList")
-                ?? throw new InvalidOperationException($"La lecture des comptes n'est pas disponible pour l'émulateur « {emulatorName} ».");
+                ?? throw new InvalidOperationException(string.IsNullOrWhiteSpace(emulatorName)
+                    ? "Aucun émulateur n'est configuré : choisissez-en un dans la configuration."
+                    : $"La lecture des comptes n'est pas disponible pour l'émulateur « {emulatorName} ».");
 
             object instance = Activator.CreateInstance(targetType);
             FieldInfo field = targetType.GetField("AllAccount", BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);

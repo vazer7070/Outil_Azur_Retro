@@ -411,7 +411,7 @@
             this.iTalk_Label14.Name = "iTalk_Label14";
             this.iTalk_Label14.Size = new System.Drawing.Size(17, 13);
             this.iTalk_Label14.TabIndex = 7;
-            this.iTalk_Label14.Text = "**";
+            this.iTalk_Label14.Text = "";
             //
             // iTalk_Label13
             //

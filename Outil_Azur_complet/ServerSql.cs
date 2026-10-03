@@ -40,8 +40,10 @@ namespace Outil_Azur_complet
         internal static void Require(EmulatorFeature feature)
         {
             EmulatorProfile emulator = EmulatorRegistry.Current;
+            if (!EmulatorRegistry.HasEmulator)
+                throw new NotSupportedException("Aucun émulateur n'est configuré : choisissez-en un dans la configuration d'Azur.");
             if (!emulator.Supports(feature))
-                throw new NotSupportedException("Cette écriture n'est pas disponible pour l'émulateur " + emulator.DisplayName + ".");
+                throw new NotSupportedException("Cette fonction n'est pas disponible pour l'émulateur " + emulator.DisplayName + ".");
         }
         internal static string Identifier(string value)
         {

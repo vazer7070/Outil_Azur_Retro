@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace Outil_Azur_complet
@@ -48,11 +49,16 @@ namespace Outil_Azur_complet
             {
                 layout.Sheet(module[0],2);
                 string target=module[3];
-                layout.Notice(module[0],module[1],module[2],"Ouvrir",()=>{iTalk_ComboBox1.SelectedItem=target;iTalk_Button_11_Click(this,EventArgs.Empty);});
+                layout.Notice(module[0],module[1],module[2],"Ouvrir",()=>{iTalk_ComboBox1.SelectedItem=target;iTalk_Button_11_Click(this,EventArgs.Empty);},()=>Unavailability(target));
             }
             layout.Action("Configurer Azur",()=>iTalk_Button_13_Click(this,EventArgs.Empty),true,185);
             layout.Action("Fermer",Close,width:120);
-            Action status=()=>layout.Status.Text=InitializeForm.NoDB?"Mode local · Configurez les connexions pour accéder aux données du serveur.":"Bases connectées · "+_formFactories.Count+" outils disponibles.";
+            Action status=()=>{
+                int available=_formFactories.Keys.Count(tool=>Unavailability(tool)==null);
+                string emulator=Tools_protocol.Emulators.EmulatorRegistry.HasEmulator?Tools_protocol.Emulators.EmulatorRegistry.Current.DisplayName:"aucun émulateur";
+                layout.Status.Text=(InitializeForm.NoDB?"Hors ligne":"Connecté")+" · "+emulator+" · "+available+" outils sur "+_formFactories.Count;
+                layout.Tabs.Invalidate(true);
+            };
             Activated+=(s,e)=>status();status();
         }
     }

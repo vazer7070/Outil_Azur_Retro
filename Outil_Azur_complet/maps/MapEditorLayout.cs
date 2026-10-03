@@ -30,12 +30,12 @@ namespace Outil_Azur_complet.maps
             var title=new EditorTheme{Dock=DockStyle.Top,Height=42,Text=Text,Sizable=true,SmartBounds=false,Padding=new Padding(0)};Controls.Add(title);
             var close=EditorUi.Button("×",false,34);close.SetBounds(Width-42,5,34,30);close.Anchor=AnchorStyles.Top|AnchorStyles.Right;close.Click+=(s,e)=>Close();title.Controls.Add(close);
             title.SizeChanged+=(s,e)=>close.Left=title.ClientSize.Width-42;close.Left=title.ClientSize.Width-42;
-            var palette=new Panel {Dock=DockStyle.Bottom,Height=190,Padding=new Padding(12),BackColor=Color.White};Controls.Add(palette);
+            var palette=new Panel {Dock=DockStyle.Bottom,Height=190,Padding=new Padding(12),BackColor=EditorUi.Surface};Controls.Add(palette);
             var libraryHeading=EditorUi.Label("BIBLIOTHÈQUE DE TUILES     Choisissez une catégorie, puis une tuile pour la peindre sur la carte.",9,true);libraryHeading.Dock=DockStyle.Top;libraryHeading.Height=30;palette.Controls.Add(libraryHeading);
             var library=new Panel{Dock=DockStyle.Fill};palette.Controls.Add(library);library.BringToFront();
             treeView1.Dock=DockStyle.Left;treeView1.Width=175;treeView1.Font=Font;treeView1.BorderStyle=BorderStyle.None;library.Controls.Add(treeView1);
             listView1.Dock=DockStyle.Fill;listView1.Font=Font;listView1.BorderStyle=BorderStyle.None;library.Controls.Add(listView1);listView1.BringToFront();
-            foreach(var strip in new[]{toolStrip1,toolStrip2}) { strip.BackColor=Color.White;strip.ForeColor=EditorUi.Ink;strip.Font=Font;strip.Renderer=new EditorToolStripRenderer();strip.GripStyle=ToolStripGripStyle.Hidden;foreach(ToolStripItem item in strip.Items){item.DisplayStyle=ToolStripItemDisplayStyle.Text;item.ToolTipText=item.Text;item.Margin=new Padding(4,4,4,4);item.Padding=new Padding(8,4,8,4);} }
+            foreach(var strip in new[]{toolStrip1,toolStrip2}) { strip.BackColor=EditorUi.Paper;strip.ForeColor=EditorUi.Ink;strip.Font=Font;strip.Renderer=new EditorToolStripRenderer();strip.GripStyle=ToolStripGripStyle.Hidden;foreach(ToolStripItem item in strip.Items){item.DisplayStyle=ToolStripItemDisplayStyle.Text;item.ToolTipText=item.Text;item.Margin=new Padding(4,4,4,4);item.Padding=new Padding(8,4,8,4);} }
             toolStrip1.AutoSize=false;toolStrip1.Height=46;toolStrip2.AutoSize=false;toolStrip2.Width=174;
             foreach(ToolStripItem item in toolStrip2.Items)if(!(item is ToolStripSeparator)){item.AutoSize=false;item.Size=new Size(164,36);item.TextAlign=ContentAlignment.MiddleLeft;}
             toolStripButton5.Text="Peindre";toolStripButton6.Text="Sélectionner";toolStripButton7.Text="Bloquer le passage";toolStripButton15.Text="Retourner";toolStripButton11.Text="Combat · bleu";toolStripButton12.Text="Combat · rouge";
@@ -101,7 +101,7 @@ namespace Outil_Azur_complet.maps
                 client.BackColor=EditorUi.Background;
                 emptyWorkspace=new Panel{BackColor=EditorUi.Background};Controls.Add(emptyWorkspace);
                 Layout+=(s,e)=>emptyWorkspace.Bounds=client.Bounds;
-                var welcome=new Panel{Size=new Size(480,210),BackColor=Color.White,Padding=new Padding(24)};
+                var welcome=new Panel{Size=new Size(480,210),BackColor=EditorUi.Surface,Padding=new Padding(24)};
                 var heading=EditorUi.Label("Votre prochaine carte commence ici",17,true);heading.Dock=DockStyle.Top;heading.Height=46;
                 var help=EditorUi.Label("Créez une carte ou ouvrez un projet AME / SWF.\nLes tuiles restent en bas, les propriétés à droite.");help.Dock=DockStyle.Top;help.Height=64;
                 var actions=new FlowLayoutPanel{Dock=DockStyle.Bottom,Height=44};var create=EditorUi.Button("Créer une carte",true,180);create.Click+=(s,e)=>OpenNewMap(15,17);var open=EditorUi.Button("Ouvrir un projet",false,180);open.Click+=(s,e)=>sWFToolStripMenuItem_Click(s,e);actions.Controls.Add(create);actions.Controls.Add(open);
@@ -152,7 +152,7 @@ namespace Outil_Azur_complet.maps
         protected override void OnRenderButtonBackground(ToolStripItemRenderEventArgs e)
         {
             var button=e.Item as ToolStripButton;
-            using(var background=new SolidBrush(button!=null&&button.Checked?Color.FromArgb(222,237,252):e.Item.Selected?Color.FromArgb(235,242,250):Color.White))e.Graphics.FillRectangle(background,new Rectangle(Point.Empty,e.Item.Size));
+            using(var background=new SolidBrush(button!=null&&button.Checked?EditorUi.Gold:e.Item.Selected?EditorUi.Selection:EditorUi.Paper))e.Graphics.FillRectangle(background,new Rectangle(Point.Empty,e.Item.Size));
         }
     }
     internal sealed class MapPreferencesForm : AzurEditorWindow

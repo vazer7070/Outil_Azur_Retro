@@ -71,19 +71,19 @@ namespace Outil_Azur_complet.Parser
                 ReadOnly = true, AllowUserToAddRows = false, AllowUserToDeleteRows = false,
                 AllowUserToResizeRows = false, RowHeadersVisible = false, MultiSelect = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect, AutoGenerateColumns = false,
-                BackgroundColor = Color.White, BorderStyle = BorderStyle.FixedSingle,
+                BackgroundColor = EditorUi.Surface, BorderStyle = BorderStyle.FixedSingle,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, RowTemplate = { Height = 28 }
             };
             captureGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "heure", HeaderText = "Heure", AutoSizeMode = DataGridViewAutoSizeColumnMode.None, Width = 105 });
             captureGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "connexion", HeaderText = "Connexion", AutoSizeMode = DataGridViewAutoSizeColumnMode.None, Width = 80 });
             captureGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "sens", HeaderText = "Sens", AutoSizeMode = DataGridViewAutoSizeColumnMode.None, Width = 140 });
             captureGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "message", HeaderText = "Message", FillWeight = 75 });
-            captureGrid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(226, 239, 249); captureGrid.DefaultCellStyle.SelectionForeColor = EditorUi.Ink;
-            captureGrid.ColumnHeadersDefaultCellStyle.BackColor = EditorUi.Background; captureGrid.EnableHeadersVisualStyles = false;
-            captureDetails = new TextBox { Multiline = true, ReadOnly = true, BackColor = Color.White, ForeColor = EditorUi.Ink, ScrollBars = ScrollBars.Vertical, WordWrap = true, AccessibleName = "Message sélectionné", Name = "capture_detail", Font = new Font("Consolas", 9) };
+            captureGrid.DefaultCellStyle.SelectionBackColor = EditorUi.Selection; captureGrid.DefaultCellStyle.SelectionForeColor = EditorUi.Ink;
+            captureGrid.ColumnHeadersDefaultCellStyle.BackColor = EditorUi.Paper; captureGrid.ColumnHeadersDefaultCellStyle.ForeColor = EditorUi.Ink; captureGrid.DefaultCellStyle.BackColor = EditorUi.Surface; captureGrid.DefaultCellStyle.ForeColor = EditorUi.Ink; captureGrid.GridColor = EditorUi.Border; captureGrid.EnableHeadersVisualStyles = false;
+            captureDetails = new TextBox { Multiline = true, ReadOnly = true, BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle, ForeColor = EditorUi.Ink, ScrollBars = ScrollBars.Vertical, WordWrap = true, AccessibleName = "Message sélectionné", Name = "capture_detail", Font = new Font("Consolas", 9) };
             // Keep the controls and both packet views visible, including in the
             // minimum window size. The packet grid scrolls independently.
-            var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 7, Padding = new Padding(16, 8, 16, 10), BackColor = Color.White };
+            var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 7, Padding = new Padding(16, 8, 16, 10), BackColor = EditorUi.Surface };
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             foreach (int rowHeight in new[] { 32, 94, 42, 28, 44, 38 }) root.RowStyles.Add(new RowStyle(SizeType.Absolute, rowHeight));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -172,7 +172,7 @@ namespace Outil_Azur_complet.Parser
                     int row = captureGrid.Rows.Add(packet.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff"), packet.ConnectionId,
                         packet.FromClient ? "Client → serveur" : "Serveur → client", display);
                     captureGrid.Rows[row].Tag = packet;
-                    if (packet.Redacted) captureGrid.Rows[row].DefaultCellStyle.ForeColor = Color.FromArgb(130, 102, 33);
+                    if (packet.Redacted) captureGrid.Rows[row].DefaultCellStyle.ForeColor = EditorUi.Error;
                 }
                 if (captureGrid.Rows.Count > 0) {
                     var row = !captureFollow.Checked && selected != null ? captureGrid.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => ReferenceEquals(r.Tag, selected)) : null;

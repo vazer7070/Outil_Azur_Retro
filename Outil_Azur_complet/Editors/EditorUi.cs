@@ -13,9 +13,9 @@ namespace Outil_Azur_complet.Editors
     public class AzurEditorWindow : Form
     {
         protected readonly Panel Body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(14, 6, 14, 10) };
-        protected readonly FlowLayoutPanel Actions = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 58, Padding = new Padding(18, 10, 18, 8), WrapContents = false, BackColor = Color.White, AutoScroll = true };
+        protected readonly FlowLayoutPanel Actions = EditorUi.ActionBar();
         protected readonly Label Status = EditorUi.Label("Chargement…", 10);
-        protected readonly Label Heading = EditorUi.Label("", 18, true);
+        protected readonly Label Heading = EditorUi.Title("");
         private readonly iTalk_ThemeContainer theme;
 
         public AzurEditorWindow(string title, string help, Size size)
@@ -24,11 +24,7 @@ namespace Outil_Azur_complet.Editors
             FormBorderStyle = FormBorderStyle.None; TransparencyKey = Color.Fuchsia;
             theme = new EditorTheme { Dock = DockStyle.Fill, Text = title, Padding = new Padding(4, 42, 4, 4), Sizable = true, SmartBounds = false, StartPosition = FormStartPosition.CenterParent };
             Controls.Add(theme);
-            var header = new Panel { Dock = DockStyle.Top, Height = 100, Padding = new Padding(16, 10, 16, 2) };
-            Heading.Text = title; Heading.Dock = DockStyle.Top; Heading.Height = 34;
-            var guide = EditorUi.Label(help, 10); guide.Dock = DockStyle.Top; guide.Height = 28;
-            Status.Dock = DockStyle.Bottom; Status.Height = 25; Status.ForeColor = EditorUi.Blue;
-            header.Controls.Add(guide); header.Controls.Add(Heading); header.Controls.Add(Status);
+            var header = EditorUi.Header(Heading, Status, title, help);
             theme.Controls.Add(Body); theme.Controls.Add(Actions); theme.Controls.Add(header);
             var close = EditorUi.Button("×", false, 34); close.Location = new Point(size.Width - 42, 5); close.Anchor = AnchorStyles.Top | AnchorStyles.Right; close.Height = 30;
             close.AccessibleName = "Fermer la fenêtre"; close.Click += (s, e) => Close(); theme.Controls.Add(close); close.BringToFront();
@@ -42,14 +38,44 @@ namespace Outil_Azur_complet.Editors
             button.Click += (s, e) => { try { action(); } catch (Exception error) { ShowError(error); } };
             Actions.Controls.Add(button); return button;
         }
-        protected void ShowError(Exception error) { Status.Text = error.Message; Status.ForeColor = Color.Firebrick; MessageBox.Show(this, error.Message, "Action impossible", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
-        protected void SetStatus(string text) { Status.Text = text; Status.ForeColor = EditorUi.Blue; }
+        protected void ShowError(Exception error) { Status.Text = error.Message; Status.ForeColor = EditorUi.Error; MessageBox.Show(this, error.Message, "Action impossible", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+        protected void SetStatus(string text) { Status.Text = text; Status.ForeColor = EditorUi.Muted; }
         protected override void OnTextChanged(EventArgs e) { base.OnTextChanged(e); if (theme != null) theme.Text = Text; }
     }
 
     internal static class EditorUi
     {
-        internal static readonly Color Background = Color.FromArgb(241, 244, 248), Blue = Color.FromArgb(0, 122, 204), Ink = Color.FromArgb(41, 51, 66);
+        // Palette du client Dofus Retro (relevée dans core.swf), partagée avec le bot.
+        internal static readonly Color Frame = Color.FromArgb(41, 38, 31), FrameLight = Color.FromArgb(81, 74, 60), FrameLine = Color.FromArgb(67, 60, 43);
+        internal static readonly Color Background = Color.FromArgb(222, 213, 186), Surface = Color.FromArgb(245, 239, 219), Paper = Color.FromArgb(235, 227, 203);
+        internal static readonly Color Border = Color.FromArgb(180, 172, 141), Gold = Color.FromArgb(216, 204, 158), Selection = Color.FromArgb(226, 214, 168);
+        internal static readonly Color Ink = Color.FromArgb(50, 48, 35), Muted = Color.FromArgb(108, 100, 74), Accent = Color.FromArgb(106, 118, 67), AccentDark = Color.FromArgb(84, 94, 52);
+        internal static readonly Color Error = Color.FromArgb(150, 52, 32);
+        // Ancien nom de l'accent, conservé pour les écrans qui l'utilisent encore.
+        internal static Color Blue => Accent;
+        internal const int FieldInputTop = 26;
+        internal static Font TitleFont(float size) => new Font("Georgia", size, FontStyle.Bold);
+
+        internal static Panel Header(Label heading, Label status, string title, string help)
+        {
+            var header = new Panel { Dock = DockStyle.Top, Height = 66, Padding = new Padding(18, 10, 18, 4) };
+            heading.Text = title; heading.Dock = DockStyle.Top; heading.Height = 32;
+            status.Dock = DockStyle.Bottom; status.Height = 22; status.ForeColor = Muted;
+            header.Controls.Add(heading); header.Controls.Add(status);
+            if (!string.IsNullOrWhiteSpace(help))
+            {
+                var tips = new ToolTip { AutoPopDelay = 15000 };
+                tips.SetToolTip(heading, help); header.Disposed += (s, e) => tips.Dispose();
+            }
+            return header;
+        }
+        internal static Label Title(string text) { var title = Label(text, 16, true); title.Font = TitleFont(16); return title; }
+        internal static FlowLayoutPanel ActionBar()
+        {
+            var bar = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 54, Padding = new Padding(18, 9, 18, 8), WrapContents = false, BackColor = Paper, AutoScroll = true };
+            bar.Paint += (s, e) => { using (var line = new Pen(Border)) e.Graphics.DrawLine(line, 0, 0, bar.Width, 0); };
+            return bar;
+        }
         internal static void PrepareWindow(Form form,string title,Size size,Size minimum)
         {
             // Legacy designers use font scaling. Disable it before replacing the
@@ -57,7 +83,7 @@ namespace Outil_Azur_complet.Editors
             form.AutoScaleMode = AutoScaleMode.None;
             form.AutoScaleDimensions = new SizeF(96,96);
             form.Font = new Font("Segoe UI",10);
-            form.Text = title; form.BackColor = Background;
+            form.Text = title; form.BackColor = Background; form.ForeColor = Ink;
             form.MinimumSize = minimum;
             var area = Screen.FromControl(form).WorkingArea;
             form.Size = new Size(Math.Max(minimum.Width,Math.Min(size.Width,area.Width)),Math.Max(minimum.Height,Math.Min(size.Height,area.Height)));
@@ -69,36 +95,44 @@ namespace Outil_Azur_complet.Editors
         {
             Control button = new EditorButton(primary);
             button.Text = text; button.Size = new Size(width, 34); button.Font = new Font("Segoe UI", 10); button.Margin = new Padding(0, 0, 8, 0); button.Cursor = Cursors.Hand;
-            button.ForeColor = primary ? Color.White : Ink;
+            button.ForeColor = primary ? Surface : Ink;
             button.AccessibleName = text; button.TabStop = true;
             return button;
         }
         internal static iTalk_TextBox_Small TextBox(string text = "", bool multiline = false)
         {
             var box = new iTalk_TextBox_Small { Text = text, Font = new Font("Segoe UI", 10), Multiline = multiline, Height = multiline ? 70 : 33, MaxLength = 200000 };
-            box.iTalkTB.ScrollBars = multiline ? ScrollBars.Vertical : ScrollBars.None; box.iTalkTB.AcceptsReturn = multiline; box.iTalkTB.BackColor = Color.White; return box;
+            box.iTalkTB.ScrollBars = multiline ? ScrollBars.Vertical : ScrollBars.None; box.iTalkTB.AcceptsReturn = multiline; box.iTalkTB.BackColor = Color.White; box.iTalkTB.ForeColor = Ink; return box;
         }
         internal static ListBox List()
         {
-            var list = new ListBox { Dock = DockStyle.Fill, BorderStyle = BorderStyle.None, BackColor = Color.White, ForeColor = Ink, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 42, IntegralHeight = false, Font = new Font("Segoe UI", 10) };
+            var list = new ListBox { Dock = DockStyle.Fill };
+            StyleList(list); return list;
+        }
+        /// <summary>Liste à lignes compactes : sélection dorée et filet séparateur.</summary>
+        internal static void StyleList(ListBox list)
+        {
+            list.BorderStyle = BorderStyle.None; list.BackColor = Surface; list.ForeColor = Ink; list.DrawMode = DrawMode.OwnerDrawFixed;
+            list.ItemHeight = 32; list.IntegralHeight = false; list.Font = new Font("Segoe UI", 10);
             list.DrawItem += (s, e) => {
                 if (e.Index < 0) return;
                 bool selected = (e.State & DrawItemState.Selected) != 0;
-                using (var brush = new SolidBrush(selected ? Color.FromArgb(226, 239, 249) : Color.White)) e.Graphics.FillRectangle(brush, e.Bounds);
-                TextRenderer.DrawText(e.Graphics, list.GetItemText(list.Items[e.Index]), list.Font, new Rectangle(e.Bounds.X + 10, e.Bounds.Y, e.Bounds.Width - 18, e.Bounds.Height), selected ? Blue : Ink, TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
-                e.DrawFocusRectangle();
-            }; return list;
+                using (var brush = new SolidBrush(selected ? Selection : Surface)) e.Graphics.FillRectangle(brush, e.Bounds);
+                if (selected) using (var mark = new SolidBrush(Accent)) e.Graphics.FillRectangle(mark, e.Bounds.X, e.Bounds.Y, 3, e.Bounds.Height);
+                using (var line = new Pen(Paper)) e.Graphics.DrawLine(line, e.Bounds.X + 8, e.Bounds.Bottom - 1, e.Bounds.Right - 8, e.Bounds.Bottom - 1);
+                TextRenderer.DrawText(e.Graphics, list.GetItemText(list.Items[e.Index]), list.Font, new Rectangle(e.Bounds.X + 12, e.Bounds.Y, e.Bounds.Width - 20, e.Bounds.Height), Ink, TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
+            };
         }
-        internal static iTalk_TabControl Tabs() { return new EditorTabs { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 10), ItemSize = new Size(52, 145) }; }
+        internal static iTalk_TabControl Tabs() { return new EditorTabs { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 10), ItemSize = new Size(40, 160) }; }
         internal static TableLayoutPanel Sheet(int columns = 1)
         {
-            var sheet = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = columns, Padding = new Padding(20), BackColor = Color.White };
+            var sheet = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = columns, Padding = new Padding(20, 16, 20, 8), BackColor = Surface };
             for (int i = 0; i < columns; i++) sheet.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / columns)); return sheet;
         }
         internal static TabPage Page(TabControl tabs, string title, Control content)
-        { var page = new TabPage(title) { BackColor = Background, AutoScroll = true, Padding = new Padding(8) }; page.Controls.Add(content); tabs.TabPages.Add(page); return page; }
+        { var page = new TabPage(title) { BackColor = Surface, AutoScroll = true, Padding = new Padding(8) }; page.Controls.Add(content); tabs.TabPages.Add(page); page.BackColor = Surface; return page; }
         internal static void AddField(TableLayoutPanel sheet, Control field)
-        { int index = sheet.Controls.Count; field.Dock = DockStyle.Top; field.Margin = new Padding(0, 0, index % sheet.ColumnCount == 0 && sheet.ColumnCount > 1 ? 14 : 0, 12); sheet.Controls.Add(field, index % sheet.ColumnCount, index / sheet.ColumnCount); sheet.RowCount = (sheet.Controls.Count + sheet.ColumnCount - 1) / sheet.ColumnCount; }
+        { int index = sheet.Controls.Count; field.Dock = DockStyle.Top; field.Margin = new Padding(0, 0, index % sheet.ColumnCount == 0 && sheet.ColumnCount > 1 ? 18 : 0, 8); sheet.Controls.Add(field, index % sheet.ColumnCount, index / sheet.ColumnCount); sheet.RowCount = (sheet.Controls.Count + sheet.ColumnCount - 1) / sheet.ColumnCount; }
         internal static void Clear(Control parent) { foreach (Control child in parent.Controls.Cast<Control>().ToArray()) child.Dispose(); parent.Controls.Clear(); }
     }
 
@@ -108,10 +142,11 @@ namespace Outil_Azur_complet.Editors
         protected override void OnPaint(PaintEventArgs e)
         {
             e.Graphics.Clear(EditorUi.Background);
-            using(var border=new Pen(Color.FromArgb(211,219,229)))e.Graphics.DrawRectangle(border,0,0,Width-1,Height-1);
-            using(var chrome=new SolidBrush(Color.FromArgb(35,42,53)))e.Graphics.FillRectangle(chrome,0,0,Width,40);
-            using(var brand=new Font("Segoe UI",9,FontStyle.Bold))TextRenderer.DrawText(e.Graphics,"AZUR",brand,new Rectangle(14,0,48,40),Color.FromArgb(94,190,255),TextFormatFlags.VerticalCenter|TextFormatFlags.NoPrefix);
-            using(var font=new Font("Segoe UI",10,FontStyle.Regular))TextRenderer.DrawText(e.Graphics,Text,font,new Rectangle(78,0,Math.Max(1,Width-140),40),Color.White,TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix);
+            using(var chrome=new SolidBrush(EditorUi.Frame))e.Graphics.FillRectangle(chrome,0,0,Width,40);
+            using(var rule=new Pen(EditorUi.Border))e.Graphics.DrawLine(rule,0,39,Width,39);
+            using(var border=new Pen(EditorUi.FrameLine))e.Graphics.DrawRectangle(border,0,0,Width-1,Height-1);
+            using(var brand=EditorUi.TitleFont(10))TextRenderer.DrawText(e.Graphics,"Azur",brand,new Rectangle(16,0,52,40),EditorUi.Gold,TextFormatFlags.VerticalCenter|TextFormatFlags.NoPrefix);
+            using(var font=new Font("Segoe UI",9.5f))TextRenderer.DrawText(e.Graphics,Text,font,new Rectangle(70,0,Math.Max(1,Width-130),40),EditorUi.Paper,TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix);
         }
     }
     internal sealed class EditorButton : Button
@@ -121,17 +156,17 @@ namespace Outil_Azur_complet.Editors
         {
             this.primary=primary;
             AutoEllipsis=true;
-            FlatStyle=FlatStyle.Flat;FlatAppearance.BorderSize=1;FlatAppearance.BorderColor=primary?EditorUi.Blue:Color.FromArgb(213,221,232);
-            BackColor=primary?EditorUi.Blue:Color.White;UseVisualStyleBackColor=false;
-            FlatAppearance.MouseOverBackColor=primary?Color.FromArgb(0,104,178):Color.FromArgb(234,242,251);
-            FlatAppearance.MouseDownBackColor=primary?Color.FromArgb(0,85,153):Color.FromArgb(218,232,247);
+            FlatStyle=FlatStyle.Flat;FlatAppearance.BorderSize=1;FlatAppearance.BorderColor=primary?EditorUi.AccentDark:EditorUi.Border;
+            BackColor=primary?EditorUi.Accent:EditorUi.Surface;UseVisualStyleBackColor=false;
+            FlatAppearance.MouseOverBackColor=primary?EditorUi.AccentDark:EditorUi.Selection;
+            FlatAppearance.MouseDownBackColor=primary?EditorUi.FrameLight:EditorUi.Gold;
         }
         protected override void OnEnabledChanged(EventArgs e)
         {
             base.OnEnabledChanged(e);
-            BackColor=Enabled?(primary?EditorUi.Blue:Color.White):Color.FromArgb(235,238,242);
-            ForeColor=Enabled?(primary?Color.White:EditorUi.Ink):Color.FromArgb(115,125,137);
-            FlatAppearance.BorderColor=Enabled&&primary?EditorUi.Blue:Color.FromArgb(213,221,232);
+            BackColor=Enabled?(primary?EditorUi.Accent:EditorUi.Surface):EditorUi.Paper;
+            ForeColor=Enabled?(primary?EditorUi.Surface:EditorUi.Ink):EditorUi.Border;
+            FlatAppearance.BorderColor=Enabled&&primary?EditorUi.AccentDark:EditorUi.Border;
         }
     }
 
@@ -147,28 +182,32 @@ namespace Outil_Azur_complet.Editors
     {
         private void FitNavigation()
         {
-            int rowHeight=Math.Min(52,Math.Max(38,(ClientSize.Height-8)/Math.Max(1,TabCount)));
-            if(ItemSize.Width!=rowHeight)ItemSize=new Size(rowHeight,145);
+            int rowHeight=Math.Min(40,Math.Max(32,(ClientSize.Height-8)/Math.Max(1,TabCount)));
+            if(ItemSize.Width!=rowHeight)ItemSize=new Size(rowHeight,160);
         }
         protected override void OnSizeChanged(EventArgs e) { base.OnSizeChanged(e);FitNavigation(); }
-        protected override void OnControlAdded(ControlEventArgs e) { base.OnControlAdded(e);FitNavigation(); }
+        // Le contrôle iTalk force un gris sur chaque page ajoutée : on remet la surface parchemin.
+        protected override void OnControlAdded(ControlEventArgs e) { base.OnControlAdded(e);if(e.Control is TabPage)e.Control.BackColor=EditorUi.Surface;FitNavigation(); }
         protected override void OnControlRemoved(ControlEventArgs e) { base.OnControlRemoved(e);FitNavigation(); }
         protected override void OnPaint(PaintEventArgs e)
         {
             if(Width<=0 || Height<=0)return;
             e.Graphics.Clear(EditorUi.Background);
-            using(var background=new SolidBrush(Color.FromArgb(35,42,53)))e.Graphics.FillRectangle(background,0,0,ItemSize.Height,Height);
-            using(var font=new Font(Font.FontFamily,ItemSize.Width<44?Math.Min(Font.Size,9):Font.Size,FontStyle.Bold))
+            using(var background=new SolidBrush(EditorUi.Paper))e.Graphics.FillRectangle(background,0,0,ItemSize.Height,Height);
+            using(var rule=new Pen(EditorUi.Border))e.Graphics.DrawLine(rule,ItemSize.Height-1,0,ItemSize.Height-1,Height);
+            using(var regular=new Font(Font.FontFamily,Math.Min(Font.Size,10)))
+            using(var bold=new Font(Font.FontFamily,Math.Min(Font.Size,10),FontStyle.Bold))
             for(int index=0;index<TabCount;index++)
             {
-                var rect=GetTabRect(index);rect.X=0;rect.Width=ItemSize.Height;
-                if(index==SelectedIndex)
+                var rect=GetTabRect(index);rect.X=0;rect.Width=ItemSize.Height-1;
+                bool selected=index==SelectedIndex;
+                if(selected)
                 {
-                    using(var selected=new SolidBrush(Color.FromArgb(49,67,87)))e.Graphics.FillRectangle(selected,rect);
-                    using(var accent=new SolidBrush(Color.FromArgb(89,169,222)))e.Graphics.FillRectangle(accent,0,rect.Y,4,rect.Height);
+                    using(var fill=new SolidBrush(EditorUi.Surface))e.Graphics.FillRectangle(fill,rect);
+                    using(var mark=new SolidBrush(EditorUi.Accent))e.Graphics.FillRectangle(mark,0,rect.Y,3,rect.Height);
                 }
-                rect.Inflate(-14,-4);
-                TextRenderer.DrawText(e.Graphics,TabPages[index].Text,font,rect,index==SelectedIndex?Color.White:Color.FromArgb(170,177,185),TextFormatFlags.VerticalCenter|TextFormatFlags.WordBreak|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix);
+                rect.Inflate(-14,-2);
+                TextRenderer.DrawText(e.Graphics,TabPages[index].Text,selected?bold:regular,rect,selected?EditorUi.Ink:EditorUi.Muted,TextFormatFlags.VerticalCenter|TextFormatFlags.WordBreak|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix);
             }
         }
     }
@@ -218,9 +257,9 @@ namespace Outil_Azur_complet.Editors
         {
             this.column = column; this.spec = spec; initial = value; Name = column.ColumnName; AccessibleName = spec.Label;
             initialText = Format(value); structured = initialText;
-            BackColor = Color.White; Width = 620; Height = (spec.Multiline ? 136 : 98); MinimumSize = new Size(220, Height);
-            var label = EditorUi.Label(spec.Label, 10, true); label.SetBounds(0, 0, 620, 23); label.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right; Controls.Add(label);
-            var help = EditorUi.Label(spec.Help, 9); help.SetBounds(0, 23, 620, 22); help.Anchor = label.Anchor; help.ForeColor = Color.FromArgb(105, 111, 118); Controls.Add(help);
+            const int top = EditorUi.FieldInputTop;
+            BackColor = EditorUi.Surface; Width = 620; Height = (spec.Multiline ? 114 : 76); MinimumSize = new Size(220, Height);
+            var label = EditorUi.Label(spec.Label, 9.5f, true); label.SetBounds(0, 2, 620, 22); label.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right; Controls.Add(label);
             if (spec.Options != null)
             {
                 choice = new EditorComboBox { Name = column.ColumnName + "_choix", Font = new Font("Segoe UI", 10), DropDownStyle = ComboBoxStyle.DropDownList, Enabled = !readOnly };
@@ -231,44 +270,45 @@ namespace Outil_Azur_complet.Editors
                     var flagOption = bool.TryParse(initialText, out existingFlag) ? spec.Options.FirstOrDefault(item => { bool optionFlag; return bool.TryParse(item.Value, out optionFlag) ? optionFlag == existingFlag : (item.Value == "0" || item.Value == "1") && (item.Value == "1") == existingFlag; }) : null;
                     selected = new EditorOption(initialText, flagOption?.Text ?? "Valeur existante : " + initialText); choice.Items.Add(selected);
                 }
-                choice.SelectedItem = selected; choice.SetBounds(0, 48, 480, 32); choice.Anchor = label.Anchor; Controls.Add(choice);
+                choice.SelectedItem = selected; choice.SetBounds(0, top, 480, 32); choice.Anchor = label.Anchor; Controls.Add(choice);
             }
             else
             {
                 input = EditorUi.TextBox(spec.Summary != null ? spec.Summary(initialText) : spec.FormatInput != null ? spec.FormatInput(initialText) : initialText, spec.Multiline);
                 input.Name = column.ColumnName + "_valeur"; input.ReadOnly = readOnly || spec.Edit != null;
                 input.iTalkTB.BackColor = Color.White;
-                input.SetBounds(0, 48, 480, spec.Multiline ? 70 : 33); input.Anchor = label.Anchor; Controls.Add(input);
+                input.SetBounds(0, top, 480, spec.Multiline ? 70 : 33); input.Anchor = label.Anchor; Controls.Add(input);
             }
             if (column.AllowDBNull)
             {
-                absent = new CheckBox { Text = "Non défini", Checked = value == DBNull.Value, AutoSize = true, Location = new Point(490, 55), Anchor = AnchorStyles.Top | AnchorStyles.Right, Enabled = !readOnly };
+                absent = new CheckBox { Text = "Non défini", Checked = value == DBNull.Value, AutoSize = true, Location = new Point(490, top + 7), Anchor = AnchorStyles.Top | AnchorStyles.Right, Enabled = !readOnly, ForeColor = EditorUi.Muted };
                 absent.CheckedChanged += (s, e) => { if (input != null) input.Enabled = !absent.Checked; if (choice != null) choice.Enabled = !absent.Checked; };
                 Controls.Add(absent); if (input != null) input.Enabled = !absent.Checked; if (choice != null) choice.Enabled = !absent.Checked;
             }
             if (spec.Edit != null)
             {
-                var edit = EditorUi.Button("Modifier…", false, 112); edit.SetBounds(490, 47, 112, 34); edit.Anchor = AnchorStyles.Top | AnchorStyles.Right; edit.Enabled = !readOnly;
+                var edit = EditorUi.Button("Modifier…", false, 112); edit.SetBounds(490, top - 1, 112, 34); edit.Anchor = AnchorStyles.Top | AnchorStyles.Right; edit.Enabled = !readOnly;
                 // Nullable structured values need their own row for the NULL choice.
                 if (absent != null) { absent.Anchor = AnchorStyles.Top | AnchorStyles.Left; absent.Location = new Point(0, Height - 8); Height += 26; }
                 edit.Click += (s, e) => { try { string result = spec.Edit(FindForm(), structured); if (result != null) { structured = result; input.Text = spec.Summary != null ? spec.Summary(result) : result; if (absent != null) absent.Checked = false; Changed?.Invoke(this, EventArgs.Empty); } } catch (Exception ex) { MessageBox.Show(FindForm(), ex.Message, "Valeur à corriger", MessageBoxButtons.OK, MessageBoxIcon.Warning); } };
                 Controls.Add(edit);
             }
-            error = EditorUi.Label("", 9); error.ForeColor = Color.Firebrick; error.SetBounds(0, Height - 14, 620, 18); error.Anchor = label.Anchor; Controls.Add(error);
+            error = EditorUi.Label("", 9); error.ForeColor = EditorUi.Error; error.SetBounds(0, Height - 14, 620, 18); error.Anchor = label.Anchor; Controls.Add(error);
             if (spec.Suggestions != null && spec.Suggestions.Count > 0 && input != null && spec.Edit == null)
             {
                 Height += 38;
                 var names = new EditorComboBox { Font = new Font("Segoe UI", 10), Name = column.ColumnName + "_noms" };
                 names.Items.Add(new EditorOption("", "Choisir dans la liste des noms…"));
                 foreach (var pair in spec.Suggestions.OrderBy(pair => pair.Value, StringComparer.CurrentCultureIgnoreCase)) names.Items.Add(new EditorOption(pair.Key, pair.Value + " · #" + pair.Key));
-                names.SetBounds(0, 83, 620, 30); names.Anchor = label.Anchor; names.Enabled = !readOnly;
+                names.SetBounds(0, top + 35, 620, 30); names.Anchor = label.Anchor; names.Enabled = !readOnly;
                 bool syncing = false;
                 Action syncName = () => { syncing = true; names.SelectedItem = names.Items.Cast<EditorOption>().FirstOrDefault(item => item.Value == input.Text) ?? names.Items[0]; syncing = false; };
                 syncName(); input.TextChanged += (s, e) => syncName();
                 names.SelectedIndexChanged += (s, e) => { if (!syncing && names.SelectedIndex > 0) input.Text = ((EditorOption)names.SelectedItem).Value; };
                 Controls.Add(names); error.Top = Height - 14;
             }
-            var tips = new ToolTip(); tips.SetToolTip(help, spec.Help); tips.SetToolTip(label, spec.Label); Disposed += (s, e) => tips.Dispose();
+            var tips = new ToolTip { AutoPopDelay = 15000 }; string hint = string.IsNullOrWhiteSpace(spec.Help) ? spec.Label : spec.Help;
+            tips.SetToolTip(label, hint); if (input != null) tips.SetToolTip(input, hint); if (choice != null) tips.SetToolTip(choice, hint); Disposed += (s, e) => tips.Dispose();
             Resize += (s, e) => { int reserve = absent != null || spec.Edit != null ? 132 : 0; if (input != null) input.Width = Math.Max(100, Width - reserve); if (choice != null) choice.Width = Math.Max(100, Width - reserve); };
             if (input != null) input.TextChanged += (s, e) => Changed?.Invoke(this, EventArgs.Empty);
             if (choice != null) choice.SelectedIndexChanged += (s, e) => Changed?.Invoke(this, EventArgs.Empty);
