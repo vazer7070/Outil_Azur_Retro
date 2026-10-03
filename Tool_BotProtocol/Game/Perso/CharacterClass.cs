@@ -49,6 +49,8 @@ namespace Tool_BotProtocol.Game.Perso
 
         public bool UseMount { get; set; } = false;
         public sbyte NpcToSpeak_id { get; set; }
+        /// <summary>Métier dont l'outil est équipé, annoncé par OT ; null lorsque OT arrive sans identifiant.</summary>
+        public int? CurrentJobTool { get; set; }
 
         public event Action Server_Selection;
         public event Action Player_Selection;
@@ -254,6 +256,7 @@ namespace Tool_BotProtocol.Game.Perso
             InEquip.Clear();
             GroupMembers.Clear();
             InGroupe = HasGuild = UseMount = false;
+            CurrentJobTool = null;
             EquipLeader = null;
             Canal = string.Empty;
             Carac_Points = SpellPoints = Kamas = 0;
