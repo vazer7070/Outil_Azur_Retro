@@ -8,7 +8,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
-using Tools_protocol.Json;
 using Tools_protocol.Kryone.Database;
 using Tools_protocol.Managers;
 using Tools_protocol.Query;
@@ -34,9 +33,10 @@ namespace Tools_protocol.Parser.XML
                 throw new ArgumentException("Ce type de ressource n'est pas pris en charge.", nameof(type));
             if (ForBot && (type == "Panoplies" || type == "Joueurs" || type == "Maisons"))
                 throw new NotSupportedException("Le bot n'utilise pas ce type de ressource XML.");
-            string table = JsonManager.SearchAuth(key);
+            // La table et sa base (auth ou world) viennent du profil de l'émulateur.
+            string table = EmulatorRegistry.Current.Table(key);
             string query = QueryBuilder.SelectFromQuery(new[] { "*" }, table, "", "");
-            string connectionString = DatabaseManager.ConnectionString;
+            string connectionString = EmulatorRegistry.ConnectionFor(key);
             if (string.IsNullOrWhiteSpace(connectionString)) throw new InvalidOperationException("La base de données n'est pas connectée.");
             string folder = Path.GetFullPath(path);
             return Task.Run(() => Export(folder, type, ForBot, table, query, connectionString));
@@ -51,7 +51,9 @@ namespace Tools_protocol.Parser.XML
             {
                 if (forBot && type == "PNJs")
                 {
-                    string templates = JsonManager.SearchAuth("npc_template");
+                    if (EmulatorRegistry.Current.Locate("npc_template") != EmulatorRegistry.Current.Locate("npcs"))
+                        throw new NotSupportedException("Les PNJ et leurs modèles doivent être dans la même base pour l'export du bot.");
+                    string templates = EmulatorRegistry.Current.Table("npc_template");
                     QueryBuilder.SelectFromQuery(new[] { "*" }, templates, "", "");
                     query = $"SELECT n.*, t.gfxID AS azur_gfx, t.sex AS azur_sex FROM `{table}` n " +
                         $"LEFT JOIN `{templates}` t ON t.id=n.npcid";
@@ -124,6 +126,15 @@ namespace Tools_protocol.Parser.XML
         }
         private static XElement Element(string name, object value) => new XElement(name, Text(value));
 
+        /// <summary>Valeur d'une colonne facultative (StarLoco n'a pas de fond de carte « background »).</summary>
+        private static object Optional(IDataRecord row, string column, object fallback)
+        {
+            for (int i = 0; i < row.FieldCount; i++)
+                if (row.GetName(i).Equals(column, StringComparison.OrdinalIgnoreCase))
+                    return row.IsDBNull(i) ? fallback : row.GetValue(i);
+            return fallback;
+        }
+
         private static XElement BotRecord(string type, IDataRecord row, out string filename)
         {
             var record = new XElement("RECORD");
@@ -136,7 +147,7 @@ namespace Tools_protocol.Parser.XML
                     if (position.Length < 2 || !int.TryParse(position[0], out _) || !int.TryParse(position[1], out _))
                         throw new FormatException("La position de la carte " + id + " est invalide.");
                     record.Add(Element("ID", id), Element("LARGEUR", row["width"]), Element("LONGUEUR", row["heigth"]),
-                        Element("X", position[0]), Element("Y", position[1]), Element("MAP_DATA", row["mapData"]), Element("BACK", row["background"]));
+                        Element("X", position[0]), Element("Y", position[1]), Element("MAP_DATA", row["mapData"]), Element("BACK", Optional(row, "background", 0)));
                     break;
                 case "Objets":
                     id = row["id"];

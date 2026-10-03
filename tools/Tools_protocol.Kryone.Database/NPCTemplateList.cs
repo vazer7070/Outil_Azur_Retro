@@ -1,11 +1,11 @@
-﻿using MySql.Data.MySqlClient;
+using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Tools_protocol.Json;
+using Tools_protocol.Emulators;
 using Tools_protocol.Query;
 
 namespace Tools_protocol.Kryone.Database
@@ -30,7 +30,7 @@ namespace Tools_protocol.Kryone.Database
         public string Exchanges { get; set; }
         public static Dictionary<int, NPCTemplateList> TemplatesPNJ = new Dictionary<int, NPCTemplateList>();
         public static int PNJcount;
-        public static string TablePNJTemplate = JsonManager.SearchAuth("npc_template");
+        public static string TablePNJTemplate => EmulatorRegistry.Current.Table("npc_template");
         public NPCTemplateList(IDataReader reader)
         {
             ID = (int)reader["id"];
@@ -54,7 +54,7 @@ namespace Tools_protocol.Kryone.Database
         {
             string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TablePNJTemplate, "", "");
 
-            using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
+            using (MySqlConnection connection = new MySqlConnection(EmulatorRegistry.ConnectionFor("npc_template")))
             {
                 try
                 {
@@ -74,7 +74,7 @@ namespace Tools_protocol.Kryone.Database
                 }
                 catch (MySqlException) { }
             }
-            
+
         }
     }
 }

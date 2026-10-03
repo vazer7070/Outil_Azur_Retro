@@ -1,17 +1,17 @@
-﻿using MySql.Data.MySqlClient;
+using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using Tools_protocol.Data;
-using Tools_protocol.Managers;
+using Tools_protocol.Emulators;
 using Tools_protocol.Query;
 
 namespace Tools_protocol.Kryone.Database
 {
-	public class ItemSetList 
-	{ 
-			
+	public class ItemSetList
+	{
+
 		public static Dictionary<int, ItemSetList> AllItemsInSet = new Dictionary<int, ItemSetList>();
 
 		public static List<string> SetName = new List<string>();
@@ -48,11 +48,12 @@ namespace Tools_protocol.Kryone.Database
 			set;
 		}
 
+		/// <summary>Table des panoplies selon le profil d'émulateur courant.</summary>
 		public static string TableSet
 		{
 			get
 			{
-				return EmuManager.ReturnTable("panoplies", EmuManager.EMUSELECTED);
+				return EmulatorRegistry.Current.Table("panoplies");
 			}
 		}
 
@@ -67,7 +68,7 @@ namespace Tools_protocol.Kryone.Database
         public static void LoadPano()
         {
             var loaded = new Dictionary<int, ItemSetList>();
-            using (var connection = new MySqlConnection(DatabaseManager.ConnectionString))
+            using (var connection = new MySqlConnection(EmulatorRegistry.ConnectionFor("panoplies")))
             using (var command = new MySqlCommand(QueryBuilder.SelectFromQuery(new[] { "*" },TableSet,"",""),connection))
             {
                 connection.Open();

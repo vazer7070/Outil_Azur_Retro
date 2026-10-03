@@ -1,6 +1,6 @@
 # Outil Azur Retro
 
-L’état des fonctions corrigées, les écarts encore présents avec ce README et les critères de validation sont décrits dans [l’état du projet](docs/ETAT_PROJET.md). La suite reproductible compte **34 tests : 26 sans base et 8 d'intégration** ; voir [les tests](tests/README.md). Pour reprendre le projet rapidement, consulter aussi l'[inventaire de reprise](docs/INVENTAIRE_REPRISE.md).
+L’état des fonctions corrigées, les écarts encore présents avec ce README et les critères de validation sont décrits dans [l’état du projet](docs/ETAT_PROJET.md). La suite reproductible compte **35 tests : 26 sans base et 9 d'intégration** ; voir [les tests](tests/README.md). Pour reprendre le projet rapidement, consulter aussi l'[inventaire de reprise](docs/INVENTAIRE_REPRISE.md).
 
 ## Émulateurs pris en charge
 
@@ -8,14 +8,14 @@ Azur décrit chaque émulateur par un **profil** (`tools/Tools_protocol.Emulator
 
 | Émulateur | Pris en charge aujourd'hui |
 | --- | --- |
-| **Kryone V2** (kauth / kworld) | Tous les outils : comptes, personnages, inventaires, création d'objets, 24 éditeurs de ressources, recherche, placements et export XML vers le bot. C'est la seule cible vérifiée par les tests d'intégration. |
-| **StarLoco** | Le client bot (connexion Login/Game, personnages, déplacements, sorts). Les éditeurs SQL attendent la correspondance de ses tables `login`/`game`, qui ne sont pas interchangeables avec celles de Kryone. L'éditeur de cartes, les objets du client et le gestionnaire fonctionnent sans base. |
+| **Kryone V2** (kauth / kworld) | Tous les outils : comptes, personnages, inventaires, création d'objets, 24 éditeurs de ressources, recherche, placements et export XML vers le bot. C'est la cible de référence des tests d'intégration. |
+| **StarLoco** (login / game) | Les mêmes outils SQL que Kryone sur ses deux bases : comptes, personnages et exemplaires d'objets (`world.entity.objects`) dans `login` ; modèles d'objets, panoplies, recettes, 24 éditeurs de ressources, recherche, placements et export XML vers le bot dans `game`. Le profil porte les noms de ses 58 tables et les colonnes renommées ; pas de titres ni de paroli. Vérifié par un test d'intégration sur ses schémas `login`/`game` ; voir [la compatibilité StarLoco](docs/STARLOCO_COMPATIBILITE.md). Le client bot (connexion Login/Game, personnages, déplacements, sorts) reste à valider sur un vrai serveur. |
 | **Sunshine** | Consultation des comptes uniquement. |
 | **Codebreak** | Connexion aux bases uniquement ; les outils SQL ne sont pas encore adaptés à son schéma. |
 
 Le schéma `kauth.sql` fourni a permis de vérifier **58 tables InnoDB**, dont `accounts` et `players`, sans importer les comptes ni les personnages réels. Les corrections et les réglages nécessaires sont décrits dans [la compatibilité Kryone/kauth](docs/KAUTH_COMPATIBILITE.md).
 
-Le kit de test fourni dans `F:\kit` contient maintenant les serveurs **StarLoco Login et Game** et un client **Dofus 1.34**. Les essais en jeu restent à réaliser. L'[inventaire détaillé du kit](docs/INVENTAIRE_F_KIT.md) recense ses 41 280 fichiers, ses rôles, ses ports, ses dumps SQL et les points sensibles. Les éditeurs SQL validés ici ciblent Kryone ; la compatibilité réseau avec StarLoco doit être vérifiée séparément et ses tables ne sont pas des correspondances interchangeables avec celles de kauth.
+Le kit de test fourni dans `F:\kit` contient maintenant les serveurs **StarLoco Login et Game** et un client **Dofus 1.34**. Les essais en jeu restent à réaliser. L'[inventaire détaillé du kit](docs/INVENTAIRE_F_KIT.md) recense ses 41 280 fichiers, ses rôles, ses ports, ses dumps SQL et les points sensibles. Les éditeurs SQL sont validés sur les schémas Kryone (kauth) et StarLoco (`login`/`game`) ; la compatibilité réseau avec StarLoco doit être vérifiée séparément.
 
 La [carte des sources StarLoco pour le bot](docs/STARLOCO_SOURCES_ANALYSE.md) décrit le handshake Login/Game, les familles de paquets, le relais interne, l’encodage des cellules et les corrections prioritaires relevées dans le code.
 

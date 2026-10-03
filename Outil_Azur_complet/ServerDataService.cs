@@ -6,7 +6,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using MySql.Data.MySqlClient;
-using Tools_protocol.Json;
 using Tools_protocol.Emulators;
 
 namespace Outil_Azur_complet
@@ -67,15 +66,18 @@ namespace Outil_Azur_complet
         {
             string key = Key(kind);
             var snapshot = new ServerDataSnapshot { Kind = kind, MapId = mapId, CellCount = cellCount,
-                ConnectionString = ServerSql.AuthConnection(EmulatorFeature.ResourceEditors), Table = JsonManager.SearchAuth(key), Defaults = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase) };
-            if (kind == ServerResourceKind.Npcs) snapshot.NpcTemplateTable = JsonManager.SearchAuth("npc_template");
+                ConnectionString = ServerSql.ConnectionFor(key, EmulatorFeature.ResourceEditors), Table = EmulatorRegistry.Current.Table(key), Defaults = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase) };
+            EmulatorProfile emulator = EmulatorRegistry.Current;
+            if (kind == ServerResourceKind.Npcs) snapshot.NpcTemplateTable = emulator.Table("npc_template");
+            // Les tables liées sont lues sur la connexion de la ressource : seules celles de la même base sont utilisables.
             foreach (string related in new[] { "Template", "panoplies", "crafts", "monstres", "drops", "npc_questions", "npc_reponse", "npc_template", "npcs" })
-                snapshot.RelatedTables[related] = JsonManager.SearchAuth(related);
-            if(kind==ServerResourceKind.ItemTemplates && !string.IsNullOrWhiteSpace(Tools_protocol.Query.DatabaseManager2.ConnectionString))
+                snapshot.RelatedTables[related] = emulator.Locate(related) == emulator.Locate(key) ? emulator.Table(related) : "";
+            string itemsConnection = EmulatorRegistry.ConnectionFor("items");
+            if(kind==ServerResourceKind.ItemTemplates && !string.IsNullOrWhiteSpace(itemsConnection))
             {
-                var auth=new MySqlConnectionStringBuilder(snapshot.ConnectionString);var world=new MySqlConnectionStringBuilder(Tools_protocol.Query.DatabaseManager2.ConnectionString);
+                var auth=new MySqlConnectionStringBuilder(snapshot.ConnectionString);var world=new MySqlConnectionStringBuilder(itemsConnection);
                 if(string.Equals(auth.Server,world.Server,StringComparison.OrdinalIgnoreCase) && auth.Port==world.Port && string.Equals(auth.UserID,world.UserID,StringComparison.OrdinalIgnoreCase))
-                {snapshot.WorldSchema=world.Database;snapshot.WorldItemTable=JsonManager.SearchWorld("items");}
+                {snapshot.WorldSchema=world.Database;snapshot.WorldItemTable=emulator.Table("items");}
             }
             string table = ServerSql.Identifier(snapshot.Table);
             using (var connection = new MySqlConnection(snapshot.ConnectionString))
@@ -133,7 +135,7 @@ namespace Outil_Azur_complet
                 snapshot.Data.AcceptChanges();
                 if (kind == ServerResourceKind.Npcs || kind == ServerResourceKind.MonsterGroups || kind == ServerResourceKind.Jobs || kind == ServerResourceKind.Monsters || kind == ServerResourceKind.ItemSets || kind == ServerResourceKind.Crafts || kind == ServerResourceKind.Drops || kind == ServerResourceKind.ItemTemplates || kind == ServerResourceKind.NpcQuestions || kind == ServerResourceKind.Quests || kind == ServerResourceKind.QuestSteps || kind == ServerResourceKind.NpcTemplates || kind == ServerResourceKind.ObjectActions || kind == ServerResourceKind.Dungeons)
                 {
-                    string referenceTable = kind == ServerResourceKind.Npcs ? snapshot.NpcTemplateTable : JsonManager.SearchAuth(kind == ServerResourceKind.Monsters ? "sort" : kind == ServerResourceKind.MonsterGroups ? "monstres" : kind == ServerResourceKind.ItemTemplates ? "panoplies" : kind == ServerResourceKind.NpcQuestions ? "npc_reponse" : kind == ServerResourceKind.Quests ? "quete_etape" : kind == ServerResourceKind.QuestSteps ? "quete_objectif" : kind == ServerResourceKind.NpcTemplates ? "npc_questions" : "Template");
+                    string referenceTable = kind == ServerResourceKind.Npcs ? snapshot.NpcTemplateTable : EmulatorRegistry.Current.Table(kind == ServerResourceKind.Monsters ? "sort" : kind == ServerResourceKind.MonsterGroups ? "monstres" : kind == ServerResourceKind.ItemTemplates ? "panoplies" : kind == ServerResourceKind.NpcQuestions ? "npc_reponse" : kind == ServerResourceKind.Quests ? "quete_etape" : kind == ServerResourceKind.QuestSteps ? "quete_objectif" : kind == ServerResourceKind.NpcTemplates ? "npc_questions" : "Template");
                     if (!string.IsNullOrWhiteSpace(referenceTable))
                     {
                         try
@@ -157,9 +159,9 @@ namespace Outil_Azur_complet
                         catch (MySqlException) { snapshot.ReferenceNotice = "Liste des noms indisponible : les identifiants restent modifiables."; }
                     }
                 }
-                if(kind==ServerResourceKind.Drops && !string.IsNullOrWhiteSpace(JsonManager.SearchAuth("monstres")))
+                if(kind==ServerResourceKind.Drops && !string.IsNullOrWhiteSpace(EmulatorRegistry.Current.Table("monstres")))
                 {
-                    try{var names=new Dictionary<string,string>();using(var command=new MySqlCommand("SELECT `id`,`name` FROM "+ServerSql.Identifier(JsonManager.SearchAuth("monstres")),connection))using(var reader=command.ExecuteReader())while(reader.Read())names[Convert.ToString(reader[0])]=Convert.ToString(reader[1]);snapshot.ReferenceLists["monsterId"]=names;}
+                    try{var names=new Dictionary<string,string>();using(var command=new MySqlCommand("SELECT `id`,`name` FROM "+ServerSql.Identifier(EmulatorRegistry.Current.Table("monstres")),connection))using(var reader=command.ExecuteReader())while(reader.Read())names[Convert.ToString(reader[0])]=Convert.ToString(reader[1]);snapshot.ReferenceLists["monsterId"]=names;}
                     catch(MySqlException){snapshot.ReferenceNotice="Certains noms ne sont pas disponibles ; les identifiants restent modifiables.";}
                 }
             }
@@ -408,7 +410,7 @@ namespace Outil_Azur_complet
         }
         public static int ExportAllSql(string tableKey,string path)
         {
-            string connectionString=ServerSql.AuthConnection(EmulatorFeature.ResourceEditors),table=ServerSql.Identifier(JsonManager.SearchAuth(tableKey));
+            string connectionString=ServerSql.ConnectionFor(tableKey,EmulatorFeature.ResourceEditors),table=ServerSql.Identifier(EmulatorRegistry.Current.Table(tableKey));
             string fullPath=Path.GetFullPath(path);Directory.CreateDirectory(Path.GetDirectoryName(fullPath));string temp=fullPath+".tmp-"+Guid.NewGuid().ToString("N");int count=0;
             try
             {

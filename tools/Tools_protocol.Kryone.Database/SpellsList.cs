@@ -8,7 +8,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using Tools_protocol.Data;
-using Tools_protocol.Json;
+using Tools_protocol.Emulators;
 using Tools_protocol.Query;
 
 namespace Tools_protocol.Kryone.Database
@@ -105,7 +105,7 @@ namespace Tools_protocol.Kryone.Database
 		{
 			get
 			{
-				return JsonManager.SearchAuth("sort");
+				return EmulatorRegistry.Current.Table("sort");
 			}
 		}
 
@@ -129,7 +129,8 @@ namespace Tools_protocol.Kryone.Database
 			Lvl6 = (string)reader["lvl6"];
 			EffectTarget = (string)reader["effectTarget"];
 			Type = (int)reader["type"];
-			int durationColumn = Enumerable.Range(0, reader.FieldCount).Where(index => reader.GetName(index).Equals("durer", StringComparison.OrdinalIgnoreCase)).DefaultIfEmpty(-1).First();
+			// Kryone nomme la durée « durer », StarLoco « duration » ; certaines variantes n'ont aucune des deux.
+			int durationColumn = Enumerable.Range(0, reader.FieldCount).Where(index => reader.GetName(index).Equals("durer", StringComparison.OrdinalIgnoreCase) || reader.GetName(index).Equals("duration", StringComparison.OrdinalIgnoreCase)).DefaultIfEmpty(-1).First();
 			Durée = durationColumn < 0 || reader.IsDBNull(durationColumn) ? 0 : Convert.ToInt32(reader[durationColumn]);
 		}
 
@@ -144,13 +145,12 @@ namespace Tools_protocol.Kryone.Database
 			}
 			string name = null;
 			string table = TableSort;
-			if (!string.IsNullOrWhiteSpace(DatabaseManager.ConnectionString) &&
-				!string.IsNullOrWhiteSpace(table) &&
-				Regex.IsMatch(table, @"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant))
+			string connectionString = EmulatorRegistry.ConnectionFor("sort");
+			if (!string.IsNullOrWhiteSpace(connectionString) && QueryBuilder.IsIdentifier(table))
 			{
 				try
 				{
-					using (var connection = new MySqlConnection(DatabaseManager.ConnectionString))
+					using (var connection = new MySqlConnection(connectionString))
 					using (var command = new MySqlCommand($"SELECT `nom` FROM `{table}` WHERE `id`=@id", connection))
 					{
 						command.Parameters.AddWithValue("@id", spellId);
@@ -492,7 +492,7 @@ namespace Tools_protocol.Kryone.Database
 		{
 			string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TableSort, "", "");
 
-			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
+			using (MySqlConnection connection = new MySqlConnection(EmulatorRegistry.ConnectionFor("sort")))
 			{
 				try
 				{
