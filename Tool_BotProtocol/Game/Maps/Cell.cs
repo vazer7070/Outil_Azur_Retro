@@ -42,8 +42,8 @@ namespace Tool_BotProtocol.Game.Maps
             Interactives = new Interactives.Interactives(interactiveID, this);
             if(interactiveID != -1)
             {
-                Interactives = new Interactives.Interactives(interactiveID, this);
-                M.Interactives.TryAdd(interactiveID, Interactives);
+                // GDF identifies an object by its cell, not by its shared graphics id.
+                M.Interactives.TryAdd(cellid, Interactives);
             }
             byte mapwidth = M.MapWidth;
             int L5 = cellid / ((mapwidth * 2) - 1);

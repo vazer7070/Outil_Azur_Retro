@@ -13,35 +13,67 @@ namespace Outil_Azur_complet
 {
     public partial class Menu : Form
     {
-        private readonly Dictionary<string, Lazy<Form>> _formCache;
+        private readonly Dictionary<string, Func<Form>> _formFactories;
+        private readonly Dictionary<string, Form> _openForms;
 
         public Menu()
         {
             InitializeComponent();
-            _formCache = new Dictionary<string, Lazy<Form>>();
+            _formFactories = new Dictionary<string, Func<Form>>();
+            _openForms = new Dictionary<string, Form>();
             InitializeFormCache();
+            BuildEditorMenuLayout();
         }
 
         private void InitializeFormCache()
         {
-            _formCache["Éditeur de compte"] = new Lazy<Form>(() => new editeur_compte.editeurcompte());
-            _formCache["Éditeur de personnage"] = new Lazy<Form>(() => new editeur_perso.editeur_perso());
-            _formCache["Outil de recherche"] = new Lazy<Form>(() => new outil_recherche.Recherche());
-            _formCache["Éditeur d'objets"] = new Lazy<Form>(() => new editeur_items.itemeditor());
-            _formCache["Éditeur de maps"] = new Lazy<Form>(() => new maps.MainEditeur());
-            _formCache["Gestionnaire"] = new Lazy<Form>(() => new RessourceParser());
-            _formCache["AzurBot"] = new Lazy<Form>(() => new LoadingBotForm());
+            _formFactories["Éditeur de compte"] = () => new editeur_compte.editeurcompte();
+            _formFactories["Éditeur de personnage"] = () => new editeur_perso.editeur_perso();
+            _formFactories["Outil de recherche"] = () => new outil_recherche.Recherche();
+            _formFactories["Éditeur d'objets"] = () => new editeur_items.itemeditor();
+            _formFactories["Objets du client"] = () => new editeur_items.ItemClientEditorForm();
+            iTalk_ComboBox1.Items.Add("Objets du client");
+            _formFactories["Éditeur de maps"] = () => new maps.MainEditeur();
+            _formFactories["Gestionnaire"] = () => new RessourceParser();
+            _formFactories["AzurBot"] = () => new LoadingBotForm();
+            _formFactories["Éditeur de sorts"] = () => new ServerDataForm(ServerResourceKind.Spells, "Éditeur de sorts");
+            _formFactories["Éditeur de métiers"] = () => new ServerDataForm(ServerResourceKind.Jobs, "Éditeur de métiers");
+            _formFactories["Éditeur de ressources"] = () => new ServerDataForm(ServerResourceKind.Interactives, "Ressources interactives");
+            _formFactories["Éditeur de PNJ"] = () => new ServerDataForm(ServerResourceKind.NpcTemplates, "Définitions des PNJ");
+            _formFactories["Éditeur de monstres"] = () => new ServerDataForm(ServerResourceKind.Monsters, "Définitions des monstres");
+            iTalk_ComboBox1.Items.AddRange(new object[] { "Éditeur de sorts", "Éditeur de métiers", "Éditeur de ressources", "Éditeur de PNJ", "Éditeur de monstres" });
+            AddEditor("Éditeur de modèles d'objets",ServerResourceKind.ItemTemplates);
+            AddEditor("Éditeur de panoplies",ServerResourceKind.ItemSets);
+            AddEditor("Éditeur de recettes",ServerResourceKind.Crafts);
+            AddEditor("Éditeur de butins",ServerResourceKind.Drops);
+            AddEditor("Questions des PNJ",ServerResourceKind.NpcQuestions);
+            AddEditor("Réponses et actions des PNJ",ServerResourceKind.NpcResponses);
+            AddEditor("Éditeur de quêtes",ServerResourceKind.Quests);
+            AddEditor("Étapes des quêtes",ServerResourceKind.QuestSteps);
+            AddEditor("Objectifs et récompenses des quêtes",ServerResourceKind.QuestObjectives);
+            AddEditor("Téléportations des cartes",ServerResourceKind.MapTriggers);
+            AddEditor("Actions de fin de combat",ServerResourceKind.EndFightActions);
+            AddEditor("Entrées de donjons",ServerResourceKind.Dungeons);
+            AddEditor("Portes et mécanismes",ServerResourceKind.InteractiveDoors);
+            AddEditor("Actions des objets",ServerResourceKind.ObjectActions);
+            AddEditor("Placements des PNJ",ServerResourceKind.Npcs);
+            AddEditor("Groupes de monstres fixes",ServerResourceKind.MonsterGroups);
+            AddEditor("Éditeur d'enclos",ServerResourceKind.Paddocks);
+            AddEditor("Éditeur de zaaps",ServerResourceKind.Zaaps);
+            AddEditor("Données serveur des cartes",ServerResourceKind.Maps);
         }
+        private void AddEditor(string title,ServerResourceKind kind)
+        { _formFactories[title]=()=>new ServerDataForm(kind,title);iTalk_ComboBox1.Items.Add(title); }
 
-        private async void iTalk_Button_11_Click(object sender, EventArgs e)
+        private void iTalk_Button_11_Click(object sender, EventArgs e)
         {
             if (iTalk_ComboBox1.SelectedItem == null) return;
 
             string selection = iTalk_ComboBox1.SelectedItem.ToString();
             
-            if (!_formCache.ContainsKey(selection)) return;
+            if (!_formFactories.ContainsKey(selection)) return;
 
-            if (selection != "Éditeur de maps" && selection != "Gestionnaire" && selection != "AzurBot" && InitializeForm.NoDB)
+            if (selection != "Éditeur de maps" && selection != "Gestionnaire" && selection != "AzurBot" && selection != "Objets du client" && InitializeForm.NoDB)
             {
                 MessageBox.Show("Cette fonctionnalité nécessite une connexion à la base de données.", 
                     "Accès impossible", 
@@ -50,39 +82,31 @@ namespace Outil_Azur_complet
                 return;
             }
 
-            await Task.Run(() => {
-                try
+            try
+            {
+                if (selection == "Éditeur de maps" && !InitializeForm.MapEditorOK)
                 {
-                    this.Invoke((MethodInvoker)delegate {
-                        if (selection == "Éditeur de maps" && !InitializeForm.MapEditorOK)
-                        {
-                            MessageBox.Show(
-                                "Il manque des dossiers pour une utilisation correcte de l'éditeur de cartes, merci de vérifier l'existence/chemins des dossiers pré-requis puis de relancer l'application afin de pouvoir lancer cette partie de l'application.", 
-                                "Lancement impossible", 
-                                MessageBoxButtons.OK, 
-                                MessageBoxIcon.Error);
-                            return;
-                        }
+                    MessageBox.Show(
+                        "Il manque des dossiers pour une utilisation correcte de l'éditeur de cartes, merci de vérifier l'existence/chemins des dossiers pré-requis puis de relancer l'application afin de pouvoir lancer cette partie de l'application.",
+                        "Lancement impossible", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
 
-                        var form = _formCache[selection].Value;
-                        if (!form.Visible)
-                        {
-                            form.Show();
-                        }
-                        else
-                        {
-                            form.BringToFront();
-                        }
-                    });
-                }
-                catch (Exception ex)
+                if (!_openForms.TryGetValue(selection, out Form form) || form.IsDisposed)
                 {
-                    MessageBox.Show($"Erreur lors du lancement du module : {ex.Message}", 
-                        "Erreur", 
-                        MessageBoxButtons.OK, 
-                        MessageBoxIcon.Error);
+                    form = _formFactories[selection]();
+                    _openForms[selection] = form;
+                    form.FormClosed += (s, args) => _openForms.Remove(selection);
                 }
-            });
+
+                if (!form.Visible) form.Show();
+                else form.BringToFront();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Erreur lors du lancement du module : {ex.Message}",
+                    "Erreur", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void Menu_Load(object sender, EventArgs e)
@@ -90,30 +114,24 @@ namespace Outil_Azur_complet
             iTalk_ComboBox1.Items.RemoveAll(item => string.IsNullOrEmpty(item?.ToString()));
         }
 
-        private async void iTalk_Button_12_Click(object sender, EventArgs e)
+        private void iTalk_Button_12_Click(object sender, EventArgs e)
         {
-            await Task.Run(() => {
-                try
+            Close();
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            foreach (Form form in _openForms.Values.ToList())
+            {
+                if (form.IsDisposed) continue;
+                form.Close();
+                if (!form.IsDisposed)
                 {
-                    this.Invoke((MethodInvoker)delegate {
-                        if (Application.OpenForms.Count == 0)
-                        {
-                            Application.ExitThread();
-                        }
-                        else
-                        {
-                            foreach (Form form in Application.OpenForms.Cast<Form>().ToList())
-                            {
-                                form.Close();
-                            }
-                        }
-                    });
+                    e.Cancel = true;
+                    break;
                 }
-                catch (Exception ex)
-                {
-                    // Log l'erreur si nécessaire
-                }
-            });
+            }
+            base.OnFormClosing(e);
         }
 
         private void iTalk_Button_13_Click(object sender, EventArgs e)
@@ -128,9 +146,9 @@ namespace Outil_Azur_complet
         {
             if (disposing)
             {
-                foreach (var form in _formCache.Values.Where(f => f.IsValueCreated))
+                foreach (var form in _openForms.Values.ToList())
                 {
-                    form.Value?.Dispose();
+                    form.Dispose();
                 }
             }
             base.Dispose(disposing);

@@ -1,11 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.IO;
 using System.Windows.Forms;
 using Tools_protocol.Parser.XML;
 
@@ -16,104 +10,50 @@ namespace Outil_Azur_complet.Parser
         public RessourceParser()
         {
             InitializeComponent();
+            iTalk_RadioButton1.Checked = true;
+            iTalk_ComboBox1.SelectedIndex = 0;
+            BuildEditorLayout();
         }
-
-        private void iTalk_Button_11_Click(object sender, EventArgs e)
+        private void iTalk_Button_11_Click(object sender, EventArgs e) => Close();
+        private void iTalk_RadioButton2_CheckedChanged(object sender) => iTalk_TextBox_Small1.Enabled = !iTalk_RadioButton2.Checked;
+        private async void iTalk_Button_21_Click(object sender, EventArgs e)
         {
-            Close();
-        }
-
-        private void iTalk_RadioButton2_CheckedChanged(object sender)
-        {
-            if(iTalk_RadioButton2.Checked == true)
+            try
             {
-                iTalk_TextBox_Small1.Enabled = false;
+                if (InitializeForm.NoDB) throw new InvalidOperationException("Connectez les bases de données avant d'exporter les ressources.");
+                string type = iTalk_ComboBox1.SelectedItem as string;
+                if (string.IsNullOrEmpty(type)) throw new InvalidOperationException("Sélectionnez les données à exporter.");
+                bool forBot = iTalk_RadioButton2.Checked;
+                string path = forBot ? BotDirectory(type) : iTalk_TextBox_Small1.Text;
+                iTalk_Button_21.Enabled = false;
+                working=true;
+                int count = await XmlParser.ParseSQLToXML(path, type, forBot);
+                MessageBox.Show($"{count} ressource(s) exportée(s) dans {Path.GetFullPath(path)}.", "Export terminé", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
-            else
-            {
-                iTalk_TextBox_Small1.Enabled = true;
-            }
+            catch (Exception error) { MessageBox.Show(error.Message, "Export impossible", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            finally { working=false;if (!IsDisposed) iTalk_Button_21.Enabled = true; }
         }
-
-        private void iTalk_Button_21_Click(object sender, EventArgs e)
+        private static string BotDirectory(string type)
         {
-
-            if (!InitializeForm.NoDB)
+            switch (type)
             {
-               if(iTalk_RadioButton2.Checked  == true)
-                {
-
-                    if(iTalk_ComboBox1.SelectedItem.ToString() == "Maps")
-                    {
-                        XmlParser.ParseSQLToXML(@".\ressources\Bot\BotMaps\", "Maps", true);
-
-                    }else if(iTalk_ComboBox1.SelectedItem.ToString() == "Objets")
-                    {
-                        XmlParser.ParseSQLToXML(@".\ressources\Bot\BotObjets\", "Objets", true);
-                    }
-                    else if (iTalk_ComboBox1.SelectedItem.ToString() == "Métiers")
-                    {
-                        XmlParser.ParseSQLToXML(@".\ressources\Bot\BotJobs\", "Métiers", true);
-                    }
-                    else if (iTalk_ComboBox1.SelectedItem.ToString() == "PNJs")
-                    {
-                        XmlParser.ParseSQLToXML(@".\ressources\Bot\BotNPCs\", "PNJs", true);
-                    }
-                    else if (iTalk_ComboBox1.SelectedItem.ToString() == "Zaaps")
-                    {
-                        XmlParser.ParseSQLToXML(@".\ressources\Bot\BotZaaps\", "Zaaps", true);
-
-                    }else if(iTalk_ComboBox1.SelectedItem.ToString() == "Monstres")
-                    {
-                        XmlParser.ParseSQLToXML(@".\ressources\Bot\BotMonsters\", "Monstres", true);
-
-                    }else if(iTalk_ComboBox1.SelectedItem.ToString() == "Sorts")
-                    {
-                        XmlParser.ParseSQLToXML(@".\ressources\Bot\BotSorts\", "Sorts", true);
-                    }
-                    else
-                    {
-                        MessageBox.Show($"Le bot n'utilise pas de fichiers XML pour {iTalk_ComboBox1.SelectedItem.ToString()}", "Convertion impossible", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-                        return;
-                    }
-                }
-                else if(iTalk_RadioButton1.Checked == true && !string.IsNullOrWhiteSpace(iTalk_TextBox_Small1.Text))
-                {
-                    XmlParser.ParseSQLToXML(iTalk_TextBox_Small1.Text, iTalk_ComboBox1.SelectedItem.ToString());
-
-                }else if(iTalk_RadioButton1.Checked == true && string.IsNullOrWhiteSpace(iTalk_TextBox_Small1.Text))
-                {
-                    MessageBox.Show("Merci de sélectionner un dossier pour la sortie des fichiers XML.", "Convertion impossible", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
+                case "Maps": return @".\ressources\Bot\BotMaps";
+                case "Objets": return @".\ressources\Bot\BotObjets";
+                case "Métiers": return @".\ressources\Bot\BotJobs";
+                case "PNJs": return @".\ressources\Bot\BotNPCs";
+                case "Zaaps": return @".\ressources\Bot\BotZaaps";
+                case "Monstres": return @".\ressources\Bot\BotMonsters";
+                case "Sorts": return @".\ressources\Bot\BotSorts";
+                default: throw new NotSupportedException("Le bot n'utilise pas ce type de ressource XML.");
             }
         }
-
-        private void iTalk_TextBox_Small1_TextChanged(object sender, EventArgs e)
-        {
-           
-        }
-
-        private void iTalk_TextBox_Small1_Click(object sender, EventArgs e)
-        {
-            
-        }
-
         private void iTalk_LinkLabel1_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
-            using (var fbd = new FolderBrowserDialog())
-            {
-                DialogResult result = fbd.ShowDialog();
-                if (result == DialogResult.OK && !string.IsNullOrWhiteSpace(fbd.SelectedPath))
-                {
-                    iTalk_TextBox_Small1.Text = fbd.SelectedPath;
-                }
-            }
+            using (var dialog = new FolderBrowserDialog())
+                if (dialog.ShowDialog(this) == DialogResult.OK) iTalk_TextBox_Small1.Text = dialog.SelectedPath;
         }
-
-        private void iTalk_ComboBox1_SelectedIndexChanged(object sender, EventArgs e)
-        {
-
-        }
+        private void iTalk_TextBox_Small1_TextChanged(object sender, EventArgs e) { }
+        private void iTalk_TextBox_Small1_Click(object sender, EventArgs e) { }
+        private void iTalk_ComboBox1_SelectedIndexChanged(object sender, EventArgs e) { }
     }
 }

@@ -79,7 +79,6 @@
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "Chargement en cours...";
             this.TransparencyKey = System.Drawing.Color.Fuchsia;
-            this.Load += new System.EventHandler(this.LoadingBotForm_Load);
             this.iTalk_ThemeContainer1.ResumeLayout(false);
             this.ResumeLayout(false);
 

@@ -14,6 +14,11 @@ namespace Tool_BotProtocol.Game.Perso
         public Cell Cell { get; set; }
         public string name { get; set; }
         public byte Sexe { get; set; } = 0;
+        public byte Race_ID { get; set; }
+        public int GFX { get; set; }
+        public int Orientation { get; set; } = 2;
+        public int GraphicsScaleX { get; set; } = 100;
+        public int GraphicsScaleY { get; set; } = 100;
         public string Name { get; set; }
 
         private bool disposed;

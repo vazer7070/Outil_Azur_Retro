@@ -1,4 +1,4 @@
-
+﻿
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -22,6 +22,8 @@ namespace Tool_Editor.maps.data
 		public bool UnWalk = false;
 		public bool Path = false;
 		public bool Los = false;
+		public bool Active = true;
+		public int Movement = (int)MoveEnums.WALKABLE;
 		public bool Paddock = false;
 		public bool TriggerCell = false;
 		public bool Door = false;
@@ -60,7 +62,7 @@ namespace Tool_Editor.maps.data
         }
 		public int Type(int id = -1)
 		{
-			int Type = 0;
+			int Type = Movement;
 
 			if (id == -1)
 			{
@@ -72,35 +74,27 @@ namespace Tool_Editor.maps.data
 					Type = (int)MoveEnums.PATH;
 				if (Door)
 					Type = (int)MoveEnums.DOOR;
-				if (Trigger)
+				if (TriggerCell)
 					Type = (int)MoveEnums.TRIGGER;
 			}
 			else
 			{
-				if (id == (int)MoveEnums.UNWALKABLE)
-				{
-					UnWalk = true;
-				}
-				else
-				{
-					UnWalk = false;
-					if (id == (int)MoveEnums.PADDOCK)
-						Paddock = true;
-					if (id == (int)MoveEnums.PATH)
-						Path = true;
-					if (id == (int)MoveEnums.DOOR)
-						Door = true;
-					if (id == (int)MoveEnums.TRIGGER)
-						TriggerCell = true;
-				}
-
+				if (id < 0 || id > 7) throw new ArgumentOutOfRangeException(nameof(id));
+				Movement = id == 3 || id == 6 ? id : (int)MoveEnums.WALKABLE;
+				UnWalk = id == (int)MoveEnums.UNWALKABLE;
+				Paddock = id == (int)MoveEnums.PADDOCK;
+				Path = id == (int)MoveEnums.PATH;
+				Door = id == (int)MoveEnums.DOOR;
+				TriggerCell = id == (int)MoveEnums.TRIGGER;
+				Type = id;
 			}
 			return Type;
 		}
-        #region G�ometrie
+        #region Géometrie
         public Graphics Border( Graphics G, Brush color)
         {
-			G.DrawPolygon(new Pen(color), new Point[] { Location[0], Location[1], Location[2], Location[3] });
+			using (var pen = new Pen(color))
+				G.DrawPolygon(pen, new Point[] { Location[0], Location[1], Location[2], Location[3] });
 			return G;
         }
 		public Graphics Fill (Graphics G, Brush color)
@@ -221,82 +215,40 @@ namespace Tool_Editor.maps.data
 				Draw_Tiles(G, GFX3, FlipGFX3, 0);
 			return G;
 		}
-		public Graphics Draw_Tiles(Graphics G, TilesData Tile, bool Flip, int Rotate)
+        private Rectangle TileBounds(TilesData tile, Image picture, bool flip, int rotate)
         {
-			Image Pic = (Image)Tile.Image(true).Clone();
-			Size ImageSize = new Size((int)(Pic.Size.Width * PourceTile), (int)(Pic.Size.Height * PourceTile));
-			int Base_x = 0;
-			int Base_y = 0;
-			var Apos = new TilesData.Pos();
-			if(Tile.type == TilesData.TileType.ground)
+            Point anchor = TilesData.Anchor(tile, picture);
+            int width = picture.Width, height = picture.Height;
+            if (flip) { picture.RotateFlip(RotateFlipType.RotateNoneFlipX); anchor.X = width - anchor.X; }
+            switch (rotate)
             {
-				if(TilesData.SelectedTiles.ID == 0)
-                {
-					var Bpos = new TilesData.Pos();
-					Bpos.ID = Tile.ID;
-					Bpos.X = (Pic.Width / 2);
-					Bpos.Y = (Pic.Height / 2);
-					TilesData.PosGround[TilesData.Count_Ground()]= Bpos;
-				}
-				Apos = TilesData.Get_Grounds(TilesData.SelectedTiles.ID);
+                case 1:
+                    picture.RotateFlip(RotateFlipType.Rotate90FlipNone);
+                    anchor = new Point(height - anchor.Y, anchor.X);
+                    break;
+                case 2:
+                    picture.RotateFlip(RotateFlipType.Rotate180FlipNone);
+                    anchor = new Point(width - anchor.X, height - anchor.Y);
+                    break;
+                case 3:
+                    picture.RotateFlip(RotateFlipType.Rotate270FlipNone);
+                    anchor = new Point(anchor.Y, width - anchor.X);
+                    break;
             }
-            else
-            {
-				if(TilesData.SelectedTiles.ID == 0)
-                {
-					var Cpos = new TilesData.Pos();
-					Cpos.ID = Apos.ID;
-					Cpos.X = (Pic.Width / 2);
-					Cpos.Y = (Pic.Height / 2);
-					TilesData.PosObject[TilesData.Count_Object()] = Cpos;
-                }
-				Apos = TilesData.Get_Object(Tile.ID);
-            }
-			Base_x = Apos.X;
-			Base_y = Apos.Y;
-			int posX = (int)(Base_x * PourceTile);
-			int posY = (int)(Base_y * PourceTile);
+            int scaledWidth = Math.Max(1, (int)Math.Round(picture.Width * PourceTile));
+            int scaledHeight = Math.Max(1, (int)Math.Round(picture.Height * PourceTile));
+            int centerX = Location[3].X + SizeCell;
+            int centerY = Location[0].Y + SizeCell / 2;
+            return new Rectangle(centerX - (int)Math.Round(anchor.X * PourceTile),
+                centerY - (int)Math.Round(anchor.Y * PourceTile), scaledWidth, scaledHeight);
+        }
 
-            if (Flip)
-            {
-				Pic.RotateFlip(RotateFlipType.RotateNoneFlipX);
-				if (Tile.type == TilesData.TileType.objet)
-					posX = (int)(Pic.Width - (Base_x * PourceTile));
-            }
-
-			if(Rotate != 0)
-            {
-                switch (Rotate)
-                {
-					case 1:
-						Pic.RotateFlip(RotateFlipType.Rotate90FlipNone);
-						ImageSize.Height = (int)Math.Ceiling(Pic.Height / 100 * 51.85 * PourceTile);
-						ImageSize.Width = (int)Math.Ceiling(Pic.Width / 100 * 192.86 * PourceTile);
-						RezizePic(Pic, ImageSize.Height, ImageSize.Width);
-						posY = (int)((Base_x * PourceTile) / 100 * 51.85);
-						posX = (int)(ImageSize.Width - (Base_y * PourceTile) / 100 * 192.85);
-						break;
-					case 2:
-						Pic.RotateFlip(RotateFlipType.Rotate180FlipNone);
-						if (Tile.type == TilesData.TileType.objet)
-							posX = (int)(ImageSize.Width - (Base_x * PourceTile));
-						posY = (int)(ImageSize.Height - (Base_y * PourceTile));
-						break;
-					case 3:
-						Pic.RotateFlip(RotateFlipType.Rotate270FlipNone);
-						ImageSize.Height = (int)Math.Ceiling(Pic.Height / 100 * 51.85 * PourceTile);
-						ImageSize.Width = (int)Math.Ceiling(Pic.Width / 100 * 192.86 * PourceTile);
-						RezizePic(Pic, ImageSize.Height, ImageSize.Width);
-						posY = (int)(Base_x * PourceTile / 100 * 51.85);
-						posX = (int)(Base_y * PourceTile / 100 * 192.86);
-						break;
-                }
-            }
-            
-            G.DrawImage(Pic, new Rectangle(new Point(Location[3].X + SizeCell - posX, Location[2].Y - (SizeCell / 2) - posY), ImageSize));
-			Pic.Dispose();
-			return G;
-			
+        public Graphics Draw_Tiles(Graphics graphics, TilesData tile, bool flip, int rotate)
+        {
+            if (graphics == null || tile == null) return graphics;
+            using (Image picture = (Image)tile.Image(true).Clone())
+                graphics.DrawImage(picture, TileBounds(tile, picture, flip, rotate));
+            return graphics;
         }
         #region image
 		public Image RezizePic(Image pic, int NewWidth, int NewHeight)
@@ -330,69 +282,12 @@ namespace Tool_Editor.maps.data
 				SurRound(G, GFX3, FlipGFX3, 0);
 			return G;
 		}
-		public Graphics SurRound(Graphics G, TilesData Tiles, bool flip, int rotate)
+        public Graphics SurRound(Graphics graphics, TilesData tile, bool flip, int rotate)
         {
-			if(Tiles != null)
-            {
-				Image Pic = (Image)Tiles.Image().Clone();
-				Size ImageSize = new Size((int)(Pic.Size.Width * PourceTile), (int)(Pic.Size.Height * PourceTile));
-
-				int basex;
-				int basey;
-				var Pos = new TilesData.Pos();
-
-				if(Tiles.type == TilesData.TileType.ground)
-                {
-					Pos = TilesData.Get_Grounds(Tiles.ID);
-                }
-                else
-                {
-					Pos = TilesData.Get_Object(Tiles.ID);
-                }
-				basex = Pos.X;
-				basey = Pos.Y;
-				int PosX = (int)(basex * PourceTile);
-				int PosY = (int)(basey * PourceTile);
-
-				if (flip)
-				{
-					Pic.RotateFlip(RotateFlipType.RotateNoneFlipX);
-					if (Tiles.type == TilesData.TileType.objet)
-						PosX = (int)(Pic.Width - (basex * PourceTile));
-				}
-
-				if (rotate != 0)
-				{
-					switch (rotate)
-					{
-						case 1:
-							Pic.RotateFlip(RotateFlipType.Rotate90FlipNone);
-							ImageSize.Height = (int)Math.Ceiling(Pic.Height / 100 * 51.85 * PourceTile);
-							ImageSize.Width = (int)Math.Ceiling(Pic.Width / 100 * 192.86 * PourceTile);
-							RezizePic(Pic, ImageSize.Height, ImageSize.Width);
-							PosY = (int)((basex * PourceTile) / 100 * 51.85);
-							PosX = (int)(ImageSize.Width - (basey * PourceTile) / 100 * 192.85);
-							break;
-						case 2:
-							Pic.RotateFlip(RotateFlipType.Rotate180FlipNone);
-							if (Tiles.type == TilesData.TileType.objet)
-								PosX = (int)(ImageSize.Width - (basex * PourceTile));
-							PosY = (int)(ImageSize.Height - (basey * PourceTile));
-							break;
-						case 3:
-							Pic.RotateFlip(RotateFlipType.Rotate270FlipNone);
-							ImageSize.Height = (int)Math.Ceiling(Pic.Height / 100 * 51.85 * PourceTile);
-							ImageSize.Width = (int)Math.Ceiling(Pic.Width / 100 * 192.86 * PourceTile);
-							RezizePic(Pic, ImageSize.Height, ImageSize.Width);
-							PosY = (int)(basex * PourceTile / 100 * 51.85);
-							PosX = (int)(basey * PourceTile / 100 * 192.86);
-							break;
-					}
-				}
-				Rectangle Rect = new Rectangle(new Point(Location[3].X + SizeCell - PosX, Location[2].Y - (SizeCell / 2) - PosY), ImageSize);
-				G.DrawRectangle(Pens.White, Rect);
-			}
-			return G;
+            if (graphics == null || tile == null) return graphics;
+            using (Image picture = (Image)tile.Image(true).Clone())
+                graphics.DrawRectangle(Pens.White, TileBounds(tile, picture, flip, rotate));
+            return graphics;
         }
         #endregion
     }

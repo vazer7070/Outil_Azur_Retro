@@ -11,52 +11,43 @@ namespace Tool_Editor.maps.data
     {
         public static string CheckSum(string data)
         {
-            int num = 0;
-            int num2 = (int)(data.Length - 1);
-            int i = 0;
-            while(i <= num2)
-            {
-                num = num + (Strings.Asc(data.Substring(i, 1)) % 0x10);
-                i += 1;
-            }
-            string[] STR = new string[] { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F" };
-            return STR[num % 0x10];
+            if (data == null) throw new ArgumentNullException(nameof(data));
+            int sum = 0;
+            foreach (char value in data) sum = (sum + value % 16) % 16;
+            return "0123456789ABCDEF"[sum].ToString();
         }
 
         public static string DecypherData(string data, string key, int checksum)
         {
-            string sata = "";
-            int num3 = data.Length - 2;
-            int i = 0;
-            while(i <= num3)
+            if (string.IsNullOrEmpty(key)) throw new ArgumentException("La clé de carte est vide.", nameof(key));
+            ValidateHex(data);
+            var decoded = new StringBuilder(data.Length / 2);
+            int offset = ((checksum % key.Length) + key.Length) % key.Length;
+            for (int i = 0; i < data.Length; i += 2)
             {
-                int num = Convert.ToInt32(Convert.ToInt64(data.Substring(i, 2), 0x10));
-                int num2 = Strings.Asc(key.Substring((int)Math.Round(Convert.ToDouble((i / 2) + checksum) % key.Length, 1)));
-                sata = sata + Convert.ToString(Strings.Chr(CharCode: num ^ num2));
-                i = (i + 2);
+                int value = Convert.ToInt32(data.Substring(i, 2), 16);
+                decoded.Append((char)(value ^ key[(i / 2 + offset) % key.Length]));
             }
-            return Unescape(sata);
+            return Uri.UnescapeDataString(decoded.ToString());
         }
         public static string PrepareKey(string data)
         {
-            string d = "";
-            int num = (data.Length - 2);
-            int i = 0;
-            while(i <= num)
-            {
-                d += Convert.ToString(Strings.Chr(Convert.ToInt32(Convert.ToInt64(d.Substring(i, 2), 0x10))));
-                i = (i + 2);
-            }
-            return Unescape(d);
+            ValidateHex(data);
+            var decoded = new StringBuilder(data.Length / 2);
+            for (int i = 0; i < data.Length; i += 2)
+                decoded.Append((char)Convert.ToInt32(data.Substring(i, 2), 16));
+            return Uri.UnescapeDataString(decoded.ToString());
         }
         public static object HashCode(string a)
         {
             string s = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
             return s.IndexOf(a);
         }
-        private static string Unescape(string DataToDecrypt)
+        private static void ValidateHex(string data)
         {
-            return Uri.EscapeDataString(DataToDecrypt);
+            if (string.IsNullOrEmpty(data) || (data.Length & 1) != 0 ||
+                data.Any(value => !Uri.IsHexDigit(value)))
+                throw new FormatException("La clé ou les données chiffrées doivent contenir des paires de caractères hexadécimaux.");
         }
     }
 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Security.Principal;
 using System.Text;
@@ -21,7 +22,7 @@ namespace Tool_BotProtocol.Frames.Jeu
         public void ActualiseStats(TcpClient client, string message) => client.account.Game.character.RefreshCaracs(message);
 
         [MessageAttribution("PIK")]
-        public void GetGroup(TcpClient client, string message) => Task.Run(async () =>
+        public Task GetGroup(TcpClient client, string message) => Task.Run(async () =>
         {
             if (client.account.UseMasterCommands == true)
             {
@@ -36,7 +37,8 @@ namespace Tool_BotProtocol.Frames.Jeu
                 {
                     string PlayerWhoInvite = message.Substring(3).Split('|')[0];
                     Accounts Leader = client.account.Groupe.leader;
-                    string LeaderName = Leader.Game.character.Name;
+                    string LeaderName = Leader?.Game?.character?.Name;
+                    if (string.IsNullOrEmpty(LeaderName)) { await client.SendPacket("PR"); return; }
                     if (PlayerWhoInvite.ToLower() == LeaderName.ToLower())
                     {
 
@@ -79,40 +81,29 @@ namespace Tool_BotProtocol.Frames.Jeu
         [MessageAttribution("PM")]
         public void InGroupParse(TcpClient client, string message)
         {
-            string chief = "";
-            string member = "";
-            if (client.account.Game.character.InGroupe == true && client.account.Game.character.InEquip.Count > 0)
+            CharacterClass character = client.account.Game.character;
+            foreach (string entry in message.Substring(2).TrimStart('|').Split('|'))
             {
-                foreach(string l in message.Split('|'))
+                if (string.IsNullOrEmpty(entry)) continue;
+                if (entry[0] == '-')
                 {
-                    string w = l.Split(';')[1];
-                    member = w;
-                    if (!client.account.Game.character.InEquip.ContainsKey(l))
-                        client.account.Game.character.InEquip.TryAdd(l, false);
+                    if (int.TryParse(entry.Substring(1), out int removedId)
+                        && character.GroupMembers.TryRemove(removedId, out string removedName))
+                        character.InEquip.TryRemove(removedName, out bool ignored);
+                    continue;
                 }
-                client.account.Logger.LogError("GROUPE", $"Ajout de {member} dans le groupe.");
-            }
-            else
-            {
-                foreach (string s in message.Split('|'))
-                {
-                    string j = s.Split(';')[1];
-                    if (client.account.Game.character.InEquip.Count > 0)
-                        client.account.Game.character.InEquip.TryAdd(j, false);
-                    else
-                    {
-                        client.account.Game.character.InEquip.TryAdd(j, true);
-                        chief = j;
-                        client.account.Game.character.EquipLeader = chief;
-                    }
-                }
-                client.account.Logger.LogError("GROUPE", $"Vous êtes dans le groupe de {chief}.");
+                string[] parts = entry.TrimStart('+', '~').Split(';');
+                if (parts.Length < 2 || !int.TryParse(parts[0], out int memberId)) continue;
+                character.GroupMembers[memberId] = parts[1];
+                character.InEquip[parts[1]] = false;
+                character.InGroupe = true;
             }
         }
         [MessageAttribution("PV")]
         public void EjectGroup(TcpClient client, string message)
         {
             client.account.Game.character.InEquip.Clear();
+            client.account.Game.character.GroupMembers.Clear();
             client.account.Game.character.InGroupe = false;
             client.account.Logger.LogError("GROUPE", $"{client.account.Game.character.EquipLeader} vous a éjecté du groupe.");
             client.account.Game.character.EquipLeader = "";
@@ -128,8 +119,8 @@ namespace Tool_BotProtocol.Frames.Jeu
         public void GetPods(TcpClient client, string message)
         {
             string[] pods = message.Substring(2).Split('|');
-            short actual_pods = short.Parse(pods[0]);
-            short Max_pods = short.Parse(pods[1]);
+            if (pods.Length < 2 || !int.TryParse(pods[0], out int actual_pods)
+                || !int.TryParse(pods[1], out int Max_pods) || actual_pods < 0 || Max_pods < 0) return;
             CharacterClass perso = client.account.Game.character;
 
             perso.Inventory.Actual_pods = actual_pods;
@@ -148,9 +139,11 @@ namespace Tool_BotProtocol.Frames.Jeu
             byte Min, Max;
             float Time;
 
+            lock (perso.Jobs)
             foreach(string data in message.Substring(3).Split('|'))
             {
-                Id_jobs = short.Parse(data.Split(';')[0]);
+                string[] jobParts = data.Split(';');
+                if (jobParts.Length < 2 || !short.TryParse(jobParts[0], out Id_jobs)) continue;
                 job = perso.Jobs.Find(x => x.ID == Id_jobs);
 
                 if (job == null)
@@ -161,13 +154,12 @@ namespace Tool_BotProtocol.Frames.Jeu
                 }
 
 
-                foreach (string skill in data.Split(';')[1].Split(','))
+                foreach (string skill in jobParts[1].Split(','))
                 {
                     separador_skill = skill.Split('~');
-                    Id_skills = short.Parse(separador_skill[0]);
-                    Min = byte.Parse(separador_skill[1]);
-                    Max = byte.Parse(separador_skill[2]);
-                    Time = float.Parse(separador_skill[4]);
+                    if (separador_skill.Length < 5 || !short.TryParse(separador_skill[0], out Id_skills)
+                        || !byte.TryParse(separador_skill[1], out Min) || !byte.TryParse(separador_skill[2], out Max)
+                        || !float.TryParse(separador_skill[4], NumberStyles.Float, CultureInfo.InvariantCulture, out Time)) continue;
                     skilljobs = job.Skills.Find(x => x.Id == Id_skills);
 
                     if (skilljobs != null)
@@ -188,21 +180,21 @@ namespace Tool_BotProtocol.Frames.Jeu
             short Id;
             byte level;
 
+            lock (perso.Jobs)
             foreach (string jobs in separate_jobs_Exp)
             {
                 var payload = jobs.Split(';');
                 if (payload.Length < 4)
                     continue;
-                Id = short.Parse(payload[0]);
-                level = byte.Parse(payload[1]);
-                baseExp = uint.Parse(payload[2]);
-                actualExp = uint.Parse(payload[3]);
+                if (!short.TryParse(payload[0], out Id) || !byte.TryParse(payload[1], out level)
+                    || !uint.TryParse(payload[2], out baseExp) || !uint.TryParse(payload[3], out actualExp)) continue;
 
-                if (level < 100 && payload.Length >= 4)
-                    nextlevelExp = uint.Parse(jobs.Split(';')[4]);
+                if (level < 100 && payload.Length >= 5 && uint.TryParse(payload[4], out nextlevelExp)) { }
                 else
                     nextlevelExp = 0;
-                perso.Jobs.Find(x => x.ID == Id).AcutalizeJob(level, baseExp, actualExp, nextlevelExp);
+                Jobs job = perso.Jobs.Find(x => x.ID == Id);
+                if (job == null) { job = new Jobs(Id); perso.Jobs.Add(job); }
+                job.AcutalizeJob(level, baseExp, actualExp, nextlevelExp);
             }
             perso.JobsRefreshEvent();
         }
@@ -221,12 +213,6 @@ namespace Tool_BotProtocol.Frames.Jeu
 
         [MessageAttribution("ECK")]
         public void GoInStorage(TcpClient client, string message) => client.account.AccountStates = AccountStates.STORAGE;
-
-        [MessageAttribution("PCK")]
-        public void AcceptGroup(TcpClient client, string message) => client.account.Game.character.InGroupe = true;
-
-        [MessageAttribution("PV")]
-        public void AbandonGroup(TcpClient client, string message) => client.account.Game.character.InGroupe = false;
 
         [MessageAttribution("ERK")]
         public Task AskExchange(TcpClient client, string message) => Task.Run(async () =>

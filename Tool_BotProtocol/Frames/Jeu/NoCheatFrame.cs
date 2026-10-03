@@ -12,20 +12,20 @@ namespace Tool_BotProtocol.Frames.Jeu
     public  class NoCheatFrame : Frame
     {
         [MessageAttribution("BC")]
-        public Task VerifGameFiles(TcpClient client, string message) => Task.Run(async () =>
+        public async Task VerifGameFiles(TcpClient client, string message)
         {
             string[] part = message.Substring(2).Split(';');
-            int id = int.Parse(part[0]), bytes = - 1;
+            if (part.Length < 2 || !int.TryParse(part[0], out int id)) return;
+            long bytes = -1;
             string data = part[1];
 
             if (data.Contains("core.swf"))
-                bytes = byte.Parse(GlobalConfig.CORESIZE);
+                long.TryParse(GlobalConfig.CORESIZE, out bytes);
             else if (data.Contains("loader.swf"))
-                bytes = byte.Parse(GlobalConfig.LOADERSIZE);
+                long.TryParse(GlobalConfig.LOADERSIZE, out bytes);
 
             await client.SendPacket($"BC{id};{bytes}");
-            client.account.Logger.LogInfo("ANTI-CHEAT", "un modérateur vient de vérifier les fichiers du jeu.");
-            client.account.Logger.LogTchatPrivate("ANTI-CHEAT", "un modérateur vient de vérifier les fichiers du jeu.");
-        });
+            client.account.Logger.LogInfo("DIAGNOSTIC", "Le serveur a demandé la taille configurée d’un fichier client.");
+        }
     }
 }

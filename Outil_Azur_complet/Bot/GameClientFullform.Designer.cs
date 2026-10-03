@@ -104,7 +104,6 @@
             this.iTalk_ThemeContainer1.StartPosition = System.Windows.Forms.FormStartPosition.WindowsDefaultLocation;
             this.iTalk_ThemeContainer1.TabIndex = 0;
             this.iTalk_ThemeContainer1.Text = "AzurClientRetro";
-            this.iTalk_ThemeContainer1.Click += new System.EventHandler(this.iTalk_ThemeContainer1_Click);
             // 
             // iTalk_Panel1
             // 
@@ -167,7 +166,6 @@
             this.iTalk_Button_21.Size = new System.Drawing.Size(32, 28);
             this.iTalk_Button_21.TabIndex = 7;
             this.iTalk_Button_21.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_21.Click += new System.EventHandler(this.iTalk_Button_21_Click);
             // 
             // iTalk_TextBox_Small1
             // 
@@ -204,7 +202,6 @@
             this.iTalk_Button_11.Size = new System.Drawing.Size(30, 27);
             this.iTalk_Button_11.TabIndex = 4;
             this.iTalk_Button_11.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
             // 
             // iTalk_ProgressBar1
             // 
@@ -220,7 +217,6 @@
             this.iTalk_ProgressBar1.TabIndex = 3;
             this.iTalk_ProgressBar1.Text = "iTalk_ProgressBar1";
             this.iTalk_ProgressBar1.Value = ((long)(0));
-            this.iTalk_ProgressBar1.MouseEnter += new System.EventHandler(this.iTalk_ProgressBar1_MouseEnter);
             // 
             // roundedButton8
             // 
@@ -233,7 +229,6 @@
             this.roundedButton8.Size = new System.Drawing.Size(33, 28);
             this.roundedButton8.TabIndex = 2;
             this.roundedButton8.UseVisualStyleBackColor = false;
-            this.roundedButton8.MouseEnter += new System.EventHandler(this.roundedButton8_MouseEnter);
             // 
             // roundedButton7
             // 
@@ -246,7 +241,6 @@
             this.roundedButton7.Size = new System.Drawing.Size(33, 28);
             this.roundedButton7.TabIndex = 2;
             this.roundedButton7.UseVisualStyleBackColor = false;
-            this.roundedButton7.MouseEnter += new System.EventHandler(this.roundedButton7_MouseEnter);
             // 
             // roundedButton6
             // 
@@ -259,7 +253,6 @@
             this.roundedButton6.Size = new System.Drawing.Size(33, 28);
             this.roundedButton6.TabIndex = 2;
             this.roundedButton6.UseVisualStyleBackColor = false;
-            this.roundedButton6.MouseEnter += new System.EventHandler(this.roundedButton6_MouseEnter);
             // 
             // roundedButton5
             // 
@@ -272,7 +265,6 @@
             this.roundedButton5.Size = new System.Drawing.Size(33, 28);
             this.roundedButton5.TabIndex = 2;
             this.roundedButton5.UseVisualStyleBackColor = false;
-            this.roundedButton5.MouseEnter += new System.EventHandler(this.roundedButton5_MouseEnter);
             // 
             // roundedButton4
             // 
@@ -285,7 +277,6 @@
             this.roundedButton4.Size = new System.Drawing.Size(33, 28);
             this.roundedButton4.TabIndex = 2;
             this.roundedButton4.UseVisualStyleBackColor = false;
-            this.roundedButton4.MouseEnter += new System.EventHandler(this.roundedButton4_MouseEnter);
             // 
             // roundedButton3
             // 
@@ -298,7 +289,6 @@
             this.roundedButton3.Size = new System.Drawing.Size(33, 28);
             this.roundedButton3.TabIndex = 2;
             this.roundedButton3.UseVisualStyleBackColor = false;
-            this.roundedButton3.MouseEnter += new System.EventHandler(this.roundedButton3_MouseEnter);
             // 
             // roundedButton2
             // 
@@ -311,7 +301,6 @@
             this.roundedButton2.Size = new System.Drawing.Size(33, 28);
             this.roundedButton2.TabIndex = 2;
             this.roundedButton2.UseVisualStyleBackColor = false;
-            this.roundedButton2.MouseEnter += new System.EventHandler(this.roundedButton2_MouseEnter);
             // 
             // roundedButton9
             // 
@@ -324,8 +313,6 @@
             this.roundedButton9.Size = new System.Drawing.Size(33, 28);
             this.roundedButton9.TabIndex = 2;
             this.roundedButton9.UseVisualStyleBackColor = false;
-            this.roundedButton9.Click += new System.EventHandler(this.roundedButton9_Click);
-            this.roundedButton9.MouseEnter += new System.EventHandler(this.roundedButton9_MouseEnter);
             // 
             // roundedButton1
             // 
@@ -338,8 +325,6 @@
             this.roundedButton1.Size = new System.Drawing.Size(33, 28);
             this.roundedButton1.TabIndex = 2;
             this.roundedButton1.UseVisualStyleBackColor = false;
-            this.roundedButton1.Click += new System.EventHandler(this.roundedButton1_Click);
-            this.roundedButton1.MouseEnter += new System.EventHandler(this.roundedButton1_MouseEnter);
             // 
             // tableLayoutPanel2
             // 
@@ -438,7 +423,6 @@
             this.fluxToolStripMenuItem.Name = "fluxToolStripMenuItem";
             this.fluxToolStripMenuItem.Size = new System.Drawing.Size(110, 22);
             this.fluxToolStripMenuItem.Text = "Flux";
-            this.fluxToolStripMenuItem.Click += new System.EventHandler(this.fluxToolStripMenuItem_Click);
             // 
             // aideToolStripMenuItem1
             // 
@@ -480,7 +464,6 @@
             this.déconnexionToolStripMenuItem1.Name = "déconnexionToolStripMenuItem1";
             this.déconnexionToolStripMenuItem1.Size = new System.Drawing.Size(167, 22);
             this.déconnexionToolStripMenuItem1.Text = "Déconnexion";
-            this.déconnexionToolStripMenuItem1.Click += new System.EventHandler(this.déconnexionToolStripMenuItem1_Click);
             // 
             // changerDePersoToolStripMenuItem
             // 
@@ -488,7 +471,6 @@
             this.changerDePersoToolStripMenuItem.Name = "changerDePersoToolStripMenuItem";
             this.changerDePersoToolStripMenuItem.Size = new System.Drawing.Size(167, 22);
             this.changerDePersoToolStripMenuItem.Text = "Changer de perso";
-            this.changerDePersoToolStripMenuItem.Click += new System.EventHandler(this.changerDePersoToolStripMenuItem_Click);
             // 
             // iTalk_ContextMenuStrip1
             // 
@@ -514,8 +496,6 @@
             this.généralToolStripMenuItem.Name = "généralToolStripMenuItem";
             this.généralToolStripMenuItem.Size = new System.Drawing.Size(142, 22);
             this.généralToolStripMenuItem.Text = "Général";
-            this.généralToolStripMenuItem.CheckedChanged += new System.EventHandler(this.généralToolStripMenuItem_CheckedChanged);
-            this.généralToolStripMenuItem.Click += new System.EventHandler(this.généralToolStripMenuItem_Click);
             // 
             // commerceToolStripMenuItem
             // 
@@ -524,8 +504,6 @@
             this.commerceToolStripMenuItem.Name = "commerceToolStripMenuItem";
             this.commerceToolStripMenuItem.Size = new System.Drawing.Size(142, 22);
             this.commerceToolStripMenuItem.Text = "Commerce";
-            this.commerceToolStripMenuItem.CheckedChanged += new System.EventHandler(this.commerceToolStripMenuItem_CheckedChanged);
-            this.commerceToolStripMenuItem.Click += new System.EventHandler(this.commerceToolStripMenuItem_Click);
             // 
             // recrutementToolStripMenuItem
             // 
@@ -534,8 +512,6 @@
             this.recrutementToolStripMenuItem.Name = "recrutementToolStripMenuItem";
             this.recrutementToolStripMenuItem.Size = new System.Drawing.Size(142, 22);
             this.recrutementToolStripMenuItem.Text = "Recrutement";
-            this.recrutementToolStripMenuItem.CheckedChanged += new System.EventHandler(this.recrutementToolStripMenuItem_CheckedChanged);
-            this.recrutementToolStripMenuItem.Click += new System.EventHandler(this.recrutementToolStripMenuItem_Click);
             // 
             // guildeToolStripMenuItem
             // 
@@ -544,8 +520,6 @@
             this.guildeToolStripMenuItem.Name = "guildeToolStripMenuItem";
             this.guildeToolStripMenuItem.Size = new System.Drawing.Size(142, 22);
             this.guildeToolStripMenuItem.Text = "Guilde";
-            this.guildeToolStripMenuItem.CheckedChanged += new System.EventHandler(this.guildeToolStripMenuItem_CheckedChanged);
-            this.guildeToolStripMenuItem.Click += new System.EventHandler(this.guildeToolStripMenuItem_Click);
             // 
             // groupeToolStripMenuItem
             // 
@@ -554,8 +528,6 @@
             this.groupeToolStripMenuItem.Name = "groupeToolStripMenuItem";
             this.groupeToolStripMenuItem.Size = new System.Drawing.Size(142, 22);
             this.groupeToolStripMenuItem.Text = "Groupe";
-            this.groupeToolStripMenuItem.CheckedChanged += new System.EventHandler(this.groupeToolStripMenuItem_CheckedChanged);
-            this.groupeToolStripMenuItem.Click += new System.EventHandler(this.groupeToolStripMenuItem_Click);
             // 
             // alignementToolStripMenuItem
             // 
@@ -564,8 +536,6 @@
             this.alignementToolStripMenuItem.Name = "alignementToolStripMenuItem";
             this.alignementToolStripMenuItem.Size = new System.Drawing.Size(142, 22);
             this.alignementToolStripMenuItem.Text = "Alignement";
-            this.alignementToolStripMenuItem.CheckedChanged += new System.EventHandler(this.alignementToolStripMenuItem_CheckedChanged);
-            this.alignementToolStripMenuItem.Click += new System.EventHandler(this.alignementToolStripMenuItem_Click);
             // 
             // adminToolStripMenuItem
             // 
@@ -574,8 +544,6 @@
             this.adminToolStripMenuItem.Name = "adminToolStripMenuItem";
             this.adminToolStripMenuItem.Size = new System.Drawing.Size(142, 22);
             this.adminToolStripMenuItem.Text = "Admin";
-            this.adminToolStripMenuItem.CheckedChanged += new System.EventHandler(this.adminToolStripMenuItem_CheckedChanged);
-            this.adminToolStripMenuItem.Click += new System.EventHandler(this.adminToolStripMenuItem_Click);
             // 
             // murmuresToolStripMenuItem
             // 
@@ -586,14 +554,11 @@
             this.murmuresToolStripMenuItem.Name = "murmuresToolStripMenuItem";
             this.murmuresToolStripMenuItem.Size = new System.Drawing.Size(142, 22);
             this.murmuresToolStripMenuItem.Text = "Murmures";
-            this.murmuresToolStripMenuItem.CheckedChanged += new System.EventHandler(this.murmuresToolStripMenuItem_CheckedChanged);
-            this.murmuresToolStripMenuItem.Click += new System.EventHandler(this.murmuresToolStripMenuItem_Click);
             // 
             // toolStripComboBox1
             // 
             this.toolStripComboBox1.Name = "toolStripComboBox1";
             this.toolStripComboBox1.Size = new System.Drawing.Size(121, 23);
-            this.toolStripComboBox1.SelectedIndexChanged += new System.EventHandler(this.toolStripComboBox1_SelectedIndexChanged);
             // 
             // GameClientFullform
             // 
@@ -607,7 +572,6 @@
             this.Name = "GameClientFullform";
             this.Text = "AzurClientRetro";
             this.TransparencyKey = System.Drawing.Color.Fuchsia;
-            this.Load += new System.EventHandler(this.GameClientFullform_Load);
             this.iTalk_ThemeContainer1.ResumeLayout(false);
             this.iTalk_ThemeContainer1.PerformLayout();
             this.iTalk_Panel1.ResumeLayout(false);

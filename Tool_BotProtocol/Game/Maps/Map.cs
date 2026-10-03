@@ -23,11 +23,14 @@ namespace Tool_BotProtocol.Game.Maps
         public int MapID { get; set; }
         public byte MapWidth { get; set; }
         public byte MapHeight { get; set; }
-        public sbyte X { get; set; }
-        public sbyte Y { get; set; }
+        public int X { get; set; }
+        public int Y { get; set; }
         public int Back_ID { get; set; }
         public string MapData { get; set; }
-        static string MapPath = @".\ressources\Bot\BotMaps";
+        public static string MapPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ressources", "Bot", "BotMaps");
+        public static string[] LoadWarnings { get; private set; } = new string[0];
+        public bool HasMapData => MapCells != null && MapCells.Length > 0;
+        public string LoadError { get; private set; }
         public Cell[] MapCells;
         public Dictionary<TeleportCellsEnum, List<short>> TeleportCells;
         public ConcurrentDictionary<int, Entites> Entites;
@@ -35,6 +38,7 @@ namespace Tool_BotProtocol.Game.Maps
         public static ConcurrentDictionary<int, Map> AllBotMaps = new ConcurrentDictionary<int, Map>();
         public event Action RefreshMap;
         public event Action RefreshEntities;
+        public event Action<int, List<Cell>, int> EntityMovement;
         public bool Disposed = false;
         public Map()
         {
@@ -42,67 +46,74 @@ namespace Tool_BotProtocol.Game.Maps
             Interactives = new ConcurrentDictionary<int, Interactives.Interactives>();
             TeleportCells = new Dictionary<TeleportCellsEnum, List<short>>();
         }
-        public static async Task LoadAllMapsAsync()
-        {
-            try
-            {
-                DirectoryInfo mapFolder = new DirectoryInfo(MapPath);
-                List<Task> tasks = new List<Task>();
+        public static Task LoadAllMapsAsync() => LoadAllMapsAsync(MapPath);
 
-                foreach (FileInfo file in mapFolder.GetFiles())
-                {
-                    if (file.Exists)
+        public static Task LoadAllMapsAsync(string directory)
+        {
+            return Task.Run(() =>
+            {
+                var loaded = new ConcurrentDictionary<int, Map>();
+                var warnings = new ConcurrentQueue<string>();
+                if (!Directory.Exists(directory))
+                    throw new DirectoryNotFoundException("Le dossier des cartes du bot est introuvable : " + directory);
+                // Bound disk/CPU pressure instead of creating two tasks for every XML file.
+                Parallel.ForEach(Directory.EnumerateFiles(directory, "*.xml"),
+                    new ParallelOptions { MaxDegreeOfParallelism = Math.Min(4, Environment.ProcessorCount) }, file =>
                     {
-                        tasks.Add(Task.Run(async () =>
+                        try
                         {
-                            XElement xmlmap = await Task.Run(() => XElement.Load(file.FullName));
-                            Map L = new Map()
+                            XElement xmlmap = XElement.Load(file);
+                            var map = new Map
                             {
                                 MapID = int.Parse(xmlmap.Element("ID").Value),
                                 MapWidth = byte.Parse(xmlmap.Element("LARGEUR").Value),
                                 MapHeight = byte.Parse(xmlmap.Element("LONGUEUR").Value),
-                                X = sbyte.Parse(xmlmap.Element("X").Value),
-                                Y = sbyte.Parse(xmlmap.Element("Y").Value),
+                                X = int.Parse(xmlmap.Element("X").Value),
+                                Y = int.Parse(xmlmap.Element("Y").Value),
                                 MapData = xmlmap.Element("MAP_DATA").Value,
                                 Back_ID = int.Parse(xmlmap.Element("BACK").Value)
                             };
-                            AllBotMaps.TryAdd(L.MapID, L);
-                        }));
-                    }
-                }
-
-                await Task.WhenAll(tasks);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message);
-                return;
-            }
+                            if (map.MapWidth < 2 || map.MapHeight == 0 || string.IsNullOrEmpty(map.MapData)
+                                || map.MapData.Length % 10 != 0 || map.MapData.Length / 10 > 4096
+                                || map.MapData.Any(c => !Hash.caracteres_array.Contains(c)))
+                                throw new FormatException("Dimensions ou données de cellules invalides.");
+                            loaded[map.MapID] = map;
+                        }
+                        catch (Exception error) { warnings.Enqueue(Path.GetFileName(file) + " : " + error.Message); }
+                    });
+                AllBotMaps.Clear();
+                foreach (var pair in loaded) AllBotMaps[pair.Key] = pair.Value;
+                LoadWarnings = warnings.ToArray();
+            });
         }
 
         public Map ReturnMapInfo(int MAPID)
         {
-            return AllBotMaps[MAPID];
+            AllBotMaps.TryGetValue(MAPID, out Map value);
+            return value;
         }
         public void SetRefreshMap(string packet)
         {
-            Entites.Clear();
-            Interactives.Clear();
-            TeleportCells.Clear();
-
             string[] P = packet.Split('|');
-            MapID = Convert.ToInt32(P[0]);
-
-            MapWidth = ReturnMapInfo(MapID).MapWidth;
-            MapHeight = ReturnMapInfo(MapID).MapHeight;
-            X = ReturnMapInfo(MapID).X;
-            Y = ReturnMapInfo(MapID).Y;
-            Back_ID = ReturnMapInfo(MapID).Back_ID;
-            
-           
-            Task.Run(() => DecompressMap(ReturnMapInfo(MapID).MapData)).Wait();
-            Task.Run(() => getTeleportCell(MapCells)).Wait();
-            RefreshMap();
+            if (!int.TryParse(P[0], out int id)) throw new FormatException("Identifiant de carte invalide.");
+            Clear();
+            MapID = id;
+            Map info = ReturnMapInfo(MapID);
+            if (info == null)
+            {
+                LoadError = "Carte " + MapID + " absente des ressources du bot. Exportez les cartes depuis le parseur.";
+                RefreshMap?.Invoke();
+                return;
+            }
+            MapWidth = info.MapWidth;
+            MapHeight = info.MapHeight;
+            X = info.X;
+            Y = info.Y;
+            Back_ID = info.Back_ID;
+            MapData = info.MapData;
+            DecompressMap(MapData);
+            getTeleportCell(MapCells);
+            RefreshMap?.Invoke();
             
         }
         public string GetCoordinates => $"[{X},{Y}]";
@@ -118,7 +129,7 @@ namespace Tool_BotProtocol.Game.Maps
             }
         }
         public bool IsInMap(string position) => position == MapID.ToString() || position == GetCoordinates;
-        public Cell GetCellByposition(int x, int y) => MapCells.FirstOrDefault(Cell => Cell.X == x && Cell.Y == y);
+        public Cell GetCellByposition(int x, int y) => MapCells?.FirstOrDefault(Cell => Cell.X == x && Cell.Y == y);
         public List<PNJ> NPC_List() => Entites.Values.Where(x => x is PNJ).Select( x => x as PNJ ).ToList();
         public List<Cell>CellsOccuped() => Entites.Values.Where( x => x is Monstres.Monstres).Select(x => x.Cell).ToList();
         public List<Monstres.Monstres> MonsterList() => Entites.Values.Where(x => x is Monstres.Monstres).Select(x => x as Monstres.Monstres).ToList();
@@ -149,9 +160,9 @@ namespace Tool_BotProtocol.Game.Maps
 
                 if(MobsYouNeed != null && IsGood)
                 {
-                    for(int i = 0;i < MobsAvailable.Count; i++)
+                    for(int i = 0;i < MobsYouNeed.Count; i++)
                     {
-                        if (M.GroupHasThisMob(MobsYouNeed[i]))
+                        if (!M.GroupHasThisMob(MobsYouNeed[i]))
                         {
                             IsGood=false;
                             break;
@@ -178,8 +189,17 @@ namespace Tool_BotProtocol.Game.Maps
         }
         public void GetMapRefreshEvent() => RefreshMap?.Invoke();
         public void GetEntitiesRefreshEvent() => RefreshEntities?.Invoke();
+        public void NotifyEntityMovement(int id, List<Cell> path, int duration)
+        {
+            if (path != null && path.Count > 1) EntityMovement?.Invoke(id, path.ToList(), Math.Max(20, duration));
+        }
         public void DecompressMap(string mapdata)
         {
+            if (MapWidth < 2 || string.IsNullOrEmpty(mapdata) || mapdata.Length % 10 != 0 || mapdata.Length / 10 > 4096)
+                throw new FormatException("Données de carte invalides : une cellule doit contenir dix caractères.");
+            if (mapdata.Any(c => !Hash.caracteres_array.Contains(c)))
+                throw new FormatException("Caractère inconnu dans les données de carte.");
+            Interactives.Clear();
             MapCells = new Cell[mapdata.Length / 10];
             string values;
             for (int i = 0; i < mapdata.Length; i += 10)
@@ -203,7 +223,7 @@ namespace Tool_BotProtocol.Game.Maps
             
             bool Active = (cellsinfos[0] & 32) >> 5 != 0;
             CellTypes C_T = (CellTypes)((cellsinfos[2] & 56) >> 3);
-            bool Vision = (cellsinfos[0] & 1) != 1;
+            bool Vision = (cellsinfos[0] & 1) == 1;
             short layer2 = Convert.ToInt16(((cellsinfos[0] & 2) << 12) + ((cellsinfos[7] & 1) << 12) + (cellsinfos[8] << 6) + cellsinfos[9]);
             short layer1 = Convert.ToInt16(((cellsinfos[0] & 4) << 11) + ((cellsinfos[4] & 1) << 12) + (cellsinfos[5] << 6) + cellsinfos[6]);
             byte level = Convert.ToByte(cellsinfos[1] & 15);
@@ -214,11 +234,29 @@ namespace Tool_BotProtocol.Game.Maps
         }
         public void getTeleportCell(Cell[] cells)
         {
-            List<Cell> cellsToManipulate = cells.ToList().Where(c => c.IsTrigger()).ToList();
-            cellsToManipulate.ForEach(cell =>
+            TeleportCells.Clear();
+            if (cells == null || cells.Length == 0 || MapWidth < 2) return;
+            int period = 2 * MapWidth - 1;
+            int last = cells.Length - 1;
+            int lastRow = 2 * (last / period) + (last % period >= MapWidth ? 1 : 0);
+            foreach (Cell cell in cells.Where(c => c.IsTrigger() || c.C_Types == CellTypes.TELEPORT_CELL))
             {
-                TeleportCells.Add(cell.CellID);
-            });
+                int within = cell.CellID % period;
+                int row = 2 * (cell.CellID / period) + (within >= MapWidth ? 1 : 0);
+                int column = within >= MapWidth ? within - MapWidth : within;
+                var sides = new List<TeleportCellsEnum>();
+                if (row <= 1) sides.Add(TeleportCellsEnum.TOP);
+                if (row >= lastRow - 1) sides.Add(TeleportCellsEnum.BOTTOM);
+                if (column == 0) sides.Add(TeleportCellsEnum.LEFT);
+                if (column == (row % 2 == 0 ? MapWidth - 1 : MapWidth - 2)) sides.Add(TeleportCellsEnum.RIGHT);
+                if (sides.Count == 0) sides.Add(TeleportCellsEnum.NULL);
+                foreach (var side in sides)
+                {
+                    if (!TeleportCells.TryGetValue(side, out List<short> ids))
+                        TeleportCells[side] = ids = new List<short>();
+                    ids.Add(cell.CellID);
+                }
+            }
         }
         public string TransformToCellId(string[] cellsDirection)
         {
@@ -281,20 +319,25 @@ namespace Tool_BotProtocol.Game.Maps
             Interactives.Clear();
             TeleportCells.Clear();
             MapCells = null;
+            MapWidth = MapHeight = 0;
+            MapData = null;
+            LoadError = null;
         }
 
         protected virtual void Dispose (bool disposed)
         {
-            if (disposed)
+            if (Disposed)
                 return;
             Entites.Clear ();
             Interactives.Clear ();
             MapCells = null;
             Entites = null;
             TeleportCells = null;
-            disposed = true;
+            Disposed = true;
+            RefreshMap = null;
+            RefreshEntities = null;
+            EntityMovement = null;
         }
-        public void Dispose() => Dispose(true);
-        ~Map() => Dispose(true);
+        public void Dispose() { Dispose(true); GC.SuppressFinalize(this); }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Windows.Forms;
 using Tools_protocol.Kryone.Database;
 
@@ -19,10 +20,12 @@ namespace Outil_Azur_complet.editeur_compte
             InitializeComponent();
             _errorProvider = new ErrorProvider();
             InitializeControls();
+            BuildEditorLayout();
         }
 
         private void InitializeControls()
         {
+            iTalk_TextBox_Small3.UseSystemPasswordChar = true;
             radioButton1.CheckedChanged += HandleHashMethodChanged;
             radioButton2.CheckedChanged += HandleHashMethodChanged;
             radioButton3.CheckedChanged += HandleHashMethodChanged;
@@ -62,31 +65,31 @@ namespace Outil_Azur_complet.editeur_compte
             string error = null;
             switch (control.Name)
             {
-                case "iTalk_TextBox_Small1":
-                    if (string.IsNullOrWhiteSpace(iTalk_TextBox_Small1.Text))
+                case "iTalk_TextBox_Small4":
+                    if (string.IsNullOrWhiteSpace(iTalk_TextBox_Small4.Text))
                         error = "Le nom d'utilisateur est requis";
-                    else if (iTalk_TextBox_Small1.Text.Length < MIN_USERNAME_LENGTH)
+                    else if (iTalk_TextBox_Small4.Text.Trim().Length < MIN_USERNAME_LENGTH)
                         error = $"Le nom d'utilisateur doit contenir au moins {MIN_USERNAME_LENGTH} caractères";
-                    break;
-
-                case "iTalk_TextBox_Small2":
-                    if (string.IsNullOrWhiteSpace(iTalk_TextBox_Small2.Text))
-                        error = "Le mot de passe est requis";
-                    else if (iTalk_TextBox_Small2.Text.Length < MIN_PASSWORD_LENGTH)
-                        error = $"Le mot de passe doit contenir au moins {MIN_PASSWORD_LENGTH} caractères";
                     break;
 
                 case "iTalk_TextBox_Small3":
                     if (string.IsNullOrWhiteSpace(iTalk_TextBox_Small3.Text))
+                        error = "Le mot de passe est requis";
+                    else if (iTalk_TextBox_Small3.Text.Length < MIN_PASSWORD_LENGTH)
+                        error = $"Le mot de passe doit contenir au moins {MIN_PASSWORD_LENGTH} caractères";
+                    break;
+
+                case "iTalk_TextBox_Small2":
+                    if (string.IsNullOrWhiteSpace(iTalk_TextBox_Small2.Text))
                         error = "La question secrète est requise";
-                    else if (iTalk_TextBox_Small3.Text.Length < MIN_QUESTION_LENGTH)
+                    else if (iTalk_TextBox_Small2.Text.Trim().Length < MIN_QUESTION_LENGTH)
                         error = $"La question secrète doit contenir au moins {MIN_QUESTION_LENGTH} caractères";
                     break;
 
-                case "iTalk_TextBox_Small4":
-                    if (string.IsNullOrWhiteSpace(iTalk_TextBox_Small4.Text))
+                case "iTalk_TextBox_Small1":
+                    if (string.IsNullOrWhiteSpace(iTalk_TextBox_Small1.Text))
                         error = "La réponse secrète est requise";
-                    else if (iTalk_TextBox_Small4.Text.Length < MIN_ANSWER_LENGTH)
+                    else if (iTalk_TextBox_Small1.Text.Trim().Length < MIN_ANSWER_LENGTH)
                         error = $"La réponse secrète doit contenir au moins {MIN_ANSWER_LENGTH} caractères";
                     break;
             }
@@ -111,10 +114,10 @@ namespace Outil_Azur_complet.editeur_compte
                 return false;
             }
 
-            if (iTalk_TextBox_Small1.Text.Length < MIN_USERNAME_LENGTH ||
-                iTalk_TextBox_Small2.Text.Length < MIN_PASSWORD_LENGTH ||
-                iTalk_TextBox_Small3.Text.Length < MIN_QUESTION_LENGTH ||
-                iTalk_TextBox_Small4.Text.Length < MIN_ANSWER_LENGTH)
+            if (iTalk_TextBox_Small4.Text.Trim().Length < MIN_USERNAME_LENGTH ||
+                iTalk_TextBox_Small3.Text.Length < MIN_PASSWORD_LENGTH ||
+                iTalk_TextBox_Small2.Text.Trim().Length < MIN_QUESTION_LENGTH ||
+                iTalk_TextBox_Small1.Text.Trim().Length < MIN_ANSWER_LENGTH)
             {
                 ShowError($"Longueurs minimales requises :\n" +
                          $"- Nom d'utilisateur : {MIN_USERNAME_LENGTH} caractères\n" +
@@ -124,7 +127,8 @@ namespace Outil_Azur_complet.editeur_compte
                 return false;
             }
 
-            if (AccountList.AllAccount.ContainsKey(iTalk_TextBox_Small1.Text))
+            if (AccountList.AllAccount.Keys.Any(name =>
+                string.Equals(name, iTalk_TextBox_Small4.Text.Trim(), StringComparison.OrdinalIgnoreCase)))
             {
                 ShowError("Ce nom d'utilisateur existe déjà");
                 return false;
@@ -158,15 +162,15 @@ namespace Outil_Azur_complet.editeur_compte
             try
             {
                 AccountList.CreateAccount(
-                    iTalk_TextBox_Small4.Text,
-                    _selectedHashMethod,
-                    iTalk_TextBox_Small3.Text,
-                    iTalk_TextBox_Small2.Text,
-                    iTalk_TextBox_Small1.Text
+                    compte: iTalk_TextBox_Small4.Text.Trim(),
+                    hash: _selectedHashMethod,
+                    mdp: iTalk_TextBox_Small3.Text,
+                    question: iTalk_TextBox_Small2.Text.Trim(),
+                    reponse: iTalk_TextBox_Small1.Text.Trim()
                 );
 
                 MessageBox.Show(
-                    $"Le compte {iTalk_TextBox_Small1.Text} a été créé avec succès !",
+                    $"Le compte {iTalk_TextBox_Small4.Text.Trim()} a été créé avec succès !",
                     "Création réussie",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information

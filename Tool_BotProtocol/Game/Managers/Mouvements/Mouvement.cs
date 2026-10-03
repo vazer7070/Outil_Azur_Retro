@@ -21,6 +21,9 @@ namespace Tool_BotProtocol.Game.Managers.Mouvements
 
         public event Action<bool> FinalizeMove;
         private bool disposed;
+        private int movementVersion;
+        private readonly object movementSync = new object();
+        private System.Threading.CancellationTokenSource movementCancellation = new System.Threading.CancellationTokenSource();
 
         public Mouvement(Accounts.Accounts A, Map M, CharacterClass Character)
         {
@@ -34,19 +37,22 @@ namespace Tool_BotProtocol.Game.Managers.Mouvements
 
         public bool CanChangeMap(TeleportCellEnum Direction, Cell cell)
         {
+            if (cell == null) return false;
+            Maps.Enums.TeleportCellsEnum side;
             switch (Direction)
             {
                 case TeleportCellEnum.LEFT:
-                    return (cell.X - 1) == cell.Y;
+                    side = Maps.Enums.TeleportCellsEnum.LEFT; break;
                 case TeleportCellEnum.RIGHT:
-                    return (cell.X - 27) == cell.Y;
+                    side = Maps.Enums.TeleportCellsEnum.RIGHT; break;
                 case TeleportCellEnum.BOTTOM:
-                    return (cell.X + cell.Y) == 31;
+                    side = Maps.Enums.TeleportCellsEnum.BOTTOM; break;
                 case TeleportCellEnum.TOP:
-                    return cell.Y < 0 && (cell.X - Math.Abs(cell.Y)) == 1;
+                    side = Maps.Enums.TeleportCellsEnum.TOP; break;
                 default:
                     return true;
             }
+            return map.TeleportCells.TryGetValue(side, out List<short> ids) && ids.Contains(cell.CellID);
         }
 
         public bool GetMapChange(TeleportCellEnum direction, Cell cell, bool ignore = false)
@@ -62,7 +68,7 @@ namespace Tool_BotProtocol.Game.Managers.Mouvements
 
         public bool GetMapchanges(TeleportCellEnum direction)
         {
-            if (Account.Isbusy())
+            if (Account.Isbusy() || map.MapCells == null)
                 return false;
 
             List<Cell> teleportCells = Account.Game.Map.MapCells
@@ -104,8 +110,7 @@ namespace Tool_BotProtocol.Game.Managers.Mouvements
                     return true;
                 default:
                     Account.Logger.LogError("MOUVEMENT", $"Le chemin vers la cellule {cell.CellID} est bloqué [{result}]");
-                    Task.Delay(4600).Wait();
-                    return MouvementForChangeMap(cell, ignore);
+                    return false;
             }
         }
 
@@ -119,7 +124,8 @@ namespace Tool_BotProtocol.Game.Managers.Mouvements
 
         public MoveResults GetCellsMove(Cell destination, List<Cell> forbiddenCells, bool D = false, byte distance = 0)
         {
-            if (destination.CellID < 0 || destination.CellID >= map.MapCells.Length)
+            if (disposed || destination == null || map.MapCells == null || Perso.Cell == null
+                || destination.CellID < 0 || destination.CellID >= map.MapCells.Length)
                 return MoveResults.CellRangeError;
 
             if (Account.Isbusy() || Perso.Inventory.Percent_Pods >= 100)
@@ -128,13 +134,13 @@ namespace Tool_BotProtocol.Game.Managers.Mouvements
             if (destination.CellID == Perso.Cell.CellID)
                 return MoveResults.SAMECELL;
 
-            if (destination.C_Types == Maps.Enums.CellTypes.NOT_WALKABLE && destination.Interactives == null)
+            if (!destination.IsWalkable() && distance == 0)
                 return MoveResults.CellNotWalkable;
 
             if (destination.C_Types == Maps.Enums.CellTypes.INTERACTIVE_OBJECT && destination.Interactives == null)
                 return MoveResults.CellIsTypeOfInteractiveObject;
 
-            if (forbiddenCells.Contains(destination))
+            if (forbiddenCells != null && forbiddenCells.Contains(destination) && distance == 0)
                 return MoveResults.MONSTER;
 
             List<Cell> tempPath = Pathfinder.GetPath(Perso.Cell, destination, forbiddenCells, D, distance, Account.Game.Map);
@@ -149,37 +155,69 @@ namespace Tool_BotProtocol.Game.Managers.Mouvements
                 return MoveResults.SAMECELL;
 
             ActualPath = tempPath;
-            SendMoveMessage();
+            System.Threading.Interlocked.Increment(ref movementVersion);
+            bool leaveRegeneration = Account.AccountStates == AccountStates.REGENERATION;
+            Account.AccountStates = AccountStates.MOVING;
+            SendMoveMessage(leaveRegeneration);
             return MoveResults.EXIT;
         }
 
-        private async void SendMoveMessage()
+        private async void SendMoveMessage(bool leaveRegeneration)
         {
-            if (Account.AccountStates == AccountStates.REGENERATION)
-                await Account.Connexion.SendPacket("eU1", true);
-
-            string path = PathfinderUtils.GetCleanRoad(ActualPath);
-            await Account.Connexion.SendPacket($"GA001{path}", true);
-            Perso.PathFindingMapPerso(ActualPath);
+            Accounts.Accounts account = Account;
+            var connection = account?.Connexion;
+            List<Cell> pathCells = ActualPath;
+            int version = movementVersion;
+            try
+            {
+                if (connection == null || pathCells == null) return;
+                string path = PathfinderUtils.GetCleanRoad(pathCells);
+                if (path.Length == 0) return;
+                if (leaveRegeneration) await connection.SendPacket("eU1", true);
+                if (disposed || version != movementVersion || !ReferenceEquals(pathCells, ActualPath)) return;
+                await connection.SendPacket($"GA001{path}", true);
+                if (!disposed && version == movementVersion && ReferenceEquals(pathCells, ActualPath)
+                    && ReferenceEquals(connection, account.Connexion)) Perso.PathFindingMapPerso(pathCells);
+            }
+            catch (Exception error)
+            {
+                account?.Logger?.LogException("MOUVEMENT", error);
+                if (!disposed && version == movementVersion) AcutaliseMove(false);
+            }
         }
 
-        public async Task EventMoveFisnish(Cell destination, byte type, bool good)
+        public async Task EventMoveFisnish(Cell destination, int type, bool good)
         {
-            Account.AccountStates = AccountStates.MOVING;
-
+            Accounts.Accounts account = Account;
+            var connection = account?.Connexion;
+            int version;
+            System.Threading.CancellationToken cancellation;
+            lock (movementSync)
+            {
+                if (disposed || movementCancellation == null) return;
+                version = movementVersion;
+                cancellation = movementCancellation.Token;
+            }
+            if (disposed || connection == null || destination == null
+                || map.GetCellFromId(destination.CellID) != destination) return;
+            account.AccountStates = AccountStates.MOVING;
             if (good)
             {
-                await Task.Delay(PathfinderUtils.GetTimeOnMap(Perso.Cell, ActualPath, Perso.UseMount));
-
-                if (Account == null || Account.AccountStates == AccountStates.DISCONNECTED)
+                try
+                {
+                    await Task.Delay(PathfinderUtils.GetTimeOnMap(Perso.Cell, ActualPath, Perso.UseMount), cancellation);
+                }
+                catch (OperationCanceledException) { return; }
+                if (disposed || version != movementVersion || account.AccountStates == AccountStates.DISCONNECTED
+                    || !ReferenceEquals(connection, account.Connexion) || map.GetCellFromId(destination.CellID) != destination)
                     return;
-
-                await Account.Connexion.SendPacket($"GKK{type}");
+                await connection.SendPacket($"GKK{type}");
+                if (disposed || version != movementVersion || account.AccountStates == AccountStates.DISCONNECTED) return;
                 Perso.Cell = destination;
             }
 
             ActualPath = null;
-            Account.AccountStates = AccountStates.CONNECTED_INACTIVE;
+            account.AccountStates = AccountStates.CONNECTED_INACTIVE;
             FinalizeMove?.Invoke(good);
         }
 
@@ -190,7 +228,28 @@ namespace Tool_BotProtocol.Game.Managers.Mouvements
 
         public void AcutaliseMove(bool state)
         {
+            Clear();
+            if (Account != null && Account.IsMoving()) Account.AccountStates = AccountStates.CONNECTED_INACTIVE;
             FinalizeMove?.Invoke(state);
+        }
+
+        public void Clear()
+        {
+            System.Threading.CancellationTokenSource previous;
+            lock (movementSync)
+            {
+                System.Threading.Interlocked.Increment(ref movementVersion);
+                ActualPath = null;
+                previous = movementCancellation;
+                movementCancellation = disposed ? null : new System.Threading.CancellationTokenSource();
+            }
+            if (previous != null) { previous.Cancel(); previous.Dispose(); }
+        }
+
+        public void CancelForMapChange()
+        {
+            Clear();
+            if (Account != null && Account.IsMoving()) Account.AccountStates = AccountStates.CONNECTED_INACTIVE;
         }
 
         public void Dispose()
@@ -203,8 +262,11 @@ namespace Tool_BotProtocol.Game.Managers.Mouvements
         {
             if (!disposed)
             {
+                lock (movementSync) disposed = true;
+                Clear();
                 if (disposing)
                 {
+                    map.RefreshMap -= ActualiseMap;
                     Pathfinder.Dispose();
                 }
 
@@ -214,6 +276,7 @@ namespace Tool_BotProtocol.Game.Managers.Mouvements
                 Account = null;
                 Perso = null;
                 disposed = true;
+                FinalizeMove = null;
             }
         }
     }

@@ -1,233 +1,129 @@
-﻿using Outil_Azur_complet.Bot;
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
-using System.Linq;
-using System.Text;
+using System.Drawing.Drawing2D;
+using System.Globalization;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Tool_BotProtocol.Game.Accounts;
-using Tool_BotProtocol.Utils.Pics;
-
 namespace Outil_Azur_complet.Bot
 {
     public partial class CreateCharacter : Form
     {
         public Accounts a;
-        private bool H;
-        private int Race;
-        public CreateCharacter(Accounts A)
+        private TextBox name;
+        private ComboBox race, sex;
+        private TextBox[] colors;
+        private Label status;
+        private Control create;
+        private CharacterPortrait portrait;
+        private Label identity;
+        private Panel[] swatches;
+        private Label[] colorDescriptions;
+        private bool transferred, pending;
+        private readonly string[] classes = { "Féca","Osamodas","Enutrof","Sram","Xélor","Ecaflip","Eniripsa","Iop","Crâ","Sadida","Sacrieur","Pandawa" };
+        public CreateCharacter(Accounts account)
         {
-            a = A;
-            InitializeComponent();
+            a=account;BuildLayout();_ = Handle;a.Game.Server.RandomName+=DisplayRandom;a.Game.Server.FailCreatePerso+=FailCreate;a.Game.Server.UpdateCharacterMenu+=OnCharacterCreated;a.AccountDisconnectEvent+=Disconnected;FormClosed+=OnSessionClosed;
         }
+        private void BuildLayout()
+        {
+            var root=BotUi.Window(this,"Bot · Créer un personnage","La création est confirmée par le serveur avant le retour à la liste des personnages.");
+            var card=BotUi.Card("Identité et apparence","Choisissez votre classe et personnalisez ses trois couleurs, ou conservez celles du client.");
+            var fields=BotUi.Fields();name=BotUi.Input("NomPersonnage");name.MaxLength=20;race=new ComboBox { Dock=DockStyle.Top,DropDownStyle=ComboBoxStyle.DropDownList,Font=Font };race.Items.AddRange(classes);race.SelectedIndex=7;
+            sex=new ComboBox { Dock=DockStyle.Top,DropDownStyle=ComboBoxStyle.DropDownList,Font=Font };sex.Items.AddRange(new object[] { "Masculin","Féminin" });sex.SelectedIndex=0;
+            BotUi.Field(fields,"Nom du personnage",name,"Le serveur contrôle la disponibilité et les règles de nommage.");BotUi.Field(fields,"Classe",race);BotUi.Field(fields,"Sexe",sex);
+            colors=new TextBox[3];for(int i=0;i<3;i++) {
+                int index=i;colors[i]=BotUi.Input("Couleur"+(i+1));colors[i].Text="-1";
+                var line=new Panel { Dock=DockStyle.Top,Height=43,Margin=new Padding(0,0,0,4),Padding=new Padding(0,5,0,0),BackColor=BotUi.Paper };
+                colors[i].Dock=DockStyle.Top;
+                var colorInput=new Panel { Dock=DockStyle.Fill,Padding=new Padding(0,4,7,0) };colorInput.Controls.Add(colors[i]);
+                var colorTitle=BotUi.Label("Couleur "+(i+1),9,true);colorTitle.Dock=DockStyle.Left;colorTitle.Width=86;colorTitle.TextAlign=ContentAlignment.MiddleLeft;
+                var choose=BotUi.Button("Choisir…",(s,e)=>PickColor(index),false,110);choose.Dock=DockStyle.Right;
+                line.Controls.Add(colorInput);line.Controls.Add(choose);line.Controls.Add(colorTitle);
+                fields.Controls.Add(line,0,fields.RowCount++);
+            }
+            var scroll=new Panel { Dock=DockStyle.Fill,AutoScroll=true,Padding=new Padding(0,0,12,0) };scroll.Controls.Add(fields);
+            var preview=new ClientPanel { Dock=DockStyle.Fill,BackColor=BotUi.PaperLight,Padding=new Padding(14),Margin=new Padding(0) };
+            identity=BotUi.Label("",13,true);identity.Dock=DockStyle.Top;identity.Height=35;identity.TextAlign=ContentAlignment.MiddleCenter;
+            var previewTitle=BotUi.Label("Aperçu de la classe",10,true);previewTitle.Dock=DockStyle.Top;previewTitle.Height=27;previewTitle.TextAlign=ContentAlignment.MiddleCenter;
+            portrait=new CharacterPortrait { Dock=DockStyle.Fill,BackColor=BotUi.PaperLight,ForeColor=BotUi.Muted };
+            var previewNote=BotUi.Label("Le portrait montre les couleurs d’origine. Vos couleurs choisies seront appliquées au personnage en jeu.",9);
+            previewNote.Dock=DockStyle.Bottom;previewNote.Height=55;previewNote.ForeColor=BotUi.Muted;previewNote.TextAlign=ContentAlignment.MiddleCenter;
+            var palette=new TableLayoutPanel { Dock=DockStyle.Bottom,Height=72,ColumnCount=3,RowCount=2,BackColor=BotUi.PaperLight };
+            palette.RowStyles.Add(new RowStyle(SizeType.Absolute,27));palette.RowStyles.Add(new RowStyle(SizeType.Percent,100));
+            swatches=new Panel[3];colorDescriptions=new Label[3];
+            for(int i=0;i<3;i++) {
+                int index=i;palette.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100f/3));
+                swatches[i]=new Panel { Dock=DockStyle.Fill,Margin=new Padding(5),BorderStyle=BorderStyle.FixedSingle,Cursor=Cursors.Hand };
+                swatches[i].Click+=(s,e)=>PickColor(index);colorDescriptions[i]=BotUi.Label("Défaut",8);colorDescriptions[i].Dock=DockStyle.Fill;
+                colorDescriptions[i].TextAlign=ContentAlignment.TopCenter;palette.Controls.Add(swatches[i],i,0);palette.Controls.Add(colorDescriptions[i],i,1);
+                colors[i].TextChanged+=(s,e)=>UpdateColor(index);UpdateColor(i);
+            }
+            preview.Controls.Add(portrait);preview.Controls.Add(previewNote);preview.Controls.Add(palette);preview.Controls.Add(identity);preview.Controls.Add(previewTitle);
+            var content=new TableLayoutPanel { Dock=DockStyle.Fill,ColumnCount=2,RowCount=1,Margin=new Padding(0) };
+            content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,58));content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,42));
+            content.Controls.Add(scroll,0,0);content.Controls.Add(preview,1,0);
+            race.SelectedIndexChanged+=(s,e)=>UpdatePortrait();sex.SelectedIndexChanged+=(s,e)=>UpdatePortrait();UpdatePortrait();
+            status=BotUi.Status("Renseignez le personnage à créer.");create=BotUi.Button("Créer le personnage",async(s,e)=>await Create(),true,190);
+            BotUi.Body(card).Controls.Add(content);BotUi.Body(card).Controls.Add(status);BotUi.Body(card).Controls.Add(BotUi.Actions(create,BotUi.Button("Nom aléatoire",async(s,e)=>await RandomName(),false,150),BotUi.Button("Retour aux personnages",(s,e)=>Back(),false,220)));root.Controls.Add(card,0,1);
+        }
+        private void UpdatePortrait()
+        {
+            if(race.SelectedIndex<0||sex.SelectedIndex<0)return;
+            identity.Text=classes[race.SelectedIndex]+" · "+sex.SelectedItem;
+            portrait.SetAppearance((race.SelectedIndex+1)*10+sex.SelectedIndex);
+        }
+        private void UpdateColor(int index)
+        {
+            int value;bool valid=int.TryParse(colors[index].Text,NumberStyles.Integer,CultureInfo.InvariantCulture,out value)&&value>=-1&&value<=0xFFFFFF;
+            swatches[index].BackColor=!valid||value<0?BotUi.Paper:Color.FromArgb((value>>16)&255,(value>>8)&255,value&255);
+            colorDescriptions[index].Text=!valid?"Valeur invalide":value<0?"Couleur "+(index+1)+"\nDéfaut":"Couleur "+(index+1)+"\n#"+value.ToString("X6");
+        }
+        private void PickColor(int index) { using(var dialog=new ColorDialog { FullOpen=true }) { int value;if(int.TryParse(colors[index].Text,out value)&&value>=0&&value<=0xFFFFFF)dialog.Color=Color.FromArgb((value>>16)&255,(value>>8)&255,value&255);if(dialog.ShowDialog(this)!=DialogResult.OK)return;colors[index].Text=(dialog.Color.ToArgb()&0xFFFFFF).ToString(CultureInfo.InvariantCulture); } }
+        public void DisplayRandom(string value) { BotUi.OnUi(this,()=> { if(!string.IsNullOrEmpty(value))name.Text=value; }); }
+        public void FailCreate() { BotUi.OnUi(this,()=> { pending=false;create.Enabled=true;status.Text="Création refusée. Vérifiez le nom, le nombre de personnages autorisé et les droits du compte."; }); }
+        private async Task RandomName() { try { if(a.Connexion==null||!a.Connexion.IsConnected()) { status.Text="Connexion au serveur interrompue.";return; }await a.Connexion.SendPacket("AP",true); }catch(Exception ex) { status.Text=ex.Message; } }
+        private async Task Create()
+        {
+            if(pending)return;
+            if(!Regex.IsMatch(name.Text.Trim(),"^[A-Za-z][A-Za-z-]{2,19}$")) { status.Text="Le nom doit contenir 3 à 20 lettres ou tirets et commencer par une lettre.";return; }
+            int[] values=new int[3];for(int i=0;i<3;i++)if(!int.TryParse(colors[i].Text,NumberStyles.Integer,CultureInfo.InvariantCulture,out values[i])||values[i]<-1||values[i]>0xFFFFFF) { status.Text="La couleur "+(i+1)+" doit être comprise entre 0 et 16 777 215, ou valoir -1.";return; }
+            pending=true;create.Enabled=false;status.Text="Demande de création envoyée au serveur…";
+            try { a.Game.Server.ExitCreationMenu=false;a.Game.Server.NameNewCharacter=name.Text.Trim();await a.Connexion.SendPacket("AA"+name.Text.Trim()+"|"+(race.SelectedIndex+1)+"|"+sex.SelectedIndex+"|"+values[0]+"|"+values[1]+"|"+values[2],true); }
+            catch(Exception ex) { pending=false;create.Enabled=true;status.Text=ex.Message; }
+        }
+        private void OnCharacterCreated() { if(!pending)return;BotUi.OnUi(this,()=> { pending=false;Back(); }); }
+        private void Disconnected() { BotUi.OnUi(this,()=> { status.Text=a.ConnectionStatus;pending=false;create.Enabled=false; }); }
+        private void Back() { transferred=true;new SelectPlayerPerso(a,true).Show();Close(); }
+        public void NewBornInGame(Accounts account) { transferred=true;new GameClientFullform(account).Show();Close(); }
+        private void OnSessionClosed(object sender,FormClosedEventArgs args) { a.Game.Server.RandomName-=DisplayRandom;a.Game.Server.FailCreatePerso-=FailCreate;a.Game.Server.UpdateCharacterMenu-=OnCharacterCreated;a.AccountDisconnectEvent-=Disconnected;if(!transferred)a.Dispose(); }
 
-        private void iTalk_RadioButton2_CheckedChanged(object sender)
+        private sealed class CharacterPortrait : Control
         {
-            if (iTalk_RadioButton2.Checked)
-                H = false;
-            PictureForCharacter(iTalk_ComboBox1.SelectedItem.ToString());
-        }
-        public void DisplayRandom(string name)
-        {
-            if (!string.IsNullOrEmpty(name)) 
+            private Bitmap appearance;
+            internal CharacterPortrait() { DoubleBuffered=true; }
+            internal void SetAppearance(int gfx)
             {
-                try
-                {
-                    BeginInvoke((Action)(() =>
-                    {
-                        iTalk_TextBox_Small1.Text = name;
-
-                    }));
+                var previous=appearance;appearance=SelectPlayerPerso.LoadCharacterPortrait(gfx);previous?.Dispose();Invalidate();
+            }
+            protected override void OnPaint(PaintEventArgs args)
+            {
+                base.OnPaint(args);if(Width<30||Height<30)return;
+                if(appearance==null) {
+                    TextRenderer.DrawText(args.Graphics,"Portrait indisponible\npour cette apparence",Font,ClientRectangle,ForeColor,
+                        TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter|TextFormatFlags.WordBreak);return;
                 }
-                catch { }
-
+                float scale=Math.Min(3f,Math.Min((Width-24f)/appearance.Width,(Height-38f)/appearance.Height));
+                int width=Math.Max(1,(int)(appearance.Width*scale)),height=Math.Max(1,(int)(appearance.Height*scale));
+                var bounds=new Rectangle((Width-width)/2,(Height-height)/2,width,height);
+                args.Graphics.SmoothingMode=SmoothingMode.AntiAlias;
+                using(var shadow=new SolidBrush(Color.FromArgb(38,BotUi.FrameLight)))
+                    args.Graphics.FillEllipse(shadow,Width/2f-width*0.42f,bounds.Bottom-5,width*0.84f,12);
+                args.Graphics.InterpolationMode=InterpolationMode.HighQualityBicubic;args.Graphics.PixelOffsetMode=PixelOffsetMode.HighQuality;
+                args.Graphics.DrawImage(appearance,bounds);
             }
-        }
-        private void CreateCharacter_Load(object sender, EventArgs e)
-        {
-            iTalk_RadioButton1.Checked = true;
-            H = true;
-            PictureForCharacter(iTalk_ComboBox1.SelectedItem.ToString());
-            a.Game.Server.RandomName += DisplayRandom;
-            a.Game.Server.FailCreatePerso += FailCreate;
-        }
-        public void FailCreate()
-        {
-            MessageBox.Show("Impossible de créer le personnage, veuillez effectuer une déco/reco puis recommencer.", "Création impossible", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-            return;
-        }
-        private void iTalk_Button_12_Click(object sender, EventArgs e)
-        {
-            colorDialog1.ShowDialog();
-            iTalk_TextBox_Small2.BackColor = colorDialog1.Color;
-            iTalk_TextBox_Small2.Text = colorDialog1.Color.ToArgb().ToString();
-        }
-
-        private async void iTalk_Button_11_Click(object sender, EventArgs e)
-        {
-            await a.Connexion.SendPacket("AP", true);
-        }
-
-        private void iTalk_Button_13_Click(object sender, EventArgs e)
-        {
-            colorDialog1.ShowDialog();
-            iTalk_TextBox_Small3.BackColor = colorDialog1.Color;
-            iTalk_TextBox_Small3.Text = colorDialog1.Color.ToArgb().ToString();
-        }
-
-        private void iTalk_Button_14_Click(object sender, EventArgs e)
-        {
-            colorDialog1.ShowDialog();
-            iTalk_TextBox_Small4.BackColor = colorDialog1.Color;
-            iTalk_TextBox_Small4.Text = colorDialog1.Color.ToArgb().ToString();
-        }
-
-        public void PictureForCharacter(string race)
-        {
-            switch(race)
-            {
-                case "Ecaflip":
-                    if (H)
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(60, 2);
-                    else
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(61, 2);
-                    Race = 6;
-                    break;
-                case "Pandawa":
-                    if(H)
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(120, 2);
-                    else
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(121, 2);
-                    Race = 12;
-                    break;
-                case "Xélor":
-                    if(H)
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(50, 2);
-                    else
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(51, 2);
-                    Race = 5;
-                    break;
-                case "Sram":
-                    if(H)
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(40, 2);
-                    else
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(41, 2);
-                    Race = 4;
-                    break;
-                case "Enutrof":
-                    if(H)
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(30, 2);
-                    else
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(31, 2);
-                    Race = 3;
-                    break;
-                case "Osamodas":
-                    if(H)
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(20, 2);
-                    else
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(21, 2);
-                    Race = 2;
-                    break;
-                case "Sadida":
-                    if(H)
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(100, 2);
-                    else
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(101, 2);
-                    Race = 10;
-                    break;
-                case "Sacrieur":
-                    if(H)
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(110, 2);
-                    else
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(111, 2);
-                    Race = 11;
-                    break;
-                case "Féca":
-                    if(H)
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(10, 2);
-                    else
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(11, 2);
-                    Race = 1;
-                    break;
-                case "Crâ":
-                    if(H)
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(90, 2);
-                    else
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(91, 2);
-                    Race = 9;
-                    break;
-                case "Iop":
-                    if(H)
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(80, 2);
-                    else
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(81, 2);
-                    Race = 8;
-                    break;
-                case "Eniripsa":
-                    if(H)
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(70, 2);
-                    else
-                        pictureBox1.Image = PicturesManager.InteractivePicSprite(71, 2);
-                    Race = 7;
-                    break;
-            }
-        }
-
-        private void iTalk_ComboBox1_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            PictureForCharacter(iTalk_ComboBox1.SelectedItem.ToString());
-        }
-        public void NewBornInGame(Accounts A)
-        {
-            GameClientFullform GCFF = new GameClientFullform(A);
-            GCFF.Show();
-        }
-        private void iTalk_RadioButton1_CheckedChanged(object sender)
-        {
-            if (iTalk_RadioButton1.Checked)
-                H = true;
-            PictureForCharacter(iTalk_ComboBox1.SelectedItem.ToString());
-        }
-
-        private void iTalk_Button_21_Click(object sender, EventArgs e)
-        {
-            string color1;
-            string color2;
-            string color3;
-            if(string.IsNullOrEmpty(iTalk_TextBox_Small2.Text))
-                color1 = "-1";
-            else
-                color1 = iTalk_TextBox_Small2.Text;
-
-            if (string.IsNullOrEmpty(iTalk_TextBox_Small3.Text))
-                color2 = "-1";
-            else
-                color2 = iTalk_TextBox_Small3.Text;
-
-            if (string.IsNullOrEmpty(iTalk_TextBox_Small4.Text))
-                color3 = "-1";
-            else
-                color3 = iTalk_TextBox_Small4.Text;
-
-            if (!string.IsNullOrWhiteSpace(iTalk_TextBox_Small1.Text))
-            {
-                a.Game.Server.NameNewCharacter = iTalk_TextBox_Small1.Text;
-                a.Game.Server.ExitCreationMenu = true;
-                a.Connexion.SendPacket($"AA{iTalk_TextBox_Small1.Text}|{Race}|{(H ? 1 : 0)}|{color1}|{color2}|{color3}");
-                NewBornInGame(a);
-                Close();
-
-            }
-        }
-
-        private void iTalk_Button_22_Click(object sender, EventArgs e)
-        {
-            PersoSelection PS = new PersoSelection(a.accountConfig);
-            PS.Show();
-            Close();
+            protected override void Dispose(bool disposing) { if(disposing)appearance?.Dispose();base.Dispose(disposing); }
         }
     }
 }

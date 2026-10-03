@@ -26,7 +26,10 @@ namespace Tools_protocol.Json
         private const string MajCheckPath = @"https://azurtoolretro.com/amaj/maj.json";
         public static bool NeedMaj(string Tv, string Pv, string AZv, string Ev)
         {
-            Directory.CreateDirectory(ZipPath);
+            IsTool = false;
+            IsProtocol = false;
+            IsBot = false;
+            IsEditor = false;
             try
             {
                 using (WebClient wc = new WebClient())
@@ -59,14 +62,7 @@ namespace Tools_protocol.Json
                         IsEditor = true;
                         return true;
                     }
-                    else
-                    {
-                        IsEditor = false;
-                        IsTool = false;
-                        IsProtocol=false;
-                        IsBot =false;
-                        return false;
-                    }
+                    else return false;
                         
                 }
 
@@ -77,7 +73,9 @@ namespace Tools_protocol.Json
         }
         public static string GetFile()
         {
-            return GetNewVersion().Split('/')[4];
+            string url = GetNewVersion();
+            return Uri.TryCreate(url, UriKind.Absolute, out Uri parsed)
+                ? Path.GetFileName(parsed.LocalPath) : string.Empty;
         }
         public static string GetNewVersion()
         {

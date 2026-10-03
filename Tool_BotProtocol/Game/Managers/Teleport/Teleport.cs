@@ -50,7 +50,7 @@ namespace Tool_BotProtocol.Game.Managers.Teleport
 
             foreach(Interactives I in Map.Interactives.Values)
             {
-                if (!I.IsUsable)
+                if (!I.IsUsable || I.Interactive?.Capacities == null)
                     continue;
                 List<Cell> Path = pathfinder.GetPath(perso.Cell, I.Cell, Map.CellsOccuped(), true, 1);
 
@@ -87,15 +87,15 @@ namespace Tool_BotProtocol.Game.Managers.Teleport
         }
         public async void InitTeleport()
         {
+            if (disposed || string.IsNullOrEmpty(MapID) || account?.Connexion == null) return;
             await account.Connexion.SendPacketAsync($"WU{MapID}");
         }
         private void SetMapEvent()
         {
-            CheckIfTeleportExist(Map.MapID.ToString());
             pathfinder.SetMap(account.Game.Map);
         }
 
-        ~Teleport() => Dispose(true);
+        public void Clear() { MapID = null; CellID = 0; }
 
         public void Dispose() => Dispose(true);
 
@@ -105,6 +105,7 @@ namespace Tool_BotProtocol.Game.Managers.Teleport
             {
                 if (D)
                 {
+                    Map.RefreshMap -= SetMapEvent;
                     pathfinder.Dispose();
                 }
                 pathfinder = null;

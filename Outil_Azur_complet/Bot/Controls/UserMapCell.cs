@@ -48,7 +48,7 @@ namespace Outil_Azur_complet.Bot.Controls
         }
         public Graphics Border(Graphics G, Brush color)
         {
-            G.DrawPolygon(new Pen(color), new Point[] { Points[0], Points[1], Points[2], Points[3] });
+            using (var pen = new Pen(color, 2)) G.DrawPolygon(pen, Points);
             return G;
         }
         

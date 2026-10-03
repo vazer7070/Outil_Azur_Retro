@@ -97,7 +97,6 @@
             this.iTalk_Button_22.TabIndex = 8;
             this.iTalk_Button_22.Text = "Retour";
             this.iTalk_Button_22.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_22.Click += new System.EventHandler(this.iTalk_Button_22_Click);
             // 
             // iTalk_Button_21
             // 
@@ -112,7 +111,6 @@
             this.iTalk_Button_21.TabIndex = 8;
             this.iTalk_Button_21.Text = "Valider";
             this.iTalk_Button_21.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_21.Click += new System.EventHandler(this.iTalk_Button_21_Click);
             // 
             // iTalk_Button_11
             // 
@@ -126,7 +124,6 @@
             this.iTalk_Button_11.TabIndex = 7;
             this.iTalk_Button_11.Text = "Nom aléatoire";
             this.iTalk_Button_11.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
             // 
             // iTalk_TextBox_Small1
             // 
@@ -153,7 +150,6 @@
             this.iTalk_RadioButton2.Size = new System.Drawing.Size(67, 15);
             this.iTalk_RadioButton2.TabIndex = 5;
             this.iTalk_RadioButton2.Text = "Femme";
-            this.iTalk_RadioButton2.CheckedChanged += new iTalk.iTalk_RadioButton.CheckedChangedEventHandler(this.iTalk_RadioButton2_CheckedChanged);
             // 
             // iTalk_RadioButton1
             // 
@@ -165,7 +161,6 @@
             this.iTalk_RadioButton1.Size = new System.Drawing.Size(67, 15);
             this.iTalk_RadioButton1.TabIndex = 5;
             this.iTalk_RadioButton1.Text = "Homme";
-            this.iTalk_RadioButton1.CheckedChanged += new iTalk.iTalk_RadioButton.CheckedChangedEventHandler(this.iTalk_RadioButton1_CheckedChanged);
             // 
             // iTalk_Label4
             // 
@@ -233,7 +228,6 @@
             this.iTalk_ComboBox1.Size = new System.Drawing.Size(186, 26);
             this.iTalk_ComboBox1.StartIndex = 0;
             this.iTalk_ComboBox1.TabIndex = 3;
-            this.iTalk_ComboBox1.SelectedIndexChanged += new System.EventHandler(this.iTalk_ComboBox1_SelectedIndexChanged);
             // 
             // pictureBox1
             // 
@@ -283,7 +277,6 @@
             this.iTalk_Button_14.Size = new System.Drawing.Size(26, 28);
             this.iTalk_Button_14.TabIndex = 1;
             this.iTalk_Button_14.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_14.Click += new System.EventHandler(this.iTalk_Button_14_Click);
             // 
             // iTalk_Button_13
             // 
@@ -296,7 +289,6 @@
             this.iTalk_Button_13.Size = new System.Drawing.Size(26, 28);
             this.iTalk_Button_13.TabIndex = 1;
             this.iTalk_Button_13.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_13.Click += new System.EventHandler(this.iTalk_Button_13_Click);
             // 
             // iTalk_Button_12
             // 
@@ -309,7 +301,6 @@
             this.iTalk_Button_12.Size = new System.Drawing.Size(26, 28);
             this.iTalk_Button_12.TabIndex = 1;
             this.iTalk_Button_12.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_12.Click += new System.EventHandler(this.iTalk_Button_12_Click);
             // 
             // iTalk_TextBox_Small4
             // 
@@ -368,7 +359,6 @@
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "Création de personnage";
             this.TransparencyKey = System.Drawing.Color.Fuchsia;
-            this.Load += new System.EventHandler(this.CreateCharacter_Load);
             this.iTalk_ThemeContainer1.ResumeLayout(false);
             this.iTalk_ThemeContainer1.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).EndInit();

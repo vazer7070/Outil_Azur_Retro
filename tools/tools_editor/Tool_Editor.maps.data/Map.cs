@@ -18,6 +18,8 @@ namespace Tool_Editor.maps.data
         public int IDClient = 0;
         [NonSerialized]
         public bool IsEditing = false;
+        [NonSerialized]
+        public bool HasProjectCells = false;
 
         public Bitmap ScreenShot = null;
 
@@ -42,7 +44,12 @@ namespace Tool_Editor.maps.data
         public int GroupMaxSize = 6;
 
         [NonSerialized]
-        public CellsData[] Cells = new CellsData[17 * (15 * 2 - 1) - 15];
+        public CellsData[] Cells = new CellsData[CellCount(15, 17)];
+
+        public static int CellCount(int width, int height)
+        {
+            return checked(height * (width * 2 - 1) - width + 1);
+        }
 
         public int X = 0;
         public int Y = 0;
@@ -57,38 +64,42 @@ namespace Tool_Editor.maps.data
 
         public void Load()
         {
-            if (MapData != "")
+            if (Width < 2 || Width > 100 || Height < 2 || Height > 100)
+                throw new FormatException("Les dimensions de carte doivent être comprises entre 2 et 100.");
+            CellsData[] previousCells = Cells;
+            string previousData = MapData;
+            string previousKey = Key;
+            try
             {
-                if (Key == "" && IsCrypt())
+                if (!string.IsNullOrEmpty(MapData) && !HasProjectCells)
                 {
-                    Key = Interaction.InputBox("Impossible de charger la carte, celle-ci est chiffrée", "Lecture impossible");
-                    return;
+                    if (string.IsNullOrWhiteSpace(Key) && IsCrypt())
+                    {
+                        Key = Interaction.InputBox("Saisissez la clé hexadécimale de cette carte chiffrée.", "Carte chiffrée");
+                        if (string.IsNullOrWhiteSpace(Key))
+                            throw new OperationCanceledException("L'ouverture de la carte chiffrée a été annulée.");
+                    }
+                    Cells = new CellsData[CellCount(Width, Height)];
+                    DecompressMap();
                 }
-                CellsData[] cell = new CellsData[Height * (Width * 2 - 1) - Width];
-                int j = (Height * (Width * 2 - 1) - Width);
-                for(int i = 0; i < j; i++)
-                {
-                    cell[i] = new CellsData();
-                    cell[i].ID = i;
-                }
-                Cells = cell;
-                DecompressMap();
+                if (!string.IsNullOrEmpty(fightPlaces) && !HasProjectCells)
+                    LoadFightCell();
+                if (BackGroundID != 0)
+                    Background = TilesData.GetBackgrounds(BackGroundID);
             }
-            if (fightPlaces != "")
-                LoadFightCell();
-            if (BackGroundID != 0)
-                Background = TilesData.GetBackgrounds(BackGroundID);
+            catch
+            {
+                Cells = previousCells;
+                MapData = previousData;
+                Key = previousKey;
+                throw;
+            }
         }
 
         private bool IsCrypt()
         {
-            int num = 0;
-            foreach (char a in MapData)
-            {
-                if (char.IsNumber(a))
-                    num += 1;
-            }
-            return num >= 1000;
+            return MapData != null && MapData.Length == checked(CellCount(Width, Height) * 20) &&
+                MapData.All(Uri.IsHexDigit);
         }
 
         public void SaveFightCell()
@@ -104,53 +115,68 @@ namespace Tool_Editor.maps.data
 
         public void DecompressCells(string cell, int CellID)
         {
+            if (cell == null || cell.Length != 10)
+                throw new FormatException("Une cellule doit contenir exactement dix caractères.");
+            if (Cells == null || CellID < 0 || CellID >= Cells.Length || Cells[CellID] == null)
+                throw new ArgumentOutOfRangeException(nameof(CellID));
             int[] intArray = new int[10];
 
             for (int i = 0; i < cell.Length; i++)
             {
                 intArray[i] = (int)DecryptClass.HashCode(cell[i].ToString());
+                if (intArray[i] < 0)
+                    throw new FormatException($"La cellule {CellID} contient un caractère invalide.");
             }
 
             Cells[CellID].Los = (intArray[0] & 1) > 0;
+            Cells[CellID].Active = (intArray[0] & 32) != 0;
             Cells[CellID].RotaGFX1 = (intArray[1] & 0x30) >> 4;
             Cells[CellID].NivSol = (intArray[1] & 15);
             Cells[CellID].Type(((intArray[2] & 0x38) >> 3) & -1025);
-            Cells[CellID].GFX1 = TilesData.GetGrounds((((intArray[0] & 0x18) << 6) + ((intArray[2] & 7) << 6)) + intArray[3]);
+            Cells[CellID].GFX1 = RequiredTile((((intArray[0] & 0x18) << 6) + ((intArray[2] & 7) << 6)) + intArray[3], true, CellID);
             Cells[CellID].IncliSol = ((intArray[4] & 60) >> 2);
             Cells[CellID].FlipGFX1 = (intArray[4] & 2) >> 1 > 0;
-            Cells[CellID].GFX2 = TilesData.GetObjects((((((intArray[0] & 4) << 11) + ((intArray[4] & 1) << 12)) + (intArray[5] << 6)) + intArray[6]));
+            Cells[CellID].GFX2 = RequiredTile((((((intArray[0] & 4) << 11) + ((intArray[4] & 1) << 12)) + (intArray[5] << 6)) + intArray[6]), false, CellID);
             Cells[CellID].RotaGFX2 = (intArray[7] & 0x30) >> 4;
             Cells[CellID].FlipGFX2 = (intArray[7] & 8) >> 3 > 0;
             Cells[CellID].FlipGFX3 = (intArray[7] & 4) >> 2 > 0;
             Cells[CellID].IO = (intArray[7] & 2) >> 1 > 0;
-            Cells[CellID].GFX3 = TilesData.GetObjects((((((intArray[0] & 2) << 12) + ((intArray[7] & 1) << 12)) + (intArray[8] << 6)) + intArray[9]));
+            Cells[CellID].GFX3 = RequiredTile((((((intArray[0] & 2) << 12) + ((intArray[7] & 1) << 12)) + (intArray[8] << 6)) + intArray[9]), false, CellID);
+        }
+
+        private static TilesData RequiredTile(int id, bool ground, int cell)
+        {
+            if (id == 0) return null;
+            TilesData tile = ground ? TilesData.GetGrounds(id) : TilesData.GetObjects(id);
+            if (tile == null) throw new FormatException($"La tuile {(ground ? "sol" : "objet")} {id} de la cellule {cell} manque dans les ressources.");
+            return tile;
         }
 
         public void DecompressMap()
         {
+            if (Cells == null) throw new InvalidOperationException("La grille de carte n'est pas initialisée.");
+            string data = MapData;
+            if (IsCrypt())
+            {
+                string key = DecryptClass.PrepareKey((Key ?? "").Trim().Replace("\r", "").Replace("\n", ""));
+                int check = Convert.ToInt32(DecryptClass.CheckSum(key), 16) * 2;
+                data = DecryptClass.DecypherData(data, key, check);
+            }
+            int expectedLength = checked(Cells.Length * 10);
+            if (data == null || data.Length != expectedLength)
+                throw new FormatException($"Les données de carte contiennent {data?.Length ?? 0} caractères au lieu de {expectedLength}.");
+            if (data.Any(value => (int)DecryptClass.HashCode(value.ToString()) < 0))
+                throw new FormatException("Les données de carte contiennent un caractère invalide.");
+            CellsData[] previous = Cells;
+            Cells = Enumerable.Range(0, previous.Length).Select(id => new CellsData { ID = id }).ToArray();
             try
             {
-                if (Key != "")
-                {
-                    Key = Key.Trim();
-                    Key = Key.Replace("\r", "").Replace("\n", "").Replace("\r\n", "");
-                    Key = DecryptClass.PrepareKey(Key);
-                    int check = Convert.ToInt32(Convert.ToInt64(DecryptClass.CheckSum(Key), 0x10) * 2);
-                    MapData = DecryptClass.DecypherData(MapData, Key, check);
-                    Key = "";
-                }
+                for (int i = 0; i < expectedLength; i += 10)
+                    DecompressCells(data.Substring(i, 10), i / 10);
             }
-            catch (Exception e)
-            {
-                MessageBox.Show(e.Message);
-                return;
-            }
-
-            int num8 = (Cells.Length * 10) - 10;
-            for (int i = 0; i <= num8; i += 10)
-            {
-                DecompressCells(MapData.Substring(i, 10), i / 10);
-            }
+            catch { Cells = previous; throw; }
+            MapData = data;
+            Key = "";
         }
 
         #region Functions

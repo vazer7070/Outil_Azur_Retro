@@ -18,21 +18,21 @@ namespace Tool_BotProtocol.Game.Maps.Interactives
         public InteractivesParent(string Nam, string GFX, bool walkable, string capa, bool CanRecolte)
         {
             Name = Nam;
-            if(!GFX.Equals("-1") && !string.IsNullOrEmpty(GFX))
+            if(!string.IsNullOrEmpty(GFX) && !GFX.Equals("-1"))
             {
                 string[] str = GFX.Split(',');
                 GFX_Arrays = new short[str.Length];
-                for(byte i = 0; i < GFX.Length; i++)
+                for(int i = 0; i < str.Length; i++)
                 {
                     GFX_Arrays[i] = short.Parse(str[i]);
                 }
             }
             Walkable = walkable;
-            if(!capa.Equals("-1") && !string.IsNullOrEmpty(capa))
+            if(!string.IsNullOrEmpty(capa) && !capa.Equals("-1"))
             {
                 string[] str = capa.Split(',');
                 Capacities = new short[str.Length];
-                for(byte j = 0; j < Capacities.Length; ++j)
+                for(int j = 0; j < Capacities.Length; ++j)
                 {
                     Capacities[j] = short.Parse(str[j]);
                 }
@@ -42,7 +42,7 @@ namespace Tool_BotProtocol.Game.Maps.Interactives
         }
         public static InteractivesParent ReturnByGFX(short gfx_id)
         {
-            return interactivesParents.FirstOrDefault(x => x.GFX_Arrays.Contains(gfx_id));
+            return interactivesParents.FirstOrDefault(x => x.GFX_Arrays != null && x.GFX_Arrays.Contains(gfx_id));
         }
         public static InteractivesParent GetInteractiveBySkill(short skillID)
         {

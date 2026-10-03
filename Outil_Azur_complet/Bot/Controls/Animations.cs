@@ -1,86 +1,67 @@
-﻿using System;
-using System.Collections;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Outil_Azur_complet.Bot.Controls
 {
-    class Animations : IDisposable
+    /// <summary>Immutable world-space movement timeline; the view's UI timer only repaints it.</summary>
+    internal sealed class Animations : IDisposable
     {
         public int Entites_Id { get; private set; }
-        public List<UserMapCell> Path { get; private set; }
-        public PointF Actual_point { get; private set; }
-
+        public int StartCellId => cellIds[0];
+        public int EndCellId => cellIds[cellIds.Length - 1];
         public AnimationType AnimationType { get; private set; }
-        private int FrameIndex;
-        private int TimePerFrame;
-        private Timer timer;
-        private List<PointF> Frames;
+        private readonly PointF[] points;
+        private readonly short[] cellIds;
+        private readonly int[] directions;
+        private readonly double[] cumulative;
+        private readonly double startedAt, duration;
+        private bool disposed;
 
-        public event Action<Animations> Finalize;
-
-        public Animations(int E_ID, IEnumerable<UserMapCell> path, int duration, AnimationType AT)
+        public Animations(int id, IEnumerable<short> cells, IEnumerable<PointF> worldPoints,
+            IEnumerable<int> orientations, int milliseconds, AnimationType type, double now)
         {
-            Entites_Id = E_ID;
-            Path = new List<UserMapCell>(path);
-            AnimationType = AT;
-            timer = new Timer(MakeAnimation, null, Timeout.Infinite, Timeout.Infinite);
-
-            InitFrames();
-            TimePerFrame = duration / Frames.Count;
-            FrameIndex = 0;
-        }
-
-        private void InitFrames()
-        {
-            Frames = new List<PointF>();
-            for (int i = 0; i < Path.Count - 1; i++)
-                Frames.AddRange(Getpoints(Path[i].Centre, Path[i + 1].Centre, 3));
-        }
-        public void Init()
-        {
-            Actual_point = Frames[FrameIndex];
-            timer.Change(TimePerFrame, TimePerFrame);
-        }
-        private PointF[]Getpoints(PointF p1, PointF p2, int P)
-        {
-            PointF[] points = new PointF[P];
-            float Y_D = p2.Y - p1.Y, X_D = p2.X - p1.X;
-            double slope = (double)(p2.Y - p1.Y) / (p2.X - p1.X);
-            double x, y;
-
-            P--;
-
-            for(double i = 0; i < P; i++)
+            Entites_Id = id; cellIds = cells.ToArray(); points = worldPoints.ToArray(); directions = orientations.ToArray();
+            if (cellIds.Length < 2 || points.Length != cellIds.Length || directions.Length != points.Length - 1)
+                throw new ArgumentException("Le chemin visuel est incomplet.");
+            AnimationType = type; duration = Math.Max(20, milliseconds); startedAt = now;
+            cumulative = new double[points.Length];
+            for (int index = 1; index < points.Length; index++)
             {
-                y = slope == 0 ? 0: Y_D * (i / P);
-                x = slope == 0 ? X_D * (i / P) : y / slope;
-                points[(int)i] = new PointF((float)Math.Round(x) + p1.X, (float)Math.Round(y) + p1.Y);
-            }
-            points[P] = p2;
-            return points;
-        }
-        private void MakeAnimation(object state)
-        {
-            FrameIndex++;
-            Actual_point = Frames[FrameIndex];
-            if(FrameIndex == Frames.Count - 1)
-            {
-                timer.Change(Timeout.Infinite, Timeout.Infinite);
-                Finalize?.Invoke(this);
+                double dx = points[index].X - points[index - 1].X, dy = points[index].Y - points[index - 1].Y;
+                cumulative[index] = cumulative[index - 1] + Math.Max(.01, Math.Sqrt(dx * dx + dy * dy));
             }
         }
-        public void Dispose()
-        {
-            Path.Clear();
-            timer.Dispose();
 
-            Path = null;
-            timer = null;
+        public bool Matches(IEnumerable<short> ids) => !disposed && cellIds.SequenceEqual(ids);
+        public bool TrySample(double now, out Frame frame)
+        {
+            frame = null;
+            if (disposed) return false;
+            double progress = Math.Max(0, Math.Min(1, (now - startedAt) / duration));
+            double distance = cumulative[cumulative.Length - 1] * progress;
+            int segment = 0;
+            while (segment < points.Length - 2 && cumulative[segment + 1] <= distance) segment++;
+            double part = (distance - cumulative[segment]) / (cumulative[segment + 1] - cumulative[segment]);
+            PointF first = points[segment], second = points[segment + 1];
+            frame = new Frame
+            {
+                Position = new PointF((float)(first.X + (second.X - first.X) * part), (float)(first.Y + (second.Y - first.Y) * part)),
+                CellId = part >= .5 ? cellIds[segment + 1] : cellIds[segment],
+                Direction = directions[segment], Complete = progress >= 1, Progress = progress
+            };
+            return true;
         }
+
+        public sealed class Frame
+        {
+            public PointF Position;
+            public int CellId, Direction;
+            public bool Complete;
+            public double Progress;
+        }
+
+        public void Dispose() { disposed = true; }
     }
 }

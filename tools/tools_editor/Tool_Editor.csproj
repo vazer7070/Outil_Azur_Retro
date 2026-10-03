@@ -39,6 +39,11 @@
   <ItemGroup>
     <Compile Include="Tool_Editor.maps.managers\SettingsManager.cs" />
     <Compile Include="Tool_Editor.maps.managers\SwfUnpacker.cs" />
+    <Compile Include="Tool_Editor.maps.managers\MapProjectSerializer.cs" />
+    <Compile Include="Tool_Editor.maps.managers\MapSwfSerializer.cs" />
+    <Compile Include="Tool_Editor.swf\SwfMovieFile.cs" />
+    <Compile Include="Tool_Editor.items\ItemClientDefinition.cs" />
+    <Compile Include="Tool_Editor.items\ItemClientSwf.cs" />
     <Compile Include="update\Version.cs" />
     <None Include="App.config" />
     <Compile Include="Properties\AssemblyInfo.cs">

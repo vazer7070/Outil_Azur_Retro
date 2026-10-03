@@ -21,38 +21,20 @@ namespace Tool_BotProtocol.Game.Jobs
         public List<JobSkills> Skills { get; private set; }
         public static ConcurrentDictionary<int, Jobs> AllJobs = new ConcurrentDictionary<int, Jobs>();
 
-        static string Jobspath = @".\ressources\Bot\BotJobs";
-        public static async Task LoadAllJobsAsync()
+        static string Jobspath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ressources", "Bot", "BotJobs");
+        public static Task LoadAllJobsAsync()
         {
-            try
+            return Task.Run(() =>
             {
-                DirectoryInfo jobFolder = new DirectoryInfo(Jobspath);
-                List<Task> tasks = new List<Task>();
-
-                foreach (FileInfo file in jobFolder.GetFiles())
+                var loaded = new ConcurrentDictionary<int, Jobs>();
+                foreach (string file in Directory.EnumerateFiles(Jobspath, "*.xml"))
                 {
-                    if (file.Exists)
-                    {
-                        tasks.Add(Task.Run(async () =>
-                        {
-                            XElement xmlmap = await Task.Run(() => XElement.Load(file.FullName));
-                            Jobs J = new Jobs()
-                            {
-                                ID = int.Parse(xmlmap.Element("ID").Value),
-                                name = xmlmap.Element("NOM").Value
-                            };
-                            AllJobs.GetOrAdd(J.ID, J);
-                        }));
-                    }
+                    XElement xml = XElement.Load(file);
+                    var job = new Jobs { ID = int.Parse(xml.Element("ID").Value), name = xml.Element("NOM").Value };
+                    loaded[job.ID] = job;
                 }
-
-                await Task.WhenAll(tasks);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message);
-                return;
-            }
+                AllJobs = loaded;
+            });
         }
 
         public Jobs(int id = 0)
@@ -60,11 +42,12 @@ namespace Tool_BotProtocol.Game.Jobs
             if(id != 0)
             {
                 ID = id;
-                name = AllJobs[id].name;
+                name = AllJobs.TryGetValue(id, out Jobs template) ? template.name : "Métier " + id;
                 Skills = new List<JobSkills>();
             }
         }
-        public double GetXpPercentage => ActualXP == 0 ?0 :Math.Round((double)(ActualXP - BaseXP) / (NextXP - BaseXP) * 100, 2);
+        public double GetXpPercentage => NextXP <= BaseXP ? (Level >= 100 ? 100 : 0)
+            : Math.Round(Math.Max(0, Math.Min(100, ((double)ActualXP - BaseXP) / (NextXP - BaseXP) * 100)), 2);
 
         public void AcutalizeJob(int level, uint basexp, uint actualxp, uint nextxp)
         {

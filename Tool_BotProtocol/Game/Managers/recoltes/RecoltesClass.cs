@@ -22,6 +22,8 @@ namespace Tool_BotProtocol.Game.Managers.recoltes
         private Pathfinder Pathfinder;
         private bool Disposed;
         private bool R;
+        private readonly Mouvement movement;
+        private int generation;
 
         public event Action InitRecoltes;
         public event Action<RecolteEnum> RecolteFinish;
@@ -32,6 +34,7 @@ namespace Tool_BotProtocol.Game.Managers.recoltes
         {
             Account = A;
             Map = map;
+            movement = M;
             NoUsable = new List<int>();
             Pathfinder = new Pathfinder ();
 
@@ -75,15 +78,20 @@ namespace Tool_BotProtocol.Game.Managers.recoltes
             }
             else
             {
+                int currentGeneration = generation;
+                var connection = Account.Connexion;
+                var account = Account;
                 Account.AccountStates = Accounts.AccountStates.GATHERING;
                 InitRecoltes?.Invoke();
                 await Task.Delay(delay);
-                Account.Connexion.SendPacket($"GKK{type}");
+                if (Disposed || currentGeneration != generation || connection == null
+                    || !ReferenceEquals(connection, account.Connexion) || account.AccountStates == Accounts.AccountStates.DISCONNECTED) return;
+                await connection.SendPacket($"GKK{type}");
             }
         }
         private void GetRecolteIntention()
         {
-            if (!R)
+            if (!R && Interactive_recoltable?.Interactive?.Capacities != null)
             {
                 foreach(short capa in Interactive_recoltable.Interactive.Capacities)
                 {
@@ -99,6 +107,7 @@ namespace Tool_BotProtocol.Game.Managers.recoltes
         {
             Dictionary<short, Interactives>UsableElements = new Dictionary<short, Interactives>();
             CharacterClass perso = Account.Game.character;
+            if (perso.Cell == null || ElementsID == null) return UsableElements;
 
             InventoryObjects Weapon = perso.Inventory.GetObjetsPosition(InventorySlots.WEAPON);
             byte W_distance = 1;
@@ -110,7 +119,7 @@ namespace Tool_BotProtocol.Game.Managers.recoltes
             }
             foreach (Interactives I in Map.Interactives.Values.OrderBy(x => x.Cell.GetDistanceBetweenCells(perso.Cell)))
             {
-                if(!I.IsUsable || !I.Interactive.Recoltable)
+                if(!I.IsUsable || I.Interactive?.Capacities == null || !I.Interactive.Recoltable)
                     continue;
                 List<Cell> path = Pathfinder.GetPath(perso.Cell, I.Cell, Map.CellsOccuped(), true, W_distance);
                 if (path == null || path.Count == 0)
@@ -123,7 +132,7 @@ namespace Tool_BotProtocol.Game.Managers.recoltes
                         continue;
                     if (isFishingTool && path.Last().GetDistanceBetweenCells(I.Cell) > W_distance)
                         continue;
-                    UsableElements.Add(I.Cell.CellID, I);
+                    UsableElements[I.Cell.CellID] = I;
                 }
             }
             return UsableElements;
@@ -184,7 +193,7 @@ namespace Tool_BotProtocol.Game.Managers.recoltes
         {
             if (Interactive_recoltable == null)
                 return;
-            if(!correct && Account.Game.Manager.Mouvements.ActualPath != null)
+            if(!correct)
                 EventEndRecolte(RecolteEnum.FALL, Interactive_recoltable.Cell.CellID);
         }
         public void EventEndRecolte(RecolteEnum result, short cellid)
@@ -198,11 +207,11 @@ namespace Tool_BotProtocol.Game.Managers.recoltes
         }
         public void Clear()
         {
+            System.Threading.Interlocked.Increment(ref generation);
             Interactive_recoltable = null;
             NoUsable.Clear();
             R = false;
         }
-        ~RecoltesClass() => Dispose(true);
         public void Dispose() => Dispose(true);
 
         protected virtual void Dispose(bool d)
@@ -211,6 +220,8 @@ namespace Tool_BotProtocol.Game.Managers.recoltes
             {
                 if (d)
                 {
+                    Map.RefreshMap -= ActualiseMap;
+                    movement.FinalizeMove -= GetEndMove;
                     Pathfinder.Dispose();
                 }
                 NoUsable.Clear();

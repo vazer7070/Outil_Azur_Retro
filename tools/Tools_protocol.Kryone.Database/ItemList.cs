@@ -59,12 +59,12 @@ namespace Tools_protocol.Kryone.Database
 
 		public ItemList(IDataReader reader)
 		{
-			Guid = (int)reader["guid"];
-			Template = (int)reader["template"];
-			Qua = (int)reader["qua"];
-			Pos = (int)reader["pos"];
-			Stat = (string)reader["stats"];
-			Puit = (int)reader["puit"];
+			Guid = Convert.ToInt32(reader["guid"]);
+			Template = Convert.ToInt32(reader["template"]);
+			Qua = Convert.ToInt32(reader["qua"]);
+			Pos = Convert.ToInt32(reader["pos"]);
+			Stat = Convert.ToString(reader["stats"]);
+			Puit = Convert.ToInt32(reader["puit"]);
 		}
 		
 		public static void AddItemIdToList()

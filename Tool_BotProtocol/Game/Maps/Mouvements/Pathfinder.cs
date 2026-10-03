@@ -18,43 +18,35 @@ namespace Tool_BotProtocol.Game.Maps.Mouvements
 
         public List<Cell> GetPath(Cell CelluleInitiale, Cell CellFinale, List<Cell> ForbidenCell, bool D, byte distance, Map M = null)
         {
-            if (M != null && cells == null)
-                cells = M.MapCells;
+            if (M != null) SetMap(M);
 
-            if (CelluleInitiale == null || CellFinale == null)
+            if (cells == null || CelluleInitiale == null || CellFinale == null)
                 return null;
-
-            List<Cell> CellPermises = new List<Cell>() { CelluleInitiale };
-
-            if (ForbidenCell.Contains(CellFinale))
-                ForbidenCell.Remove(CellFinale);
-
-            while (CellPermises.Count > 0)
+            var forbidden = new HashSet<Cell>(ForbidenCell ?? new List<Cell>());
+            var closed = new HashSet<Cell>();
+            var costs = new Dictionary<Cell, int> { { CelluleInitiale, 0 } };
+            var parents = new Dictionary<Cell, Cell>();
+            var open = new List<Cell> { CelluleInitiale };
+            while (open.Count > 0)
             {
-                Cell Actual = CellPermises.OrderBy(c => c.F).ThenByDescending(c => c.G).FirstOrDefault();
-
-                if (Actual == CellFinale)
-                    return GetBackSpace(CelluleInitiale, CellFinale);
-
-                CellPermises.Remove(Actual);
-                ForbidenCell.Add(Actual);
-
-                foreach (Cell CS in GetAdjacenteCells(Actual, D))
+                Cell actual = open.OrderBy(c => costs[c] + GetDistanceNodes(c, CellFinale, D)).First();
+                if (actual == CellFinale || (distance > 0 && actual.GetDistanceBetweenCells(CellFinale) <= distance))
                 {
-                    if (ForbidenCell.Contains(CS) || !CS.IsWalkable())
-                        continue;
-
-                    int TempG = Actual.G + GetDistanceNodes(CS, Actual, D);
-
-                    if (!CellPermises.Contains(CS))
-                        CellPermises.Add(CS);
-                    else if (TempG >= CS.G)
-                        continue;
-
-                    CS.G = TempG;
-                    CS.H = GetDistanceNodes(CS, CellFinale, D);
-                    CS.F = CS.G + CS.H;
-                    CS.Node = Actual;
+                    var path = new List<Cell> { actual };
+                    while (parents.TryGetValue(actual, out Cell previous)) { path.Add(previous); actual = previous; }
+                    path.Reverse();
+                    return path;
+                }
+                open.Remove(actual);
+                closed.Add(actual);
+                foreach (Cell next in GetAdjacenteCells(actual, D))
+                {
+                    if (closed.Contains(next) || forbidden.Contains(next) || !next.IsWalkable()) continue;
+                    int cost = costs[actual] + 1;
+                    if (costs.TryGetValue(next, out int known) && cost >= known) continue;
+                    costs[next] = cost;
+                    parents[next] = actual;
+                    if (!open.Contains(next)) open.Add(next);
                 }
             }
 
@@ -118,7 +110,7 @@ namespace Tool_BotProtocol.Game.Maps.Mouvements
         private int GetDistanceNodes(Cell a, Cell b, bool useDiag)
         {
             if (useDiag)
-                return (int)Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
+                return Math.Max(Math.Abs(a.X - b.X), Math.Abs(a.Y - b.Y));
 
             return Math.Abs(a.X - b.X) + Math.Abs(a.Y - b.Y);
         }

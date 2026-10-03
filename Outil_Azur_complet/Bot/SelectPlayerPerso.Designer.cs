@@ -128,7 +128,6 @@
             this.iTalk_Button_21.TabIndex = 2;
             this.iTalk_Button_21.Text = "Jouer";
             this.iTalk_Button_21.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_21.Click += new System.EventHandler(this.iTalk_Button_21_Click);
             // 
             // iTalk_Button_12
             // 
@@ -142,7 +141,6 @@
             this.iTalk_Button_12.TabIndex = 1;
             this.iTalk_Button_12.Text = "Créer personnage";
             this.iTalk_Button_12.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_12.Click += new System.EventHandler(this.iTalk_Button_12_Click);
             // 
             // iTalk_Button_11
             // 
@@ -156,7 +154,6 @@
             this.iTalk_Button_11.TabIndex = 1;
             this.iTalk_Button_11.Text = "Changer de serveur";
             this.iTalk_Button_11.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
             // 
             // iTalk_Panel1
             // 
@@ -208,7 +205,6 @@
             this.iTalk_LinkLabel5.TabStop = true;
             this.iTalk_LinkLabel5.Text = "Supprimer";
             this.iTalk_LinkLabel5.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-            this.iTalk_LinkLabel5.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel5_LinkClicked);
             // 
             // iTalk_LinkLabel4
             // 
@@ -225,7 +221,6 @@
             this.iTalk_LinkLabel4.TabStop = true;
             this.iTalk_LinkLabel4.Text = "Supprimer";
             this.iTalk_LinkLabel4.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-            this.iTalk_LinkLabel4.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel4_LinkClicked);
             // 
             // iTalk_LinkLabel3
             // 
@@ -242,7 +237,6 @@
             this.iTalk_LinkLabel3.TabStop = true;
             this.iTalk_LinkLabel3.Text = "Supprimer";
             this.iTalk_LinkLabel3.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-            this.iTalk_LinkLabel3.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel3_LinkClicked);
             // 
             // iTalk_LinkLabel2
             // 
@@ -259,7 +253,6 @@
             this.iTalk_LinkLabel2.TabStop = true;
             this.iTalk_LinkLabel2.Text = "Supprimer";
             this.iTalk_LinkLabel2.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-            this.iTalk_LinkLabel2.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel2_LinkClicked);
             // 
             // iTalk_LinkLabel1
             // 
@@ -276,7 +269,6 @@
             this.iTalk_LinkLabel1.TabStop = true;
             this.iTalk_LinkLabel1.Text = "Supprimer";
             this.iTalk_LinkLabel1.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-            this.iTalk_LinkLabel1.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel1_LinkClicked);
             // 
             // iTalk_RadioButton5
             // 
@@ -288,7 +280,6 @@
             this.iTalk_RadioButton5.Size = new System.Drawing.Size(62, 15);
             this.iTalk_RadioButton5.TabIndex = 3;
             this.iTalk_RadioButton5.Text = "Choisir";
-            this.iTalk_RadioButton5.CheckedChanged += new iTalk.iTalk_RadioButton.CheckedChangedEventHandler(this.iTalk_RadioButton5_CheckedChanged);
             // 
             // iTalk_RadioButton4
             // 
@@ -300,7 +291,6 @@
             this.iTalk_RadioButton4.Size = new System.Drawing.Size(62, 15);
             this.iTalk_RadioButton4.TabIndex = 3;
             this.iTalk_RadioButton4.Text = "Choisir";
-            this.iTalk_RadioButton4.CheckedChanged += new iTalk.iTalk_RadioButton.CheckedChangedEventHandler(this.iTalk_RadioButton4_CheckedChanged);
             // 
             // iTalk_RadioButton3
             // 
@@ -312,7 +302,6 @@
             this.iTalk_RadioButton3.Size = new System.Drawing.Size(62, 15);
             this.iTalk_RadioButton3.TabIndex = 3;
             this.iTalk_RadioButton3.Text = "Choisir";
-            this.iTalk_RadioButton3.CheckedChanged += new iTalk.iTalk_RadioButton.CheckedChangedEventHandler(this.iTalk_RadioButton3_CheckedChanged);
             // 
             // iTalk_RadioButton2
             // 
@@ -324,7 +313,6 @@
             this.iTalk_RadioButton2.Size = new System.Drawing.Size(62, 15);
             this.iTalk_RadioButton2.TabIndex = 3;
             this.iTalk_RadioButton2.Text = "Choisir";
-            this.iTalk_RadioButton2.CheckedChanged += new iTalk.iTalk_RadioButton.CheckedChangedEventHandler(this.iTalk_RadioButton2_CheckedChanged);
             // 
             // iTalk_RadioButton1
             // 
@@ -336,7 +324,6 @@
             this.iTalk_RadioButton1.Size = new System.Drawing.Size(65, 15);
             this.iTalk_RadioButton1.TabIndex = 2;
             this.iTalk_RadioButton1.Text = "Choisir";
-            this.iTalk_RadioButton1.CheckedChanged += new iTalk.iTalk_RadioButton.CheckedChangedEventHandler(this.iTalk_RadioButton1_CheckedChanged);
             // 
             // iTalk_Label5
             // 
@@ -349,7 +336,6 @@
             this.iTalk_Label5.Size = new System.Drawing.Size(12, 13);
             this.iTalk_Label5.TabIndex = 1;
             this.iTalk_Label5.Text = "*";
-            this.iTalk_Label5.Click += new System.EventHandler(this.iTalk_Label1_Click);
             // 
             // iTalk_Label4
             // 
@@ -362,7 +348,6 @@
             this.iTalk_Label4.Size = new System.Drawing.Size(12, 13);
             this.iTalk_Label4.TabIndex = 1;
             this.iTalk_Label4.Text = "*";
-            this.iTalk_Label4.Click += new System.EventHandler(this.iTalk_Label1_Click);
             // 
             // iTalk_Label3
             // 
@@ -375,7 +360,6 @@
             this.iTalk_Label3.Size = new System.Drawing.Size(12, 13);
             this.iTalk_Label3.TabIndex = 1;
             this.iTalk_Label3.Text = "*";
-            this.iTalk_Label3.Click += new System.EventHandler(this.iTalk_Label1_Click);
             // 
             // iTalk_Label10
             // 
@@ -388,7 +372,6 @@
             this.iTalk_Label10.Size = new System.Drawing.Size(12, 13);
             this.iTalk_Label10.TabIndex = 1;
             this.iTalk_Label10.Text = "*";
-            this.iTalk_Label10.Click += new System.EventHandler(this.iTalk_Label1_Click);
             // 
             // iTalk_Label9
             // 
@@ -401,7 +384,6 @@
             this.iTalk_Label9.Size = new System.Drawing.Size(12, 13);
             this.iTalk_Label9.TabIndex = 1;
             this.iTalk_Label9.Text = "*";
-            this.iTalk_Label9.Click += new System.EventHandler(this.iTalk_Label1_Click);
             // 
             // iTalk_Label8
             // 
@@ -414,7 +396,6 @@
             this.iTalk_Label8.Size = new System.Drawing.Size(12, 13);
             this.iTalk_Label8.TabIndex = 1;
             this.iTalk_Label8.Text = "*";
-            this.iTalk_Label8.Click += new System.EventHandler(this.iTalk_Label1_Click);
             // 
             // iTalk_Label7
             // 
@@ -427,7 +408,6 @@
             this.iTalk_Label7.Size = new System.Drawing.Size(12, 13);
             this.iTalk_Label7.TabIndex = 1;
             this.iTalk_Label7.Text = "*";
-            this.iTalk_Label7.Click += new System.EventHandler(this.iTalk_Label1_Click);
             // 
             // iTalk_Label2
             // 
@@ -440,7 +420,6 @@
             this.iTalk_Label2.Size = new System.Drawing.Size(12, 13);
             this.iTalk_Label2.TabIndex = 1;
             this.iTalk_Label2.Text = "*";
-            this.iTalk_Label2.Click += new System.EventHandler(this.iTalk_Label1_Click);
             // 
             // iTalk_Label6
             // 
@@ -453,7 +432,6 @@
             this.iTalk_Label6.Size = new System.Drawing.Size(12, 13);
             this.iTalk_Label6.TabIndex = 1;
             this.iTalk_Label6.Text = "*";
-            this.iTalk_Label6.Click += new System.EventHandler(this.iTalk_Label1_Click);
             // 
             // iTalk_Label1
             // 
@@ -466,7 +444,6 @@
             this.iTalk_Label1.Size = new System.Drawing.Size(12, 13);
             this.iTalk_Label1.TabIndex = 1;
             this.iTalk_Label1.Text = "*";
-            this.iTalk_Label1.Click += new System.EventHandler(this.iTalk_Label1_Click);
             // 
             // pictureBox5
             // 
@@ -524,7 +501,6 @@
             this.Name = "SelectPlayerPerso";
             this.Text = "Selection du personnage";
             this.TransparencyKey = System.Drawing.Color.Fuchsia;
-            this.Load += new System.EventHandler(this.SelectPlayerPerso_Load);
             this.iTalk_ThemeContainer1.ResumeLayout(false);
             this.iTalk_ThemeContainer1.PerformLayout();
             this.iTalk_Panel1.ResumeLayout(false);

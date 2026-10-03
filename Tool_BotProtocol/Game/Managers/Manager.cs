@@ -29,16 +29,20 @@ namespace Tool_BotProtocol.Game.Managers
         {
             
             Recolte.Clear();
-            Teleport.Dispose();
+            Mouvements.Clear();
+            Teleport.Clear();
         }
 
         public void Dispose() => Dispose(true);
-        ~Manager() => Dispose(true);
         protected virtual void Dispose(bool d)
         {
             if(disposed) return;
             if(d)
+            {
+                Recolte.Dispose();
+                Teleport.Dispose();
                 Mouvements.Dispose();
+            }
             Mouvements = null;
             disposed = true;
         }

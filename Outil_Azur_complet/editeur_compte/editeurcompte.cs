@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Globalization;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,47 +14,97 @@ using Tools_protocol.Managers;
 using Tools_protocol.Query;
 using System.Collections.Concurrent;
 using System.Linq;
+using System.Collections;
+using System.Text.RegularExpressions;
 
 namespace Outil_Azur_complet.editeur_compte
 {
     public partial class editeurcompte : Form, IDisposable
     {
-        private readonly ConcurrentDictionary<string, string> _modifiedQueries;
+        private readonly ConcurrentDictionary<string, PendingAccountChange> _pendingChanges;
         private readonly HashSet<string> _accountList;
         private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly object _lockObject = new object();
         private bool _disposed;
 
-        private static readonly SemaphoreSlim _loadSemaphore = new SemaphoreSlim(1, 1);
-        private static readonly SemaphoreSlim _updateSemaphore = new SemaphoreSlim(1, 1);
+        List<Dictionary<string, object>> allAccounts = new List<Dictionary<string, object>>();
+        private readonly SemaphoreSlim _loadSemaphore = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim _updateSemaphore = new SemaphoreSlim(1, 1);
+        private bool _loadingFields;
+        private bool _saving;
 
-        public string TableCompte => EmuManager.ReturnTable("comptes", InitializeForm.EMUSELECT);
+        private sealed class PendingAccountChange
+        {
+            public uint AccountId { get; set; }
+            public string Field { get; set; }
+            public string Value { get; set; }
+            public string OriginalValue { get; set; }
+        }
+
+        public string TableCompte => EmuManager.GetEmulatorVariable(InitializeForm.EMUSELECT, "AccountList", "TableCompte", null,null, null) as string;
         public string TablePerso => EmuManager.ReturnTable("perso", InitializeForm.EMUSELECT);
 
         public editeurcompte()
         {
             InitializeComponent();
             
-            _modifiedQueries = new ConcurrentDictionary<string, string>();
+            _pendingChanges = new ConcurrentDictionary<string, PendingAccountChange>();
             _accountList = new HashSet<string>();
             _cancellationTokenSource = new CancellationTokenSource();
 
             InitializeEventHandlers();
             ConfigureControls();
+            BuildEditorLayout();
         }
 
         private void InitializeEventHandlers()
         {
-            FormClosing += (s, e) => _cancellationTokenSource.Cancel();
+            FormClosing += (s, e) =>
+            {
+                if (_saving)
+                {
+                    e.Cancel = true;
+                    MessageBox.Show("Veuillez attendre la fin de l'enregistrement.", "Compte",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else if (_pendingChanges.Count > 0 && MessageBox.Show(this,"Des modifications ne sont pas enregistrées. Les abandonner et fermer ?","Modifications en attente",MessageBoxButtons.YesNo,MessageBoxIcon.Question) != DialogResult.Yes)
+                    e.Cancel = true;
+                else
+                    _cancellationTokenSource.Cancel();
+            };
             listBox1.SelectedIndexChanged += async (s, e) => await LoadAccountDetailsAsync();
             textBox1.TextChanged += HandleSearchTextChanged;
+            iTalk_Button_22.Click += async (s, e) => await SaveChangesAsync();
+            iTalk_Button_14.Click += async (s, e) =>
+            {
+                using (var form = new CreateForm())
+                {
+                    if (form.ShowDialog(this) == DialogResult.OK)
+                        await LoadEditorAsync(InitializeForm.EMUSELECT);
+                }
+            };
+            iTalk_Button_15.Click += (s, e) => Close();
+            iTalk_Button_13.Click += (s, e) => ToggleAccountFlag("vip", iTalk_TextBox_Small11);
+            iTalk_Button_12.Click += (s, e) => ToggleAccountFlag("banned", iTalk_TextBox_Small5);
+            iTalk_Button_11.Click += async (s, e) => await DeleteSelectedAccountAsync();
+            iTalk_Button_21.Click += (s, e) => OpenSelectedCharacter();
+
+            iTalk_TextBox_Small3.TextChanged += (s, e) => QueueAccountChange("pseudo", iTalk_TextBox_Small3.Text);
+            iTalk_TextBox_Small4.TextChanged += (s, e) => QueueAccountChange("pass", iTalk_TextBox_Small4.Text);
+            iTalk_TextBox_Small6.TextChanged += (s, e) => QueueAccountChange("question", iTalk_TextBox_Small6.Text);
+            iTalk_TextBox_Small7.TextChanged += (s, e) => QueueAccountChange("reponse", iTalk_TextBox_Small7.Text);
+            iTalk_TextBox_Small9.TextChanged += (s, e) => QueueAccountChange("points", iTalk_TextBox_Small9.Text);
+            iTalk_TextBox_Small10.TextChanged += (s, e) => QueueAccountChange("lastIp", iTalk_TextBox_Small10.Text);
         }
 
         private void ConfigureControls()
         {
             iTalk_TextBox_Small1.Enabled = false;
+            iTalk_TextBox_Small2.ReadOnly = true;
             iTalk_TextBox_Small5.Enabled = false;
             iTalk_TextBox_Small11.Enabled = false;
+            iTalk_Button_11.Enabled = false;
+            iTalk_Button_21.Enabled = false;
         }
 
         private async void editeurcompte_Load(object sender, EventArgs e)
@@ -65,37 +116,36 @@ namespace Outil_Azur_complet.editeur_compte
         {
             if (_disposed) return;
 
+            await _loadSemaphore.WaitAsync();
+            bool beganUpdate = false;
             try
             {
-                await _loadSemaphore.WaitAsync();
-                
+                allAccounts = await Task.Run(() => EmuManager.GetAllAccountPropertiesForEmulator(emu));
+                if (_disposed) return;
                 listBox1.BeginUpdate();
+                beganUpdate = true;
                 listBox1.Items.Clear();
                 _accountList.Clear();
-
-                await Task.Run(() =>
+                foreach (var account in allAccounts)
                 {
-                    if (emu.Equals("Kryone"))
+                    string accountName = GetAccountValue(account, "Username", "Account", "Name");
+                    if (!string.IsNullOrEmpty(accountName))
                     {
-                        foreach (string account in AccountList.AllAccount.Keys)
-                        {
-                            this.InvokeIfRequired(() => listBox1.Items.Add(account));
-                            _accountList.Add(account);
-                        }
+                        listBox1.Items.Add(accountName);
+                        _accountList.Add(accountName);
                     }
-                    else if (emu.Equals("Codebreak"))
-                    {
-                        AccountListi.AccountsName.Clear();
-                        AccountListi.LoadAccounts();
-                        foreach (string account in AccountListi.AccountsName)
-                        {
-                            this.InvokeIfRequired(() => listBox1.Items.Add(account));
-                            _accountList.Add(account);
-                        }
-                    }
-                });
-
+                }
                 UpdateAccountCount();
+                bool canEditKryone = string.Equals(emu, "Kryone", StringComparison.OrdinalIgnoreCase);
+                iTalk_Button_22.Enabled = canEditKryone;
+                iTalk_Button_14.Enabled = canEditKryone;
+                iTalk_Button_13.Enabled = canEditKryone;
+                iTalk_Button_12.Enabled = canEditKryone;
+                iTalk_Button_11.Enabled = false;
+                iTalk_Button_21.Enabled = false;
+                foreach (var control in new[] { iTalk_TextBox_Small3, iTalk_TextBox_Small4,
+                    iTalk_TextBox_Small6, iTalk_TextBox_Small7, iTalk_TextBox_Small9, iTalk_TextBox_Small10 })
+                    control.ReadOnly = !canEditKryone;
             }
             catch (Exception ex)
             {
@@ -103,31 +153,47 @@ namespace Outil_Azur_complet.editeur_compte
             }
             finally
             {
-                listBox1.EndUpdate();
+                if (beganUpdate && !_disposed) listBox1.EndUpdate();
                 _loadSemaphore.Release();
             }
         }
 
         private async Task LoadAccountDetailsAsync()
         {
-            if (_disposed || listBox1.SelectedItem == null) return;
+            if (_disposed) return;
+            if (listBox1.SelectedItem == null)
+            {
+                _loadingFields = true;
+                try
+                {
+                    foreach (var field in new[] { iTalk_TextBox_Small1, iTalk_TextBox_Small2,
+                        iTalk_TextBox_Small3, iTalk_TextBox_Small4, iTalk_TextBox_Small5,
+                        iTalk_TextBox_Small6, iTalk_TextBox_Small7, iTalk_TextBox_Small9,
+                        iTalk_TextBox_Small10, iTalk_TextBox_Small11 })
+                        field.Text = string.Empty;
+                    iTalk_ComboBox1.Items.Clear();
+                    iTalk_Label9.Text = "-";
+                    iTalk_Button_11.Enabled = false;
+                    iTalk_Button_21.Enabled = false;
+                }
+                finally { _loadingFields = false; }
+                return;
+            }
 
             try
             {
-                var selectedAccount = listBox1.SelectedItem.ToString();
-                await Task.Run(() =>
+                string selectedAccount = listBox1.SelectedItem.ToString();
+                var account = allAccounts.FirstOrDefault(item =>
+                    string.Equals(GetAccountValue(item, "Username", "Account", "Name"),
+                        selectedAccount, StringComparison.OrdinalIgnoreCase));
+                if (account == null) return;
+
+                UpdateAccountFields(account);
+                if (string.Equals(InitializeForm.EMUSELECT, "Kryone", StringComparison.OrdinalIgnoreCase))
                 {
-                    var accountInfo = new string[10];
-                    for (int i = 1; i <= 10; i++)
-                    {
-                        accountInfo[i-1] = EmuManager.ReturnAccountsInfo(InitializeForm.EMUSELECT, selectedAccount, i);
-                    }
-
-                    this.InvokeIfRequired(() => UpdateAccountFields(accountInfo));
-                });
-
-                await LoadCharactersAsync();
-                UpdateConnectionStatus();
+                    UpdateConnectionStatus();
+                    await LoadCharactersAsync();
+                }
             }
             catch (Exception ex)
             {
@@ -135,20 +201,49 @@ namespace Outil_Azur_complet.editeur_compte
             }
         }
 
-        private void UpdateAccountFields(string[] info)
+        private static string GetAccountValue(Dictionary<string, object> account, params string[] propertyNames)
         {
-            if (info == null || info.Length != 10) return;
+            foreach (string name in propertyNames)
+            {
+                if (account.TryGetValue(name, out object value) && value != null)
+                    return value.ToString();
+            }
+            return string.Empty;
+        }
 
-            iTalk_TextBox_Small1.Text = info[0];
-            iTalk_TextBox_Small2.Text = info[1];
-            iTalk_TextBox_Small3.Text = info[2];
-            iTalk_TextBox_Small4.Text = info[3];
-            iTalk_TextBox_Small5.Text = info[4];
-            iTalk_TextBox_Small6.Text = info[5];
-            iTalk_TextBox_Small7.Text = info[6];
-            iTalk_TextBox_Small9.Text = info[7];
-            iTalk_TextBox_Small10.Text = info[8];
-            iTalk_TextBox_Small11.Text = info[9];
+        private void UpdateAccountFields(Dictionary<string, object> info)
+        {
+            _loadingFields = true;
+            try
+            {
+                iTalk_TextBox_Small1.Text = GetAccountValue(info, "Guid", "Id");
+                iTalk_TextBox_Small2.Text = GetAccountValue(info, "Account", "Username", "Name");
+                iTalk_TextBox_Small3.Text = GetAccountValue(info, "Pseudo", "Nickname");
+                iTalk_TextBox_Small4.Text = GetAccountValue(info, "Pass", "Password");
+                iTalk_TextBox_Small5.Text = GetAccountValue(info, "Banned", "IsBanned");
+                iTalk_TextBox_Small6.Text = GetAccountValue(info, "Question", "SecretQuestion");
+                iTalk_TextBox_Small7.Text = GetAccountValue(info, "Reponse", "SecretAnswer");
+                iTalk_TextBox_Small9.Text = GetAccountValue(info, "Points");
+                iTalk_TextBox_Small10.Text = GetAccountValue(info, "lastIp", "LastConnectionIp");
+                iTalk_TextBox_Small11.Text = GetAccountValue(info, "Vip");
+
+                if (uint.TryParse(GetAccountValue(info, "Guid", "Id"), out uint accountId))
+                {
+                    foreach (var field in new Dictionary<string, Control>
+                    {
+                        ["pseudo"] = iTalk_TextBox_Small3, ["pass"] = iTalk_TextBox_Small4,
+                        ["question"] = iTalk_TextBox_Small6, ["reponse"] = iTalk_TextBox_Small7,
+                        ["points"] = iTalk_TextBox_Small9, ["lastIp"] = iTalk_TextBox_Small10,
+                        ["banned"] = iTalk_TextBox_Small5, ["vip"] = iTalk_TextBox_Small11
+                    })
+                        if (_pendingChanges.TryGetValue($"{accountId}|{field.Key}", out var pending))
+                            field.Value.Text = pending.Value;
+                }
+            }
+            finally
+            {
+                _loadingFields = false;
+            }
         }
 
         private async Task LoadCharactersAsync()
@@ -161,10 +256,13 @@ namespace Outil_Azur_complet.editeur_compte
             try
             {
                 var characters = await Task.Run(() => CharacterList.Informations(accountId));
+                if (_disposed || !int.TryParse(iTalk_TextBox_Small1.Text, out int currentId) ||
+                    currentId != accountId) return;
                 foreach (var character in characters)
                 {
                     iTalk_ComboBox1.Items.Add(character);
                 }
+                iTalk_Button_21.Enabled = iTalk_ComboBox1.Items.Count > 0;
             }
             finally
             {
@@ -174,36 +272,136 @@ namespace Outil_Azur_complet.editeur_compte
 
         private void UpdateConnectionStatus()
         {
-            if (!int.TryParse(iTalk_TextBox_Small1.Text, out int accountId)) return;
+            if (listBox1.SelectedItem == null ||
+                !int.TryParse(iTalk_TextBox_Small1.Text, out int accountId)) return;
 
-            var isConnected = AccountList.Informations(listBox1.SelectedItem.ToString()).Logged == 1;
-            iTalk_Label9.Text = isConnected ? "Connecté" : "Non connecté";
-            iTalk_Label9.ForeColor = isConnected ? System.Drawing.Color.Green : System.Drawing.Color.Red;
+            var account = AccountList.Informations(listBox1.SelectedItem.ToString());
+            bool isOffline = account != null && account.Guid == accountId && account.Logged == 0;
+            iTalk_Label9.Text = account == null || account.Guid != accountId ? "Statut inconnu" :
+                account.Logged == 0 ? "Non connecté" : account.Logged == 1 ? "Connecté" :
+                "Statut inconnu (" + account.Logged + ")";
+            iTalk_Label9.ForeColor = isOffline ? System.Drawing.Color.Red :
+                account != null && account.Guid == accountId && account.Logged == 1 ? System.Drawing.Color.Green :
+                System.Drawing.Color.DarkOrange;
+            bool canModerate = string.Equals(InitializeForm.EMUSELECT, "Kryone",
+                StringComparison.OrdinalIgnoreCase) && !_saving;
+            iTalk_Button_11.Enabled = canModerate && isOffline;
+            if (account == null) return;
+            iTalk_Button_12.Text = account.Banned == 0 ? "Bannir compte" : "Débannir compte";
+            iTalk_Button_13.Text = account.Vip == 0 ? "Rendre VIP" : "Retirer VIP";
         }
 
-        private async Task UpdateAccountAsync(string field, string value, string controlKey)
+        private void QueueAccountChange(string field, string value)
         {
-            if (_disposed || string.IsNullOrEmpty(iTalk_TextBox_Small1.Text)) return;
+            if (_disposed || _loadingFields || _saving || !string.Equals(InitializeForm.EMUSELECT,
+                "Kryone", StringComparison.OrdinalIgnoreCase) ||
+                listBox1.SelectedItem == null ||
+                !uint.TryParse(iTalk_TextBox_Small1.Text, out uint accountId)) return;
 
+            string key = $"{accountId}|{field}";
+            var cachedAccount = allAccounts.FirstOrDefault(item =>
+                GetAccountValue(item, "Guid", "Id") == accountId.ToString(CultureInfo.InvariantCulture));
+            if (cachedAccount == null) return;
+            string original = _pendingChanges.TryGetValue(key, out var existing) ?
+                existing.OriginalValue : GetAccountValue(cachedAccount, field == "lastIp" ? "lastIp" :
+                    char.ToUpperInvariant(field[0]) + field.Substring(1));
+            if (string.Equals(value, original, StringComparison.Ordinal))
+                _pendingChanges.TryRemove(key, out _);
+            else
+            {
+                var change = new PendingAccountChange
+                { AccountId = accountId, Field = field, Value = value, OriginalValue = original };
+                _pendingChanges.AddOrUpdate(key, change, (changeKey, oldValue) =>
+                    new PendingAccountChange { AccountId = accountId, Field = field,
+                        Value = value, OriginalValue = oldValue.OriginalValue });
+            }
+            UpdateNotificationCount();
+        }
+
+        private void ToggleAccountFlag(string field, Control control)
+        {
+            if (_saving || listBox1.SelectedItem == null) return;
+            if (!int.TryParse(control.Text, out int currentValue)) return;
+            control.Text = currentValue == 0 ? "1" : "0";
+            QueueAccountChange(field, control.Text);
+            if (field == "banned")
+                iTalk_Button_12.Text = control.Text == "0" ? "Bannir compte" : "Débannir compte";
+            if (field == "vip")
+                iTalk_Button_13.Text = control.Text == "0" ? "Rendre VIP" : "Retirer VIP";
+        }
+
+        private void OpenSelectedCharacter()
+        {
+            if (iTalk_ComboBox1.SelectedItem == null) return;
+            var editor = new editeur_perso.editeur_perso(iTalk_ComboBox1.SelectedItem.ToString());
+            editor.Show(this);
+        }
+
+        private async Task DeleteSelectedAccountAsync()
+        {
+            if (_disposed || _saving || listBox1.SelectedItem == null ||
+                !uint.TryParse(iTalk_TextBox_Small1.Text, out uint accountId)) return;
+            string accountName = listBox1.SelectedItem.ToString();
+            var account = AccountList.AllAccount.Values.FirstOrDefault(value => value.Guid == accountId);
+            if (account != null && account.Logged != 0)
+            {
+                MessageBox.Show("Déconnectez le compte avant de le supprimer.", "Compte",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            int characterCount = CharacterList.PersoAll.Values.Count(value => value.Account == accountId);
+            var confirmation = MessageBox.Show(
+                $"Supprimer définitivement le compte {accountName}, ses {characterCount} personnage(s) " +
+                "et leurs objets ? Cette action est irréversible.",
+                "Confirmation de suppression", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2);
+            if (confirmation != DialogResult.Yes) return;
+
+            _saving = true;
+            await _updateSemaphore.WaitAsync();
             try
             {
-                await _updateSemaphore.WaitAsync();
-
-                var accountId = iTalk_TextBox_Small1.Text;
-                var query = QueryBuilder.UpdateFromQuery(TableCompte, field, 1, value, "guid", accountId);
-
-                _modifiedQueries.AddOrUpdate(
-                    $"{controlKey}{accountId}",
-                    query,
-                    (key, oldValue) => query
-                );
-
-                UpdateNotificationCount();
+                iTalk_Button_11.Enabled = false;
+                iTalk_Button_22.Enabled = false;
+                var result = await Task.Run(() => KryoneModerationService.DeleteAccount(accountId, accountName));
+                RemoveDeletedAccountFromCache(result);
+                await LoadEditorAsync(InitializeForm.EMUSELECT);
+                MessageBox.Show($"Le compte {accountName} et ses données de personnage ont été supprimés.",
+                    "Compte supprimé", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Aucune donnée n'a été supprimée : {ex.Message}", "Suppression impossible",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
+                _saving = false;
                 _updateSemaphore.Release();
+                if (!_disposed)
+                    iTalk_Button_22.Enabled = string.Equals(InitializeForm.EMUSELECT, "Kryone",
+                        StringComparison.OrdinalIgnoreCase);
             }
+        }
+
+        private void RemoveDeletedAccountFromCache(AccountDeletionResult result)
+        {
+            foreach (string key in _pendingChanges.Keys.Where(key =>
+                key.StartsWith(result.AccountId + "|", StringComparison.Ordinal)).ToArray())
+                _pendingChanges.TryRemove(key, out _);
+            AccountList.AllAccount.Remove(result.AccountName);
+            if (result.AccountId <= int.MaxValue)
+                CharacterList.IdCompte.Remove(Convert.ToInt32(result.AccountId));
+            foreach (int id in result.CharacterIds) CharacterList.IdAccount.Remove(id);
+            foreach (string name in result.CharacterNames) CharacterList.PersoAll.Remove(name);
+            foreach (int id in result.ItemIds)
+            {
+                ItemList.ItemsList.Remove(id);
+                ItemList.ItemsId.Remove(id);
+            }
+            AccountList.AccountListCount = AccountList.AllAccount.Count;
+            CharacterList.PersoCount = CharacterList.PersoAll.Count;
+            UpdateNotificationCount();
         }
 
         private void HandleSearchTextChanged(object sender, EventArgs e)
@@ -246,37 +444,203 @@ namespace Outil_Azur_complet.editeur_compte
             iTalk_Label14.Text = string.Format("{0} comptes chargés.", listBox1.Items.Count);
         }
 
-        private void UpdateNotificationCount(bool reset = false)
+        private void UpdateNotificationCount()
         {
-            if (reset)
-            {
-                iTalk_NotificationNumber1.Value = 0;
-            }
-            else
-            {
-                iTalk_NotificationNumber1.Value++;
-            }
+            iTalk_NotificationNumber1.Value = _pendingChanges.Count;
+            if (editorLayout != null) editorLayout.Status.Text = _pendingChanges.Count + " modification(s) en attente · " + listBox1.Items.Count + " compte(s) affiché(s).";
         }
 
         private async Task SaveChangesAsync()
         {
-            if (_disposed) return;
-
+            if (_disposed || _pendingChanges.IsEmpty || _saving) return;
+            _saving = true;
+            await _updateSemaphore.WaitAsync();
+            var editableControls = new[] { iTalk_TextBox_Small3, iTalk_TextBox_Small4,
+                iTalk_TextBox_Small6, iTalk_TextBox_Small7, iTalk_TextBox_Small9, iTalk_TextBox_Small10 };
             try
             {
-                await _updateSemaphore.WaitAsync();
+                var changes = _pendingChanges.ToArray();
+                string table = TableCompte;
+                if (string.IsNullOrEmpty(table) ||
+                    !Regex.IsMatch(table, @"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant))
+                    throw new InvalidOperationException("Le nom de la table des comptes est invalide.");
 
-                foreach (string query in _modifiedQueries.Values)
+                foreach (var pair in changes)
                 {
-                    await Task.Run(() => DatabaseManager.UpdateQuery(query));
+                    if (pair.Value.Field == "points" &&
+                        (!int.TryParse(pair.Value.Value, out int points) || points < 0))
+                        throw new FormatException("Les points doivent être un entier positif ou nul.");
                 }
 
-                _modifiedQueries.Clear();
-                UpdateNotificationCount(true);
+                iTalk_Button_22.Enabled = false;
+                foreach (var control in editableControls) control.Enabled = false;
+                await Task.Run(() => ApplyAccountChanges(table, changes));
+
+                foreach (var pair in changes)
+                {
+                    ((ICollection<KeyValuePair<string, PendingAccountChange>>)_pendingChanges).Remove(pair);
+                    UpdateCachedAccount(pair.Value);
+                }
+                UpdateNotificationCount();
+                MessageBox.Show("Modifications enregistrées.", "Compte", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Aucune modification n'a été enregistrée : {ex.Message}",
+                    "Erreur SQL", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
+                _saving = false;
+                if (!_disposed)
+                {
+                    iTalk_Button_22.Enabled = string.Equals(InitializeForm.EMUSELECT, "Kryone",
+                        StringComparison.OrdinalIgnoreCase);
+                    foreach (var control in editableControls) control.Enabled = true;
+                    UpdateConnectionStatus();
+                }
                 _updateSemaphore.Release();
+            }
+        }
+
+        private static void ApplyAccountChanges(string table, KeyValuePair<string, PendingAccountChange>[] changes)
+        {
+            if (!string.Equals(InitializeForm.EMUSELECT, "Kryone", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Cette action est disponible pour Kryone uniquement.");
+            if (string.IsNullOrWhiteSpace(DatabaseManager.ConnectionString))
+                throw new InvalidOperationException("La connexion auth doit être active.");
+            if (string.IsNullOrWhiteSpace(table) ||
+                !Regex.IsMatch(table, @"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant))
+                throw new InvalidOperationException("Le nom de la table des comptes est invalide.");
+            var settings = new MySqlConnectionStringBuilder(DatabaseManager.ConnectionString);
+            if (string.IsNullOrWhiteSpace(settings.Database) ||
+                !Regex.IsMatch(settings.Database, @"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant))
+                throw new InvalidOperationException("Le nom de la base auth est invalide.");
+            if (changes == null) throw new ArgumentNullException(nameof(changes));
+            var allowedFields = new HashSet<string>(StringComparer.Ordinal)
+            { "pseudo", "pass", "question", "reponse", "points", "lastIp", "banned", "vip" };
+            foreach (var pair in changes)
+            {
+                var change = pair.Value;
+                if (change == null || change.AccountId == 0 || change.Field == null ||
+                    !allowedFields.Contains(change.Field))
+                    throw new InvalidOperationException("Champ ou identifiant de compte non autorisé.");
+                if (change.OriginalValue == null)
+                    throw new InvalidOperationException("La valeur d'origine du compte est inconnue. Rechargez les données.");
+                if (change.Value == null)
+                    throw new InvalidOperationException("Une valeur de compte ne peut pas être nulle.");
+                AccountChangeValue(change.Field, change.Value);
+                AccountChangeValue(change.Field, change.OriginalValue);
+            }
+            var accountGroups = changes.Select(pair => pair.Value).GroupBy(change => change.AccountId)
+                .OrderBy(group => group.Key).ToArray();
+            if (accountGroups.Any(group => group.Select(change => change.Field).Distinct().Count() != group.Count()))
+                throw new InvalidOperationException("Un champ de compte est présent plusieurs fois dans les modifications.");
+            if (changes.Length == 0) return;
+            string accounts = $"`{settings.Database}`.`{table}`";
+            using (var connection = new MySqlConnection(settings.ConnectionString))
+            {
+                connection.Open();
+                ServerSql.RequireStrictWrites(connection);
+                using (var engineCommand = new MySqlCommand(
+                    "SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=@schema AND TABLE_NAME=@table",
+                    connection))
+                {
+                    engineCommand.Parameters.AddWithValue("@schema", settings.Database);
+                    engineCommand.Parameters.AddWithValue("@table", table);
+                    string engine = Convert.ToString(engineCommand.ExecuteScalar(), CultureInfo.InvariantCulture);
+                    if (!string.Equals(engine, "InnoDB", StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidOperationException("L'enregistrement des comptes exige une table InnoDB " +
+                            "(actuel : " + (string.IsNullOrEmpty(engine) ? "absente" : engine) + ").");
+                }
+                using (var transaction = connection.BeginTransaction(IsolationLevel.Serializable))
+                {
+                    foreach (var change in changes.Select(pair => pair.Value))
+                        if (change.Field != "points" && change.Field != "banned" && change.Field != "vip")
+                            ServerSql.RequireTextLength(connection, transaction, table, change.Field, change.Value);
+                    foreach (var group in accountGroups)
+                    {
+                        string fields = string.Join(",", group.Select(change => "`" + change.Field + "`"));
+                        using (var command = new MySqlCommand(
+                            $"SELECT `logged`,{fields} FROM {accounts} WHERE `guid`=@accountId FOR UPDATE",
+                            connection, transaction))
+                        {
+                            command.Parameters.AddWithValue("@accountId", group.Key);
+                            using (var reader = command.ExecuteReader())
+                            {
+                                if (!reader.Read())
+                                    throw new InvalidOperationException("Le compte n'existe plus dans la base.");
+                                ServerSql.RequireOffline(reader["logged"], "le compte");
+                                foreach (var change in group)
+                                {
+                                    if (reader[change.Field] == DBNull.Value ||
+                                        !Equals(AccountChangeValue(change.Field, Convert.ToString(reader[change.Field],
+                                            CultureInfo.InvariantCulture)), AccountChangeValue(change.Field, change.OriginalValue)))
+                                        throw new InvalidOperationException("Un champ du compte a changé depuis son chargement. " +
+                                            "Rechargez les données avant de réessayer ; vos saisies restent en attente.");
+                                }
+                            }
+                        }
+                    }
+                    foreach (var group in accountGroups)
+                    {
+                        var modified = group.Where(change => !Equals(AccountChangeValue(change.Field, change.Value),
+                            AccountChangeValue(change.Field, change.OriginalValue))).ToArray();
+                        if (modified.Length == 0) continue;
+                        string assignments = string.Join(",", modified.Select((change, index) =>
+                            "`" + change.Field + "`=@value" + index));
+                        using (var command = new MySqlCommand(
+                            $"UPDATE {accounts} SET {assignments} WHERE `guid`=@accountId AND `logged`=0",
+                            connection, transaction))
+                        {
+                            command.Parameters.AddWithValue("@accountId", group.Key);
+                            for (int index = 0; index < modified.Length; index++)
+                                command.Parameters.AddWithValue("@value" + index,
+                                    AccountChangeValue(modified[index].Field, modified[index].Value));
+                            if (command.ExecuteNonQuery() != 1)
+                                throw new InvalidOperationException("L'état du compte a changé. Rechargez les données.");
+                        }
+                    }
+                    transaction.Commit();
+                }
+            }
+        }
+
+        private static object AccountChangeValue(string field, string value)
+        {
+            if (field != "points" && field != "banned" && field != "vip") return value;
+            if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number) ||
+                (field == "points" ? number < 0 : number != 0 && number != 1))
+                throw new FormatException(field == "points" ?
+                    "Les points doivent être un entier positif ou nul." :
+                    "Les indicateurs VIP et bannissement doivent valoir 0 ou 1.");
+            return number;
+        }
+
+        private void UpdateCachedAccount(PendingAccountChange change)
+        {
+            var account = AccountList.AllAccount.Values.FirstOrDefault(item => item.Guid == change.AccountId);
+            if (account == null) return;
+            switch (change.Field)
+            {
+                case "pseudo": account.Pseudo = change.Value; break;
+                case "pass": account.Pass = change.Value; break;
+                case "question": account.Question = change.Value; break;
+                case "reponse": account.Reponse = change.Value; break;
+                case "points": account.Points = int.Parse(change.Value); break;
+                case "lastIp": account.lastIp = change.Value; break;
+                case "banned": account.Banned = sbyte.Parse(change.Value); break;
+                case "vip": account.Vip = int.Parse(change.Value); break;
+            }
+            var displayed = allAccounts.FirstOrDefault(item =>
+                GetAccountValue(item, "Guid") == change.AccountId.ToString());
+            if (displayed != null)
+            {
+                string property = change.Field == "lastIp" ? "lastIp" :
+                    char.ToUpperInvariant(change.Field[0]) + change.Field.Substring(1);
+                if (change.Field == "pass") property = "Pass";
+                if (change.Field == "reponse") property = "Reponse";
+                displayed[property] = change.Value;
             }
         }
 
@@ -288,12 +652,15 @@ namespace Outil_Azur_complet.editeur_compte
                 {
                     _cancellationTokenSource.Cancel();
                     _cancellationTokenSource.Dispose();
-                    _loadSemaphore.Dispose();
-                    _updateSemaphore.Dispose();
                 }
                 _disposed = true;
             }
             base.Dispose(disposing);
+        }
+
+        private void listBox1_SelectedIndexChanged(object sender, EventArgs e)
+        {
+
         }
     }
 

@@ -1,4 +1,4 @@
-using MySql.Data.MySqlClient;
+﻿using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -64,31 +64,17 @@ namespace Tools_protocol.Kryone.Database
 			Bonus = (string)reader["bonus"];
 		}
 
-		public static void LoadPano()
-		{
-			string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TableSet, "", "");
-			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
-			{
-				try
-				{
-					connection.Open();
-					ItemSetList set = null;
-					MySqlDataReader R = new MySqlCommand(query, connection).ExecuteReader();
-					while (R.Read())
-					{
-						set = new ItemSetList(R);
-						AllItemsInSet.Add(set.Id, set);
-						SetName.Add(set.Name);
-					}
-					Count_Pano = AllItemsInSet.Count;
-					R.Close();
-					R.Dispose();
-					connection.Close();
-					connection.Dispose();
-				}
-				catch (MySqlException) { }
-			}
-		}
+        public static void LoadPano()
+        {
+            var loaded = new Dictionary<int, ItemSetList>();
+            using (var connection = new MySqlConnection(DatabaseManager.ConnectionString))
+            using (var command = new MySqlCommand(QueryBuilder.SelectFromQuery(new[] { "*" },TableSet,"",""),connection))
+            {
+                connection.Open();
+                using (var reader = command.ExecuteReader()) while(reader.Read()) { var set = new ItemSetList(reader); loaded.Add(set.Id,set); }
+            }
+            AllItemsInSet = loaded; SetName = loaded.Values.Select(set=>set.Name).ToList(); Count_Pano = loaded.Count;
+        }
 
 		public static void ReturnEffect(int id, int surplus)
 		{

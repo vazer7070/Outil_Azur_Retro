@@ -10,7 +10,7 @@
         /// <summary>
         /// Clean up any resources being used.
         /// </summary>
-      
+
 
         #region Windows Form Designer generated code
 
@@ -68,9 +68,9 @@
             this.listBox1 = new System.Windows.Forms.ListBox();
             this.iTalk_ThemeContainer1.SuspendLayout();
             this.SuspendLayout();
-            // 
+            //
             // iTalk_ThemeContainer1
-            // 
+            //
             this.iTalk_ThemeContainer1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(246)))), ((int)(((byte)(246)))), ((int)(((byte)(246)))));
             this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_Label15);
             this.iTalk_ThemeContainer1.Controls.Add(this.iTalk_NotificationNumber1);
@@ -128,10 +128,9 @@
             this.iTalk_ThemeContainer1.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.iTalk_ThemeContainer1.TabIndex = 0;
             this.iTalk_ThemeContainer1.Text = "Éditeur de compte";
-          //  this.iTalk_ThemeContainer1.Click += new System.EventHandler(this.iTalk_ThemeContainer1_Click);
-            // 
+            //
             // iTalk_Label15
-            // 
+            //
             this.iTalk_Label15.AutoSize = true;
             this.iTalk_Label15.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label15.Font = new System.Drawing.Font("Segoe UI", 8F);
@@ -141,18 +140,18 @@
             this.iTalk_Label15.Size = new System.Drawing.Size(137, 13);
             this.iTalk_Label15.TabIndex = 19;
             this.iTalk_Label15.Text = "Modifications en attente:";
-            // 
+            //
             // iTalk_NotificationNumber1
-            // 
+            //
             this.iTalk_NotificationNumber1.Location = new System.Drawing.Point(860, 37);
             this.iTalk_NotificationNumber1.Maximum = 99;
             this.iTalk_NotificationNumber1.Name = "iTalk_NotificationNumber1";
             this.iTalk_NotificationNumber1.Size = new System.Drawing.Size(20, 20);
             this.iTalk_NotificationNumber1.TabIndex = 18;
             this.iTalk_NotificationNumber1.Value = 0;
-            // 
+            //
             // iTalk_Button_22
-            // 
+            //
             this.iTalk_Button_22.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Button_22.Font = new System.Drawing.Font("Segoe UI", 14F);
             this.iTalk_Button_22.ForeColor = System.Drawing.Color.White;
@@ -164,10 +163,9 @@
             this.iTalk_Button_22.TabIndex = 17;
             this.iTalk_Button_22.Text = "Appliquer";
             this.iTalk_Button_22.TextAlignment = System.Drawing.StringAlignment.Center;
-           // this.iTalk_Button_22.Click += new System.EventHandler(this.iTalk_Button_22_Click);
-            // 
+            //
             // iTalk_Button_15
-            // 
+            //
             this.iTalk_Button_15.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Button_15.Font = new System.Drawing.Font("Segoe UI", 12F);
             this.iTalk_Button_15.Image = null;
@@ -178,10 +176,9 @@
             this.iTalk_Button_15.TabIndex = 16;
             this.iTalk_Button_15.Text = "X";
             this.iTalk_Button_15.TextAlignment = System.Drawing.StringAlignment.Center;
-           // this.iTalk_Button_15.Click += new System.EventHandler(this.iTalk_Button_15_Click);
-            // 
+            //
             // iTalk_Button_14
-            // 
+            //
             this.iTalk_Button_14.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Button_14.Font = new System.Drawing.Font("Segoe UI", 12F);
             this.iTalk_Button_14.Image = null;
@@ -192,10 +189,9 @@
             this.iTalk_Button_14.TabIndex = 15;
             this.iTalk_Button_14.Text = "Créer un compte";
             this.iTalk_Button_14.TextAlignment = System.Drawing.StringAlignment.Center;
-            //this.iTalk_Button_14.Click += new System.EventHandler(this.iTalk_Button_14_Click_1);
-            // 
+            //
             // iTalk_Label9
-            // 
+            //
             this.iTalk_Label9.AutoSize = true;
             this.iTalk_Label9.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label9.Font = new System.Drawing.Font("Segoe UI", 8F);
@@ -205,9 +201,9 @@
             this.iTalk_Label9.Size = new System.Drawing.Size(12, 13);
             this.iTalk_Label9.TabIndex = 14;
             this.iTalk_Label9.Text = "*";
-            // 
+            //
             // iTalk_Button_21
-            // 
+            //
             this.iTalk_Button_21.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Button_21.Font = new System.Drawing.Font("Segoe UI", 14F);
             this.iTalk_Button_21.ForeColor = System.Drawing.Color.White;
@@ -219,10 +215,9 @@
             this.iTalk_Button_21.TabIndex = 13;
             this.iTalk_Button_21.Text = "Éditeur de personnage";
             this.iTalk_Button_21.TextAlignment = System.Drawing.StringAlignment.Center;
-            //this.iTalk_Button_21.Click += new System.EventHandler(this.iTalk_Button_21_Click);
-           // 
+            //
             // iTalk_ComboBox1
-            // 
+            //
             this.iTalk_ComboBox1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(246)))), ((int)(((byte)(246)))), ((int)(((byte)(246)))));
             this.iTalk_ComboBox1.DrawMode = System.Windows.Forms.DrawMode.OwnerDrawFixed;
             this.iTalk_ComboBox1.DropDownHeight = 100;
@@ -238,10 +233,9 @@
             this.iTalk_ComboBox1.Size = new System.Drawing.Size(268, 26);
             this.iTalk_ComboBox1.StartIndex = 0;
             this.iTalk_ComboBox1.TabIndex = 12;
-           // this.iTalk_ComboBox1.Click += new System.EventHandler(this.iTalk_Button_21_Click);
-            // 
+            //
             // iTalk_Button_13
-            // 
+            //
             this.iTalk_Button_13.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Button_13.Font = new System.Drawing.Font("Segoe UI", 12F);
             this.iTalk_Button_13.Image = null;
@@ -252,10 +246,9 @@
             this.iTalk_Button_13.TabIndex = 11;
             this.iTalk_Button_13.Text = "VIP/Normal";
             this.iTalk_Button_13.TextAlignment = System.Drawing.StringAlignment.Center;
-         //   this.iTalk_Button_13.Click += new System.EventHandler(this.iTalk_Button_13_Click);
-            // 
+            //
             // iTalk_Button_12
-            // 
+            //
             this.iTalk_Button_12.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Button_12.Font = new System.Drawing.Font("Segoe UI", 12F);
             this.iTalk_Button_12.Image = null;
@@ -266,10 +259,9 @@
             this.iTalk_Button_12.TabIndex = 11;
             this.iTalk_Button_12.Text = "Ban/Deban compte";
             this.iTalk_Button_12.TextAlignment = System.Drawing.StringAlignment.Center;
-          //  this.iTalk_Button_12.Click += new System.EventHandler(this.iTalk_Button_12_Click);
-            // 
+            //
             // iTalk_Button_11
-            // 
+            //
             this.iTalk_Button_11.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Button_11.Font = new System.Drawing.Font("Segoe UI", 12F);
             this.iTalk_Button_11.Image = null;
@@ -280,27 +272,25 @@
             this.iTalk_Button_11.TabIndex = 11;
             this.iTalk_Button_11.Text = "Supprimer compte";
             this.iTalk_Button_11.TextAlignment = System.Drawing.StringAlignment.Center;
-          //  this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
-            // 
+            //
             // textBox1
-            // 
+            //
             this.textBox1.Location = new System.Drawing.Point(19, 490);
             this.textBox1.Name = "textBox1";
             this.textBox1.Size = new System.Drawing.Size(209, 22);
             this.textBox1.TabIndex = 10;
-           // this.textBox1.TextChanged += new System.EventHandler(this.textBox1_TextChanged);
-            // 
+            //
             // label1
-            // 
+            //
             this.label1.AutoSize = true;
             this.label1.Location = new System.Drawing.Point(16, 474);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(117, 13);
             this.label1.TabIndex = 9;
             this.label1.Text = "Chercher un membre:";
-            // 
+            //
             // iTalk_LinkLabel10
-            // 
+            //
             this.iTalk_LinkLabel10.ActiveLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
             this.iTalk_LinkLabel10.AutoSize = true;
             this.iTalk_LinkLabel10.BackColor = System.Drawing.Color.Transparent;
@@ -314,10 +304,9 @@
             this.iTalk_LinkLabel10.TabStop = true;
             this.iTalk_LinkLabel10.Text = "Modifier";
             this.iTalk_LinkLabel10.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-          //  this.iTalk_LinkLabel10.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel10_LinkClicked);
-            // 
+            //
             // iTalk_LinkLabel9
-            // 
+            //
             this.iTalk_LinkLabel9.ActiveLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
             this.iTalk_LinkLabel9.AutoSize = true;
             this.iTalk_LinkLabel9.BackColor = System.Drawing.Color.Transparent;
@@ -331,10 +320,9 @@
             this.iTalk_LinkLabel9.TabStop = true;
             this.iTalk_LinkLabel9.Text = "Modifier";
             this.iTalk_LinkLabel9.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-            //this.iTalk_LinkLabel9.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel9_LinkClicked);
-            // 
+            //
             // iTalk_LinkLabel7
-            // 
+            //
             this.iTalk_LinkLabel7.ActiveLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
             this.iTalk_LinkLabel7.AutoSize = true;
             this.iTalk_LinkLabel7.BackColor = System.Drawing.Color.Transparent;
@@ -348,10 +336,9 @@
             this.iTalk_LinkLabel7.TabStop = true;
             this.iTalk_LinkLabel7.Text = "Modifier";
             this.iTalk_LinkLabel7.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-          //  this.iTalk_LinkLabel7.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel7_LinkClicked);
-            // 
+            //
             // iTalk_LinkLabel6
-            // 
+            //
             this.iTalk_LinkLabel6.ActiveLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
             this.iTalk_LinkLabel6.AutoSize = true;
             this.iTalk_LinkLabel6.BackColor = System.Drawing.Color.Transparent;
@@ -365,10 +352,9 @@
             this.iTalk_LinkLabel6.TabStop = true;
             this.iTalk_LinkLabel6.Text = "Modifier";
             this.iTalk_LinkLabel6.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-           // this.iTalk_LinkLabel6.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel6_LinkClicked);
-            // 
+            //
             // iTalk_LinkLabel4
-            // 
+            //
             this.iTalk_LinkLabel4.ActiveLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
             this.iTalk_LinkLabel4.AutoSize = true;
             this.iTalk_LinkLabel4.BackColor = System.Drawing.Color.Transparent;
@@ -382,10 +368,9 @@
             this.iTalk_LinkLabel4.TabStop = true;
             this.iTalk_LinkLabel4.Text = "Modifier";
             this.iTalk_LinkLabel4.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-           // this.iTalk_LinkLabel4.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel4_LinkClicked);
-            // 
+            //
             // iTalk_LinkLabel3
-            // 
+            //
             this.iTalk_LinkLabel3.ActiveLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
             this.iTalk_LinkLabel3.AutoSize = true;
             this.iTalk_LinkLabel3.BackColor = System.Drawing.Color.Transparent;
@@ -399,10 +384,9 @@
             this.iTalk_LinkLabel3.TabStop = true;
             this.iTalk_LinkLabel3.Text = "Modifier";
             this.iTalk_LinkLabel3.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-         //   this.iTalk_LinkLabel3.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel3_LinkClicked);
-            // 
+            //
             // iTalk_LinkLabel2
-            // 
+            //
             this.iTalk_LinkLabel2.ActiveLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
             this.iTalk_LinkLabel2.AutoSize = true;
             this.iTalk_LinkLabel2.BackColor = System.Drawing.Color.Transparent;
@@ -416,10 +400,9 @@
             this.iTalk_LinkLabel2.TabStop = true;
             this.iTalk_LinkLabel2.Text = "Modifier";
             this.iTalk_LinkLabel2.VisitedLinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(101)))), ((int)(((byte)(202)))));
-          //  this.iTalk_LinkLabel2.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.iTalk_LinkLabel2_LinkClicked);
-            // 
+            //
             // iTalk_Label14
-            // 
+            //
             this.iTalk_Label14.AutoSize = true;
             this.iTalk_Label14.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label14.Font = new System.Drawing.Font("Segoe UI", 8F);
@@ -429,9 +412,9 @@
             this.iTalk_Label14.Size = new System.Drawing.Size(17, 13);
             this.iTalk_Label14.TabIndex = 7;
             this.iTalk_Label14.Text = "**";
-            // 
+            //
             // iTalk_Label13
-            // 
+            //
             this.iTalk_Label13.AutoSize = true;
             this.iTalk_Label13.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label13.Font = new System.Drawing.Font("Segoe UI", 8F);
@@ -441,10 +424,9 @@
             this.iTalk_Label13.Size = new System.Drawing.Size(121, 13);
             this.iTalk_Label13.TabIndex = 5;
             this.iTalk_Label13.Text = "Personnages associés:";
-           // this.iTalk_Label13.Click += new System.EventHandler(this.iTalk_Button_21_Click);
-            // 
+            //
             // iTalk_TextBox_Small4
-            // 
+            //
             this.iTalk_TextBox_Small4.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_TextBox_Small4.Font = new System.Drawing.Font("Tahoma", 11F);
             this.iTalk_TextBox_Small4.ForeColor = System.Drawing.Color.DimGray;
@@ -457,9 +439,9 @@
             this.iTalk_TextBox_Small4.TabIndex = 4;
             this.iTalk_TextBox_Small4.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
             this.iTalk_TextBox_Small4.UseSystemPasswordChar = false;
-            // 
+            //
             // iTalk_TextBox_Small11
-            // 
+            //
             this.iTalk_TextBox_Small11.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_TextBox_Small11.Font = new System.Drawing.Font("Tahoma", 11F);
             this.iTalk_TextBox_Small11.ForeColor = System.Drawing.Color.DimGray;
@@ -472,9 +454,9 @@
             this.iTalk_TextBox_Small11.TabIndex = 4;
             this.iTalk_TextBox_Small11.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
             this.iTalk_TextBox_Small11.UseSystemPasswordChar = false;
-            // 
+            //
             // iTalk_TextBox_Small10
-            // 
+            //
             this.iTalk_TextBox_Small10.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_TextBox_Small10.Font = new System.Drawing.Font("Tahoma", 11F);
             this.iTalk_TextBox_Small10.ForeColor = System.Drawing.Color.DimGray;
@@ -487,9 +469,9 @@
             this.iTalk_TextBox_Small10.TabIndex = 4;
             this.iTalk_TextBox_Small10.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
             this.iTalk_TextBox_Small10.UseSystemPasswordChar = false;
-            // 
+            //
             // iTalk_TextBox_Small9
-            // 
+            //
             this.iTalk_TextBox_Small9.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_TextBox_Small9.Font = new System.Drawing.Font("Tahoma", 11F);
             this.iTalk_TextBox_Small9.ForeColor = System.Drawing.Color.DimGray;
@@ -502,9 +484,9 @@
             this.iTalk_TextBox_Small9.TabIndex = 4;
             this.iTalk_TextBox_Small9.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
             this.iTalk_TextBox_Small9.UseSystemPasswordChar = false;
-            // 
+            //
             // iTalk_TextBox_Small7
-            // 
+            //
             this.iTalk_TextBox_Small7.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_TextBox_Small7.Font = new System.Drawing.Font("Tahoma", 11F);
             this.iTalk_TextBox_Small7.ForeColor = System.Drawing.Color.DimGray;
@@ -517,9 +499,9 @@
             this.iTalk_TextBox_Small7.TabIndex = 4;
             this.iTalk_TextBox_Small7.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
             this.iTalk_TextBox_Small7.UseSystemPasswordChar = false;
-            // 
+            //
             // iTalk_TextBox_Small6
-            // 
+            //
             this.iTalk_TextBox_Small6.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_TextBox_Small6.Font = new System.Drawing.Font("Tahoma", 11F);
             this.iTalk_TextBox_Small6.ForeColor = System.Drawing.Color.DimGray;
@@ -532,9 +514,9 @@
             this.iTalk_TextBox_Small6.TabIndex = 4;
             this.iTalk_TextBox_Small6.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
             this.iTalk_TextBox_Small6.UseSystemPasswordChar = false;
-            // 
+            //
             // iTalk_TextBox_Small5
-            // 
+            //
             this.iTalk_TextBox_Small5.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_TextBox_Small5.Font = new System.Drawing.Font("Tahoma", 11F);
             this.iTalk_TextBox_Small5.ForeColor = System.Drawing.Color.DimGray;
@@ -547,9 +529,9 @@
             this.iTalk_TextBox_Small5.TabIndex = 4;
             this.iTalk_TextBox_Small5.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
             this.iTalk_TextBox_Small5.UseSystemPasswordChar = false;
-            // 
+            //
             // iTalk_TextBox_Small3
-            // 
+            //
             this.iTalk_TextBox_Small3.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_TextBox_Small3.Font = new System.Drawing.Font("Tahoma", 11F);
             this.iTalk_TextBox_Small3.ForeColor = System.Drawing.Color.DimGray;
@@ -562,9 +544,9 @@
             this.iTalk_TextBox_Small3.TabIndex = 4;
             this.iTalk_TextBox_Small3.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
             this.iTalk_TextBox_Small3.UseSystemPasswordChar = false;
-            // 
+            //
             // iTalk_TextBox_Small2
-            // 
+            //
             this.iTalk_TextBox_Small2.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_TextBox_Small2.Font = new System.Drawing.Font("Tahoma", 11F);
             this.iTalk_TextBox_Small2.ForeColor = System.Drawing.Color.DimGray;
@@ -577,9 +559,9 @@
             this.iTalk_TextBox_Small2.TabIndex = 4;
             this.iTalk_TextBox_Small2.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
             this.iTalk_TextBox_Small2.UseSystemPasswordChar = false;
-            // 
+            //
             // iTalk_TextBox_Small1
-            // 
+            //
             this.iTalk_TextBox_Small1.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_TextBox_Small1.Font = new System.Drawing.Font("Tahoma", 11F);
             this.iTalk_TextBox_Small1.ForeColor = System.Drawing.Color.DimGray;
@@ -592,9 +574,9 @@
             this.iTalk_TextBox_Small1.TabIndex = 4;
             this.iTalk_TextBox_Small1.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
             this.iTalk_TextBox_Small1.UseSystemPasswordChar = false;
-            // 
+            //
             // iTalk_Label7
-            // 
+            //
             this.iTalk_Label7.AutoSize = true;
             this.iTalk_Label7.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label7.Font = new System.Drawing.Font("Segoe UI", 8F);
@@ -604,9 +586,9 @@
             this.iTalk_Label7.Size = new System.Drawing.Size(44, 13);
             this.iTalk_Label7.TabIndex = 3;
             this.iTalk_Label7.Text = "Bannis:";
-            // 
+            //
             // iTalk_Label8
-            // 
+            //
             this.iTalk_Label8.AutoSize = true;
             this.iTalk_Label8.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label8.Font = new System.Drawing.Font("Segoe UI", 8F);
@@ -616,9 +598,9 @@
             this.iTalk_Label8.Size = new System.Drawing.Size(57, 13);
             this.iTalk_Label8.TabIndex = 3;
             this.iTalk_Label8.Text = "Question:";
-            // 
+            //
             // iTalk_Label12
-            // 
+            //
             this.iTalk_Label12.AutoSize = true;
             this.iTalk_Label12.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label12.Font = new System.Drawing.Font("Segoe UI", 8F);
@@ -628,9 +610,9 @@
             this.iTalk_Label12.Size = new System.Drawing.Size(20, 13);
             this.iTalk_Label12.TabIndex = 3;
             this.iTalk_Label12.Text = "Ip:";
-            // 
+            //
             // iTalk_Label11
-            // 
+            //
             this.iTalk_Label11.AutoSize = true;
             this.iTalk_Label11.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label11.Font = new System.Drawing.Font("Segoe UI", 8F);
@@ -640,9 +622,9 @@
             this.iTalk_Label11.Size = new System.Drawing.Size(27, 13);
             this.iTalk_Label11.TabIndex = 3;
             this.iTalk_Label11.Text = "Vip:";
-            // 
+            //
             // iTalk_Label10
-            // 
+            //
             this.iTalk_Label10.AutoSize = true;
             this.iTalk_Label10.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label10.Font = new System.Drawing.Font("Segoe UI", 8F);
@@ -652,9 +634,9 @@
             this.iTalk_Label10.Size = new System.Drawing.Size(42, 13);
             this.iTalk_Label10.TabIndex = 3;
             this.iTalk_Label10.Text = "Points:";
-            // 
+            //
             // iTalk_Label6
-            // 
+            //
             this.iTalk_Label6.AutoSize = true;
             this.iTalk_Label6.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label6.Font = new System.Drawing.Font("Segoe UI", 8F);
@@ -664,9 +646,9 @@
             this.iTalk_Label6.Size = new System.Drawing.Size(55, 13);
             this.iTalk_Label6.TabIndex = 3;
             this.iTalk_Label6.Text = "Réponse:";
-            // 
+            //
             // iTalk_Label5
-            // 
+            //
             this.iTalk_Label5.AutoSize = true;
             this.iTalk_Label5.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label5.Font = new System.Drawing.Font("Segoe UI", 8F);
@@ -676,9 +658,9 @@
             this.iTalk_Label5.Size = new System.Drawing.Size(21, 13);
             this.iTalk_Label5.TabIndex = 3;
             this.iTalk_Label5.Text = "ID:";
-            // 
+            //
             // iTalk_Label4
-            // 
+            //
             this.iTalk_Label4.AutoSize = true;
             this.iTalk_Label4.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label4.Font = new System.Drawing.Font("Segoe UI", 8F);
@@ -688,9 +670,9 @@
             this.iTalk_Label4.Size = new System.Drawing.Size(113, 13);
             this.iTalk_Label4.TabIndex = 3;
             this.iTalk_Label4.Text = "Mot de passe (hash):";
-            // 
+            //
             // iTalk_Label3
-            // 
+            //
             this.iTalk_Label3.AutoSize = true;
             this.iTalk_Label3.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label3.Font = new System.Drawing.Font("Segoe UI", 8F);
@@ -700,9 +682,9 @@
             this.iTalk_Label3.Size = new System.Drawing.Size(48, 13);
             this.iTalk_Label3.TabIndex = 3;
             this.iTalk_Label3.Text = "Pseudo:";
-            // 
+            //
             // iTalk_Label2
-            // 
+            //
             this.iTalk_Label2.AutoSize = true;
             this.iTalk_Label2.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label2.Font = new System.Drawing.Font("Segoe UI", 8F);
@@ -712,9 +694,9 @@
             this.iTalk_Label2.Size = new System.Drawing.Size(92, 13);
             this.iTalk_Label2.TabIndex = 3;
             this.iTalk_Label2.Text = "Nom du compte:";
-            // 
+            //
             // iTalk_Label1
-            // 
+            //
             this.iTalk_Label1.AutoSize = true;
             this.iTalk_Label1.BackColor = System.Drawing.Color.Transparent;
             this.iTalk_Label1.Font = new System.Drawing.Font("Segoe UI", 8F);
@@ -724,18 +706,18 @@
             this.iTalk_Label1.Size = new System.Drawing.Size(100, 13);
             this.iTalk_Label1.TabIndex = 2;
             this.iTalk_Label1.Text = "Liste des comptes:";
-            // 
+            //
             // listBox1
-            // 
+            //
             this.listBox1.FormattingEnabled = true;
             this.listBox1.Location = new System.Drawing.Point(12, 51);
             this.listBox1.Name = "listBox1";
             this.listBox1.Size = new System.Drawing.Size(216, 420);
             this.listBox1.TabIndex = 1;
-          //  this.listBox1.SelectedIndexChanged += new System.EventHandler(this.listBox1_SelectedIndexChanged);
-            // 
+            this.listBox1.SelectedIndexChanged += new System.EventHandler(this.listBox1_SelectedIndexChanged);
+            //
             // editeurcompte
-            // 
+            //
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(911, 552);
@@ -748,7 +730,6 @@
             this.Text = "Éditeur de compte";
             this.TransparencyKey = System.Drawing.Color.Fuchsia;
             this.Load += new System.EventHandler(this.editeurcompte_Load);
-           // this.Leave += new System.EventHandler(this.editeurcompte_Leave);
             this.iTalk_ThemeContainer1.ResumeLayout(false);
             this.iTalk_ThemeContainer1.PerformLayout();
             this.ResumeLayout(false);

@@ -24,12 +24,17 @@ namespace Tool_BotProtocol.Game.Perso
         public byte Level { get; set; }
         public byte Sex { get; set; }
         public byte Race_ID { get; set; }
+        public int GFX { get; set; }
+        public int Orientation { get; set; } = 2;
+        public int GraphicsScaleX { get; set; } = 100;
+        public int GraphicsScaleY { get; set; } = 100;
         public Cell Cell { get; set; }
         private Accounts.Accounts Accounts { get; set; }
         public CharacterStats stats { get; set; }
         public InventoryClass Inventory { get; set; }
-        public Dictionary<short, Spell> Spells { get; set; }
+        public ConcurrentDictionary<short, Spell> Spells { get; set; }
         public int Carac_Points { get; set; } = 0;
+        public int SpellPoints { get; set; }
         public int Kamas { get; set; }
         public Timer Regen_Timer { get; set; }
         public Timer AFK_Timer { get; set; }
@@ -40,6 +45,7 @@ namespace Tool_BotProtocol.Game.Perso
 
         public bool HasGuild { get; set; }
         public ConcurrentDictionary<string, bool> InEquip;
+        public ConcurrentDictionary<int, string> GroupMembers { get; } = new ConcurrentDictionary<int, string>();
 
         public bool UseMount { get; set; } = false;
         public sbyte NpcToSpeak_id { get; set; }
@@ -63,7 +69,7 @@ namespace Tool_BotProtocol.Game.Perso
             Inventory = new InventoryClass(A);
             AFK_Timer = new Timer(No_AFK, null, Timeout.Infinite, Timeout.Infinite);
             Regen_Timer = new Timer(RegenCallback, null, Timeout.Infinite, Timeout.Infinite);
-            Spells = new Dictionary<short, Spell>();
+            Spells = new ConcurrentDictionary<short, Spell>();
             stats = new CharacterStats();
             Jobs = new List<Jobs.Jobs>();
 
@@ -91,26 +97,35 @@ namespace Tool_BotProtocol.Game.Perso
             Level = l;
             Sex = s;
             Race_ID = race;
+            GFX = race * 10 + s;
         }
         public void PodsRefreshEvent() => PodsRefresh?.Invoke();
         public void JobsRefreshEvent() => Jobs_Refresh?.Invoke();
+        public void SpellsRefreshEvent() => Spells_Refresh?.Invoke();
         public void ReceiveAnswerPNJ() => PNJ_receiveAnswer?.Invoke();
         public void AskPNJEvent() => PNJ_StopSpeaking?.Invoke();
         public void PersoSelectedEvent() => Player_Selection?.Invoke();
         public void ServerSelectedEvent() => Server_Selection?.Invoke();
         public void PathFindingMapPerso(List<Cell> Liste) => MoveMinimapPathfinding?.Invoke(Liste);
-        public IEnumerable<short> GetSkillsForRecolte() => Jobs.SelectMany(x => x.Skills.Where(y => !y.CanCraft).Select(y => y.Id));
-        public IEnumerable<JobSkills> GetAvailableSkills() => Jobs.SelectMany(Jobs => Jobs.Skills.Select(s => s));
+        public Jobs.Jobs[] GetJobsSnapshot() { lock (Jobs) return Jobs.ToArray(); }
+        public IEnumerable<short> GetSkillsForRecolte()
+        {
+            lock (Jobs) return Jobs.SelectMany(x => x.Skills.Where(y => !y.CanCraft).Select(y => y.Id)).ToArray();
+        }
+        public IEnumerable<JobSkills> GetAvailableSkills()
+        {
+            lock (Jobs) return Jobs.SelectMany(job => job.Skills).ToArray();
+        }
 
         private async void No_AFK(object state)
         {
             try
             {
-                if (Accounts.AccountStates != AccountStates.DISCONNECTED)
+                if (Accounts?.Connexion != null && Accounts.AccountStates != AccountStates.DISCONNECTED)
                     await Accounts.Connexion.SendPacket("ping");
             }catch (Exception e)
             {
-                Accounts.Logger.LogError("[NO AFK TIMER]", $"{e.Message}");
+                Accounts?.Logger?.LogError("[NO AFK TIMER]", $"{e.Message}");
             }
         }
         public void RefreshCaracs(string msg)
@@ -125,6 +140,7 @@ namespace Tool_BotProtocol.Game.Perso
             stats.ExpNivNext = double.Parse(loc2[2]);
             Kamas = int.Parse(loc[1]);
             Carac_Points = int.Parse(loc[2]);
+            SpellPoints = int.Parse(loc[3]);
             stats.Alignement = int.Parse(loc[4].Split('~')[0]);
             stats.AlignLVL = int.Parse(loc[4].Split(',')[1]);
             stats.GradeAli = int.Parse(loc[4].Split(',')[2]);
@@ -218,18 +234,42 @@ namespace Tool_BotProtocol.Game.Perso
                 RefreshCaracteristiques?.Invoke();
             }catch(Exception e)
             {
-                Accounts.Logger.LogError("TIMER-REGEN", $"Problème avec la régenération {e}");
+                Accounts?.Logger?.LogError("TIMER-REGEN", $"Problème avec la régenération {e.Message}");
             }
            
         }
         public void Clear()
         {
-            
+            AFK_Timer?.Change(Timeout.Infinite, Timeout.Infinite);
+            Regen_Timer?.Change(Timeout.Infinite, Timeout.Infinite);
+            id = 0;
+            Name = null;
+            Level = Sex = Race_ID = 0;
+            GFX = 0; Orientation = 2; GraphicsScaleX = GraphicsScaleY = 100;
+            Cell = null;
+            stats = new CharacterStats();
+            Inventory.Clear();
+            Spells.Clear();
+            lock (Jobs) Jobs.Clear();
+            InEquip.Clear();
+            GroupMembers.Clear();
+            InGroupe = HasGuild = UseMount = false;
+            EquipLeader = null;
+            Canal = string.Empty;
+            Carac_Points = SpellPoints = Kamas = 0;
         }
 
         public void Dispose()
         {
-            
+            AFK_Timer?.Dispose();
+            Regen_Timer?.Dispose();
+            AFK_Timer = Regen_Timer = null;
+            Inventory?.Dispose();
+            Spells.Clear();
+            lock (Jobs) Jobs.Clear();
+            InEquip.Clear();
+            GroupMembers.Clear();
+            Accounts = null;
         }
     }
 }

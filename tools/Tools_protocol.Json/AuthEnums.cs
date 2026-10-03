@@ -72,11 +72,21 @@ namespace Tools_protocol.Json
 				set;
 			}
 
-			[JsonProperty("commande")]
+			[JsonProperty("commandes")]
 			public string commandes
 			{
 				get;
 				set;
+			}
+
+			[JsonProperty("commande")]
+			public string commandesLegacy
+			{
+				set
+				{
+					if (string.IsNullOrEmpty(commandes))
+						commandes = value;
+				}
 			}
 
 			[JsonProperty("comptes")]

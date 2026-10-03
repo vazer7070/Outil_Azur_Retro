@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -14,6 +14,7 @@ namespace Tools_protocol.Data
 		static ConditionsListing()
 		{
 			ConditionsListing.ConditionsDico = new Dictionary<string, string>();
+            foreach (string line in Conditions) { int split = line.IndexOf('='); ConditionsDico[line.Substring(0,split)] = line.Substring(split+1); }
 		}
 
 		public ConditionsListing()
@@ -66,7 +67,7 @@ namespace Tools_protocol.Data
             for (int i = 0; i < (int)strArrays.Length; i++)
             {
                 string line = strArrays[i];
-                ConditionsListing.ConditionsDico.Add(line.Split(new char[] { '=' })[0], line.Split(new char[] { '=' })[1]);
+                int split = line.IndexOf('='); if (split > 0) ConditionsDico[line.Substring(0,split)] = line.Substring(split+1);
             }
         }
 
@@ -257,7 +258,7 @@ namespace Tools_protocol.Data
 				}
 				else
 				{
-					F.Append(string.Concat(j, " doit être ", condi.Split(new char[] { '~' })[1]));
+					F.Append(string.Concat(j, " doit Ãªtre ", condi.Split(new char[] { '~' })[1]));
 				}
 			}
 			return F.ToString();

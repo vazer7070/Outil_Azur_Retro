@@ -416,7 +416,7 @@ namespace Outil_Azur_complet.maps
             // 
             this.sWFToolStripMenuItem.Name = "sWFToolStripMenuItem";
             this.sWFToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
-            this.sWFToolStripMenuItem.Text = "SWF";
+            this.sWFToolStripMenuItem.Text = "SWF / AME";
             this.sWFToolStripMenuItem.Click += new System.EventHandler(this.sWFToolStripMenuItem_Click);
             // 
             // bDDToolStripMenuItem

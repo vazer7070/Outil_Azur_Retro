@@ -1,4 +1,16 @@
-# Outil Azur Retro
+﻿# Outil Azur Retro
+
+L’état des fonctions corrigées, les écarts encore présents avec ce README et les critères de validation sont décrits dans [l’état du projet](docs/ETAT_PROJET.md). La suite reproductible compte **23 tests : 15 sans base et 8 d'intégration**, réussis en Debug et Release le 1er octobre 2026 ; voir [les tests](tests/README.md). Pour reprendre le projet rapidement, consulter aussi l'[inventaire de reprise](docs/INVENTAIRE_REPRISE.md).
+
+Le schéma `kauth.sql` fourni a permis de vérifier **58 tables InnoDB**, dont `accounts` et `players`, sans importer les comptes ni les personnages réels. Les corrections et les réglages nécessaires sont décrits dans [la compatibilité Kryone/kauth](docs/KAUTH_COMPATIBILITE.md).
+
+Le kit de test fourni dans `F:\kit` contient maintenant les serveurs **StarLoco Login et Game** et un client **Dofus 1.34**. Les essais en jeu restent à réaliser. L'[inventaire détaillé du kit](docs/INVENTAIRE_F_KIT.md) recense ses 41 280 fichiers, ses rôles, ses ports, ses dumps SQL et les points sensibles. Les éditeurs SQL validés ici ciblent Kryone ; la compatibilité réseau avec StarLoco doit être vérifiée séparément et ses tables ne sont pas des correspondances interchangeables avec celles de kauth.
+
+La [carte des sources StarLoco pour le bot](docs/STARLOCO_SOURCES_ANALYSE.md) décrit le handshake Login/Game, les familles de paquets, le relais interne, l’encodage des cellules et les corrections prioritaires relevées dans le code.
+
+L’éditeur importe maintenant les cartes SWF FWS/CWS à affectations AVM1 simples et exporte des SWF binaires. Les projets AME Azur versions 1, 2 et 3 sont lisibles. Un pack de 108 cartes CWS a permis de vérifier le nombre de cellules et de corriger l'import des autorisations supérieures à 15. Les formats acceptés, les limites et la validation encore nécessaire dans le client de jeu sont décrits dans [le guide des cartes SWF](docs/FORMAT_SWF_CARTES.md).
+
+L'**Atelier Azur** regroupe les outils par domaine. Comptes, personnages, inventaires, cartes, configuration et **24 éditeurs de ressources** utilisent une interface commune : navigation par rubrique, fiches blanches, champs en français et enregistrement explicite. Les modèles d'objets, panoplies, recettes, butins, dialogues, quêtes et mécanismes disposent aussi d'éditeurs fonctionnels. Voir [le guide des éditeurs](docs/GUIDE_EDITEURS.md).
 
 ![forthebadge](https://forthebadge.com/images/badges/made-with-c-sharp.svg)
 
@@ -21,14 +33,18 @@ Je ferais des mises à jour quand je pourrais, en corrigeant des bugs remontés 
 
 L'outil peut se gérer en local mais alors certains outils ne seront pas disponible faute de BDD active (compatible WAMP/XAMPP).
 
-Il prends ses mises à jours sur un serveur distant, ça veut donc dire que à chaque fois que je publie une mise à jour, si vous avez laissés le système tel quel, ça s'installera et vous aurez le changelog sur ce GIT.
+Les anciennes mises à jour automatiques ont été désactivées : leurs archives ne fournissent pas de signature vérifiable et le démarrage pouvait lancer un exécutable présent dans le dossier `MAJ`. Pour cette version, compilez en Release ou utilisez le [paquet portable](docs/PORTABLE.md), puis remplacez les fichiers du logiciel en conservant vos trois fichiers JSON de configuration et vos créations. Le bouton de configuration peut encore consulter l'annonce de version, mais ne redémarre plus pour installer une archive non vérifiée.
 
 Si il manque les images pour l'éditeur de carte, il s'agit des mêmes que pour **Astria Map Editor** avec juste des noms de dossiers différents (parce que why not), vous ne pourrez pas le lancer si il ne les trouves pas.
 
-Vous pouvez modifier les identifiants de la/des BDD dans le panneau de configuration et relancer la connexion depuis ce dernier pour vous permettre de lancer les outils manquants.
-Actuellement, l'outil de recherche pour les objets IG et les éditeurs (contenant donc ceux de personnages et de comptes) sont adaptés pour les bases de données de **Kryone V2**, ces dernières sont fournis pour que vous puissiez voir si les votres correspondent.
+Les bibliothèques fournies sous `Outil_Azur_complet/bin/Debug/ressources` sont maintenant copiées automatiquement dans les autres configurations à la compilation. Les outils utilisent le dossier de l'exécutable au démarrage, même si Azur est lancé depuis un autre dossier.
 
-Pour la mise en place de la BDD, vous avez 2 Json: **auth_tables.json** et **world_tables.json** qui se trouvent à la racine du programme, il est important de bien noter les noms des tables à chaques fonctions afin que l'outil puisse correctement choisir les tables associées aux fonctions demandées.
+Vous pouvez modifier les identifiants de la/des BDD dans le panneau de configuration et relancer la connexion depuis ce dernier pour vous permettre de lancer les outils manquants.
+Les outils de recherche et les éditeurs ciblent **Kryone V2**. La connexion **auth** doit accéder aux comptes (`accounts`), personnages (`players`) et ressources statiques de `kauth` ; la connexion **world** doit accéder aux exemplaires d'objets (`items`), présents dans `kworldsave.sql`. Les deux connexions restent à configurer pour votre installation.
+
+Les correspondances sont enregistrées dans **auth/auth_tables.json** et **world/world_tables.json**, sous le dossier de l'exécutable. Les nouvelles configurations utilisent les noms corrigés de `kauth`. Les anciens JSON personnalisés sont conservés : vérifiez leurs noms dans **Configuration → Configurer les tables → Correspondances**, notamment `coffre → coffres`, `extra_monstres → extra_monster`, `object_action → objectsactions`, `schema_fight → schemafights` et `titres → titre`.
+
+La correspondance world historique `personnages → characterinstance` n'est pas utilisée par les éditeurs Kryone ; leurs personnages proviennent de **auth → players**.
 
 Il est possible de modifier ces fichiers directement depuis le panneau de configuration de l'outil, dans le menu principal.
 
@@ -42,19 +58,21 @@ Je vous présente les outils un à un, les fonctions peuvent changer au gré des
 ### Éditeur de compte
  Cet outil permet de visualiser le compte et son état (VIP/banni/staff), les informations de compte (MDP, question et réponse secrète), l'état de connexion ainsi que les personnages en jeu qui sont liés à ce compte ainsi que divers informations notamment les points (mais c'est à voir selon les BDD)
  
- Il est possible de tout modifier, attention par contre, si vous modifier le MDP hashé à bien le hasher avant car sinon ça ne fonctionnera pas.
+ Les champs présentés sont modifiables et enregistrés ensemble dans une transaction InnoDB. Le compte doit être hors ligne ; les changements concurrents refusent l'enregistrement. Les mots de passe existants conservent leur format serveur : une valeur hashée doit être remplacée par un hash compatible.
 
  Il est également possible de bannir/débannir, rendre/retirer VIP voir de supprimer complètement le compte.
 
  ### Création de compte
- Un outil simple qui permet une création rapide d'un compte directement depuis l'outil, il y a des fonctions de hash prédéfinies (MD5 et SHA512) ou le mettre en clair si vous le désirez.
+ Un outil permet de créer un compte avec le format de mot de passe attendu par le serveur : texte, MD5 ou SHA512. La création lit les colonnes réelles, initialise le pseudo avec le nom du compte et la date d'inscription avec la date du jour, puis relit la ligne avant de valider sa transaction. Le pseudo reste modifiable. `pass_no_crypt` reste vide ; un champ obligatoire inconnu ou un moteur différent d'InnoDB bloque la création avec un diagnostic. Le cache est actualisé après validation SQL.
 
  ### Éditeur de personnage
  *Il n'est pas possible depuis l'outil de créer un personnage sauf depuis le bot qui simule la page de création de personnage lors de la connexion à son compte (depuis officiel comme privé).*
 
 Cet outil recense tout les personnages du serveur ainsi que toute les informations qui les concernent, ça va de l'id à la liste de son inventaire et de ses sorts.
 
-Il est possible de tout modifier sauf l'id du personnage, si il est en prison ou pas et son point de sauvegarde et les couleurs (si vraiment vous souhaitez, c'est très simple de le rajouter).De plus il est possible de bannir ainsi que de supprimer le personnage depuis cette interface.
+L'identifiant et l'état de prison restent gérés par le serveur. Les autres champs présentés sont modifiables, y compris le point de sauvegarde et les couleurs, avec une palette et l'option couleur par défaut. Les modifications du contenu nécessitent le compte et le personnage hors ligne. Le bannissement et la suppression sont également accessibles.
+
+La sauvegarde vérifie l'état hors ligne, les valeurs originales et l'existence du compte cible avant un transfert. Les limites du schéma réel sont appliquées, notamment 30 caractères pour le nom et 300 caractères pour la liste des métiers. Un état de connexion SQL NULL est affiché comme inconnu : la consultation reste possible et les écritures sont bloquées.
 
 Pour les objets et les sorts, un boutons est là pour faire le lien avec l'éditeur qui va bien (éditeur d'inventaire pour les objets, de sort pour les sorts et de changement de métier pour les métiers).
 
@@ -75,36 +93,40 @@ Si ces outils présentent les effets de façon brut c'est qu'il ne les connait p
 
  
 ### Créateur d'objet
-Cet outil permet de créer un objet depuis 0 avec toutes les possibilités de conditions et d'effets possibles. Vous pourrez le générer en SQL et en SWF avec possibilités d'injection directe dans les 2 cas (**à l'instant T de ces lignes, les librairies SWF ne permettent pas encore de le faire mais une maj le prévoit**) mais il est aussi possible de générer les lignes pour une injection ultérieure pour le SQL comme le SWF.
+Cet outil permet de créer un objet avec des conditions et des effets. Il génère les requêtes SQL, permet leur enregistrement direct groupé et produit un SWF binaire pour le client, avec source ActionScript facultative. Il peut intégrer l'objet dans une copie d'un fichier client existant. Le nouvel éditeur **Objets du client**, utilisable sans SQL, permet de rechercher et modifier les fiches d'un SWF d'objets. Les variantes acceptées et la validation en jeu encore nécessaire sont décrites dans [le guide des SWF d'objets](docs/FORMAT_SWF_OBJETS.md). Les éditeurs de modèles, panoplies et recettes permettent aussi de modifier les ressources existantes.
 
 Il est possible aussi de l'ajouter à une panoplie existante (vanilla ou crée par vous préalablement) ainsi que le rendre fabricable de faire la recette directement depuis cette interface.
 
 ### Éditeur d'inventaire
-Cet outil liste le contenu de l'inventaire de chaque personnage avec la possibilité de le modifier que ce soit en rajoutant comme en supprimant des objets, il est possible de voir les détails et de faire un lien avec l'éditeur d'objet.
+Cet outil permet d'ajouter, retirer et modifier les objets de chaque personnage : quantité, emplacement, effets et puits de forge-magie. Les changements restent en attente jusqu'à leur enregistrement commun, avec contrôles de connexion, d'appartenance et de modifications concurrentes.
 
 Les kamas du personnage se modifient dans l'éditeur de personnage et non pas sur cette interface.
 
 *Attention à bien faire une déco/reco du personnage après modification de l'inventaire afin d'appliquer correctement les modifications*
 
 ### Gestionnaire de ressources
-Cet outil permet de faire sortir les données de la base de données sous différents formats (XML/lignes SQL(**pas encore implanté pour le SQL**))
+Cet outil exporte les ressources de la base en XML ou en SQL. Le SQL complet contient des INSERT pour une table vide de même schéma ; les éditeurs de fiches proposent séparément l'export de leurs modifications.
 
 La fonction d'extraction XML permet notamment d'utiliser les informations de la BDD que vous utilisez pour les rendres compatibles avec le bot. Pas toute les données sont compatibles avec lui mais le gestionnaire fait le tri lui même, que ce soit pour le type de données comme pour les informations à lintérieur des tables.
 
 Vous pouvez définir un chemin spécifique uniquement lors d'une extractions simple, sinon le gestionnaire place lui-même les fichiers à la racine du bot afin d'éviter toute erreur empêchant son bon fonctionnement.
 
-A terme, il sera possible de décoder et de créer des SWF, de lire les paquets en transit (MITM) comme peut le faire le bot mais sans le lancer, juste un sniffer ainsi que vous permettre d'agrandir sa bibliothèque d'image en son sein en allant en cherchant et les plaçant selon le type et la dénomination.
+Les autres rubriques permettent d'ouvrir des cartes AME/SWF, de déchiffrer des données de carte et de produire des cartes SWF binaires ou AME. Elles permettent aussi d'importer des images avec aperçu et de lire/filtrer un journal local. **Capture réseau** propose désormais un relais TCP local démarré manuellement, avec messages, filtres et export masqué. Il nécessite de configurer le client vers le port local ; les redirections auth/jeu et TLS ne sont pas pris en charge automatiquement. Voir [son utilisation et ses limites](docs/CAPTURE_RESEAU.md).
 
 ### Éditeur de cartes
-Cet outil est basé sur le design de **Astria Map Editor** (je suis un brêle en design pur), il est également partiellement repris en terme de code sans pour autant que ce soit du C/C ( j'ai recodé et corrigé toutes les classes notamment la gestion de la création et du placement des tuiles).
+L'éditeur utilise maintenant un grand canevas central, des onglets pour les cartes ouvertes, des propriétés par rubrique à droite et une bibliothèque de tuiles en bas. Il est issu d'un travail inspiré d'Astria Map Editor, avec des fonctions de création et de placement propres à Azur.
 
 Il en possède toute les fonctions de base mais peut également placer des PNJs et des groupes de monstres, des interactives (zaaps, établies, etc...) ainsi que des enclos (et gérer si ils sont privés ou publics).
 
-Il est possible de lire les fichiers AME (qui ne sont au final que des fichiers binaires avec une extension custom) ainsi que les fichiers SWF du client officiel pour les consulter et les modifier, il possède également un autre système pour la compilation des SWF afin d'éviter le risque de corruption de fichier et d'être à jour avec les nouvelles versions SWF.
+Il lit les projets AME Azur v1/v2/v3 et les cartes SWF FWS/CWS à affectations AVM1 simples. Les exports AME, SWF binaire et SQL sont accessibles dans l'interface. La compatibilité avec les anciens AME Astria, les scripts SWF complexes et l'ouverture dans le client de jeu restent à valider ; voir [les formats pris en charge](docs/FORMAT_SWF_CARTES.md).
+
+Le bouton **Placements serveur** superpose les PNJ, groupes fixes, zaaps et enclos sur les cellules de la carte ouverte lorsque le schéma fournit leur `cellid` ; les fiches restent modifiables depuis le menu **Outils**. Les cellules d'enclos définies dans la carte sont également signalées. Cette couche est facultative et nécessite la connexion Kryone configurée.
 
 L'éditeur ne peut pas être lancé si l'application ne détecte pas les fichiers d'images nécéssaires à son bon fonctionnement, il est donc important de vérifier leurs présence et que ce soit bien des images de tuiles de carte correspondantes aux dossiers présents à la racine d'AzurToolRetro.
 
 ### Client AzurToolBot
+La refonte du **2 octobre 2026** apporte un parcours de connexion et des écrans communs aux éditeurs, ainsi qu’un protocole Login/Game testé sur boucle locale d’après les sources StarLoco. Le [guide du bot](docs/BOT_STARLOCO.md) décrit son utilisation et ses limites. Les modes automatique/admin et les scripts/plugins décrits ci-dessous restent à réaliser ; ils ne sont pas présentés comme disponibles dans l’interface actuelle.
+
 Voici donc la re-création complète du client Dofus retro en C#, similaire à un bot full socket multi-version mais qui peut très bien juste être une alternative sans triche du client officiel.
 
 Basé sur le bot de **Salesprendes**, il en reprends certaines fonctions (fonctions anti-cheat (améliorée), bypass token launcher, etc..) tout en les améliorants et permettant de lier botting, jeu et gestion complète d'un serveur de jeu au travers des 3 modes qu'il propose. En effet, le client possède 3 modes: **auto**, **manuel** et **admin**.

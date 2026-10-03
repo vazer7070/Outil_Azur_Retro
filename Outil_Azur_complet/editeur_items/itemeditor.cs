@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -54,6 +55,14 @@ namespace Outil_Azur_complet.editeur_items
         public Dictionary<string, ListViewItem> Items = new Dictionary<string, ListViewItem>();
         public Dictionary<string, List<string>> Persoinventory = new Dictionary<string, List<string>>();
         public Dictionary<string, SelectionClass> Selection = new Dictionary<string, SelectionClass>();
+        private readonly Dictionary<string, InventoryChange> _inventoryChanges =
+            new Dictionary<string, InventoryChange>(StringComparer.Ordinal);
+        private readonly Dictionary<string, InventoryTemplateChoice> _inventoryTemplates =
+            new Dictionary<string, InventoryTemplateChoice>(StringComparer.Ordinal);
+        private Label _inventoryStatus;
+        private bool _inventoryAvailable;
+        private bool _inventoryInitialized;
+        private readonly string _initialCharacterName;
         public int GUID;
         public int ID;
         public bool selected = false;
@@ -74,9 +83,15 @@ namespace Outil_Azur_complet.editeur_items
         }
         #endregion
 
-        public itemeditor()
+        public itemeditor() : this(null)
+        {
+        }
+
+        public itemeditor(string initialCharacterName)
         {
             InitializeComponent();
+            _initialCharacterName = initialCharacterName;
+            BuildEditorLayout();
         }
 
        
@@ -84,12 +99,15 @@ namespace Outil_Azur_complet.editeur_items
         {
             LoadStatic();
             LoadStaticInventory();
+            BuildInventoryLayout();
+            if (!string.IsNullOrWhiteSpace(_initialCharacterName) &&
+                listBox4.Items.Contains(_initialCharacterName))
+                listBox4.SelectedItem = _initialCharacterName;
         }
         #region éditeur d'items
         private void iTalk_Button_11_Click(object sender, EventArgs e)
         {
-            ClearAllList();
-            Hide();
+            Close();
         }
         public void ClearAllList()
         {
@@ -99,9 +117,18 @@ namespace Outil_Azur_complet.editeur_items
             TradRecipe.Clear();
             CreateQuery.Clear();
             EditorManager.TradStat.Clear();
+            InCondi.Clear();
+            SB.Clear();
+            ConditionsFinal = "";
+            listBox1.Items.Clear();
+            listBox3.Items.Clear();
+            iTalk_NotificationNumber1.Value = 0;
         }
         public void LoadStatic()
         {
+            iTalk_ComboBox2.Items.Clear();iTalk_ComboBox3.Items.Clear();iTalk_ComboBox5.Items.Clear();listBox2.Items.Clear();
+            if(!InitializeForm.NoDB && !string.IsNullOrWhiteSpace(Tools_protocol.Query.DatabaseManager.ConnectionString))
+            {try{ItemTemplateList.Load_Item();ItemSetList.LoadPano();}catch(Exception error){if(editorLayout!=null)editorLayout.Status.Text="Chargement des modèles incomplet : "+error.Message;}}
             foreach (string v in ConditionsListing.ConditionsDico.Values)
             {
                 iTalk_ComboBox3.Items.Add(v);
@@ -150,6 +177,7 @@ namespace Outil_Azur_complet.editeur_items
 
         private void ListBox2_SelectedIndexChanged(object sender, EventArgs e)
         {
+            if (listBox2.SelectedItem == null) return;
             if (!listBox2.SelectedItem.ToString().Contains("$1") && !listBox2.SelectedItem.ToString().Contains("$2"))
             {
                 iTalk_TextBox_Small11.Enabled = false;
@@ -297,8 +325,10 @@ namespace Outil_Azur_complet.editeur_items
         {
             if (listBox1.SelectedItem != null)
             {
-                int O = ItemTemplateList.ReturnItemId(listBox1.SelectedItem.ToString());
-                RecipeContent.Remove(O.ToString());
+                string label = listBox1.SelectedItem.ToString();
+                string ingredient = RecipeContent.FirstOrDefault(entry =>
+                    $"{ItemTemplateList.GetItem(int.Parse(entry.Key), 1)} x {entry.Value}" == label).Key;
+                if (ingredient != null) RecipeContent.Remove(ingredient);
                 listBox1.Items.Remove(listBox1.SelectedItem);
                 listBox1.Update();
             }
@@ -325,20 +355,19 @@ namespace Outil_Azur_complet.editeur_items
         }
         public void PrepareConditions()
         {
-
-            if (ConditionsSelected != null)
-            {
-                foreach (string u in ConditionsSelected)
-                {
-                    SB.Append(EditorManager.ConditionsParse(u, ConditionsSelected.Count));
-                }
-                if (SB.ToString().EndsWith(iTalk_ComboBox6.SelectedItem.ToString()))
-                    ConditionsFinal = SB.ToString().Substring(0, SB.ToString().Length - 1);
-            }
-
+            SB.Clear();
+            ConditionsFinal = "";
+            foreach (string condition in ConditionsSelected)
+                SB.Append(EditorManager.ConditionsParse(condition, ConditionsSelected.Count));
+            ConditionsFinal = SB.ToString().TrimEnd('&', '|');
         }
         public void PrepareCreateItem()
         {
+            TradRecipe.Clear();
+            EditorManager.TradStat.Clear();
+            pano = -1;
+            H = iTalk_CheckBox2.Checked;
+            ECH = iTalk_CheckBox1.Checked;
             PrepareConditions();
             TradRecipeList();
             AddInTradItem();
@@ -350,144 +379,118 @@ namespace Outil_Azur_complet.editeur_items
                 pano = ItemSetList.ReturnPanoId(iTalk_ComboBox2.SelectedItem.ToString());
             ArmeInfos = $"{iTalk_TextBox_Small4.Text};{iTalk_TextBox_Small5.Text};{iTalk_TextBox_Small8.Text};{iTalk_TextBox_Small3.Text};{iTalk_TextBox_Small6.Text};{iTalk_TextBox_Small7.Text};{Convert.ToInt32(H)}";
         }
-        private void ITalk_Button_21_Click(object sender, EventArgs e)
+        private async void ITalk_Button_21_Click(object sender, EventArgs e)
         {
-
+            bool databaseSaved = false;
+            var completedFiles = new List<string>();
             try
             {
-                //if (!ItemList.ItemsId.Contains(Convert.ToInt32(iTalk_TextBox_Small9.Text)))
-                // {
-                    if (String.IsNullOrEmpty(iTalk_TextBox_Small9.Text) || iTalk_TextBox_Small9.Text == "0")
+                bool exportSwf = iTalk_RadioButton1.Checked || iTalk_RadioButton3.Checked;
+                bool exportSql = iTalk_RadioButton2.Checked || iTalk_RadioButton3.Checked;
+                if (!exportSwf && !exportSql)
+                    throw new InvalidOperationException("Sélectionnez un moyen d'exportation.");
+                if (exportSql && !iTalk_CheckBox6.Checked && !iTalk_CheckBox5.Checked)
+                    throw new InvalidOperationException("Sélectionnez la création de fichiers SQL ou l'injection directe.");
+                if (!int.TryParse(iTalk_TextBox_Small2.Text, out int templateId) || templateId <= 0)
+                    throw new FormatException("L'identifiant du template doit être un entier positif.");
+                if (string.IsNullOrWhiteSpace(iTalk_TextBox_Small1.Text))
+                    throw new FormatException("Le nom de l'objet est obligatoire.");
+                if (exportSql && ItemTemplateList.ItemFullDico.ContainsKey(templateId))
+                    throw new InvalidOperationException($"Le template {templateId} existe déjà.");
+                if (exportSql && ItemTemplateList.ItemFullDico.Values.Any(item =>
+                    string.Equals(item.Name, iTalk_TextBox_Small1.Text.Trim(), StringComparison.OrdinalIgnoreCase)))
+                    throw new InvalidOperationException("Un objet porte déjà ce nom.");
+                if (iTalk_ComboBox1.SelectedItem == null)
+                    throw new FormatException("Sélectionnez le type d'objet.");
+                var selectedType=iTalk_ComboBox1.SelectedItem as Outil_Azur_complet.Editors.EditorOption;
+                int type = selectedType!=null?int.Parse(selectedType.Value):EditorManager.SwitchType(iTalk_ComboBox1.SelectedItem.ToString());
+                if (type <= 0) throw new FormatException("Le type d'objet n'est pas pris en charge.");
+                int itemGuid = 0;
+                if (exportSql && (!int.TryParse(iTalk_TextBox_Small9.Text, out itemGuid) || itemGuid <= 0))
+                    throw new FormatException("Le GUID de l'objet doit être un entier positif.");
+                foreach (var field in new[] { iTalk_TextBox_Small3, iTalk_TextBox_Small4,
+                    iTalk_TextBox_Small5, iTalk_TextBox_Small6, iTalk_TextBox_Small7, iTalk_TextBox_Small8 })
+                {
+                    if (string.IsNullOrWhiteSpace(field.Text)) field.Text = "0";
+                    if (!int.TryParse(field.Text, out int value) || value < 0)
+                        throw new FormatException("Les informations d'arme doivent être des entiers positifs ou nuls.");
+                }
+                if (string.IsNullOrWhiteSpace(iTalk_TextBox_Small10.Text)) iTalk_TextBox_Small10.Text = "0";
+                if (!int.TryParse(iTalk_TextBox_Small10.Text, out int points) || points < 0)
+                    throw new FormatException("Les points doivent être un entier positif ou nul.");
+                if (iTalk_CheckBox4.Checked && RecipeContent.Count == 0)
+                    throw new FormatException("Ajoutez au moins un ingrédient pour un objet fabricable.");
+
+                int gfx = 0;
+                if (exportSwf && (!int.TryParse(iTalk_TextBox_Small14.Text, out gfx) || gfx < 0))
+                    throw new FormatException("Le GFX doit être un entier positif ou nul.");
+                PrepareCreateItem();
+                ClientExportPlan clientPlan = null;
+                if (exportSwf)
+                {
+                    var definition = ItemClientDefinition.FromCreation(templateId, iTalk_TextBox_Small1.Text.Trim(),
+                        iTalk_TextBox_Small13.Text, gfx.ToString(), type.ToString(),
+                        iTalk_NumericUpDown1.Value.ToString(), iTalk_CheckBox7.Checked,
+                        iTalk_NumericUpDown2.Value.ToString(), ArmeInfos, ConditionsFinal,
+                        iTalk_NumericUpDown3.Value.ToString(), iTalk_CheckBox8.Checked, iTalk_CheckBox2.Checked);
+                    clientPlan = PrepareClientExport(definition, EditorManager.CreateSwfLine(templateId, definition.Name,
+                        definition.Description, gfx.ToString(), type.ToString(), definition.Level.ToString(),
+                        definition.ForgeMagic, definition.Weight.ToString(), ArmeInfos, definition.Condition,
+                        definition.Price.ToString(), definition.Usable, definition.TwoHands));
+                    if (clientPlan == null) return;
+                }
+                iTalk_Button_21.Enabled = false;
+                if (exportSql)
+                {
+                    BuildCreationQueries(templateId, itemGuid, type);
+                    if (iTalk_CheckBox6.Checked)
+                        EditorManager.CreateSQLEditor($"items_{EmuManager.EMUSELECTED}", CreateQuery);
+                    if (iTalk_CheckBox5.Checked)
                     {
-                        return;
+                        iTalk_Button_21.Enabled = false;
+                        var snapshot = new Dictionary<string, string>(CreateQuery);
+                        await Task.Run(() => ItemCreationService.Inject(snapshot, templateId, itemGuid));
+                        databaseSaved = true;
+                        ItemTemplateList.Load_Item();
                     }
-                    if (!ItemTemplateList.ItemFullDico.Keys.Contains(Convert.ToInt32(iTalk_TextBox_Small2.Text)))
-                    {
-
-                        if (!ItemTemplateList.ItemFullDico.ContainsKey(ItemTemplateList.ReturnItemId(iTalk_TextBox_Small1.Text)))
-                        {
-                            if (!String.IsNullOrEmpty(iTalk_TextBox_Small3.Text) && !String.IsNullOrEmpty(iTalk_TextBox_Small4.Text) && !String.IsNullOrEmpty(iTalk_TextBox_Small5.Text) && !String.IsNullOrEmpty(iTalk_TextBox_Small6.Text) && !String.IsNullOrEmpty(iTalk_TextBox_Small7.Text) && !String.IsNullOrEmpty(iTalk_TextBox_Small8.Text))
-                            {
-
-                                if (iTalk_RadioButton1.Checked) //swf uniquement
-                                {
-                                    PrepareCreateItem();
-                                    EditorManager.CreateSwf($@".\swf\{EmuManager.EMUSELECTED}_{iTalk_TextBox_Small2.Text}.txt", EditorManager.CreateSwfLine(Convert.ToInt32(iTalk_TextBox_Small2.Text), iTalk_TextBox_Small1.Text, iTalk_TextBox_Small13.Text, iTalk_TextBox_Small14.Text, iTalk_ComboBox1.SelectedItem.ToString(), iTalk_NumericUpDown1.Value.ToString(), iTalk_CheckBox7.Checked, iTalk_NumericUpDown2.Value.ToString(), $"{iTalk_TextBox_Small4.Text};{iTalk_TextBox_Small5.Text};{iTalk_TextBox_Small8.Text};{iTalk_TextBox_Small3.Text};{iTalk_TextBox_Small6.Text};{iTalk_TextBox_Small7.Text}", ConditionsFinal, iTalk_NumericUpDown3.Value.ToString(), iTalk_CheckBox8.Checked, iTalk_CheckBox2.Checked));
-                                }
-                                else if (iTalk_RadioButton2.Checked) //sql uniquement
-                                {
-                                    PrepareCreateItem();
-                                    if (iTalk_CheckBox6.Checked)
-                                    {
-                                        if (iTalk_CheckBox4.Checked && RecipeContent != null)
-                                        {
-                                            requetecraft = QueryBuilder.InsertIntoQuery(TableCraft, new string[] { }, new string[] { iTalk_TextBox_Small2.Text, h }, "");
-                                            CreateQuery.Add("craft", requetecraft);
-                                        }
-                                        if (iTalk_ComboBox6.SelectedItem != null)
-                                        {
-                                            string rowP = EmuManager.UpdateRowPano(EmuManager.RecupPanoRow(ColumsPano, iTalk_ComboBox2.SelectedItem.ToString()), iTalk_TextBox_Small2.ToString());
-                                            AddInPano = QueryBuilder.UpdateFromQuery(TablePano, ColumsPano, 1, rowP, EmuManager.ReturnInfoCol("pano"), iTalk_ComboBox2.SelectedItem.ToString());
-                                            CreateQuery.Add("pano", AddInPano);
-                                        }
-                                        requeteitem = QueryBuilder.InsertIntoQuery(TableItems, new string[] { }, new string[] { iTalk_TextBox_Small9.Text, iTalk_TextBox_Small2.Text, "0", "-1", "", "0" }, "");
-                                        requeteTemplate = QueryBuilder.InsertIntoQuery(TableItemsTemplate, new string[] { }, new string[] { iTalk_TextBox_Small2.Text, $"{EditorManager.SwitchType(iTalk_ComboBox1.SelectedItem.ToString()).ToString()}", iTalk_TextBox_Small1.Text, iTalk_NumericUpDown1.Value.ToString(), b, iTalk_NumericUpDown2.Value.ToString(), pano.ToString(), iTalk_NumericUpDown3.Value.ToString(), ConditionsFinal, ArmeInfos, "0", "0", iTalk_TextBox_Small10.Text, "0", $"{Convert.ToInt32(ECH)}", "0" }, "");
-                                        CreateQuery.Add("item", requeteitem);
-                                        CreateQuery.Add("template", requeteTemplate);
-                                        EditorManager.CreateSQLEditor($"items_{EmuManager.EMUSELECTED}", CreateQuery);
-
-                                    }
-                                    if (iTalk_CheckBox5.Checked) //injection directe
-                                    {
-                                        if (iTalk_CheckBox4.Checked && RecipeContent != null)
-                                        {
-                                            requetecraft = QueryBuilder.InsertIntoQuery(TableCraft, new string[] { }, new string[] { iTalk_TextBox_Small2.Text, h }, "");
-                                            CreateQuery.Add("craft", requetecraft);
-
-                                        }
-                                        if (iTalk_ComboBox6.SelectedItem != null)
-                                        {
-                                            string rowP = EmuManager.UpdateRowPano(EmuManager.RecupPanoRow(ColumsPano, iTalk_ComboBox2.SelectedItem.ToString()), iTalk_TextBox_Small2.Text);
-                                            AddInPano = QueryBuilder.UpdateFromQuery(TablePano, ColumsPano, 1, rowP, EmuManager.ReturnInfoCol("pano"), iTalk_ComboBox2.SelectedItem.ToString());
-                                            CreateQuery.Add("pano", AddInPano);
-                                        }
-                                        requeteitem = QueryBuilder.InsertIntoQuery(TableItems, new string[] { }, new string[] { iTalk_TextBox_Small9.Text, iTalk_TextBox_Small2.Text, "0", "-1", "", "0" }, "");
-                                        requeteTemplate = QueryBuilder.InsertIntoQuery(TableItemsTemplate, new string[] { }, new string[] { iTalk_TextBox_Small2.Text, $"{EditorManager.SwitchType(iTalk_ComboBox1.SelectedItem.ToString()).ToString()}", iTalk_TextBox_Small1.Text, iTalk_NumericUpDown1.Value.ToString(), b, iTalk_NumericUpDown2.Value.ToString(), pano.ToString(), iTalk_NumericUpDown3.Value.ToString(), ConditionsFinal, ArmeInfos, "0", "0", iTalk_TextBox_Small10.Text, "0", $"{Convert.ToInt32(ECH)}", "0" }, "");
-                                        CreateQuery.Add("item", requeteitem);
-                                        CreateQuery.Add("template", requeteTemplate);
-                                        EditorManager.InjectSql(CreateQuery);
-                                    }
-
-
-                                }
-                                else if (iTalk_RadioButton3.Checked) // swf et sql
-                                {
-                                    PrepareCreateItem();
-                                    if (iTalk_CheckBox6.Checked)
-                                    {
-                                        if (iTalk_CheckBox4.Checked && RecipeContent != null)
-                                        {
-                                            requetecraft = QueryBuilder.InsertIntoQuery(TableCraft, new string[] { }, new string[] { iTalk_TextBox_Small2.Text, h }, "");
-                                            CreateQuery.Add("craft", requetecraft);
-                                        }
-                                        if (iTalk_ComboBox6.SelectedItem != null)
-                                        {
-                                            string rowP = EmuManager.UpdateRowPano(EmuManager.RecupPanoRow(ColumsPano, iTalk_ComboBox2.SelectedItem.ToString()), iTalk_TextBox_Small2.Text);
-                                            AddInPano = QueryBuilder.UpdateFromQuery(TablePano, ColumsPano, 1, rowP, EmuManager.ReturnInfoCol("pano"), iTalk_ComboBox2.SelectedItem.ToString());
-                                            CreateQuery.Add("pano", AddInPano);
-                                        }
-                                        requeteitem = QueryBuilder.InsertIntoQuery(TableItems, new string[] { }, new string[] { iTalk_TextBox_Small9.Text, iTalk_TextBox_Small2.Text, "0", "-1", "", "0" }, "");
-                                        requeteTemplate = QueryBuilder.InsertIntoQuery(TableItemsTemplate, new string[] { }, new string[] { iTalk_TextBox_Small2.Text, $"{EditorManager.SwitchType(iTalk_ComboBox1.SelectedItem.ToString()).ToString()}", iTalk_TextBox_Small1.Text, iTalk_NumericUpDown1.Value.ToString(), b, iTalk_NumericUpDown2.Value.ToString(), pano.ToString(), iTalk_NumericUpDown3.Value.ToString(), ConditionsFinal, ArmeInfos, "0", "0", iTalk_TextBox_Small10.Text, "0", $"{Convert.ToInt32(ECH)}", "0" }, "");
-                                        CreateQuery.Add("item", requeteitem);
-                                        CreateQuery.Add("template", requeteTemplate);
-                                        EditorManager.CreateSQLEditor($"items_{EmuManager.EMUSELECTED}", CreateQuery);
-                                        if (iTalk_CheckBox5.Checked)
-                                        {
-                                            EditorManager.InjectSql(CreateQuery);
-                                        }
-                                    }
-                                    EditorManager.CreateSwf($@".\swf\{EmuManager.EMUSELECTED}_{iTalk_TextBox_Small2.Text}.txt", EditorManager.CreateSwfLine(Convert.ToInt32(iTalk_TextBox_Small2.Text), iTalk_TextBox_Small1.Text, iTalk_TextBox_Small13.Text, iTalk_TextBox_Small14.Text, $"{EditorManager.SwitchType(iTalk_ComboBox1.SelectedItem.ToString())}", iTalk_NumericUpDown1.Value.ToString(), iTalk_CheckBox7.Checked, iTalk_NumericUpDown2.Value.ToString(), $"{iTalk_TextBox_Small4.Text};{iTalk_TextBox_Small5.Text};{iTalk_TextBox_Small8.Text};{iTalk_TextBox_Small3.Text};{iTalk_TextBox_Small6.Text};{iTalk_TextBox_Small7.Text}", ConditionsFinal, iTalk_NumericUpDown3.Value.ToString(), iTalk_CheckBox8.Checked, iTalk_CheckBox2.Checked));
-
-                                }
-                                else
-                                {
-                                    MessageBox.Show("Merci de sélectionner un moyen d'exportation.", "Création impossible", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-                                    return;
-                                }
-                                MessageBox.Show($"La création de l'objet {iTalk_TextBox_Small1.Text} est réussie.", $"ID: {iTalk_TextBox_Small2.Text}", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-                                ClearAllList();
-                            }
-                            else
-                            {
-                                MessageBox.Show("Merci de remplir corrrectement toutes les informations requises.", "Création impossible", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                                return;
-                            }
-                        }
-                        else
-                        {
-                            MessageBox.Show($"Le nom {iTalk_TextBox_Small1.Text} existe déjà.", "Création impossible", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-                            return;
-                        }
-
-                    }
-                    else
-                    {
-                        MessageBox.Show($"Le template '{iTalk_TextBox_Small2.Text}' existe déjà.", "Création impossible", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-                        return;
-                    }
-              //  }
-               // else
-               // {
-               //     MessageBox.Show($"L'objet avec le GUID: '{iTalk_TextBox_Small9.Text}' existe déjà.", "Créatioon impossible", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-                //    return;
-                //}
+                }
+                if (exportSwf)
+                {
+                    clientPlan.Write();
+                    completedFiles.Add(clientPlan.Destination);
+                }
+                MessageBox.Show($"La création de l'objet {iTalk_TextBox_Small1.Text} est terminée." +
+                    (completedFiles.Count > 0 ? "\n\nSWF enregistré :\n" + string.Join("\n", completedFiles) : ""),
+                    $"Template {templateId}", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ClearAll();
             }
-            catch (Exception a)
+            catch (Exception error)
             {
-                MessageBox.Show(a.Message);
-                return;
+                MessageBox.Show(error.Message + (databaseSaved ? "\n\nL'objet a déjà été enregistré en base. Vous pouvez relancer avec l'option SWF du client uniquement." : ""), "Création impossible", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-            ClearAll();
+            finally
+            {
+                iTalk_Button_21.Enabled = true;
+            }
+        }
+
+        private void BuildCreationQueries(int templateId, int itemGuid, int type)
+        {
+            CreateQuery.Clear();
+            if (iTalk_CheckBox4.Checked)
+                CreateQuery["craft"] = QueryBuilder.InsertIntoQuery(TableCraft,
+                    new[] { "id", "craft" }, new[] { templateId.ToString(), h }, "");
+            if (iTalk_ComboBox2.SelectedItem != null)
+                CreateQuery["pano"] = ItemCreationService.BuildPanoplyQuery(TablePano, ColumsPano,
+                    EmuManager.ReturnInfoCol("pano"), iTalk_ComboBox2.SelectedItem.ToString(), templateId);
+            CreateQuery["item"] = QueryBuilder.InsertIntoQuery(TableItems,
+                new[] { "guid", "template", "qua", "pos", "stats", "puit" },
+                new[] { itemGuid.ToString(), templateId.ToString(), "0", "-1", "", "0" }, "");
+            CreateQuery["template"] = ItemCreationService.BuildTemplateQuery(TableItemsTemplate,
+                new[] { templateId.ToString(), type.ToString(), iTalk_TextBox_Small1.Text.Trim(),
+                    iTalk_NumericUpDown1.Value.ToString(), b, iTalk_NumericUpDown2.Value.ToString(),
+                    pano.ToString(), iTalk_NumericUpDown3.Value.ToString(), ConditionsFinal, ArmeInfos,
+                    "0", "0", iTalk_TextBox_Small10.Text }, iTalk_CheckBox1.Checked, iTalk_CheckBox3.Checked);
         }
         private void ClearAll()
         {
@@ -512,7 +515,8 @@ namespace Outil_Azur_complet.editeur_items
         {
             if (iTalk_CheckBox1.Checked)
                 ECH = true;
-            ECH = false;
+            else
+                ECH = false;
         }
 
         private void ITalk_ComboBox1_SelectedIndexChanged(object sender, EventArgs e)
@@ -575,17 +579,61 @@ namespace Outil_Azur_complet.editeur_items
         #region editeur d'inventaire
         public void LoadStaticInventory()
         {
-           
-            
+            if (_inventoryInitialized) return;
+            _inventoryInitialized = true;
+            _inventoryStatus = new Label
+            {
+                Location = new Point(178, 477),
+                Size = new Size(755, 30),
+                AutoEllipsis = true,
+                ForeColor = Color.DarkRed
+            };
+            tabPage5.Controls.Add(_inventoryStatus);
+            listView1.DoubleClick += (sender, args) => RemoveSelectedPendingChange();
+            listView1.SelectedIndexChanged -= listView1_SelectedIndexChanged;
+            iTalk_ContextMenuStrip1.Enabled = false;
+            iTalk_Button_12.Click -= iTalk_Button_12_Click;
+            iTalk_Button_12.Click += StageAddItem;
+            iTalk_Button_13.Click -= iTalk_Button_13_Click;
+            iTalk_Button_13.Click += StageRemoveItems;
+            iTalk_Button_23.Click -= iTalk_Button_23_Click;
+            iTalk_Button_23.Click += ApplyPendingInventory;
+            iTalk_Button_22.Enabled = false;
+
+            string unavailable = InventoryUpdateService.UnavailableReason();
+            try
+            {
+                foreach (var template in InventoryUpdateService.LoadTemplateChoices())
+                {
+                    string label = template.ToString();
+                    _inventoryTemplates[label] = template;
+                    list2.Add(label);
+                    listBox5.Items.Add(label);
+                }
+            }
+            catch (Exception error)
+            {
+                if (unavailable == null) unavailable = error.Message;
+                foreach (int item in ItemTemplateList.ItemFullDico.Keys)
+                {
+                    string name = ItemTemplateList.GetItem(item, 1);
+                    listBox5.Items.Add(name);
+                    list2.Add(name);
+                }
+            }
+            _inventoryAvailable = unavailable == null;
+            _inventoryStatus.ForeColor = _inventoryAvailable ? Color.DarkGreen : Color.DarkRed;
+            _inventoryStatus.Text = _inventoryAvailable
+                ? "Les changements seront enregistrés ensemble après vérification des personnages et des objets."
+                : unavailable;
+            iTalk_Button_12.Enabled = _inventoryAvailable && _inventoryTemplates.Count > 0;
+            iTalk_Button_13.Enabled = _inventoryAvailable;
+            iTalk_Button_23.Enabled = false;
+            iTalk_Button_23.Text = "Appliquer";
             foreach(string s in CharacterList.PersoAll.Keys)
             {
                 listBox4.Items.Add(s);
                 list.Add(s);
-            }
-            foreach(int item in ItemTemplateList.ItemFullDico.Keys)
-            {
-                listBox5.Items.Add(ItemTemplateList.GetItem(item, 1));
-                list2.Add(listBox5.Items.ToString());
             }
             iTalk_Label44.Text = listBox5.Items.Count.ToString();
             iTalk_Label27.Text = listBox4.Items.Count.ToString();
@@ -602,7 +650,7 @@ namespace Outil_Azur_complet.editeur_items
                 listBox5.Items.Clear();
                 foreach (string str in list2)
                 {
-                    if (str.StartsWith(iTalk_TextBox_Small16.Text.Trim()))
+                    if (str.StartsWith(iTalk_TextBox_Small16.Text.Trim(), StringComparison.OrdinalIgnoreCase))
 
                     {
                         listBox5.Items.Add(str);
@@ -627,7 +675,7 @@ namespace Outil_Azur_complet.editeur_items
                 listBox4.Items.Clear();
                 foreach (string str in list)
                 {
-                    if (str.StartsWith(iTalk_TextBox_Small15.Text.Trim()))
+                    if (str.StartsWith(iTalk_TextBox_Small15.Text.Trim(), StringComparison.OrdinalIgnoreCase))
 
                     {
                         listBox4.Items.Add(str);
@@ -648,28 +696,35 @@ namespace Outil_Azur_complet.editeur_items
 
         private void listBox4_SelectedIndexChanged(object sender, EventArgs e)
         {
-            List<string> str = new List<string>();
-            sfListView1.DataSource = null;
-            CharacterList.ItemsPerso.Clear();
-            CharacterList.preinventory.Clear();
-            Persoinventory.TryGetValue(listBox4.SelectedItems.ToString(), out List<string> listItem);
-            if (listItem != null)
+            if (listBox4.SelectedItem == null)
             {
-                MessageBox.Show("null");
-                sfListView1.DataSource = listItem;
-                sfListView1.Refresh();
+                sfListView1.DataSource = null;
+                iTalk_Label29.Text = "0";
+                return;
+            }
+            string characterName = listBox4.SelectedItem.ToString();
+            sfListView1.DataSource = null;
+            // Reload on each selection: an earlier offline/failed read must not
+            // remain cached after the world connection is restored.
+            CharacterList.GetInventory(characterName);
+            List<string> items = CharacterList.ItemsPerso.ToList();
+            Persoinventory[characterName] = items;
+            sfListView1.DataSource = items;
+            sfListView1.Refresh();
+            iTalk_Label29.Text = sfListView1.RowCount.ToString();
+            if (CharacterList.InventoryLoadError != null)
+            {
+                _inventoryStatus.ForeColor = Color.DarkRed;
+                _inventoryStatus.Text = CharacterList.InventoryLoadError;
             }
             else
             {
-                CharacterList.GetInventory(listBox4.SelectedItem.ToString());
-                str = CharacterList.ItemsPerso;
-                if (!Persoinventory.ContainsKey(listBox4.SelectedItem.ToString()))
-                    Persoinventory.Add(listBox4.SelectedItem.ToString(), str);
-                sfListView1.DataSource = str;
-                sfListView1.Refresh();
-                str.Clear();
+                int missing = items.Count(value => value.Contains("absent de la table world"));
+                _inventoryStatus.ForeColor = missing > 0 ? Color.DarkRed : Color.DarkGreen;
+                _inventoryStatus.Text = missing > 0
+                    ? missing + " références d'objets ne figurent pas dans la table world configurée."
+                    : items.Count + " objets chargés depuis la base world.";
             }
-            iTalk_Label29.Text = sfListView1.RowCount.ToString();
 
 
         }
@@ -690,14 +745,24 @@ namespace Outil_Azur_complet.editeur_items
         {
             if (sfListView1.SelectedItem != null)
             {
-                GUID = Convert.ToInt32(sfListView1.SelectedItem.ToString().Split('(')[1].Split(')')[0].Trim());
-                ID = ItemList.ItemsList.FirstOrDefault(x => x.Key == GUID).Value.Template;
+                var match = Regex.Match(sfListView1.SelectedItem.ToString(), @"\((\d+)\)");
+                if (!match.Success || !int.TryParse(match.Groups[1].Value, out int itemGuid) ||
+                    !ItemList.ItemsList.TryGetValue(itemGuid, out ItemList selectedItem))
+                {
+                    iTalk_Label35.Text = "-";
+                    iTalk_Label36.Text = CharacterList.InventoryLoadError ?? "Objet absent de la table world";
+                    iTalk_Label37.Text = "-";
+                    iTalk_Label38.Text = "-";
+                    return;
+                }
+                GUID = itemGuid;
+                ID = selectedItem.Template;
                 string TYPE = ItemTemplateList.GetItem(ID, 2);
 
                 iTalk_Label35.Text = ID.ToString();
                 iTalk_Label36.Text = sfListView1.SelectedItem.ToString().Split('(')[0].Trim().ToString();
                 iTalk_Label37.Text = TYPE;
-                iTalk_Label38.Text = ItemList.ItemsList.FirstOrDefault(x => x.Key == GUID).Value.Qua.ToString();
+                iTalk_Label38.Text = selectedItem.Qua.ToString();
                 try { pictureBox1.Image = Image.FromFile(SearchManager.Search_pictureItem(ID, Convert.ToInt32(TYPE))); } catch { };
 
             }
@@ -846,118 +911,13 @@ namespace Outil_Azur_complet.editeur_items
             int g = ItemList.ItemsList.Max(x => x.Key);
             return g + CountAdd;
         }
-        private void iTalk_Button_12_Click(object sender, EventArgs e) // ajouter
+        private void iTalk_Button_12_Click(object sender, EventArgs e)
         {
-            if (listBox5.SelectedItem != null)
-            {
-                if (listBox4.SelectedItem != null)
-                {
-                    if (iTalk_NumericUpDown6.Value >= 1)
-                    {
-                        if (Selection.Keys.Contains(listBox5.SelectedItem.ToString()))
-                        {
-                            string n = Selection.FirstOrDefault(x => x.Key.Contains(listBox5.SelectedItem.ToString())).Key;
-                            string MP = Selection.FirstOrDefault(x => x.Key == n).Value.player_name;
-                            int GU = Convert.ToInt32(n.Split('(')[1].Split(')')[0].Trim());
-                            string id = ItemList.ItemsList.FirstOrDefault(x => x.Key == GU).Value.Template.ToString();
-                            int qua = Selection.FirstOrDefault(x => x.Key == n).Value.Count;
-
-                            if (MP == listBox5.SelectedItem.ToString()) // + 1 qua
-                            {
-                                CountForAdd++;
-                                addToListForselection(false, id, qua + (int)iTalk_NumericUpDown6.Value, n, false, true);
-                                listChecked.Add(n);
-                                listBox5.SelectedItem = null;
-                                iTalk_NumericUpDown6.Value = 0;
-                            }
-                            else
-                            {
-                                CountForAdd++;
-                                int newguid = GenerateGUID(CountForAdd);
-                                addToListForselection(false, id, qua + (int)iTalk_NumericUpDown6.Value, $"{listBox5.SelectedItem}({newguid})", false, true, true);
-                                listChecked.Add($"{listBox5.SelectedItem}({newguid})");
-                                listBox5.SelectedItem = null;
-                                iTalk_NumericUpDown6.Value = 0;
-                            }
-                        }
-                        else
-                        {
-                            int id = ItemTemplateList.ReturnItemId(listBox5.SelectedItem.ToString());
-                            CountForAdd++;
-                            int newguid = GenerateGUID(CountForAdd);
-                            addToListForselection(false, id.ToString(), (int)iTalk_NumericUpDown6.Value, $"{listBox5.SelectedItem}({newguid})", false, false, true);
-                            listChecked.Add($"{listBox5.SelectedItem}({newguid})");
-                            listBox5.SelectedItem = null;
-                            iTalk_NumericUpDown6.Value = 0;
-                        }
-                    }
-                    else
-                    {
-                        MessageBox.Show("Merci d'indiquer une valeur supérieur à 0", "Ajout impossible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        return;
-                    }
-                }
-                else
-                {
-                    MessageBox.Show($"Merci de sélectionner un joueur à qui ajouter l'objet [{listBox5.SelectedItem}]", "Ajout impossible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-            }
-            else
-            {
-                MessageBox.Show("Merci de sélectionner un objet à mettre dans l'inventaire.", "Ajout impossible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
+            StageAddItem(sender, e);
         }
-        private void iTalk_Button_13_Click(object sender, EventArgs e) // retirer
+        private void iTalk_Button_13_Click(object sender, EventArgs e)
         {
-            if (iTalk_NumericUpDown6.Value <= 0 && sfListView1.CheckedItems.Count == 1)
-            {
-                MessageBox.Show($"La valeur {iTalk_NumericUpDown6.Value} n'est pas une valeur correcte.", "Quantité incorrecte.", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-            else
-            {
-                if (sfListView1.CheckedItems.Count == 1)
-                {
-                    if (Selection.ContainsKey(sfListView1.CheckedItems[0].ToString()))
-                    {
-                        UpdateViaContextMenu(1, true, sfListView1.CheckedItems[0].ToString());
-                    }
-                    else
-                    {
-                        GUID = Convert.ToInt32(sfListView1.CheckedItems[0].ToString().Split('(')[1].Split(')')[0].Trim());
-                        ID = ItemList.ItemsId.FirstOrDefault(x => x.Key == GUID).Value;
-                        listChecked.Add(sfListView1.CheckedItems[0].ToString());
-                        addToListForselection(true, ID.ToString(), (int)iTalk_NumericUpDown6.Value, sfListView1.CheckedItems[0].ToString());
-                        listBox5.SelectedItem = null;
-                        iTalk_NumericUpDown6.Value = 0;
-                    }
-                }
-                else if (sfListView1.CheckedItems.Count >= 2)
-                {
-                    for (int i = 0; i < sfListView1.CheckedItems.Count; i++)
-                    {
-                        if (Selection.ContainsKey(sfListView1.CheckedItems[i].ToString()))
-                        {
-                            string P = Selection.FirstOrDefault(x => x.Key == sfListView1.CheckedItems[i].ToString()).Value.player_name;
-                            MessageBox.Show($"L'objet {sfListView1.CheckedItems[i]} du joueur {P} est déjà en attente.", "Impossible d'effectuer l'action", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            return;
-                        }
-                        else
-                        {
-                            listChecked.Add(sfListView1.CheckedItems[i].ToString());
-                            GUID = Convert.ToInt32(sfListView1.CheckedItems[i].ToString().Split('(')[1].Split(')')[0].Trim());
-                            ID = ItemList.ItemsId.FirstOrDefault(x => x.Key == GUID).Value;
-                            int Q = ItemList.ItemsList.FirstOrDefault(x => x.Key == GUID).Value.Qua;
-
-                            addToListForselection(true, ID.ToString(), Q, sfListView1.CheckedItems[i].ToString(), true);
-                            listBox5.SelectedItem = null;
-                            iTalk_NumericUpDown6.Value = 0;
-                        }
-                    }
-                }
-            }
+            StageRemoveItems(sender, e);
         }
 
         private void menuStrip1_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
@@ -996,198 +956,9 @@ namespace Outil_Azur_complet.editeur_items
 
         }
 
-        private void iTalk_Button_23_Click(object sender, EventArgs e) // application
+        private void iTalk_Button_23_Click(object sender, EventArgs e)
         {
-            List<SelectionClass> SE_delete = new List<SelectionClass>();
-            List<SelectionClass> SE_ADD = new List<SelectionClass>();
-            List<string> ObjectBeforeDelete = new List<string>();
-            Dictionary<string, string> DicoBeforeDeletequery = new Dictionary<string, string>();
-            List<string> ObjectBeforeAdd = new List<string>();
-            Dictionary<string, string> DicoBeforeAddquery = new Dictionary<string, string>();
-            Dictionary<string, int> ItemAndQuaDelete = new Dictionary<string, int>();
-            Dictionary<string, int> ItemAndQuaADD = new Dictionary<string, int>();
-
-            if (Selection.Count > 0)
-            {
-                foreach (SelectionClass S in Selection.Values)
-                {
-                    if (S.action == true)
-                    {
-                        SE_delete.Add(S);
-                    }
-                    else
-                    {
-                        SE_ADD.Add(S);
-                    }
-                }
-                if (SE_delete.Count > 0)
-                {
-                    foreach (SelectionClass SE in SE_delete)
-                    {
-                        int quant = ItemList.ReturnItemQua(SE.name.Split('(')[1].Split(')')[0]);
-                        if (DicoBeforeDeletequery.ContainsKey(SE.player_name))
-                        {
-                            string inv = DicoBeforeDeletequery.FirstOrDefault(x => x.Key == SE.player_name).Value;
-                            foreach (string h in inv.Split('|'))
-                            {
-
-                                if (!string.IsNullOrEmpty(h) && !h.Equals(SE.name.Split('(')[1].Split(')')[0]))
-                                {
-                                    ObjectBeforeDelete.Add(h);
-                                }
-                            }
-                            if (!SE.New)
-                            {
-                                if (quant == SE.Count)
-                                    ObjectBeforeDelete.Remove(SE.name.Split('(')[1].Split(')')[0]);
-                                DicoBeforeDeletequery.Remove(SE.player_name);
-                                ItemAndQuaDelete.Add(SE.name.Split('(')[1].Split(')')[0], SE.Count);
-                            }
-                            DicoBeforeDeletequery.Add(SE.player_name, string.Join("|", ObjectBeforeDelete));
-
-                        }
-                        else
-                        {
-                            string I = CharacterList.GetObjectFromInventory(SE.player_name);
-                            if (I != null)
-                            {
-                                foreach (string o in I.Split('|'))
-                                {
-                                    if (!string.IsNullOrEmpty(o))
-                                    {
-                                        ObjectBeforeDelete.Add(o);
-                                    }
-
-                                }
-                                if (!SE.New)
-                                {
-                                    if (quant == SE.Count)
-                                        ObjectBeforeDelete.Remove(SE.name.Split('(')[1].Split(')')[0]);
-                                    ItemAndQuaDelete.Add(SE.name.Split('(')[1].Split(')')[0], SE.Count);
-                                }
-                                DicoBeforeDeletequery.Add(SE.player_name, string.Join("|", ObjectBeforeDelete));
-                            }
-                        }
-
-                    }
-                    ObjectBeforeDelete.Clear();
-                }
-
-            }
-            if (SE_ADD.Count > 0)
-            {
-                foreach (SelectionClass SE in SE_ADD)
-                {
-                    if (DicoBeforeAddquery.ContainsKey(SE.player_name))
-                    {
-                        string inv = DicoBeforeAddquery[SE.player_name];
-                        foreach (string b in inv.Split('|'))
-                        {
-                            if (!string.IsNullOrEmpty(b))
-                            {
-                                ObjectBeforeAdd.Add(b);
-                            }
-                        }
-                        if (SE.New)
-                        {
-                            ObjectBeforeAdd.Add(SE.name.Split('(')[1].Split(')')[0]);
-                            ItemAndQuaADD.Add($"{SE.name.Split('(')[1].Split(')')[0]}@{SE.Template}@{SE.stats}", SE.Count);
-                        }
-                        else
-                        {
-                            ItemAndQuaADD.Add($"{SE.name.Split('(')[1].Split(')')[0]}", SE.Count);
-                        }
-                        DicoBeforeAddquery.Remove(SE.player_name);
-                        DicoBeforeAddquery.Add(SE.player_name, string.Join("|", ObjectBeforeAdd));
-                    }
-                    else
-                    {
-                        string U = CharacterList.GetObjectFromInventory(SE.player_name);
-                        if (U != null)
-                        {
-                            foreach (string o in U.Split('|'))
-                            {
-                                if (!string.IsNullOrEmpty(o))
-                                {
-                                    ObjectBeforeAdd.Add(o);
-                                }
-                            }
-                            if (SE.New)
-                            {
-                                ObjectBeforeAdd.Add(SE.name.Split('(')[1].Split(')')[0]);
-                                ItemAndQuaADD.Add($"{SE.name.Split('(')[1].Split(')')[0]}@{SE.Template}@{SE.stats}", SE.Count);
-                            }
-                            else
-                            {
-                                ItemAndQuaADD.Add($"{SE.name.Split('(')[1].Split(')')[0]}", SE.Count);
-                            }
-                            ItemAndQuaADD.Add(SE.name.Split('(')[1].Split(')')[0], SE.Count);
-                            DicoBeforeAddquery.Add(SE.player_name, string.Join("|", ObjectBeforeAdd));
-                        }
-                    }
-                    ObjectBeforeAdd.Clear();
-                }
-            }
-            try
-            {
-                if (DicoBeforeDeletequery.Count > 0)
-                {
-                    foreach (string s in DicoBeforeDeletequery.Keys)
-                    {
-                        DatabaseManager.UpdateQuery(QueryBuilder.UpdateFromQuery(CharacterList.TablePerso, "objets", 1, DicoBeforeDeletequery[s], "name", s));
-                    }
-                    foreach (string g in ItemAndQuaDelete.Keys)
-                    {
-                        if (ItemAndQuaDelete[g] == ItemList.ReturnItemQua(g))
-                        {
-                            DatabaseManager2.UpdateQuery(QueryBuilder.DeleteFromQuery(ItemList.TableItems, "guid", g));
-                        }
-                        else
-                        {
-                            DatabaseManager2.UpdateQuery(QueryBuilder.UpdateFromQuery(ItemList.TableItems, "qua", 3, $"{ItemAndQuaDelete[g]}", "guid", g));
-                        }
-                    }
-                }
-                if (DicoBeforeAddquery.Count > 0)
-                {
-                    foreach (string j in DicoBeforeAddquery.Keys)
-                    {
-                        DatabaseManager.UpdateQuery(QueryBuilder.UpdateFromQuery(CharacterList.TablePerso, "objets", 1, DicoBeforeAddquery[j], "name", j));
-                    }
-                    foreach (string f in ItemAndQuaADD.Keys)
-                    {
-                        if (f.Contains("@"))
-                        {
-                            DatabaseManager2.UpdateQuery(QueryBuilder.InsertIntoQuery(ItemList.TableItems, new string[] { "guid", "template", "qua", "pos", "stats", "puit" }, new string[] { f.Split('@')[0], f.Split('@')[1], ItemAndQuaADD[f].ToString(), "-1", f.Split('@')[2], "0" }, ""));
-                        }
-                        else
-                        {
-                            DatabaseManager2.UpdateQuery(QueryBuilder.UpdateFromQuery(ItemList.TableItems, "qua", 2, $"{ItemAndQuaADD[f]}", "guid", f));
-                        }
-                    }
-                }
-                MessageBox.Show("Les modifications ont été effectuées.", "Modifications réussies", MessageBoxButtons.OK, MessageBoxIcon.Information);
-
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message);
-                return;
-            }
-
-
-            Selection.Clear();
-            Items.Clear();
-            listChecked.Clear();
-            listView1.Items.Clear();
-            SE_ADD.Clear();
-            SE_delete.Clear();
-            DicoBeforeAddquery.Clear();
-            DicoBeforeDeletequery.Clear();
-            ObjectBeforeAdd.Clear();
-            ObjectBeforeDelete.Clear();
-            ItemAndQuaADD.Clear();
-            ItemAndQuaDelete.Clear();
+            ApplyPendingInventory(sender, e);
         }
 
         private void listView1_SelectedIndexChanged(object sender, EventArgs e)

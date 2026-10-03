@@ -18,15 +18,18 @@ namespace Tool_BotProtocol.Game.Monstres
         public int id { get; set; } = 0;
         public int TemplateID { get; set; } = 0;
         public int GFX { get; set; } = 0;
+        public int Orientation { get; set; } = 2;
+        public int GraphicsScaleX { get; set; } = 100;
+        public int GraphicsScaleY { get; set; } = 100;
         public Cell Cell { get ; set ; }
         public int Level { get; set; }
         public List<Monstres>MobsInGroupe { get; set; }
         public Monstres GroupeLeader { get; set; }
         bool IDisposed;
 
-        private static string MonstersPath = @".\ressources\Bot\BotMonsters\";
+        private static string MonstersPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ressources", "Bot", "BotMonsters");
         public static ConcurrentDictionary<int, Monstres> AllMonstersTemplate = new ConcurrentDictionary<int, Monstres>();
-        public int GetAllMonster => MobsInGroupe.Count + 1;
+        public int GetAllMonster => MobsInGroupe.Count;
         public int MobsGroupelevel => MobsInGroupe.Sum(x => x.Level);
         public int Star { get; set; }
         public string Name { get; set; }
@@ -36,48 +39,33 @@ namespace Tool_BotProtocol.Game.Monstres
             id = ID;
             TemplateID = temp;
             if (AllMonstersTemplate.ContainsKey(temp))
+            {
                 Name = AllMonstersTemplate[temp].Name;
+                GFX = AllMonstersTemplate[temp].GFX;
+            }
             else
-                Name = $"Undefined ({temp})";
+                Name = $"Monstre {temp}";
             Cell = C;
             Level = level;
             MobsInGroupe = new List<Monstres>();
             Star = S;
         }
         
-        public static Monstres ReturnMonsters(int template) => AllMonstersTemplate[template];
-        public static async Task LoadAllMonstersAsync()
+        public static Monstres ReturnMonsters(int template) => AllMonstersTemplate.TryGetValue(template, out Monstres value) ? value : null;
+        public static Task LoadAllMonstersAsync()
         {
-            try
+            return Task.Run(() =>
             {
-                DirectoryInfo monstersFolder = new DirectoryInfo(MonstersPath);
-                List<Task> tasks = new List<Task>();
-
-                foreach (FileInfo file in monstersFolder.GetFiles())
+                var loaded = new ConcurrentDictionary<int, Monstres>();
+                foreach (string file in Directory.EnumerateFiles(MonstersPath, "*.xml"))
                 {
-                    if (file.Exists)
-                    {
-                        tasks.Add(Task.Run(async () =>
-                        {
-                            XElement xmlmap = await Task.Run(() => XElement.Load(file.FullName));
-                            Monstres M = new Monstres
-                            {
-                                TemplateID = int.Parse(xmlmap.Element("ID").Value),
-                                Name = xmlmap.Element("NAME").Value,
-                                GFX = int.Parse(xmlmap.Element("GFX").Value)
-                            };
-                            AllMonstersTemplate.TryAdd(M.TemplateID, M);
-                        }));
-                    }
+                    XElement xml = XElement.Load(file);
+                    var monster = new Monstres { TemplateID = int.Parse(xml.Element("ID").Value),
+                        Name = xml.Element("NAME").Value, GFX = int.Parse(xml.Element("GFX").Value) };
+                    loaded[monster.TemplateID] = monster;
                 }
-
-                await Task.WhenAll(tasks);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message);
-                return;
-            }
+                AllMonstersTemplate = loaded;
+            });
         }
 
         public bool GroupHasThisMob(int id)
@@ -94,8 +82,6 @@ namespace Tool_BotProtocol.Game.Monstres
         public int GroupSize(int id)
         {
             int nombre = 0;
-            if(GroupeLeader.TemplateID == id)
-                nombre++;
             for(int i = 0;i < MobsInGroupe.Count; i++)
             {
                 if(MobsInGroupe[i].TemplateID.Equals(id))
@@ -105,14 +91,14 @@ namespace Tool_BotProtocol.Game.Monstres
         }
 
         public void Dispose() => Dispose(true);
-        Monstres() => Dispose(false);
+        Monstres() { MobsInGroupe = new List<Monstres>(); }
         public virtual void Dispose(bool disposed)
         {
-            if (IDisposed)
+            if (!IDisposed)
             {
                 MobsInGroupe.Clear();
                 MobsInGroupe = null;
-                disposed = true;
+                IDisposed = true;
             }
         }
     }

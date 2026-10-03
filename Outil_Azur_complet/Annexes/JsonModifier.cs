@@ -1,13 +1,7 @@
-﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using Tools_protocol.Json;
 
@@ -15,16 +9,18 @@ namespace Outil_Azur_complet.Annexes
 {
     public partial class JsonModifier : Form
     {
+        private readonly Dictionary<string, string> _authChanges = new Dictionary<string, string>();
+        private readonly Dictionary<string, string> _worldChanges = new Dictionary<string, string>();
+        private string _currentSection;
+        private string _currentKey;
+        private bool _loadingSelection;
+
         public JsonModifier()
         {
             InitializeComponent();
+            BuildEditorLayout();
         }
 
-        private bool IsAuth;
-        private bool IsNull;
-        private Dictionary<string, string> JsonModifiersAuth = new Dictionary<string, string>();
-        private Dictionary<string, string> JsonModifiersWorld = new Dictionary<string, string>();
-        private string TempName;
         private void iTalk_Button_11_Click(object sender, EventArgs e)
         {
             Close();
@@ -32,209 +28,118 @@ namespace Outil_Azur_complet.Annexes
 
         private void JsonModifier_Load(object sender, EventArgs e)
         {
-            LoadName();
-        }
-        private void CheckAndDispatch(bool world)
-        {
-            if (!world)
-            {
-                if (!string.IsNullOrEmpty(TempName))
-                {
-                    if (TempName.Split('|')[0] == "auth")
-                    {
-                        if (JsonManager.SearchAuth(TempName.Split('|')[1]) != TempName.Split('|')[2])
-                        {
-                            if (JsonModifiersAuth.ContainsKey(TempName.Split('|')[1]))
-                            {
-                                JsonModifiersAuth.Remove(TempName.Split('|')[1]);
-                                JsonModifiersAuth.Add(TempName.Split('|')[1], TempName.Split('|')[2]);
-                            }
-                            else
-                            {
-                                JsonModifiersAuth.Add(TempName.Split('|')[1], TempName.Split('|')[2]);
-                            }
-                            iTalk_TextBox_Small1.Text = JsonManager.SearchAuth(iTalk_ComboBox2.SelectedItem.ToString());
-                            TempName = $"{iTalk_ComboBox1.SelectedItem.ToString()}|{iTalk_ComboBox2.SelectedItem.ToString()}|{iTalk_TextBox_Small1.Text}";
-                        }
-                        else
-                        {
-                            iTalk_TextBox_Small1.Text = JsonManager.SearchAuth(iTalk_ComboBox2.SelectedItem.ToString());
-                            TempName = $"{iTalk_ComboBox1.SelectedItem.ToString()}|{iTalk_ComboBox2.SelectedItem.ToString()}|{iTalk_TextBox_Small1.Text}";
-                        }
-
-                    }
-                    else if (TempName.Split('|')[0] == "world")
-                    {
-                        if (JsonManager.SearchWorld(TempName.Split('|')[1]) != TempName.Split('|')[2])
-                        {
-                            if (JsonModifiersWorld.ContainsKey(TempName.Split('|')[1]))
-                            {
-                                JsonModifiersWorld.Remove(TempName.Split('|')[1]);
-                                JsonModifiersWorld.Add(TempName.Split('|')[1], TempName.Split('|')[2]);
-                            }
-                            else
-                            {
-                                JsonModifiersWorld.Add(TempName.Split('|')[1], TempName.Split('|')[2]);
-                            }
-                            iTalk_TextBox_Small1.Text = JsonManager.SearchAuth(iTalk_ComboBox2.SelectedItem.ToString());
-                            TempName = $"{iTalk_ComboBox1.SelectedItem.ToString()}|{iTalk_ComboBox2.SelectedItem.ToString()}|{iTalk_TextBox_Small1.Text}";
-                        }
-                        else
-                        {
-                            iTalk_TextBox_Small1.Text = JsonManager.SearchAuth(iTalk_ComboBox2.SelectedItem.ToString());
-                            TempName = $"{iTalk_ComboBox1.SelectedItem.ToString()}|{iTalk_ComboBox2.SelectedItem.ToString()}|{iTalk_TextBox_Small1.Text}";
-                        }
-                    }
-                }
-                else
-                {
-                    iTalk_TextBox_Small1.Text = JsonManager.SearchAuth(iTalk_ComboBox2.SelectedItem.ToString());
-                    TempName = $"{iTalk_ComboBox1.SelectedItem.ToString()}|{iTalk_ComboBox2.SelectedItem.ToString()}|{iTalk_TextBox_Small1.Text}";
-                }
-            }
+            if (iTalk_ComboBox1.SelectedItem == null && iTalk_ComboBox1.Items.Count > 0)
+                iTalk_ComboBox1.SelectedIndex = 0;
             else
-            {
-                if (!string.IsNullOrEmpty(TempName))
-                {
-                    if (TempName.Split('|')[0] == "auth")
-                    {
-                        if (JsonManager.SearchAuth(TempName.Split('|')[1]) != TempName.Split('|')[2])
-                        {
-                            if (JsonModifiersAuth.ContainsKey(TempName.Split('|')[1]))
-                            {
-                                JsonModifiersAuth.Remove(TempName.Split('|')[1]);
-                                JsonModifiersAuth.Add(TempName.Split('|')[1], TempName.Split('|')[2]);
-                            }
-                            else
-                            {
-                                JsonModifiersAuth.Add(TempName.Split('|')[1], TempName.Split('|')[2]);
-                            }
-                            iTalk_TextBox_Small1.Text = JsonManager.SearchWorld(iTalk_ComboBox2.SelectedItem.ToString());
-                            TempName = $"{iTalk_ComboBox1.SelectedItem.ToString()}|{iTalk_ComboBox2.SelectedItem.ToString()}|{iTalk_TextBox_Small1.Text}";
-                        }
-                        else
-                        {
-                            iTalk_TextBox_Small1.Text = JsonManager.SearchWorld(iTalk_ComboBox2.SelectedItem.ToString());
-                            TempName = $"{iTalk_ComboBox1.SelectedItem.ToString()}|{iTalk_ComboBox2.SelectedItem.ToString()}|{iTalk_TextBox_Small1.Text}";
-                        }
-
-                    }
-                    else if (TempName.Split('|')[0] == "world")
-                    {
-                        if (JsonManager.SearchWorld(TempName.Split('|')[1]) != TempName.Split('|')[2])
-                        {
-                            if (JsonModifiersWorld.ContainsKey(TempName.Split('|')[1]))
-                            {
-                                JsonModifiersWorld.Remove(TempName.Split('|')[1]);
-                                JsonModifiersWorld.Add(TempName.Split('|')[1], TempName.Split('|')[2]);
-                            }
-                            else
-                            {
-                                JsonModifiersWorld.Add(TempName.Split('|')[1], TempName.Split('|')[2]);
-                            }
-                            iTalk_TextBox_Small1.Text = JsonManager.SearchWorld(iTalk_ComboBox2.SelectedItem.ToString());
-                            TempName = $"{iTalk_ComboBox1.SelectedItem.ToString()}|{iTalk_ComboBox2.SelectedItem.ToString()}|{iTalk_TextBox_Small1.Text}";
-                        }
-                        else
-                        {
-                            iTalk_TextBox_Small1.Text = JsonManager.SearchWorld(iTalk_ComboBox2.SelectedItem.ToString());
-                            TempName = $"{iTalk_ComboBox1.SelectedItem.ToString()}|{iTalk_ComboBox2.SelectedItem.ToString()}|{iTalk_TextBox_Small1.Text}";
-                        }
-                    }
-                }
-                else
-                {
-                    iTalk_TextBox_Small1.Text = JsonManager.SearchWorld(iTalk_ComboBox2.SelectedItem.ToString());
-                    TempName = $"{iTalk_ComboBox1.SelectedItem.ToString()}|{iTalk_ComboBox2.SelectedItem.ToString()}|{iTalk_TextBox_Small1.Text}";
-                }
-            }
+                LoadName();
         }
-        private void iTalk_ComboBox2_SelectedIndexChanged(object sender, EventArgs e)
+
+        private void SaveCurrentField()
         {
-            if(!IsNull && IsAuth)
-            {
-                CheckAndDispatch(false);
-                
-            }
-            else if(!IsNull && !IsAuth)
-            {
-                CheckAndDispatch(true);
-            }
+            if (_loadingSelection || _currentKey == null)
+                return;
 
+            bool isAuth = _currentSection == "auth";
+            Dictionary<string, string> changes = isAuth ? _authChanges : _worldChanges;
+            string original = isAuth ? JsonManager.SearchAuth(_currentKey) : JsonManager.SearchWorld(_currentKey);
+            string value = iTalk_TextBox_Small1.Text?.Trim();
+            if (string.Equals(value, original, StringComparison.Ordinal))
+                changes.Remove(_currentKey);
+            else
+                changes[_currentKey] = value;
         }
+
+        private void ShowSelectedField()
+        {
+            _currentSection = iTalk_ComboBox1.SelectedItem?.ToString();
+            _currentKey = iTalk_ComboBox2.SelectedItem?.ToString();
+            _loadingSelection = true;
+            try
+            {
+                if (_currentKey == null)
+                {
+                    iTalk_TextBox_Small1.Text = string.Empty;
+                    return;
+                }
+
+                bool isAuth = _currentSection == "auth";
+                Dictionary<string, string> changes = isAuth ? _authChanges : _worldChanges;
+                string original = isAuth ? JsonManager.SearchAuth(_currentKey) : JsonManager.SearchWorld(_currentKey);
+                iTalk_TextBox_Small1.Text = changes.TryGetValue(_currentKey, out string pending)
+                    ? pending : original;
+            }
+            finally
+            {
+                _loadingSelection = false;
+            }
+        }
+
         private void LoadName()
         {
-            if (iTalk_ComboBox1.SelectedItem.ToString() != null)
+            SaveCurrentField();
+            _loadingSelection = true;
+            try
             {
-                if (iTalk_ComboBox1.SelectedItem.ToString() == "auth")
-                {
-                    if (iTalk_ComboBox2.Items.Count > 0)
-                        iTalk_ComboBox2.Items.Clear();
-                    IsAuth = true;
-                    foreach (string k in JsonManager.Auth_dico.Keys)
-                    {
-                        iTalk_ComboBox2.Items.Add(k);
-                    }
-                    iTalk_ComboBox2.SelectedItem = iTalk_ComboBox2.Items[0];
-                    iTalk_TextBox_Small1.Text = JsonManager.SearchAuth(iTalk_ComboBox2.Items[0].ToString());
-                    TempName = $"{iTalk_ComboBox1.SelectedItem.ToString()}|{iTalk_ComboBox2.SelectedItem.ToString()}|{iTalk_TextBox_Small1.Text}";
-                }
-                else
-                {
-                    if (iTalk_ComboBox2.Items.Count > 0)
-                        iTalk_ComboBox2.Items.Clear();
-                    IsAuth = false;
-                    foreach (string k in JsonManager.World_dico.Keys)
-                        iTalk_ComboBox2.Items.Add(k);
-                    iTalk_ComboBox2.SelectedItem = iTalk_ComboBox2.Items[0];
-                    iTalk_TextBox_Small1.Text = JsonManager.SearchWorld(iTalk_ComboBox2.Items[0].ToString());
-                    TempName = $"{iTalk_ComboBox1.SelectedItem.ToString()}|{iTalk_ComboBox2.SelectedItem.ToString()}|{iTalk_TextBox_Small1.Text}";
-                }
-
+                iTalk_ComboBox2.Items.Clear();
+                string section = iTalk_ComboBox1.SelectedItem?.ToString();
+                IEnumerable<string> keys = section == "auth" ? JsonManager.Auth_dico.Keys
+                    : section == "world" ? JsonManager.World_dico.Keys
+                    : Enumerable.Empty<string>();
+                foreach (string key in keys)
+                    iTalk_ComboBox2.Items.Add(key);
+                iTalk_ComboBox2.SelectedIndex = iTalk_ComboBox2.Items.Count > 0 ? 0 : -1;
             }
-            else
-                IsNull = true;
+            finally
+            {
+                _loadingSelection = false;
+            }
+            ShowSelectedField();
         }
+
         private void iTalk_ComboBox1_SelectedIndexChanged(object sender, EventArgs e)
         {
-            LoadName();
+            if (!_loadingSelection)
+                LoadName();
+        }
+
+        private void iTalk_ComboBox2_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (_loadingSelection)
+                return;
+            SaveCurrentField();
+            ShowSelectedField();
         }
 
         private void iTalk_TextBox_Small1_TextChanged(object sender, EventArgs e)
         {
-
         }
 
         private void iTalk_Button_21_Click(object sender, EventArgs e)
         {
-            if(JsonModifiersAuth.Count > 0)
+            SaveCurrentField();
+            if (_authChanges.Count == 0 && _worldChanges.Count == 0)
+                return;
+
+            try
             {
-                foreach (string h in JsonModifiersAuth.Keys)
-                {
-                    JsonManager.Auth_dico.Remove(h);
-                    JsonManager.Auth_dico.Add(h, JsonModifiersAuth[h]);
-                }
-                string AuthJson = JsonConvert.SerializeObject(JsonManager.Auth_dico, Formatting.Indented);
-                JsonManager.RewriteTableJson(AuthJson, true);
+                if (_authChanges.Count > 0)
+                    JsonManager.RewriteTableJson(JsonConvert.SerializeObject(_authChanges), true);
+                if (_worldChanges.Count > 0)
+                    JsonManager.RewriteTableJson(JsonConvert.SerializeObject(_worldChanges), false);
+            }
+            catch (Exception exception)
+            {
+                MessageBox.Show($"Enregistrement impossible : {exception.Message}", "Configuration", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
             }
 
-            if(JsonModifiersWorld.Count > 0)
-            {
-                foreach (string k in JsonModifiersWorld.Keys)
-                {
-                    JsonManager.World_dico.Remove(k);
-                    JsonManager.World_dico.Add(k, JsonModifiersWorld[k]);
-                }
-                string WorldJson = JsonConvert.SerializeObject(JsonManager.World_dico, Formatting.Indented);
-                JsonManager.RewriteTableJson(WorldJson, false);
-            }
-
-            if (JsonModifiersAuth.Count > 0 || JsonModifiersWorld.Count > 0)
-            {
-                MessageBox.Show("Les modifications demandées ont été faites, l'application va redémarrer pour les prendres en compte.", "Redémarrage requis", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                Application.Restart();
-            }
-           
+            MessageBox.Show("Les noms de tables ont été enregistrés. L'application va redémarrer pour les appliquer.",
+                "Configuration", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            _authChanges.Clear();
+            _worldChanges.Clear();
+            // Do not stage the just-saved field again while Restart closes the form.
+            _currentKey = null;
+            Application.Restart();
         }
     }
 }

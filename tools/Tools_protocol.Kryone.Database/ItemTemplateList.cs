@@ -1,4 +1,4 @@
-using MySql.Data.MySqlClient;
+﻿using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -146,10 +146,18 @@ namespace Tools_protocol.Kryone.Database
 			Sold = (int)reader["sold"];
 			AvgPrice = (int)reader["avgprice"];
 			Points = (int)reader["points"];
-			Doplons = (int)reader["doplons"];
-			Exchangeable = (int)reader["exchangeable"];
-			Heroique = (int)reader["heroique"];
+			Doplons = OptionalInt(reader, "doplons");
+			Exchangeable = OptionalInt(reader, "exchangeable");
+			Heroique = OptionalInt(reader, "heroique");
 		}
+
+        private static int OptionalInt(IDataRecord reader, string column)
+        {
+            for (int index = 0; index < reader.FieldCount; index++)
+                if (string.Equals(reader.GetName(index), column, StringComparison.OrdinalIgnoreCase))
+                    return reader.IsDBNull(index) ? 0 : Convert.ToInt32(reader.GetValue(index));
+            return 0;
+        }
 
 		public static void AddNameByData(int type)
 		{
@@ -252,33 +260,16 @@ namespace Tools_protocol.Kryone.Database
 			return name;
 		}
 
-		public static void Load_Item()
-		{
-			string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TableTemplate, "", "");
-			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
-			{
-				try
-				{
-					connection.Open();
-					MySqlDataReader lecteur = new MySqlCommand(query, connection).ExecuteReader();
-					ItemTemplateList record = null;
-					while (lecteur.Read())
-					{
-						record = new ItemTemplateList(lecteur);
-						if (!ItemFullDico.ContainsKey(record.Id))
-						{
-							ItemFullDico.Add(record.Id, record);
-						}
-					}
-					CountItems = ItemFullDico.Count;
-					lecteur.Close();
-					lecteur.Dispose();
-					connection.Close();
-					connection.Dispose();
-				}
-				catch (MySqlException) { }
-			}
-		}
+        public static void Load_Item()
+        {
+            var loaded = new Dictionary<int, ItemTemplateList>();
+            using(var connection = new MySqlConnection(DatabaseManager.ConnectionString))
+            using(var command = new MySqlCommand(QueryBuilder.SelectFromQuery(new[]{"*"},TableTemplate,"",""),connection))
+            {
+                connection.Open(); using(var reader=command.ExecuteReader())while(reader.Read()){var item=new ItemTemplateList(reader);loaded.Add(item.Id,item);}
+            }
+            ItemFullDico=loaded;CountItems=loaded.Count;
+        }
 
 		public static void ParseTemplate(int id)
 		{

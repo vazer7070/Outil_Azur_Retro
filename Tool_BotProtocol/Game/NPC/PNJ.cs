@@ -20,6 +20,8 @@ namespace Tool_BotProtocol.Game.NPC
         public int CellId { get; set; }
         public int Orientation { get; set; }
         public int GFX { get; set; }
+        public int GraphicsScaleX { get; set; } = 100;
+        public int GraphicsScaleY { get; set; } = 100;
         public int Sexe { get; set; }
         public Cell Cell { get; set; }
         public int NPc_ID { get; set; }
@@ -27,7 +29,7 @@ namespace Tool_BotProtocol.Game.NPC
         public List<short> Réponses { get; set; }
         public string Name { get; set; }
 
-        private static string pnjpath = @".\ressources\Bot\BotNPCs";
+        private static string pnjpath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ressources", "Bot", "BotNPCs");
 
         private bool dispose;
         public static ConcurrentDictionary<int, PNJ> AllPNJ = new ConcurrentDictionary<int, PNJ>();
@@ -44,7 +46,7 @@ namespace Tool_BotProtocol.Game.NPC
                 Sexe = AllPNJ[Self_ID].Sexe;
             }
             else
-                Name = $"Undefined({Self_ID})";
+                Name = $"PNJ {Self_ID}";
             Cell = C;
             NPc_ID = Self_ID;
         }
@@ -62,47 +64,25 @@ namespace Tool_BotProtocol.Game.NPC
                 return null;
             }
         }
-        public static async Task LoadAllNPCAsync()
+        public static Task LoadAllNPCAsync()
         {
-            try
+            return Task.Run(() =>
             {
-                DirectoryInfo npcFolder = new DirectoryInfo(pnjpath);
-                FileInfo[] files = npcFolder.GetFiles("*.xml");
-
-                List<Task> tasks = new List<Task>();
-
-                foreach (FileInfo file in files)
+                var loaded = new ConcurrentDictionary<int, PNJ>();
+                foreach (string file in Directory.EnumerateFiles(pnjpath, "*.xml"))
                 {
-                    tasks.Add(Task.Run(async () =>
-                    {
-                        using (FileStream fs = file.OpenRead())
-                        {
-                            XElement xmlnpc = await Task.Run(() => XElement.Load(fs));
-                            PNJ P = new PNJ
-                            {
-                                id = int.Parse(xmlnpc.Element("ID").Value),
-                                Name = xmlnpc.Element("NOM").Value,
-                                MapId = int.Parse(xmlnpc.Element("MAP").Value),
-                                CellId = int.Parse(xmlnpc.Element("CELLULE").Value),
-                                Orientation = int.Parse(xmlnpc.Element("ORIENTATION").Value),
-                                GFX = int.Parse(xmlnpc.Element("GFX").Value),
-                                Sexe = int.Parse(xmlnpc.Element("SEXE").Value)
-                            };
-                            AllPNJ.TryAdd(P.id, P);
-                        }
-                    }));
+                    XElement xml = XElement.Load(file);
+                    var npc = new PNJ { id = int.Parse(xml.Element("ID").Value), Name = xml.Element("NOM").Value,
+                        MapId = int.Parse(xml.Element("MAP").Value), CellId = int.Parse(xml.Element("CELLULE").Value),
+                        Orientation = int.Parse(xml.Element("ORIENTATION").Value), GFX = int.Parse(xml.Element("GFX").Value),
+                        Sexe = int.Parse(xml.Element("SEXE").Value) };
+                    loaded[npc.id] = npc;
                 }
-
-                await Task.WhenAll(tasks);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message);
-                return;
-            }
+                AllPNJ = loaded;
+            });
         }
 
-        PNJ() => Dispose(true);
+        PNJ() { }
 
         public void Dispose() => Dispose(true);
         public virtual void Dispose( bool disposed)

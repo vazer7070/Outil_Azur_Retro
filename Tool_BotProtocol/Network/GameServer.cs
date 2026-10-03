@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -29,13 +30,13 @@ namespace Tool_BotProtocol.Network
         public event Action WrongCredential;
         public bool ExitCreationMenu = false;
         public string NameNewCharacter;
-        public Dictionary<int, ServerStates> Servers = new Dictionary<int, ServerStates>();
+        public ConcurrentDictionary<int, ServerStates> Servers = new ConcurrentDictionary<int, ServerStates>();
         public void RefreshData(int S_Id, string S_Name, ServerStates S_states)
         {
             ServerID = S_Id;
             ServerName = S_Name;
             ServerStates = S_states;
-            Servers.Add(S_Id,S_states);
+            Servers[S_Id] = S_states;
         }
         public string GetState(ServerStates state)
         {
@@ -101,6 +102,9 @@ namespace Tool_BotProtocol.Network
             ServerID = 0;
             ServerName = null;
             ServerStates = ServerStates.OFFLINE;
+            Servers.Clear();
+            ExitCreationMenu = false;
+            NameNewCharacter = null;
         }
 
         protected virtual void Dispose(bool disposing)

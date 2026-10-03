@@ -13,9 +13,13 @@ namespace Outil_Azur_complet.Bot.Controls.buttons
     {
         protected override void OnPaint(System.Windows.Forms.PaintEventArgs e)
         {
-            var graphicsPath = new GraphicsPath();
-            graphicsPath.AddEllipse(0, 0, ClientSize.Width, ClientSize.Height);
-            this.Region = new Region(graphicsPath);
+            using (var graphicsPath = new GraphicsPath())
+            {
+                graphicsPath.AddEllipse(0, 0, Math.Max(1, ClientSize.Width), Math.Max(1, ClientSize.Height));
+                Region previous = Region;
+                Region = new Region(graphicsPath);
+                previous?.Dispose();
+            }
             base.OnPaint(e);
         }
     }

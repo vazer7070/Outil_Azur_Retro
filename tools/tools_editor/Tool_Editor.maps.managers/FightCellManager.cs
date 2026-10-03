@@ -11,59 +11,61 @@ namespace Tool_Editor.maps.managers
 
         public static object GetHashCode(Map map)
         {
+            if (map?.Cells == null) throw new ArgumentNullException(nameof(map));
             string hashcode = "";
-            foreach (CellsData C in map.Cells)
-            {
-                if (C == null)
-                    continue;
-                if (C.FightCell == 1)
-                    hashcode += HashCell(C.ID);
-            }
-            hashcode = (hashcode + "|");
-            foreach (CellsData C2 in map.Cells)
-            {
-                if (C2 == null)
-                    continue;
-                if (C2.FightCell == 2)
-                    hashcode += HashCell(C2.ID);
-            }
+            foreach (CellsData cell in map.Cells)
+                if (cell != null && cell.FightCell == 1)
+                    hashcode += HashCell(cell.ID);
+            hashcode += "|";
+            foreach (CellsData cell in map.Cells)
+                if (cell != null && cell.FightCell == 2)
+                    hashcode += HashCell(cell.ID);
             return hashcode;
         }
+
         private static object HashCell(int cell)
         {
-            int num = (cell % hash.Length);
-            int num2 = Convert.ToInt32(Math.Round(Convert.ToDouble(cell - num)) / Convert.ToDouble(hash.Length));
-            return Convert.ToString(Strings.GetChar(hash, num2) + Strings.GetChar(hash, num));
+            if (cell < 0 || cell >= hash.Length * hash.Length)
+                throw new ArgumentOutOfRangeException(nameof(cell), "L'identifiant de cellule ne peut pas être encodé.");
+            return string.Concat(hash[cell / hash.Length], hash[cell % hash.Length]);
         }
-        public static CellsData[] ParseCellFight(string data, CellsData[] cell)
+
+        public static CellsData[] ParseCellFight(string data, CellsData[] cells)
         {
-            string S1 = data.Split('|')[0];
-            string S2 = data.Split('|')[1];
-            object[] ObjectArray = new object[] { Convert.ToInt32(Math.Round(Convert.ToDouble(S1.Length) / 2) + 1) - 1 };
-            object[] ObjectArray2 = new object[] { Convert.ToInt32(Math.Round(Convert.ToDouble(S2.Length) / 2) + 1) - 1 };
-            double num = Convert.ToDouble(S1.Length) / 2 - 1;
-            double i = 0;
-            while(i <= num)
+            if (cells == null) throw new ArgumentNullException(nameof(cells));
+            if (string.IsNullOrEmpty(data)) return cells;
+            string[] teams = data.Split('|');
+            if (teams.Length != 2) throw new FormatException("Les cellules de combat sont mal formées.");
+            int[] first = DecodeTeam(teams[0], cells);
+            int[] second = DecodeTeam(teams[1], cells);
+            var used = new HashSet<int>();
+            foreach (int id in first)
+                if (!used.Add(id)) throw new FormatException("Une cellule de combat est définie plusieurs fois.");
+            foreach (int id in second)
+                if (!used.Add(id)) throw new FormatException("Une cellule de combat est définie dans plusieurs équipes.");
+            foreach (CellsData cell in cells) if (cell != null) cell.FightCell = 0;
+            foreach (int id in first) cells[id].FightCell = 1;
+            foreach (int id in second) cells[id].FightCell = 2;
+            return cells;
+        }
+
+        private static int[] DecodeTeam(string encoded, CellsData[] cells)
+        {
+            if ((encoded.Length & 1) != 0)
+                throw new FormatException("Une équipe contient une cellule incomplète.");
+            var ids = new int[encoded.Length / 2];
+            for (int offset = 0; offset < encoded.Length; offset += 2)
             {
-                string S3 = S1.Substring(Convert.ToInt32(Math.Round(Convert.ToDouble(0 + (2 / i)))), 1);
-                string S4 = S1.Substring(Convert.ToInt32(Math.Round(Convert.ToDouble(1 + (2 / i)))), 1);
-                int num2 = (Strings.InStr(hash, S3, CompareMethod.Binary) - 1 )* hash.Length;
-                int num3 = (Strings.InStr(hash, S4, CompareMethod.Binary) - 1);
-                cell[num2 + num3].FightCell = 1;
-                i += 1;
+                int high = hash.IndexOf(encoded[offset]);
+                int low = hash.IndexOf(encoded[offset + 1]);
+                if (high < 0 || low < 0)
+                    throw new FormatException("Une cellule de combat contient un caractère invalide.");
+                int id = high * hash.Length + low;
+                if (id >= cells.Length || cells[id] == null)
+                    throw new FormatException($"La cellule de combat {id} n'existe pas dans cette carte.");
+                ids[offset / 2] = id;
             }
-            double num4 = Convert.ToDouble(S2.Length) / 2 - 1;
-            double j = 0;
-            while(j <= num4)
-            {
-                string S5 = S2.Substring(Convert.ToInt32(Math.Round(Convert.ToDouble(0 + (2 / i)))), 1);
-                string S6 = S2.Substring(Convert.ToInt32(Math.Round(Convert.ToDouble(1 + (2 / i)))), 1);
-                int num5 = (Strings.InStr(hash, S5, CompareMethod.Binary) - 1) * hash.Length;
-                int num6 = (Strings.InStr(hash, S6, CompareMethod.Binary) - 1);
-                cell[num5 + num6].FightCell = 2;
-                j += 1;
-            }
-            return cell;
+            return ids;
         }
     }
 }

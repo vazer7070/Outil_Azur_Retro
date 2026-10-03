@@ -17,11 +17,92 @@ namespace Outil_Azur_complet.maps
 {
     public partial class MainEditeur : Form
     {
-
+        private readonly Random mapIdGenerator = new Random();
+        private MapForm propertiesMap;
+        private MapForm selectedCellMap;
+        private int selectedCellId = -1;
+        private bool loadingCellProperties;
+        private readonly ToolStripButton serverPlacementsButton = new ToolStripButton("Placements serveur")
+        { Name = "serverPlacementsButton", DisplayStyle = ToolStripItemDisplayStyle.Text };
+        private readonly CheckBox activeCellCheckBox = new CheckBox { Name = "activeCellCheckBox", Text = "Cellule active", AutoSize = true, Location = new Point(16, 680) };
+        private readonly ComboBox movementComboBox = new ComboBox { Name = "movementComboBox", DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(16, 726), Width = 140 };
 
         public MainEditeur()
         {
             InitializeComponent();
+            var exportSwf = new ToolStripButton("Exporter SWF") { Name = "exportSwfButton", DisplayStyle = ToolStripItemDisplayStyle.Text };
+            exportSwf.Click += (sender, args) => ExportSwf(ActiveMdiChild as MapForm ?? MapSelected);
+            toolStrip1.Items.Insert(toolStrip1.Items.IndexOf(toolStripButton2) + 1, exportSwf);
+            toolStrip1.Items.Insert(toolStrip1.Items.IndexOf(exportSwf) + 1, serverPlacementsButton);
+            serverPlacementsButton.Click += async (sender, args) => await ToggleServerPlacementsAsync();
+            tabPageAdv2.Controls.Add(activeCellCheckBox);
+            pNJToolStripMenuItem.Click += (sender, args) => OpenServerPlacement(ServerResourceKind.Npcs, "PNJ de la carte");
+            monstresToolStripMenuItem.Click += (sender, args) => OpenServerPlacement(ServerResourceKind.MonsterGroups, "Groupes de monstres fixes");
+            var paddocksMenu = new ToolStripMenuItem("Enclos") { Name = "paddocksMenu" };
+            paddocksMenu.Click += (sender, args) => OpenServerPlacement(ServerResourceKind.Paddocks, "Enclos de la carte");
+            var zaapsMenu = new ToolStripMenuItem("Zaap") { Name = "zaapsMenu" };
+            zaapsMenu.Click += (sender, args) => OpenServerPlacement(ServerResourceKind.Zaaps, "Zaap de la carte");
+            var interactivesMenu = new ToolStripMenuItem("Définitions des interactifs");
+            interactivesMenu.Click += (sender, args) => new ServerDataForm(ServerResourceKind.Interactives, "Définitions des interactifs").Show(this);
+            toolStripDropDownButton2.DropDownItems.AddRange(new ToolStripItem[] { paddocksMenu, zaapsMenu, interactivesMenu });
+            tabPageAdv2.Controls.Add(new Label { Text = "Déplacement", AutoSize = true, Location = new Point(16, 706) });
+            movementComboBox.Items.AddRange(new object[] { "0 : Bloquée", "1 : Porte", "2 : Trigger", "3 : Type 3", "4 : Marchable", "5 : Enclos", "6 : Type 6", "7 : Chemin" });
+            tabPageAdv2.Controls.Add(movementComboBox);
+            activeCellCheckBox.CheckedChanged += (sender, args) => ApplyCellProperties();
+            movementComboBox.SelectedIndexChanged += (sender, args) =>
+            {
+                if (loadingCellProperties || selectedCellMap?.MyMap?.Cells == null || selectedCellId < 0 || movementComboBox.SelectedIndex < 0) return;
+                selectedCellMap.MyMap.Cells[selectedCellId].Type(movementComboBox.SelectedIndex);
+                selectedCellMap.Edited = true;
+                SelectCell(selectedCellMap, selectedCellId);
+                selectedCellMap.DrawAll();
+            };
+            MdiChildActivate += MainEditeur_MdiChildActivate;
+            toolStripButton6.Click += (sender, args) => SelectTool(Tools.Selector, CellMode.Null, toolStripButton6);
+            toolStripButton7.Click += (sender, args) => SelectTool(Tools.CellMode, CellMode.UnWalkable, toolStripButton7);
+            toolStripButton8.Click += (sender, args) => SelectTool(Tools.CellMode, CellMode.LoS, toolStripButton8);
+            toolStripButton9.Click += (sender, args) => SelectTool(Tools.CellMode, CellMode.Path, toolStripButton9);
+            toolStripButton10.Click += (sender, args) => SelectTool(Tools.CellMode, CellMode.Paddock, toolStripButton10);
+            toolStripButton11.Click += (sender, args) => SelectTool(Tools.CellMode, CellMode.Fight1, toolStripButton11);
+            toolStripButton12.Click += (sender, args) => SelectTool(Tools.CellMode, CellMode.Fight2, toolStripButton12);
+            toolStripButton13.Click += (sender, args) => SelectLayer(1);
+            toolStripButton14.Click += (sender, args) => SelectLayer(2);
+            toolStripButton15.Click += (sender, args) => { SelectedFlip = !SelectedFlip; toolStripButton15.Checked = SelectedFlip; };
+            toolStripButton16.Click += (sender, args) =>
+            {
+                SelectedRotate = (SelectedRotate + 1) % 4;
+                toolStripButton16.Checked = SelectedRotate != 0;
+                toolStripButton16.ToolTipText = $"Rotation : {SelectedRotate * 90}°";
+            };
+            SelectLayer(1);
+            SelectTool(Tools.Brush, CellMode.Null, toolStripButton5);
+            tabPageAdv1.AutoScroll = true;
+            tabPageAdv2.AutoScroll = true;
+            iTalk_NumericUpDown1.Minimum = 1;
+            iTalk_NumericUpDown1.Maximum = int.MaxValue;
+            foreach (var number in new[] { iTalk_NumericUpDown5, iTalk_NumericUpDown6,
+                iTalk_NumericUpDown7, iTalk_NumericUpDown8,
+                iTalk_NumericUpDown9, iTalk_NumericUpDown10 }) number.Maximum = int.MaxValue;
+            iTalk_NumericUpDown9.Minimum = int.MinValue;
+            iTalk_NumericUpDown10.Minimum = int.MinValue;
+            iTalk_NumericUpDown3.Maximum = 15;
+            iTalk_NumericUpDown4.Maximum = 15;
+            foreach (var check in new[] { iTalk_CheckBox6, iTalk_CheckBox7, iTalk_CheckBox8,
+                iTalk_CheckBox9, iTalk_CheckBox10, iTalk_CheckBox11, iTalk_CheckBox12 })
+                check.CheckedChanged += sender => ApplyCellProperties();
+            foreach (var number in new[] { iTalk_NumericUpDown3, iTalk_NumericUpDown4 })
+            {
+                number.MouseUp += (sender, args) => ApplyCellProperties();
+                number.Leave += (sender, args) => ApplyCellProperties();
+                number.KeyUp += (sender, args) => ApplyCellProperties();
+            }
+            sfButton1.Click += (sender, args) => DeleteSelectedLayer(1);
+            sfButton2.Click += (sender, args) => DeleteSelectedLayer(2);
+            sfButton3.Click += (sender, args) => DeleteSelectedLayer(3);
+            iTalk_Button_23.Click -= iTalk_Button_21_Click;
+            iTalk_Button_23.Text = "Fermer la carte";
+            iTalk_Button_23.Click += (sender, args) => MapSelected?.Close();
+            BuildEditorLayout();
         }
         public TilesData SelectedTile = null;
         public Tools T = Tools.Brush;
@@ -31,7 +112,8 @@ namespace Outil_Azur_complet.maps
         public bool SelectedFlip = false;
         public int SelectedRotate = 0;
 
-        public int CellTrigger = 0;
+        public int CellTrigger = -1;
+        private MapForm triggerSource;
         public int MapTrigger = 0;
         public int NbTrigger = 0;
 
@@ -41,7 +123,7 @@ namespace Outil_Azur_complet.maps
         public int Mapcount;
         public MapForm MapSelected;
 
-        public bool Show_Grid = false;
+        public bool Show_Grid = true;
         public bool Show_CellID = false;
         public bool Show_Back = true;
         public bool Show_ground = true;
@@ -77,15 +159,30 @@ namespace Outil_Azur_complet.maps
         }
         public void OpenNewMap(int x, int y)
         {
-            int r = new Random().Next(0,999);
-            if(AlreadyOpen(r))
-                r = new Random().Next(r + 1, 999 - r);
+            if (x < 2 || x > 100 || y < 2 || y > 100)
+                throw new ArgumentOutOfRangeException("Les dimensions de carte doivent être comprises entre 2 et 100.");
+            int r;
+            do
+            {
+                r = mapIdGenerator.Next(1, 1000000);
+            }
+            while (AlreadyOpen(r) || Map.GetByID(r) != null);
+
+            var project = new Map
+            {
+                ID = r,
+                Width = x,
+                Height = y,
+                Cells = new CellsData[Map.CellCount(x, y)],
+                HasProjectCells = true
+            };
             MapForm NewMap = new MapForm();
+            NewMap.New(project);
             NewMap.MdiParent = this;
             MapSelected = NewMap;
             NewMap.W = x;
             NewMap.H = y;
-            NewMap.Text = $"MapID: {Mapcount + 1}";
+            NewMap.Text = $"MapID: {r}";
             NewMap.ID = r;
             Mapcount += 1;
             NewMap.Show();
@@ -100,43 +197,54 @@ namespace Outil_Azur_complet.maps
         }
         public void AddTrigger(int mapid, int cellid, MapForm M)
         {
-            if (CellTrigger == 0)
+            if (CellTrigger < 0)
             {
                 NbTrigger += 1;
                 CellTrigger = cellid;
                 MapTrigger = mapid;
+                triggerSource = M;
                 M.MyMap.Cells[cellid].Trigger = true;
                 M.MyMap.Cells[cellid].TriggerName = $"{NbTrigger}D";
+                M.Edited = true;
                 M.DrawAll();
             }
             else
             {
-                string table_cells = EmuManager.ReturnTable("cellule", EmuManager.EMUSELECTED);
-                string sqlinsert = $"{QueryBuilder.InsertIntoQuery(table_cells, new string[] { "*" }, new string[] { MapTrigger.ToString(), CellTrigger.ToString(), "0", "1", $"{mapid},{cellid}", "-1" }, "")}\n" +
-                    $"{QueryBuilder.MultiDeleteQuery(table_cells, new string[] { "MapID", "CellID", "ActionsArgs" }, new string[] { MapTrigger.ToString(), CellTrigger.ToString(), $"{mapid},{cellid}" })}";
-                File.WriteAllText($@".\creations\{table_cells}.sql", $"{sqlinsert}");
-
-                CellTrigger = 0;
+                string path;
+                try
+                {
+                    if (triggerSource == null || triggerSource.IsDisposed)
+                        throw new InvalidOperationException("La carte de départ du trigger a été fermée.");
+                    string table = EmuManager.ReturnTable("cellule", EmuManager.EMUSELECTED);
+                    path = MapActionSqlBuilder.Export(@".\creations", "triggers",
+                        MapActionSqlBuilder.BuildTrigger(table, triggerSource.MyMap.ID, CellTrigger, mapid, cellid));
+                }
+                catch (Exception error)
+                {
+                    MessageBox.Show(error.Message, "Export du trigger impossible", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+                CellTrigger = -1;
                 MapTrigger = 0;
+                triggerSource = null;
                 M.MyMap.Cells[cellid].Trigger = true;
                 M.MyMap.Cells[cellid].TriggerName = $"{NbTrigger}A";
+                M.Edited = true;
                 M.DrawAll();
 
-                DialogResult DR = MessageBox.Show("Les triggers ont été enregistrés, continuer.?", "Ajout des triggers", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                DialogResult DR = MessageBox.Show($"Le trigger a été exporté dans {Path.GetFullPath(path)}. Continuer ?", "Ajout des triggers", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
                 if (DR == DialogResult.Yes)
                 {
                     MessageBox.Show("Merci de cliquer sur la cellule initiale", "Ajout de triggers", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else if (DR == DialogResult.No)
                 {
-                    M.ModeTrigger = false;
-                    T = Tools.Brush;
+                    SelectTool(Tools.Brush, CellMode.Null, toolStripButton5);
                     RefreshAllMap();
                 }
                 else
                 {
-                    M.ModeTrigger = false;
-                    T = Tools.Brush;
+                    SelectTool(Tools.Brush, CellMode.Null, toolStripButton5);
                     RefreshAllMap();
                 }
             }
@@ -152,15 +260,22 @@ namespace Outil_Azur_complet.maps
             {
                 if (M.ID != EndFightMap.ID)
                 {
-                    MessageBox.Show($"La carte {EndFightMap.ID} téléportera le joueur vers la carte {M.ID} cellule: {cellid} \n" +
-                        $"Vous pouvez gérer cette action dans le gestionnaire de carte.");
+                    string path;
+                    try
+                    {
+                        string table = EmuManager.ReturnTable("endfight", EmuManager.EMUSELECTED);
+                        path = MapActionSqlBuilder.Export(@".\creations", "donjons",
+                            MapActionSqlBuilder.BuildEndFight(table, EndFightMap.ID, M.ID, cellid));
+                    }
+                    catch (Exception error)
+                    {
+                        MessageBox.Show(error.Message, "Export du donjon impossible", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
                     EndFightMap.NextRoom = M.ID;
                     EndFightMap.NextCell = cellid;
-                    string endfight_table = EmuManager.ReturnTable("endfight", EmuManager.EMUSELECTED);
-                    string groupmonster = EmuManager.ReturnTable("groupe_monstre", EmuManager.EMUSELECTED);
-                    string query = $"{QueryBuilder.InsertIntoQuery(groupmonster, new string[] { "*" }, new string[] { $"{EndFightMap.ID}", "4", "0", $"{M.ID},{cellid}" }, "")} \n" +
-                        $"{QueryBuilder.DeleteFromQuery(endfight_table, "map", $"={EndFightMap.ID}")}";
-                    File.WriteAllText($@".\creations\donjons.sql", query);
+                    foreach (MapForm form in OpenMap) if (ReferenceEquals(form.MyMap, EndFightMap)) form.Edited = true;
+                    MessageBox.Show($"La sortie vers la carte {M.ID}, cellule {cellid}, a été exportée dans {Path.GetFullPath(path)}.");
                 }
                 else
                 {
@@ -173,8 +288,59 @@ namespace Outil_Azur_complet.maps
         }
         private void toolStripButton2_Click(object sender, EventArgs e)
         {
-            SaveForm saveform = new SaveForm();
-            saveform.ShowDialog();
+            SaveMap(ActiveMdiChild as MapForm ?? MapSelected);
+        }
+
+        internal bool CommitPropertiesBeforeClose(MapForm form)
+        {
+            try
+            {
+                if (ReferenceEquals(propertiesMap, form)) ApplyMapProperties(form);
+                return true;
+            }
+            catch (Exception error)
+            {
+                MessageBox.Show(error.Message, "Propriétés de carte invalides", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
+        internal bool SaveMap(MapForm selected)
+        {
+            try
+            {
+                if (selected?.MyMap == null)
+                {
+                    MessageBox.Show("Créez ou ouvrez une carte avant de la sauvegarder.", "Aucune carte", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return false;
+                }
+                if (ReferenceEquals(propertiesMap, selected)) ApplyMapProperties(selected);
+                selected.MyMap.ID = selected.ID;
+                selected.MyMap.Width = selected.W;
+                selected.MyMap.Height = selected.H;
+                string creationDirectory = Path.GetFullPath(@".\creations");
+                Directory.CreateDirectory(creationDirectory);
+                string version = new string((selected.MyMap.DateMap ?? "AZ").Select(character =>
+                    Path.GetInvalidFileNameChars().Contains(character) ? '_' : character).ToArray());
+                using (var dialog = new SaveFileDialog
+                {
+                    InitialDirectory = creationDirectory,
+                    Filter = "Projet de carte Azur (*.ame)|*.ame",
+                    DefaultExt = "ame", AddExtension = true,
+                    FileName = $"{selected.MyMap.ID}_{version}.ame"
+                })
+                {
+                    if (dialog.ShowDialog(this) != DialogResult.OK) return false;
+                    MapProjectSerializer.Save(dialog.FileName, selected.MyMap);
+                    selected.Edited = false;
+                    return true;
+                }
+            }
+            catch (Exception error)
+            {
+                MessageBox.Show(error.Message, "Sauvegarde impossible", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
         }
 
         private void toolStripButton4_Click(object sender, EventArgs e)
@@ -183,17 +349,110 @@ namespace Outil_Azur_complet.maps
             about.ShowDialog();
         }
 
+        private void ExportSwf(MapForm selected)
+        {
+            try
+            {
+                if (selected?.MyMap == null) throw new InvalidOperationException("Créez ou ouvrez une carte avant de l'exporter.");
+                if (ReferenceEquals(propertiesMap, selected)) ApplyMapProperties(selected);
+                selected.MyMap.ID = selected.ID;
+                selected.MyMap.Width = selected.W;
+                selected.MyMap.Height = selected.H;
+                string directory = Path.GetFullPath(@".\creations");
+                Directory.CreateDirectory(directory);
+                string version = new string((selected.MyMap.DateMap ?? "AZ").Select(character =>
+                    Path.GetInvalidFileNameChars().Contains(character) ? '_' : character).ToArray());
+                using (var dialog = new SaveFileDialog
+                {
+                    InitialDirectory = directory, Filter = "Carte client SWF (*.swf)|*.swf",
+                    DefaultExt = "swf", AddExtension = true, FileName = $"{selected.ID}_{version}.swf"
+                })
+                {
+                    if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                    MapSwfSerializer.Save(dialog.FileName, selected.MyMap);
+                    MessageBox.Show("La carte SWF a été exportée. Sauvegardez aussi le projet AME pour conserver les cellules de combat, les coordonnées et les paramètres serveur.",
+                        "Export terminé", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+            catch (Exception error)
+            { MessageBox.Show(error.Message, "Export SWF impossible", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        }
+
+        private void OpenServerPlacement(ServerResourceKind kind, string title)
+        {
+            MapForm map = ActiveMdiChild as MapForm ?? MapSelected;
+            if (map?.MyMap == null) { MessageBox.Show("Ouvrez une carte, puis sélectionnez une cellule."); return; }
+            if (ReferenceEquals(propertiesMap, map) && !CommitPropertiesBeforeClose(map)) return;
+            var form = new ServerDataForm(kind, title, map.ID, map.MyMap.Cells.Length, Math.Max(0, map.SelectedCell));
+            form.Saved += async (sender, args) =>
+            {
+                if (!map.IsDisposed && map.ShowServerPlacements)
+                    await RefreshServerPlacementsAsync(map);
+            };
+            form.Show(this);
+        }
+
+        private async Task ToggleServerPlacementsAsync()
+        {
+            MapForm map = ActiveMdiChild as MapForm ?? MapSelected;
+            if (map?.MyMap?.Cells == null) return;
+            if (map.ShowServerPlacements)
+            {
+                map.HideServerPlacements();
+                UpdateWorkspace();
+                return;
+            }
+            await RefreshServerPlacementsAsync(map);
+        }
+
+        private async Task RefreshServerPlacementsAsync(MapForm map)
+        {
+            if (map.IsDisposed || map.MyMap?.Cells == null) return;
+            int mapId = map.ID;
+            int cellCount = map.MyMap.Cells.Length;
+            serverPlacementsButton.Enabled = false;
+            workspaceStatus.Text = "Chargement des placements de la carte " + mapId + "…";
+            try
+            {
+                MapServerPlacementLayer layer = await Task.Run(() => MapServerPlacementLayer.Load(mapId, cellCount));
+                if (map.IsDisposed || map.ID != mapId) return;
+                map.SetServerPlacements(layer);
+                if (ReferenceEquals(ActiveMdiChild, map)) UpdateWorkspace();
+                if (!string.IsNullOrEmpty(layer.Notice))
+                    MessageBox.Show(this, layer.Notice, "Placements partiellement chargés", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception error)
+            {
+                if (!IsDisposed)
+                    MessageBox.Show(this, error.Message, "Placements indisponibles", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                if (!map.IsDisposed && ReferenceEquals(ActiveMdiChild, map)) UpdateWorkspace();
+            }
+            finally { if (!IsDisposed) serverPlacementsButton.Enabled = true; }
+        }
+
         private void sWFToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            OpenFileDialog OFD = new OpenFileDialog();
-            OFD.InitialDirectory = @".\swf\";
-            OFD.Filter = "Fichiers maps (*.swf)|*.swf*;";
-            OFD.Multiselect = true;
-            if (OFD.ShowDialog() == DialogResult.OK)
+            using (var dialog = new OpenFileDialog
             {
-                foreach(string file in OFD.FileNames)
+                InitialDirectory = Path.GetFullPath(@".\swf"),
+                Filter = "Cartes prises en charge (*.ame;*.swf)|*.ame;*.swf|Projets Azur (*.ame)|*.ame|Cartes SWF (*.swf)|*.swf",
+                Multiselect = true
+            })
+            {
+                if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                foreach (string file in dialog.FileNames)
                 {
-                   TradMap(file);
+                    try
+                    {
+                        if (string.Equals(Path.GetExtension(file), ".ame", StringComparison.OrdinalIgnoreCase))
+                            OpenMapProject(MapProjectSerializer.Load(file));
+                        else
+                            TradMap(file);
+                    }
+                    catch (Exception error)
+                    {
+                        MessageBox.Show($"{Path.GetFileName(file)} : {error.Message}", "Ouverture impossible", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
                 }
             }
         }
@@ -211,7 +470,9 @@ namespace Outil_Azur_complet.maps
         }
         public void OpenMapProject(Map m)
         {
-            if (m.IsEditing)
+            if (m == null)
+                throw new ArgumentNullException(nameof(m));
+            if (m.IsEditing || AlreadyOpen(m.ID))
                 MessageBox.Show($"La carte {m.ID} est déjà en cours d'édition.", "Carte déjà ouverte", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
             else 
             {
@@ -219,8 +480,8 @@ namespace Outil_Azur_complet.maps
                 NewMap.New(m);
                 NewMap.MdiParent = this;
                 MapSelected = NewMap;
-                NewMap.W = m.X;
-                NewMap.H = m.Y;
+                NewMap.W = m.Width;
+                NewMap.H = m.Height;
                 NewMap.Text = $"MapID: {m.ID}";
                 NewMap.ID = m.ID;
                 Mapcount += 1;
@@ -230,9 +491,205 @@ namespace Outil_Azur_complet.maps
                 iTalk_NotificationNumber2.Value = MapSelected.H;
             }
         }
+
+        private void MainEditeur_MdiChildActivate(object sender, EventArgs e)
+        {
+            if (propertiesMap != null && !propertiesMap.IsDisposed && propertiesMap.Loaded)
+            {
+                try { ApplyMapProperties(propertiesMap); }
+                catch (Exception error)
+                {
+                    MessageBox.Show(error.Message, "Propriétés de carte invalides", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            MapSelected = ActiveMdiChild as MapForm;
+            propertiesMap = MapSelected;
+            if (MapSelected == null) return;
+            iTalk_NotificationNumber3.Value = MapSelected.W;
+            iTalk_NotificationNumber2.Value = MapSelected.H;
+            PopulateMapProperties(MapSelected);
+        }
+
+        internal void NotifyMapClosed(MapForm mapForm)
+        {
+            if (ReferenceEquals(triggerSource, mapForm)) { triggerSource = null; CellTrigger = -1; MapTrigger = 0; }
+            if (ReferenceEquals(EndFightMap, mapForm.MyMap)) EndFightMap = null;
+            OpenMap.Remove(mapForm);
+            Mapcount = OpenMap.Count;
+            if (ReferenceEquals(MapSelected, mapForm))
+                MapSelected = ActiveMdiChild as MapForm;
+            if (ReferenceEquals(propertiesMap, mapForm)) propertiesMap = null;
+            if (ReferenceEquals(selectedCellMap, mapForm)) { selectedCellMap = null; selectedCellId = -1; }
+        }
+
+        private void PopulateMapProperties(MapForm form)
+        {
+            Map map = form.MyMap;
+            if (map == null) return;
+            iTalk_NumericUpDown1.Value = map.ID;
+            iTalk_TextBox_Small2.Text = map.DateMap;
+            iTalk_NumericUpDown5.Value = map.Ambiance;
+            iTalk_NumericUpDown6.Value = map.NbGroups;
+            iTalk_NumericUpDown7.Value = map.GroupMaxSize;
+            iTalk_NumericUpDown8.Value = map.SuperArea;
+            sfComboBox1.Text = map.Area.ToString();
+            sfComboBox2.Text = map.SubArea.ToString();
+            iTalk_NumericUpDown9.Value = map.X;
+            iTalk_NumericUpDown10.Value = map.Y;
+            iTalk_CheckBox1.Checked = map.IsOutDoor;
+            capabilitiesMask.Value = map.Capabilities;
+            iTalk_CheckBox2.Checked = (map.Capabilities & 1) == 0;
+            iTalk_CheckBox3.Checked = (map.Capabilities & 2) == 0;
+            iTalk_CheckBox4.Checked = (map.Capabilities & 4) == 0;
+            iTalk_CheckBox5.Checked = (map.Capabilities & 8) == 0;
+            string music = string.IsNullOrEmpty(map.MusiqueName) ? map.Musique.ToString() : map.MusiqueName;
+            iTalk_ComboBox2.SelectedIndex = iTalk_ComboBox2.Items.IndexOf(music);
+        }
+
+        private void ApplyMapProperties(MapForm form)
+        {
+            Map map = form.MyMap;
+            if (map == null) return;
+            int id = checked((int)iTalk_NumericUpDown1.Value);
+            Map existing = Map.GetByID(id);
+            if (id <= 0 || OpenMap.Any(other => !ReferenceEquals(other, form) && other.ID == id) ||
+                existing != null && !ReferenceEquals(existing, map))
+                throw new InvalidOperationException($"L'identifiant de carte {id} est déjà utilisé ou invalide.");
+            if (!int.TryParse(sfComboBox1.Text, out int area) || area < 0 ||
+                !int.TryParse(sfComboBox2.Text, out int subArea) || subArea < 0)
+                throw new FormatException("Area et SubArea doivent être des identifiants entiers positifs ou nuls.");
+            int capabilities = (checked((int)capabilitiesMask.Value) & ~15) | Convert.ToInt32(Map.Get_Capabilities(
+                iTalk_CheckBox5.Checked, iTalk_CheckBox4.Checked, iTalk_CheckBox3.Checked, iTalk_CheckBox2.Checked), 2);
+            bool changed = map.ID != id || map.DateMap != iTalk_TextBox_Small2.Text ||
+                map.Ambiance != iTalk_NumericUpDown5.Value || map.NbGroups != iTalk_NumericUpDown6.Value ||
+                map.GroupMaxSize != iTalk_NumericUpDown7.Value || map.SuperArea != iTalk_NumericUpDown8.Value ||
+                map.Area != area || map.SubArea != subArea || map.X != iTalk_NumericUpDown9.Value ||
+                map.Y != iTalk_NumericUpDown10.Value || map.IsOutDoor != iTalk_CheckBox1.Checked ||
+                map.Capabilities != capabilities;
+            if (map.ID != id)
+            {
+                form.ClearServerPlacements();
+                if (ReferenceEquals(Map.GetByID(map.ID), map)) Map.MapList.Remove(map.ID);
+                map.ID = id;
+                form.ID = id;
+                form.Text = $"MapID: {id}";
+                Map.AddMap(map);
+            }
+            map.DateMap = iTalk_TextBox_Small2.Text;
+            map.Ambiance = checked((int)iTalk_NumericUpDown5.Value);
+            map.NbGroups = checked((int)iTalk_NumericUpDown6.Value);
+            map.GroupMaxSize = checked((int)iTalk_NumericUpDown7.Value);
+            map.SuperArea = checked((int)iTalk_NumericUpDown8.Value);
+            map.Area = area;
+            map.SubArea = subArea;
+            map.X = checked((int)iTalk_NumericUpDown9.Value);
+            map.Y = checked((int)iTalk_NumericUpDown10.Value);
+            map.IsOutDoor = iTalk_CheckBox1.Checked;
+            map.Capabilities = capabilities;
+            capabilitiesMask.Value = capabilities;
+            if (iTalk_ComboBox2.SelectedItem != null)
+            {
+                string music = iTalk_ComboBox2.SelectedItem.ToString();
+                changed |= map.MusiqueName != music;
+                map.MusiqueName = music;
+                if (int.TryParse(music, out int musicId)) map.Musique = musicId;
+            }
+            form.Edited |= changed;
+        }
+
+        internal void SelectCell(MapForm form, int cellId)
+        {
+            if (form.MyMap?.Cells == null || cellId < 0 || cellId >= form.MyMap.Cells.Length) return;
+            CellsData cell = form.MyMap.Cells[cellId];
+            if (cell == null) return;
+            selectedCellMap = form;
+            selectedCellId = cellId;
+            form.SelectedCell=cellId;
+            if(T==Tools.Selector && propertySection!=null && propertySection.SelectedIndex<5)propertySection.SelectedIndex=5;
+            loadingCellProperties = true;
+            try
+            {
+                iTalk_Label19.Text = cellId.ToString();
+                iTalk_Label21.Text = cell.GFX1?.ID.ToString() ?? "-";
+                iTalk_Label23.Text = cell.GFX2?.ID.ToString() ?? "-";
+                iTalk_Label25.Text = cell.GFX3?.ID.ToString() ?? "-";
+                iTalk_CheckBox10.Checked = !cell.UnWalk;
+                iTalk_CheckBox9.Checked = cell.Los;
+                iTalk_CheckBox8.Checked = cell.Path;
+                iTalk_CheckBox7.Checked = cell.Paddock;
+                iTalk_CheckBox6.Checked = cell.Door;
+                iTalk_CheckBox11.Checked = cell.TriggerCell;
+                iTalk_CheckBox12.Checked = cell.IO;
+                activeCellCheckBox.Checked = cell.Active;
+                movementComboBox.SelectedIndex = cell.Type();
+                iTalk_NumericUpDown3.Value = cell.NivSol;
+                iTalk_NumericUpDown4.Value = cell.IncliSol;
+                PopulateOrientation(cell);
+            }
+            finally { loadingCellProperties = false; }
+        }
+
+        private void ApplyCellProperties()
+        {
+            if (loadingCellProperties || selectedCellMap?.MyMap?.Cells == null || selectedCellId < 0) return;
+            CellsData cell = selectedCellMap.MyMap.Cells[selectedCellId];
+            cell.UnWalk = !iTalk_CheckBox10.Checked;
+            cell.Los = iTalk_CheckBox9.Checked;
+            cell.Path = !cell.UnWalk && iTalk_CheckBox8.Checked;
+            cell.Paddock = !cell.UnWalk && iTalk_CheckBox7.Checked;
+            cell.Door = iTalk_CheckBox6.Checked;
+            cell.TriggerCell = iTalk_CheckBox11.Checked;
+            cell.IO = iTalk_CheckBox12.Checked;
+            cell.Active = activeCellCheckBox.Checked;
+            cell.NivSol = checked((int)iTalk_NumericUpDown3.Value);
+            cell.IncliSol = checked((int)iTalk_NumericUpDown4.Value);
+            if (cell.UnWalk) cell.FightCell = 0;
+            selectedCellMap.Edited = true;
+            SelectCell(selectedCellMap, selectedCellId);
+            selectedCellMap.DrawAll();
+        }
+
+        private void DeleteSelectedLayer(int layer)
+        {
+            if (selectedCellMap == null || selectedCellId < 0) return;
+            selectedCellMap.SelectedCell = selectedCellId;
+            selectedCellMap.DeleteTile(layer);
+            selectedCellMap.Edited = true;
+            SelectCell(selectedCellMap, selectedCellId);
+        }
+
+        private void SelectTool(Tools tool, CellMode mode, ToolStripButton selectedButton)
+        {
+            CellTrigger = -1;
+            MapTrigger = 0;
+            triggerSource = null;
+            EndFightMap = null;
+            T = tool;
+            CellMod = mode;
+            triggersToolStripMenuItem.Checked = false;
+            donjonsToolStripMenuItem.Checked = false;
+            foreach (var button in new[] { toolStripButton5, toolStripButton6, toolStripButton7,
+                toolStripButton8, toolStripButton9, toolStripButton10, toolStripButton11, toolStripButton12 })
+                button.Checked = ReferenceEquals(button, selectedButton);
+            foreach (MapForm map in OpenMap)
+            {
+                map.IsBrushTool = tool == Tools.Brush;
+                map.IsCellTool = tool == Tools.CellMode;
+                map.ModeTrigger = false;
+                map.EndFight = false;
+            }
+            RefreshAllMap();
+        }
+
+        private void SelectLayer(int layer)
+        {
+            Calque = layer;
+            toolStripButton13.Checked = layer == 1;
+            toolStripButton14.Checked = layer == 2;
+        }
         public void GlobalLoading()
         {
-
+            treeView1.Nodes.Clear();
             treeView1.Nodes.Add("Grounds");
             treeView1.Nodes[0].Text = "Exterieur";
             treeView1.Nodes.Add("Objects");
@@ -250,11 +707,13 @@ namespace Outil_Azur_complet.maps
             afficherCalque2ToolStripMenuItem.Checked = true;
             afficherFondToolStripMenuItem.Checked = true;
             afficherSolToolStripMenuItem.Checked = true;
+            afficherGrilleToolStripMenuItem.Checked = Show_Grid;
 
         }
         public Bitmap Image(string path)
         {
-            return (Bitmap)System.Drawing.Image.FromFile(path);
+            using (var image = System.Drawing.Image.FromFile(path))
+                return new Bitmap(image);
 
         }
 
@@ -271,7 +730,7 @@ namespace Outil_Azur_complet.maps
 
         private void treeView1_AfterSelect_1(object sender, TreeViewEventArgs e)
         {
-            backgroundWorker1.RunWorkerAsync();
+            PopulateTileList(e.Node);
         }
         public void DrawMiniBack(bool D = false)
         {
@@ -380,10 +839,9 @@ namespace Outil_Azur_complet.maps
 
         private void taillePersonnaliséeToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            OtherSizeForm O = new OtherSizeForm();
-           // O.ShowDialog();
-           // if (O.IsOk)
-              //  OpenNewMap(O.value1, O.value2);
+            using (var sizeForm = new OtherSizeForm())
+                if (sizeForm.ShowDialog(this) == DialogResult.OK && sizeForm.IsValid)
+                    OpenNewMap(sizeForm.MapWidth, sizeForm.MapHeight);
         }
 
         private void toolStripButton20_Click(object sender, EventArgs e)
@@ -393,50 +851,29 @@ namespace Outil_Azur_complet.maps
 
         private void triggersToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (donjonsToolStripMenuItem.Checked == true)
+            if (MapSelected == null) return;
+            bool enable = !triggersToolStripMenuItem.Checked;
+            SelectTool(enable ? Tools.CellMode : Tools.Brush, CellMode.Null, enable ? null : toolStripButton5);
+            triggersToolStripMenuItem.Checked = enable;
+            foreach (MapForm map in OpenMap) map.ModeTrigger = enable;
+            if (enable)
             {
-                donjonsToolStripMenuItem.Checked = false;
-                MapSelected.EndFight = false;
-            }
-            if (triggersToolStripMenuItem.Checked == true)
-            {
-                triggersToolStripMenuItem.Checked = false;
-                T = Tools.Brush;
-                MapSelected.IsCellTool = false;
-                MapSelected.ModeTrigger = false;
-            }
-            else
-            {
-                triggersToolStripMenuItem.Checked = true;
-                MessageBox.Show("Selectionnez les cellules qui deviendront les triggers", "Ajout de triggers", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                T = Tools.CellMode;
-                MapSelected.IsCellTool = true;
-                MapSelected.ModeTrigger = true;
+                MessageBox.Show("Sélectionnez la cellule de départ puis la cellule d'arrivée du trigger.", "Ajout de triggers", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             RefreshAllMap();
         }
 
         private void donjonsToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (Mapcount >= 2)
+            if (OpenMap.Count >= 2 && MapSelected != null)
             {
-                if (triggersToolStripMenuItem.Checked == true)
+                bool enable = !donjonsToolStripMenuItem.Checked;
+                SelectTool(enable ? Tools.CellMode : Tools.Brush, CellMode.Null, enable ? null : toolStripButton5);
+                donjonsToolStripMenuItem.Checked = enable;
+                Donjonmode(enable, enable);
+                if (enable)
                 {
-                    triggersToolStripMenuItem.Checked = false;
-                    MapSelected.ModeTrigger = false;
-                }
-                if (donjonsToolStripMenuItem.Checked == true)
-                {
-                    donjonsToolStripMenuItem.Checked = false;
-                    T = Tools.Brush;
-                    Donjonmode(false, false);
-                }
-                else
-                {
-                    donjonsToolStripMenuItem.Checked = true;
                     MessageBox.Show("Merci de cliquer sur la carte initiale", "Selection de la carte initale EndfightAction", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    T = Tools.CellMode;
-                    Donjonmode(true, true);
                 }
 
                 RefreshAllMap();
@@ -553,31 +990,11 @@ namespace Outil_Azur_complet.maps
 
         private void listView1_SelectedIndexChanged(object sender, EventArgs e)
         {
-
-            if (listView1.SelectedItems.Count == 0 || listView1.SelectedItems == null)
-                return;
-            if (treeView1.SelectedNode.FullPath.Contains("sols"))
-            {
-                int id = Convert.ToInt32(listView1.SelectedItems[0].Text);
-                SelectedTile = TilesData.ListGrounds[id];
-                TilesData.SelectedTiles = SelectedTile;
-                //MessageBox.Show(SelectedTile.ID.ToString());
-
-            }
-            else if (treeView1.SelectedNode.FullPath.Contains("objets"))
-            {
-                int id = Convert.ToInt32(listView1.SelectedItems[0].Text);
-                SelectedTile = TilesData.ListObject[id];
-            }
-
-            if (MapSelected != null)
-            {
-                T = Tools.Brush;
-                MapSelected.IsCellTool = false;
-                MapSelected.IsBrushTool = true;
-                CellMod = CellMode.Null;
-                RefreshAllMap();
-            }
+            if (listView1.SelectedItems.Count == 0) return;
+            SelectedTile = listView1.SelectedItems[0].Tag as TilesData;
+            if (SelectedTile == null) return;
+            TilesData.SelectedTiles = SelectedTile;
+            SelectTool(Tools.Brush, CellMode.Null, toolStripButton5);
         }
 
         private void backgroundWorker1_DoWork(object sender, DoWorkEventArgs e)
@@ -587,87 +1004,35 @@ namespace Outil_Azur_complet.maps
 
         private void backgroundWorker1_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            ImageList IL = new ImageList();
-            IL.ImageSize = new Size(30, 30);
-            IL.ColorDepth = ColorDepth.Depth32Bit;
-            string TVT = treeView1.SelectedNode.FullPath;
-            int count = TVT.Split('\\').Count();
+            PopulateTileList(treeView1.SelectedNode);
+        }
+
+        private void PopulateTileList(TreeNode node)
+        {
             listView1.Items.Clear();
-
-            if (TVT.Contains("sols") && count == 3)
+            string directory = node?.Tag as string;
+            if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory)) return;
+            TreeNode root = node;
+            while (root.Parent != null) root = root.Parent;
+            TilesData[] registry = ReferenceEquals(root, treeView1.Nodes[0])
+                ? TilesData.ListGrounds : TilesData.ListObject;
+            var images = new ImageList { ImageSize = new Size(56, 56), ColorDepth = ColorDepth.Depth32Bit };
+            IntPtr imageHandle=images.Handle; // Copy thumbnails before releasing their source bitmaps.
+            foreach (TilesData tile in registry.Where(tile => tile != null &&
+                string.Equals(Path.GetDirectoryName(tile.Path), directory, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(tile => tile.ID))
             {
-                DirectoryInfo dir = new DirectoryInfo(FolderSols + TVT.Split('\\')[2]);
-                foreach (FileInfo file in dir.GetFiles())
+                try
                 {
-                    int id = Convert.ToInt32(file.Name.Split('.')[0]);
-                    try
-                    {
-                        IL.Images.Add(Image(file.FullName));
-                        TilesData.ListGrounds[id] = new TilesData(id, file.FullName, file.DirectoryName.Split('\\')[9], TilesData.TileType.ground);
-
-                    }
-                    catch
-                    {
-                        continue;
-                    }
+                    using (Bitmap bitmap = Image(tile.Path)) images.Images.Add(bitmap);
+                    listView1.Items.Add(new ListViewItem(tile.ID.ToString(), images.Images.Count - 1) { Tag = tile });
                 }
-                listView1.View = View.LargeIcon;
-                IL.ImageSize = new Size(32, 32);
-                listView1.LargeImageList = IL;
-                int i = 0;
-                foreach (TilesData T in TilesData.ListGrounds)
-                {
-                    if (T != null)
-                    {
-                        if (T.Folder == treeView1.SelectedNode.Text)
-                        {
-
-                            ListViewItem item = new ListViewItem();
-                            listView1.Items.Add(T.ID.ToString(), i);
-                            i += 1;
-                        }
-                    }
-                }
-
-
+                catch (Exception) { }
             }
-            else if (TVT.Contains("objets") && count == 3)
-            {
-                DirectoryInfo dir = new DirectoryInfo(FolderObjets + TVT.Split('\\')[2]);
-                foreach (FileInfo file in dir.GetFiles())
-                {
-                    try
-                    {
-                        int id = Convert.ToInt32(file.Name.Split('.')[0]);
-                        IL.Images.Add(Image(file.FullName));
-                        TilesData.ListObject[id] = new TilesData(id, file.FullName, file.DirectoryName.Split('\\')[9], TilesData.TileType.objet);
-                    }
-                    catch
-                    {
-                        continue;
-                    }
-                }
-                listView1.View = View.LargeIcon;
-                IL.ImageSize = new Size(32, 32);
-                listView1.LargeImageList = IL;
-                int i = 0;
-                foreach (TilesData T in TilesData.ListObject)
-                {
-                    if (T != null)
-                    {
-                        if (T.Folder == treeView1.SelectedNode.Text)
-                        {
-                            //MessageBox.Show(T.ID.ToString());
-                            ListViewItem item = new ListViewItem();
-                            item.ImageIndex = i;
-                            item.Text = T.ID.ToString();
-                            listView1.Items.Add(item);
-                            i += 1;
-                        }
-                    }
-                }
-
-            }
+            ImageList previous = listView1.LargeImageList;
+            listView1.LargeImageList = images;
+            listView1.View = View.LargeIcon;
+            previous?.Dispose();
         }
 
         private void afficherFightCellsToolStripMenuItem_Click(object sender, EventArgs e)
@@ -684,18 +1049,7 @@ namespace Outil_Azur_complet.maps
 
         private void toolStripButton5_Click(object sender, EventArgs e)
         {
-            if (toolStripButton5.Checked == true)
-            {
-                toolStripButton5.Checked = false;
-
-            }
-            else if (toolStripButton5.Checked == false)
-            {
-                toolStripButton5.Checked = true;
-                CellMod = CellMode.Null;
-                T = Tools.Brush;
-                RefreshAllMap();
-            }
+            SelectTool(Tools.Brush, CellMode.Null, toolStripButton5);
         }
 
         private void iTalk_Label8_Click(object sender, EventArgs e)
@@ -736,7 +1090,11 @@ namespace Outil_Azur_complet.maps
 
         private void toolStripButton3_Click(object sender, EventArgs e)
         {
-
+            using (var dialog = new MapPreferencesForm(SettingsManager.LockSize))
+            {
+                if (dialog.ShowDialog(this) == DialogResult.OK)
+                { SettingsManager.LockSize = dialog.LockSize;foreach(var map in OpenMap)map.FitCanvas(); }
+            }
         }
 
         private void toolStripButton1_Click(object sender, EventArgs e)

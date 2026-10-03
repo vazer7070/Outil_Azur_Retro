@@ -15,19 +15,19 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
     public class InventoryClass : IDisposable, IEliminable
     {
         private Accounts.Accounts Account;
-        static string ItemPath = @".\ressources\Bot\BotObjets";
+        static string ItemPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ressources", "Bot", "BotObjets");
         private ConcurrentDictionary<uint, InventoryObjects> PlayerItems;
 
         public int Kamas { get; set; }
-        public short Actual_pods { get; set; }
-        public short Pods_Max { get; set; }
+        public int Actual_pods { get; set; }
+        public int Pods_Max { get; set; }
 
         public IEnumerable<InventoryObjects> Objets => PlayerItems.Values;
         public IEnumerable<InventoryObjects> Equipement => Objets.Where(x => x.Inventory == Enums.InventoryObjectsTypes.EQUIPMENTS);
         public IEnumerable<InventoryObjects> Misc => Objets.Where(x => x.Inventory == Enums.InventoryObjectsTypes.MISCELLANEOUS);
         public IEnumerable<InventoryObjects> Ressources => Objets.Where(x => x.Inventory == Enums.InventoryObjectsTypes.RESOURCES);
         public IEnumerable<InventoryObjects> QuestItems => Objets.Where(x => x.Inventory == Enums.InventoryObjectsTypes.QUEST_ITEMS);
-        public int Percent_Pods => (int)((double)Actual_pods / Pods_Max * 100);
+        public int Percent_Pods => Pods_Max > 0 ? (int)((double)Actual_pods / Pods_Max * 100) : 0;
 
         public event Action<bool> RefreshInventory;
         public event Action Open_StockAction;
@@ -185,8 +185,8 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
         }
         public void CanOpen_stock() => Open_StockAction?.Invoke();
         public void CanCloseStock() => Close_StockAction?.Invoke();
-        public void Dispose() => Dispose(true);
-        ~InventoryClass() => Dispose(true);
+        private bool isDisposed;
+        public void Dispose() { Dispose(true); GC.SuppressFinalize(this); }
         public void Clear()
         {
             Kamas = 0;
@@ -196,56 +196,30 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
         }
         public virtual void Dispose(bool disposed)
         {
-            if (!disposed)
+            if (!isDisposed)
             {
                 PlayerItems.Clear();
                 PlayerItems = null;
                 Account = null;
-                disposed = true;
+                isDisposed = true;
             }
         }
-        public static async Task LoadAllObjectsAsync()
+        public static Task LoadAllObjectsAsync()
         {
-            try
+            return Task.Run(() =>
             {
-                DirectoryInfo itemsFolder = new DirectoryInfo(ItemPath);
-                FileInfo[] files = itemsFolder.GetFiles();
-
-                ConcurrentDictionary<int, InventoryObjects> inventoryObjects = new ConcurrentDictionary<int, InventoryObjects>();
-                List<Task> tasks = new List<Task>();
-
-                foreach (FileInfo file in files)
+                var loaded = new ConcurrentDictionary<int, InventoryObjects>();
+                foreach (string file in Directory.EnumerateFiles(ItemPath, "*.xml"))
                 {
-                    if (file.Exists)
-                    {
-                        tasks.Add(Task.Run(async () =>
-                        {
-                            XElement xmlmap = await Task.Run(() => XElement.Load(file.FullName));
-
-                            InventoryObjects L = new InventoryObjects()
-                            {
-                                ID = int.Parse(xmlmap.Element("ID").Value),
-                                Type = byte.Parse(xmlmap.Element("TYPE").Value),
-                                Name = xmlmap.Element("NOM").Value,
-                                pods = short.Parse(xmlmap.Element("PODS").Value),
-                                Level = short.Parse(xmlmap.Element("NIVEAU").Value),
-                                Stats = xmlmap.Element("STATS").Value,
-                                Conditions = xmlmap.Element("CONDITIONS").Value
-                            };
-
-                            inventoryObjects.TryAdd(L.ID, L);
-                        }));
-                    }
+                    XElement xml = XElement.Load(file);
+                    var item = new InventoryObjects { ID = int.Parse(xml.Element("ID").Value),
+                        Type = byte.Parse(xml.Element("TYPE").Value), Name = xml.Element("NOM").Value,
+                        pods = short.Parse(xml.Element("PODS").Value), Level = short.Parse(xml.Element("NIVEAU").Value),
+                        Stats = xml.Element("STATS").Value, Conditions = xml.Element("CONDITIONS").Value };
+                    loaded[item.ID] = item;
                 }
-
-                await Task.WhenAll(tasks);
-                InventoryObjects.FullInventory = inventoryObjects;
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message);
-                return;
-            }
+                InventoryObjects.FullInventory = loaded;
+            });
         }
 
     }

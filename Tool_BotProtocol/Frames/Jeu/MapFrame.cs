@@ -21,253 +21,212 @@ namespace Tool_BotProtocol.Frames.Jeu
     internal class MapFrame : Frame
     {
         [MessageAttribution("GM")]
-        public Task GetPersoMouvement(TcpClient client, string message) => Task.Factory.StartNew(async () =>
+        public void GetPersoMouvement(TcpClient client, string message)
         {
-            Accounts A = client.account;
-            string[] part = message.Substring(3).Split('|'), Info;
-            string loc, TemplateName, type, monsterstar;
-            for (int i = 0; i < part.Length; ++i)
+            Accounts account = client.account;
+            Map map = account.Game.Map;
+            foreach (string entry in message.Substring(2).TrimStart('|').Split('|'))
             {
-                loc = part[i];
-                if (loc.Length != 0)
+                if (string.IsNullOrEmpty(entry)) continue;
+                if (entry[0] == '-')
                 {
-                    Info = loc.Substring(1).Split(';');
-                    if (loc[0].Equals('+'))
+                    if (int.TryParse(entry.Substring(1), out int removed))
                     {
-                        Cell cell = A.Game.Map.GetCellFromId(short.Parse(Info[0]));
-                        Fights fight = A.Game.Fight;
-                        int id = int.Parse(Info[3]);
-                        Dictionary<string, Cell> Predico = new Dictionary<string, Cell>();
-                        Predico.Add(message.Split(';')[4], cell);
-                        if (!A.Game.PersoInWorld.ContainsKey(id))
-                            A.Game.PersoInWorld.GetOrAdd(id, Predico);
-                        TemplateName = Info[4];
-                        type = Info[5];
-                        if (type.Contains(","))
-                            type = type.Split(',')[0];
-
-                        switch (int.Parse(type))
-                        {
-                            case -1:
-                            case -2:
-                                if (A.AccountStates == AccountStates.FIGHTING)
-                                {
-                                    int vie = int.Parse(Info[12]);
-                                    byte PA = byte.Parse(Info[13]);
-                                    byte PM = byte.Parse(Info[14]);
-                                    byte E = byte.Parse(Info[15]);
-
-                                    //mettre combat
-                                }
-                                break;
-
-                            case -3: //monstres
-                                string[] Template = TemplateName.Split(',');
-                                string[] Level = Info[7].Split(',');
-                                monsterstar = Info[2];
-                                int star = int.Parse(monsterstar);
-                                Monstres monstres = new Monstres(id, int.Parse(Template[0]), cell, int.Parse(Level[0]), star);
-                                monstres.GroupeLeader = monstres;
-
-                                for (int m = 0; m < Template.Length; ++m)
-                                    monstres.MobsInGroupe.Add(new Monstres(id, int.Parse(Template[m]), cell, int.Parse(Level[m]), monstres.GroupeLeader.Star));
-                                A.Game.Map.Entites.TryAdd(id, monstres);
-
-                                break;
-                            case -4: //PNJ
-                                A.Game.Map.Entites.TryAdd(id, new PNJ(id, int.Parse(TemplateName), cell));
-                                break;
-                            case -5:
-                            case -6:
-                            case -8:
-                            case -9:
-                            case -10:
-                                break;
-                            default:
-                                if (A.AccountStates != AccountStates.FIGHTING)
-                                {
-                                    if (A.Game.character.id != id)
-                                        A.Game.Map.Entites.GetOrAdd(id, new Personnages(id, TemplateName, byte.Parse(Info[7].ToString()), cell));
-                                    else
-                                        A.Game.character.Cell = cell;
-
-                                }
-                                else
-                                {
-                                    int vie = int.Parse(Info[14]);
-                                    byte PA = byte.Parse(Info[15]);
-                                    byte PM = byte.Parse(Info[16]);
-                                    byte E = byte.Parse(Info[24]);
-
-                                    //ajouter combat ici
-
-                                    await Task.Delay(1800);
-                                    await A.Connexion.SendPacket("GR1");
-                                }
-                                break;
-                        }
-                    } else if (loc[0].Equals('-'))
-                    {
-                        if (A.AccountStates != AccountStates.FIGHTING)
-                        {
-                            int id = int.Parse(loc.Substring(1));
-                            A.Game.Map.Entites.TryRemove(id, out Entites E);
-                        }
+                        map.Entites.TryRemove(removed, out Entites ignored);
+                        account.Game.PersoInWorld.TryRemove(removed, out Dictionary<string, Cell> ignoredPosition);
+                        account.Game.Fight?.RemoveFighter(removed);
                     }
+                    continue;
+                }
+                if (entry[0] != '+' && entry[0] != '~') continue;
+                string[] info = entry.Substring(1).Split(';');
+                if (info.Length < 6 || !short.TryParse(info[0], out short cellId)
+                    || !int.TryParse(info[3], out int id) || !int.TryParse(info[5].Split(',')[0], out int type)) continue;
+                Cell cell = map.GetCellFromId(cellId);
+                if (cell == null) continue;
+                account.Game.Fight?.UpdateFighterFromMap(info);
+                int.TryParse(info[1], out int orientation);
+                orientation = orientation >= 0 && orientation <= 7 ? orientation : 2;
+                int gfx = 0, scaleX = 100, scaleY = 100;
+                if (info.Length >= 7) ReadGraphics(info[6].Split(',')[0], out gfx, out scaleX, out scaleY);
+                string name = info[4];
+                account.Game.PersoInWorld[id] = new Dictionary<string, Cell> { { name, cell } };
+                if (id == account.Game.character.id)
+                {
+                    account.Game.character.Cell = cell;
+                    account.Game.character.Orientation = orientation;
+                    if (gfx > 0) account.Game.character.GFX = gfx;
+                    account.Game.character.GraphicsScaleX = scaleX;
+                    account.Game.character.GraphicsScaleY = scaleY;
+                    continue;
+                }
+                if (type == -3 && info.Length >= 8)
+                {
+                    string[] templates = info[4].Split(','), levels = info[7].Split(',');
+                    if (templates.Length != levels.Length || !int.TryParse(templates[0], out int template)
+                        || !int.TryParse(levels[0], out int level)) continue;
+                    int.TryParse(info[2], out int stars);
+                    var group = new Monstres(id, template, cell, level, stars);
+                    group.Orientation = orientation; group.GFX = gfx > 0 ? gfx : group.GFX;
+                    group.GraphicsScaleX = scaleX; group.GraphicsScaleY = scaleY;
+                    group.GroupeLeader = group;
+                    string[] graphics = info[6].Split(',');
+                    for (int i = 0; i < templates.Length; i++)
+                    {
+                        if (!int.TryParse(templates[i], out template) || !int.TryParse(levels[i], out level)) continue;
+                        var member = new Monstres(id, template, cell, level, stars) { Orientation = orientation };
+                        if (i < graphics.Length)
+                        {
+                            ReadGraphics(graphics[i], out int memberGfx, out int memberScaleX, out int memberScaleY);
+                            if (memberGfx > 0) member.GFX = memberGfx;
+                            member.GraphicsScaleX = memberScaleX; member.GraphicsScaleY = memberScaleY;
+                        }
+                        group.MobsInGroupe.Add(member);
+                    }
+                    map.Entites[id] = group;
+                }
+                else if (type == -2 && int.TryParse(name, out int monsterTemplate))
+                {
+                    int level = 1; if (info.Length > 7) int.TryParse(info[7], out level);
+                    var monster = new Monstres(id, monsterTemplate, cell, level, 0)
+                    { Orientation = orientation, GraphicsScaleX = scaleX, GraphicsScaleY = scaleY };
+                    if (gfx > 0) monster.GFX = gfx;
+                    monster.GroupeLeader = monster; monster.MobsInGroupe.Add(monster);
+                    map.Entites[id] = monster;
+                }
+                else if (type == -4 && int.TryParse(name, out int npc))
+                {
+                    var entity = new PNJ(id, npc, cell) { Orientation = orientation, GraphicsScaleX = scaleX, GraphicsScaleY = scaleY };
+                    if (gfx > 0) entity.GFX = gfx;
+                    map.Entites[id] = entity;
+                }
+                else if ((type > 0 || type == -5) && info.Length >= 8)
+                {
+                    byte.TryParse(info[7], out byte sex);
+                    byte race = type > 0 && type <= byte.MaxValue ? (byte)type : (byte)0;
+                    map.Entites[id] = new Personnages(id, name, sex, cell)
+                    { Race_ID = race, GFX = gfx > 0 ? gfx : race * 10 + sex, Orientation = orientation,
+                        GraphicsScaleX = scaleX, GraphicsScaleY = scaleY };
                 }
             }
+            map.GetEntitiesRefreshEvent();
+        }
 
-        }, TaskCreationOptions.LongRunning);
+        private static void ReadGraphics(string value, out int gfx, out int scaleX, out int scaleY)
+        {
+            gfx = 0; scaleX = scaleY = 100;
+            string[] graphic = (value ?? "").Split('^');
+            if (!int.TryParse(graphic[0], out gfx) || gfx < 0) gfx = 0;
+            if (graphic.Length < 2) return;
+            string[] scale = graphic[1].Split('x');
+            if (int.TryParse(scale[0], out int horizontal)) scaleX = scaleY = Math.Max(0, Math.Min(500, horizontal));
+            if (scale.Length > 1 && int.TryParse(scale[1], out int vertical)) scaleY = Math.Max(0, Math.Min(500, vertical));
+        }
 
         [MessageAttribution("GA")]
-        public Task InitGA(TcpClient client, string message) => Task.Run(async () =>
+        public async Task InitGA(TcpClient client, string message)
         {
             string[] part = message.Substring(2).Split(';');
-            int idACtion = int.Parse(part[1]);
-            Accounts A = client.account;
-            CharacterClass perso = A.Game.character;
-
-            if (idACtion > 0)
+            if (part.Length < 2 || !int.TryParse(part[1], out int action)) return;
+            Accounts account = client.account;
+            Map map = account.Game.Map;
+            if (account.Game.Fight.IsInFight)
             {
-                Dictionary<string, Cell> T = new Dictionary<string, Cell>();
-                string name = "";
-
-                int IDEntite = int.Parse(part[2]);
-                byte MoveType;
-                Cell cell;
-                //combattants
-                Map map = A.Game.Map;
-                Fights fight = A.Game.Fight;
-                if (T.Count > 0)
-                    T.Clear();
-                switch (idACtion)
-                {
-                    case 1:
-                        cell = map.GetCellFromId(Hash.Get_Cell_From_Hash(part[3].Substring(part[3].Length - 2)));
-                        if (!A.IsFighting())
-                        {
-                            if (IDEntite == perso.id && cell.CellID > 0 && perso.Cell.CellID != cell.CellID)
-                            {
-                                MoveType = byte.Parse(part[0]);
-                                await A.Game.Manager.Mouvements.EventMoveFisnish(cell, MoveType, true);
-                            }
-                            else if (map.Entites.TryGetValue(IDEntite, out Entites E))
-                            {
-                                E.Cell = cell;
-                                if (A.Game.PersoInWorld.ContainsKey(IDEntite))
-                                {
-                                    T = A.Game.PersoInWorld[IDEntite];
-                                    name = T.Keys.FirstOrDefault();
-                                    Cell U = T.Values.FirstOrDefault();
-
-                                    if (U != null || T.Count != 0)
-                                    {
-                                        if (U != cell)
-                                        {
-                                            U = cell;
-                                            T.Remove(name);
-                                            T.Add(name, U);
-                                            A.Game.PersoInWorld.TryUpdate(IDEntite, T, T);
-                                        }
-                                    }
-                                    A.Logger.LogInfo("MONDE", $"Mouvement détecté sur la cellule {cell.CellID} par l'entité {name}");
-                                }
-                                else
-                                    A.Logger.LogInfo("MONDE", $"Mouvement détecté sur la cellule {cell.CellID} par l'entité {E.id}");
-                            }
-                            else
-                            {
-                                A.Logger.LogInfo("MONDE", $"Mouvement détecté sur la cellule {cell.CellID} par l'entité {IDEntite}");
-                            }
-                            map.GetEntitiesRefreshEvent();
-                        }
-                        else
-                        {
-                            //combattants ici
-                        }
-                        break;
-                    case 4:
-                        part = part[3].Split(';');
-                        cell = map.GetCellFromId(short.Parse(part[1]));
-                        if (!A.IsFighting() && IDEntite == perso.id && cell.CellID > 0 && perso.Cell.CellID != cell.CellID)
-                        {
-                            perso.Cell = cell;
-                            await Task.Delay(150);
-                            await A.Connexion.SendPacket("GKK1");
-                            map.GetEntitiesRefreshEvent();
-                            A.Game.Manager.Mouvements.AcutaliseMove(true);
-                        }
-                        break;
-
-                }
+                await account.Game.Fight.ProcessActionAsync(client, part);
+                return;
             }
-
-        });
+            if (action == 0)
+            {
+                account.Game.Manager.Mouvements.AcutaliseMove(false);
+                return;
+            }
+            if (part.Length < 4 || !int.TryParse(part[2], out int entityId)) return;
+            Cell cell = null;
+            if (action == 1 && part[3].Length >= 3 && part[3].Length % 3 == 0)
+            {
+                List<Cell> serverPath = PathfinderUtils.DecodeServerPath(map, part[3]);
+                if (serverPath == null || serverPath.Count == 0) return;
+                cell = serverPath.Last();
+                map.NotifyEntityMovement(entityId, serverPath, PathfinderUtils.GetTimeOnMap(serverPath[0], serverPath));
+                if (entityId == account.Game.character.id && !account.IsFighting()
+                    && int.TryParse(part[0], out int movementId))
+                {
+                    account.Game.Manager.Mouvements.ActualPath = serverPath;
+                    await account.Game.Manager.Mouvements.EventMoveFisnish(cell, movementId, true);
+                }
+                if (account.Game == null || account.AccountStates == AccountStates.DISCONNECTED
+                    || !ReferenceEquals(client, account.Connexion) || map.GetCellFromId(cell.CellID) != cell) return;
+            }
+            else if (action == 4)
+            {
+                // StarLoco uses <target-guid>,<cell> for relocation effects.
+                string[] relocation = part[3].Split(',');
+                if (relocation.Length < 2 || !int.TryParse(relocation[0], out entityId)
+                    || !short.TryParse(relocation[1], out short cellId)) return;
+                cell = map.GetCellFromId(cellId);
+            }
+            if (cell == null) return;
+            if (entityId == account.Game.character.id) account.Game.character.Cell = cell;
+            else if (map.Entites.TryGetValue(entityId, out Entites entity)) entity.Cell = cell;
+            if (account.Game.PersoInWorld.TryGetValue(entityId, out Dictionary<string, Cell> position))
+            {
+                string name = position.Keys.FirstOrDefault();
+                if (name != null) account.Game.PersoInWorld[entityId] = new Dictionary<string, Cell> { { name, cell } };
+            }
+            map.GetEntitiesRefreshEvent();
+        }
 
         [MessageAttribution("GAF")]
-        public Task FinalizeAction(TcpClient client, string message) => Task.Run(async () =>
+        public Task FinalizeAction(TcpClient client, string message)
         {
-            {
-                string[] idEndAction = message.Substring(3).Split('|');
-                await client.account.Connexion.SendPacket($"GKK{idEndAction[0]}");
-            }
-        });
+            string[] parts = message.Substring(3).Split('|');
+            if (parts.Length < 2 || !int.TryParse(parts[0], out int actionId)
+                || actionId < 0 || !int.TryParse(parts[1], out int actorId) || actorId != client.account.Game.character.id)
+                return Task.CompletedTask;
+            client.account.Game.Fight.EndAction(actorId);
+            return client.SendPacket("GKK" + actionId);
+        }
         [MessageAttribution("GAS")]
-        public async Task GetAction(TcpClient client, string message) => await Task.Delay(200);
+        public void GetAction(TcpClient client, string message) => client.account.Game.Fight.BeginAction(message.Substring(3));
 
         [MessageAttribution("GDF")]
-        public Task GetinteractiveState(TcpClient client, string message) => Task.Factory.StartNew(() =>
+        public void GetinteractiveState(TcpClient client, string message)
         {
-            if (message.Contains("|"))
+            Accounts account = client.account;
+            foreach (string entry in message.Substring(3).TrimStart('|').Split('|'))
             {
-                foreach (string I in message.Substring(4).Split('|'))
+                string[] parts = entry.Split(';');
+                if (parts.Length < 2 || !short.TryParse(parts[0], out short cellId)
+                    || !byte.TryParse(parts[1], out byte state)
+                    || !account.Game.Map.Interactives.TryGetValue(cellId, out var value)) continue;
+                value.IsUsable = state == 1;
+                if (state == 3 && value.Interactive?.Capacities != null)
                 {
-                    string[] part = I.Split(';');
-                    if (part.Length < 2)
-                        return;
-                    Accounts A = client.account;
-                    short cellid = short.Parse(part[0]);
-                    byte state = byte.Parse(part[1]);
-
-                    switch (state)
-                    {
-                        case 2:
-                            A.Game.Map.Interactives[cellid].IsUsable = false;
-                            break;
-                        case 3:
-                            if (A.Game.Map.Interactives.TryGetValue(cellid, out var value))
-                            {
-                                if (value.Interactive.Capacities[0] == 157)
-                                    A.Game.Manager.Teleport.InitTeleport();
-                                else
-                                {
-                                    value.IsUsable = false;
-                                    if (A.IsGathering())
-                                        A.Game.Manager.Recolte.EventEndRecolte(Game.Managers.recoltes.RecolteEnum.RECOLTÉ, cellid);
-                                    else
-                                        A.Game.Manager.Recolte.EventEndRecolte(Game.Managers.recoltes.RecolteEnum.VOLÉ, cellid);
-                                }
-                            }
-                            break;
-                        case 4:
-                            A.Game.Map.Interactives[cellid].IsUsable = false;
-                            break;
-                    }
+                    if (value.Interactive.Capacities.Contains((short)157)) account.Game.Manager.Teleport.InitTeleport();
+                    else account.Game.Manager.Recolte.EventEndRecolte(account.IsGathering()
+                        ? Game.Managers.recoltes.RecolteEnum.RECOLTÉ : Game.Managers.recoltes.RecolteEnum.VOLÉ, cellId);
                 }
             }
-        }, TaskCreationOptions.LongRunning);
-
+            account.Game.Map.GetEntitiesRefreshEvent();
+        }
         [MessageAttribution("GDM")]
-        public Task GetNewMap(TcpClient client, string message) => Task.Run(async () =>
+        public async Task GetNewMap(TcpClient client, string message)
         {
-            { 
-            await client.account.Connexion.SendPacket("GI");
-            client.account.Game.Map.SetRefreshMap(message.Substring(4));
-
-        } });
+            Accounts account = client.account;
+            account.Game.Manager.Mouvements.CancelForMapChange();
+            account.Game.character.Cell = null;
+            account.Game.PersoInWorld.Clear();
+            account.Game.Map.SetRefreshMap(message.Substring(3).TrimStart('|'));
+            if (!account.Game.Map.HasMapData) account.Logger.LogError("CARTE", account.Game.Map.LoadError);
+            await client.SendPacket("GI");
+        }
         [MessageAttribution("GDK")]
         public void GetMap(TcpClient client, string message) => client.account.Game.Map.GetMapRefreshEvent();
         [MessageAttribution("GV")]
-        public Task Reinit(TcpClient client, string message) => Task.Run(async() => await client.account.Connexion.SendPacket("GC1"));
+        public Task Reinit(TcpClient client, string message)
+        {
+            client.account.Game.Fight.Finish();
+            return client.SendPacket("GC1");
+        }
     }
 }

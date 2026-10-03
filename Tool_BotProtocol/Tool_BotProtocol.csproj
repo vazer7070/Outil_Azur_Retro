@@ -11,7 +11,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Tool_BotProtocol</RootNamespace>
     <AssemblyName>Tool_BotProtocol</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
     <NuGetPackageImportStamp>
@@ -98,6 +98,7 @@
     </Reference>
     <Reference Include="System.Configuration.Install" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Security" />
     <Reference Include="System.Diagnostics.DiagnosticSource, Version=9.0.0.8, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>..\packages\System.Diagnostics.DiagnosticSource.9.0.8\lib\net462\System.Diagnostics.DiagnosticSource.dll</HintPath>
     </Reference>
@@ -154,11 +155,13 @@
     <Compile Include="Frames\Frame.cs" />
     <Compile Include="Frames\Jeu\AuthInGame.cs" />
     <Compile Include="Frames\Jeu\CharacterFrame.cs" />
+    <Compile Include="Frames\Jeu\CombatFrame.cs" />
     <Compile Include="Frames\Jeu\ChatFrame.cs" />
     <Compile Include="Frames\Jeu\MapFrame.cs" />
     <Compile Include="Frames\Jeu\MiscFrame.cs" />
     <Compile Include="Frames\Jeu\NoCheatFrame.cs" />
     <Compile Include="Frames\Jeu\ServerSelectionFrame.cs" />
+    <Compile Include="Frames\Jeu\SpellFrame.cs" />
     <Compile Include="Frames\Messages\MessageAttribution.cs" />
     <Compile Include="Frames\Messages\MessagesData.cs" />
     <Compile Include="Frames\Messages\MessagesReception.cs" />
@@ -224,6 +227,7 @@
     <Compile Include="Utils\Extensions\Extensions.cs" />
     <Compile Include="Utils\Interfaces\IEliminable.cs" />
     <Compile Include="Utils\Logger\Logger.cs" />
+    <Compile Include="Utils\Logger\BotPacketRedactor.cs" />
     <Compile Include="Utils\Logger\LogsEnums.cs" />
     <Compile Include="Utils\Logger\LogsMessages.cs" />
     <Compile Include="Utils\Pics\PicturesManager.cs" />
@@ -231,6 +235,12 @@
   <ItemGroup>
     <None Include="app.config" />
     <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\tools\Tools_protocol.csproj">
+      <Project>{856FD0FC-07E3-4ECD-876A-8DA87C30E920}</Project>
+      <Name>Tools_protocol</Name>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <Analyzer Include="..\packages\Microsoft.CodeAnalysis.NetAnalyzers.9.0.0\analyzers\dotnet\cs\Microsoft.CodeAnalysis.CSharp.NetAnalyzers.dll" />

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using Tools_protocol.Data;
 using Tools_protocol.Json;
 using Tools_protocol.Query;
@@ -128,31 +129,38 @@ namespace Tools_protocol.Kryone.Database
 			Lvl6 = (string)reader["lvl6"];
 			EffectTarget = (string)reader["effectTarget"];
 			Type = (int)reader["type"];
-			Durée = (int)reader["durer"];
+			int durationColumn = Enumerable.Range(0, reader.FieldCount).Where(index => reader.GetName(index).Equals("durer", StringComparison.OrdinalIgnoreCase)).DefaultIfEmpty(-1).First();
+			Durée = durationColumn < 0 || reader.IsDBNull(durationColumn) ? 0 : Convert.ToInt32(reader[durationColumn]);
 		}
 
 		public static void AddSpellsToList(string data)
 		{
-			string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, SpellsList.TableSort, "id", data.Split(new char[] { ';' })[0]);
-
-			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
+			string[] parts = (data ?? string.Empty).Split(';');
+			if (parts.Length < 2 || !int.TryParse(parts[0], out int spellId) ||
+				!int.TryParse(parts[1], out int level) || spellId < 0 || level < 0)
+			{
+				SpellsShow.Add("Sort non reconnu");
+				return;
+			}
+			string name = null;
+			string table = TableSort;
+			if (!string.IsNullOrWhiteSpace(DatabaseManager.ConnectionString) &&
+				!string.IsNullOrWhiteSpace(table) &&
+				Regex.IsMatch(table, @"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant))
 			{
 				try
 				{
-					connection.Open();
-					MySqlDataReader R = new MySqlCommand(query, connection).ExecuteReader();
-					string z = data.Split(new char[] { ';' })[1];
-					while (R.Read())
+					using (var connection = new MySqlConnection(DatabaseManager.ConnectionString))
+					using (var command = new MySqlCommand($"SELECT `nom` FROM `{table}` WHERE `id`=@id", connection))
 					{
-						SpellsShow.Add(string.Concat(R["nom"].ToString(), " - niveau: ", z));
+						command.Parameters.AddWithValue("@id", spellId);
+						connection.Open();
+						name = Convert.ToString(command.ExecuteScalar());
 					}
-					R.Close();
-					R.Dispose();
-					connection.Close();
-					connection.Dispose();
 				}
-				catch (MySqlException) { }
+				catch (MySqlException) { /* L'identifiant du sort reste visible. */ }
 			}
+			SpellsShow.Add($"{(string.IsNullOrWhiteSpace(name) ? $"Sort #{spellId}" : name)} - niveau: {level}");
 		}
 
 		public static string CaracParse(string un, bool decal, bool forbot = false)
@@ -489,18 +497,14 @@ namespace Tools_protocol.Kryone.Database
 				try
 				{
 					connection.Open();
-					MySqlDataReader spelllec = new MySqlCommand(query, connection).ExecuteReader();
-					while (spelllec.Read())
-					{
-						SpellsList spellrecord = new SpellsList(spelllec);
-						AllSpells.Add(spellrecord.Id, spellrecord);
-						SpellsName.Add(spellrecord.Nom);
-					}
-					CountSpells = AllSpells.Count();
-					spelllec.Close();
-					spelllec.Dispose();
-					connection.Close();
-					connection.Dispose();
+					var loaded = new Dictionary<int, SpellsList>();
+					using (var command = new MySqlCommand(query, connection))
+					using (var spelllec = command.ExecuteReader())
+						while (spelllec.Read()) { var spellrecord = new SpellsList(spelllec); loaded.Add(spellrecord.Id, spellrecord); }
+					AllSpells.Clear();
+					foreach (var pair in loaded) AllSpells.Add(pair.Key, pair.Value);
+					SpellsName.Clear(); SpellsName.AddRange(loaded.Values.Select(spell => spell.Nom));
+					CountSpells = loaded.Count;
 				}
 				catch (MySqlException) { }
 			}

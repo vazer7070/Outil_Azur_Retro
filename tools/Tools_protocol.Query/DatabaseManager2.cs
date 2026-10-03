@@ -1,6 +1,7 @@
-using MySql.Data.MySqlClient;
+﻿using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Runtime.CompilerServices;
 using System.Windows.Forms;
 
@@ -49,19 +50,22 @@ namespace Tools_protocol.Query
 			}
 		}
 
-		public static MySqlDataReader SelectQuery(string query)
-		{
-			using (MySqlConnection connection = new MySqlConnection(ConnectionString))
-			{
-				try
-				{
-					connection.Open();
-					return new MySqlCommand(query, connection).ExecuteReader();
-				}
-				catch (MySqlException) { return null; }
-			}
-
-		}
+        public static MySqlDataReader SelectQuery(string query)
+        {
+            var connection = new MySqlConnection(ConnectionString);
+            var command = new MySqlCommand(query ?? "", connection);
+            try
+            {
+                connection.Open();
+                return command.ExecuteReader(CommandBehavior.CloseConnection);
+            }
+            catch (MySqlException)
+            {
+                command.Dispose();
+                connection.Dispose();
+                return null;
+            }
+        }
 
 		public static object UpdateQuery(string query)
 		{

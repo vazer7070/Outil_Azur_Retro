@@ -11,40 +11,43 @@ namespace Tool_BotProtocol.Utils.Pics
 {
     public class PicturesManager
     {
-        static string SpritesPath = $@".\ressources\Bot\sprites";
-        static string GfxPath = $@".\ressources\Bot\gfx";
+        static string SpritesPath => Path.Combine(".", "ressources", "Bot", "sprites");
+        static string GfxPath => Path.Combine(".", "ressources", "Bot", "gfx");
+
+        // Each returned bitmap belongs to the caller and must be disposed after use.
+        // Clone before closing the stream so no retained bitmap locks its PNG file.
+        private static Bitmap LoadOwnedBitmap(string path)
+        {
+            try
+            {
+                if (!File.Exists(path)) return null;
+                using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                using (var source = Image.FromStream(stream))
+                    return new Bitmap(source);
+            }
+            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException
+                || error is ArgumentException || error is System.Runtime.InteropServices.ExternalException
+                || error is OutOfMemoryException)
+            {
+                // Unavailable or malformed optional artwork uses the map's placeholder.
+                return null;
+            }
+        }
+
         public static Bitmap InteractivePicSprite(int id_interactive, int direction)
         {
-            string H = "";
-            switch (direction)
-            {
-                case 1:
-                    H = "R";
-                    break;
-                    case 2:
-                    H = "F";
-                    break;
-                case 3:
-                    H = "L";
-                    break;
-                    default:
-                    H = "R";
-                    break;
-            };            
-            if (File.Exists($@"{SpritesPath}\{id_interactive}{H}.png"))
-                return (Bitmap)Image.FromFile($@"{SpritesPath}\{id_interactive}{H}.png");
-            return null;
+            string suffix = direction == 2 ? "F" : direction == 3 ? "L" : "R";
+            return LoadOwnedBitmap(Path.Combine(SpritesPath, id_interactive + suffix + ".png"));
         }
 
         public static Bitmap InteractivePicGfx(int id_interactive, bool R)
         {
-            if (File.Exists($@"{GfxPath}\{id_interactive}.png"))
-                if(R)
-                    return (Bitmap)Image.FromFile($@"{GfxPath}\{id_interactive}R.png");
-                else
-                    return (Bitmap)Image.FromFile($@"{GfxPath}\{id_interactive}.png");
-            return null;
+            if (R)
+            {
+                Bitmap variant = LoadOwnedBitmap(Path.Combine(GfxPath, id_interactive + "R.png"));
+                if (variant != null) return variant;
+            }
+            return LoadOwnedBitmap(Path.Combine(GfxPath, id_interactive + ".png"));
         }
-
     }
 }

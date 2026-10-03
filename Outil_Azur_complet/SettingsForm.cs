@@ -25,6 +25,7 @@ namespace Outil_Azur_complet
         public SettingsForm()
         {
             InitializeComponent();
+            BuildEditorLayout();
         }
        public void New(string h, string u, string pass, string a, string w)
         {
@@ -55,16 +56,18 @@ namespace Outil_Azur_complet
 
         private void iTalk_Button_21_Click(object sender, EventArgs e)
         {
-            if (!string.IsNullOrEmpty(iTalk_TextBox_Small1.Text) ||!string.IsNullOrEmpty(iTalk_TextBox_Small2.Text) || !string.IsNullOrEmpty(iTalk_TextBox_Small4.Text) || !string.IsNullOrEmpty(iTalk_TextBox_Small5.Text))
+            if (!string.IsNullOrWhiteSpace(iTalk_TextBox_Small1.Text) &&
+                !string.IsNullOrWhiteSpace(iTalk_TextBox_Small2.Text) &&
+                !string.IsNullOrWhiteSpace(iTalk_TextBox_Small4.Text) &&
+                !string.IsNullOrWhiteSpace(iTalk_TextBox_Small5.Text))
             {
-
-
+                string selectedEmulator = iTalk_ComboBox1.SelectedItem?.ToString();
                 if (DatabaseManager.IsServerConnected(iTalk_TextBox_Small1.Text, iTalk_TextBox_Small2.Text, iTalk_TextBox_Small3.Text, iTalk_TextBox_Small4.Text) && DatabaseManager2.IsServerConnected(iTalk_TextBox_Small1.Text, iTalk_TextBox_Small2.Text, iTalk_TextBox_Small3.Text, iTalk_TextBox_Small5.Text))
                 {
                     if (InitializeForm.NoAuth || InitializeForm.noWorld)
                     {
                         InitializeForm IF = new InitializeForm();
-                        IF.RebootInit(iTalk_TextBox_Small1.Text, iTalk_TextBox_Small2.Text, iTalk_TextBox_Small3.Text, iTalk_TextBox_Small4.Text, iTalk_TextBox_Small5.Text, iTalk_ComboBox1.SelectedItem.ToString());
+                        IF.RebootInit(iTalk_TextBox_Small1.Text, iTalk_TextBox_Small2.Text, iTalk_TextBox_Small3.Text, iTalk_TextBox_Small4.Text, iTalk_TextBox_Small5.Text, selectedEmulator);
                         Hide();
                     }
                     else
@@ -73,7 +76,7 @@ namespace Outil_Azur_complet
                         if (DR == DialogResult.Yes)
                         {
                             InitializeForm IF = new InitializeForm();
-                            IF.RebootInit(iTalk_TextBox_Small1.Text, iTalk_TextBox_Small2.Text, iTalk_TextBox_Small3.Text, iTalk_TextBox_Small4.Text, iTalk_TextBox_Small5.Text, iTalk_ComboBox1.SelectedItem.ToString());
+                            IF.RebootInit(iTalk_TextBox_Small1.Text, iTalk_TextBox_Small2.Text, iTalk_TextBox_Small3.Text, iTalk_TextBox_Small4.Text, iTalk_TextBox_Small5.Text, selectedEmulator);
                             Hide();
                         }
                         else
@@ -84,6 +87,8 @@ namespace Outil_Azur_complet
                             Properties.Settings.Default.OP_Pass = iTalk_TextBox_Small3.Text;
                             Properties.Settings.Default.OP_auth = iTalk_TextBox_Small4.Text;
                             Properties.Settings.Default.OP_world = iTalk_TextBox_Small5.Text;
+                            if (!string.IsNullOrWhiteSpace(selectedEmulator))
+                                Properties.Settings.Default.OP_Emu = selectedEmulator;
                             Properties.Settings.Default.Save();
                         }
                     }
@@ -107,6 +112,9 @@ namespace Outil_Azur_complet
             iTalk_TextBox_Small3.Text = JsonManager.MDP;
             iTalk_TextBox_Small4.Text = JsonManager.Aauth;
             iTalk_TextBox_Small5.Text = JsonManager.Aworld;
+            string currentEmulator = InitializeForm.EMUSELECT ?? JsonManager.SearchConfig("emu");
+            iTalk_ComboBox1.SelectedIndex = string.IsNullOrWhiteSpace(currentEmulator)
+                ? -1 : iTalk_ComboBox1.FindStringExact(currentEmulator);
             iTalk_Label10.Text = InitializeForm.ToolVersion;
             iTalk_Label11.Text = InitializeForm.ProtocolVersion;
             iTalk_Label14.Text = InitializeForm.AzurBotVersion;
@@ -120,9 +128,11 @@ namespace Outil_Azur_complet
 
         private void iTalk_Button_22_Click(object sender, EventArgs e)
         {
-            if(iTalk_ComboBox1.SelectedItem.ToString() != InitializeForm.EMUSELECT)
+            string selectedEmulator = iTalk_ComboBox1.SelectedItem?.ToString();
+            if (!string.IsNullOrWhiteSpace(selectedEmulator) && selectedEmulator != InitializeForm.EMUSELECT)
             {
-                Properties.Settings.Default.OP_Emu = iTalk_ComboBox1.SelectedItem.ToString();
+                Properties.Settings.Default.OP_Emu = selectedEmulator;
+                Properties.Settings.Default.Save();
                 Application.Restart();
             }
         }
@@ -131,12 +141,11 @@ namespace Outil_Azur_complet
         {
             if(UpdateJsonManager.NeedMaj(InitializeForm.ToolVersion, InitializeForm.ProtocolVersion, InitializeForm.AzurBotVersion, InitializeForm.EditorVersion))
             {
-                MessageBox.Show("Mise à jour nécessaire, le programme va redémarrer pour l'installer.", "Mise à jour requise", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                Application.Restart();
+                MessageBox.Show("Une autre version est annoncée. Téléchargez un paquet portable vérifié et conservez vos fichiers JSON de configuration lors du remplacement. L'ancien installateur automatique n'est plus lancé, car ses archives ne possèdent pas de signature vérifiable.", "Mise à jour disponible", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             else
             {
-                MessageBox.Show("Le logiciel et ses dépendances sont à jours.", "Demande de mise à jour.", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("Aucune nouvelle version n'a été détectée, ou le service de versions est indisponible.", "Vérification de version", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
         }

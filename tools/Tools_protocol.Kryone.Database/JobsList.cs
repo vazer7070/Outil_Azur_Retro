@@ -2,6 +2,8 @@ using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
+using System.Text.RegularExpressions;
 using System.Runtime.CompilerServices;
 using Tools_protocol.Json;
 using Tools_protocol.Query;
@@ -76,18 +78,11 @@ namespace Tools_protocol.Kryone.Database
 				try
 				{
 					connection.Open();
-					JobsList jobs;
-					MySqlDataReader lecteur = new MySqlCommand(query, connection).ExecuteReader();
-					while (lecteur.Read())
-					{
-						jobs = new JobsList(lecteur);
-						AllJobs.Add(jobs);
-					}
-					lecteur.Close();
-					JobsCount = AllJobs.Count;
-					lecteur.Dispose();
-					connection.Close();
-					connection.Dispose();
+					var loaded = new List<JobsList>();
+					using (var command = new MySqlCommand(query, connection))
+					using (var lecteur = command.ExecuteReader())
+						while (lecteur.Read()) loaded.Add(new JobsList(lecteur));
+					AllJobs.Clear(); AllJobs.AddRange(loaded); JobsCount = loaded.Count;
 				}
 				catch (MySqlException) { }
 			}
@@ -95,15 +90,33 @@ namespace Tools_protocol.Kryone.Database
 
 		public static string LookJobs(string id)
 		{
-			return CharacterList.Listing(id).Jobs;
+			return CharacterList.Listing(id)?.Jobs;
 		}
 
 		public static string Name_Jobs(string id)
 		{
-			if(AllJobs[Convert.ToInt32(id)] != null)
-			   return AllJobs[Convert.ToInt32(id)].Name;
-			else
-				return null;
+			if (!int.TryParse(id, out int jobId)) return id;
+			string cachedName = AllJobs.FirstOrDefault(job => job.ID == jobId)?.Name;
+			if (!string.IsNullOrWhiteSpace(cachedName)) return cachedName;
+			string table = TableJobs;
+			if (!string.IsNullOrWhiteSpace(DatabaseManager.ConnectionString) &&
+				!string.IsNullOrWhiteSpace(table) &&
+				Regex.IsMatch(table, @"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant))
+			{
+				try
+				{
+					using (var connection = new MySqlConnection(DatabaseManager.ConnectionString))
+					using (var command = new MySqlCommand($"SELECT `name` FROM `{table}` WHERE `id`=@id", connection))
+					{
+						command.Parameters.AddWithValue("@id", jobId);
+						connection.Open();
+						string name = Convert.ToString(command.ExecuteScalar());
+						if (!string.IsNullOrWhiteSpace(name)) return name;
+					}
+				}
+				catch (MySqlException) { /* Afficher l'identifiant si la table est absente. */ }
+			}
+			return $"Métier #{jobId}";
 		}
 	}
 }

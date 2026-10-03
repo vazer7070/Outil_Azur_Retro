@@ -1,4 +1,4 @@
-
+﻿
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -30,27 +30,33 @@ namespace Tool_Editor.items
 			return H;
 		}
 
-		private static string CreateJet(int min, int max)
+		public static string CreateJet(int min, int max)
 		{
-			string str = string.Format("1d{0}+{1}", min, max - min);
+			if (max < min)
+			{
+				int swap = min;
+				min = max;
+				max = swap;
+			}
+			string str = string.Format("1d{0}+{1}", max - min + 1, min - 1);
 			return str;
 		}
 
-		public static void CreateSQLEditor(string editor, Dictionary<string, string> r)
-		{
-			string file = string.Concat(".\\creations\\", editor, ".sql");
-			if (File.Exists(file))
-			{
-				file = string.Format(".\\creations\\{0}.{1}.sql", editor, r.Count);
-			}
-			StreamWriter SW = new StreamWriter(file);
-			foreach (string h in r.Values)
-			{
-				SW.WriteLine(h);
-			}
-			SW.Close();
-			SW.Dispose();
-		}
+        public static void CreateSQLEditor(string editor, Dictionary<string, string> queries)
+        {
+            if (queries == null || queries.Count == 0)
+                throw new ArgumentException("Aucune requête SQL à exporter.");
+            string directory = Path.GetFullPath(@".\creations");
+            Directory.CreateDirectory(directory);
+            string path = Path.Combine(directory, editor + ".sql");
+            int suffix = 1;
+            while (File.Exists(path))
+                path = Path.Combine(directory, editor + "." + suffix++ + ".sql");
+            using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            using (var writer = new StreamWriter(stream, new UTF8Encoding(false)))
+                foreach (string query in queries.Values)
+                    writer.WriteLine(query.TrimEnd().TrimEnd(';') + ";");
+        }
 
 		public static void CreateStatItems(string stat)
 		{
@@ -59,8 +65,9 @@ namespace Tool_Editor.items
 			StringBuilder SB = new StringBuilder();
 			if (!param.Equals("@"))
 			{
-				int min = Convert.ToInt32(param.Split(new char[] { '|' })[0]);
-				int max = Convert.ToInt32(param.Split(new char[] { '|' })[1]);
+				string[] bounds = param.Split(new char[] { '|' });
+				int min = Convert.ToInt32(bounds[0]);
+				int max = bounds.Length > 1 ? Convert.ToInt32(bounds[1]) : min;
 				string hxmin = min.ToString("X");
 				string hxmax = max.ToString("X");
 				SB.Append(id ?? "");
@@ -77,84 +84,44 @@ namespace Tool_Editor.items
 			}
 			TradStat.Add(SB.ToString());
 		}
-		public static void InjectSql(Dictionary<string, string> query)
+        public static void CreateSwf(string path, string data)
         {
-			
-			foreach(string u in query.Keys)
-            {
-			     if(query.TryGetValue(u, out string j))
-                {
-					EmuManager.ExecuteQueryByEmu(u, j);
-
-                }
-                else
-                {
-					MessageBox.Show($"Aucune valeur trouvée pour la clé: {u}", "Clé introuvable", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-					return;
-                }
-				
-            }
+            if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("Le chemin SWF est invalide.");
+            string fullPath = Path.GetFullPath(path);
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+            File.WriteAllText(fullPath, data ?? "", new UTF8Encoding(false));
         }
-		
-		public static void CreateSwf(string path, string data)
-		{
-            try
-            {
-				if (File.Exists(path))
-					File.Delete(path);
-				File.WriteAllText(path, data);
-				MessageBox.Show("Le fichier texte contenant la ligne SWF a été correctement crée", "Succès de la création", MessageBoxButtons.OK, MessageBoxIcon.Information);
-			}
-			catch(Exception e)
-            {
-				MessageBox.Show(e.Message);
-				return;
-            }
-			
-		}
 		//[5 (bonus CC),3(PA),1(PO mini),1(PO max),40(Taux CC),40(Taux EC),false,false]
 		//c:"CI>30&CS>4"
-		public static string CreateSwfLine(int id, string name, string description, string GFX, string type, string level, bool FM, string pods, string AI, string condition, string prix, bool usable, bool twohand)
-		{
-			StringBuilder SB = new StringBuilder();
-			SB.Append(string.Concat(string.Format("I.u[{0}] = ", id), "{"));
-			SB.Append(string.Concat("p:'", prix, "',"));
-			SB.Append(string.Concat("t:", type, ","));
-			if (string.IsNullOrEmpty(description))
-			{
-				SB.Append("d:'#1',");
-			}
-			else
-			{
-				SB.Append(string.Concat("d:'", description, "',"));
-			}
-			SB.Append("ep:7,");
-			SB.Append(string.Concat("g:", GFX, ","));
-			SB.Append(string.Concat("l:", level, ","));
-			SB.Append("wd:,");
-			SB.Append(string.Concat("fm:", FM.ToString(), ","));
-			SB.Append(string.Concat("w:", pods, ","));
-			SB.Append("an:,");
-			if (type == "2")
-			{
-				SB.Append(string.Concat("tw:", twohand.ToString(), ","));
-			}
-			SB.Append(string.Concat(new string[] { "e:[", AI.Split(new char[] { ';' })[5], ",", AI.Split(new char[] { ';' })[0], ",", AI.Split(new char[] { ';' })[1], ",", AI.Split(new char[] { ';' })[2], ",", AI.Split(new char[] { ';' })[3], ",", AI.Split(new char[] { ';' })[4], ",false,false]," }));
-			SB.Append(string.Concat("c:'", condition, "',"));
-			if (type == "89")
-			{
-				SB.Append(string.Concat("u:", usable.ToString(), ","));
-			}
-			SB.Append(string.Concat("n:", name, "};"));
-			char c = '\"';
-			string str = SB.ToString().Replace("'", string.Format("{0}", c));
-			return str;
-		}
+        public static string CreateSwfLine(int id, string name, string description, string GFX,
+            string type, string level, bool FM, string pods, string AI, string condition,
+            string prix, bool usable, bool twohand)
+        {
+            string[] weapon = (AI ?? "").Split(';');
+            if (weapon.Length < 6)
+                throw new ArgumentException("Les informations d'arme sont incomplètes.");
+            foreach (string number in new[] { GFX, type, level, pods, prix,
+                weapon[0], weapon[1], weapon[2], weapon[3], weapon[4], weapon[5] })
+                if (!int.TryParse(number, out int parsed) || parsed < 0)
+                    throw new FormatException("Une valeur numérique SWF est invalide.");
+            return $"I.u[{id}] = {{p:{prix},t:{type},d:{ActionScriptString(string.IsNullOrEmpty(description) ? "#1" : description)}," +
+                $"ep:7,g:{GFX},l:{level},fm:{FM.ToString().ToLowerInvariant()},w:{pods}," +
+                $"tw:{twohand.ToString().ToLowerInvariant()}," +
+                $"e:[{weapon[5]},{weapon[0]},{weapon[1]},{weapon[2]},{weapon[3]},{weapon[4]},false,false]," +
+                $"c:{ActionScriptString(condition)},u:{usable.ToString().ToLowerInvariant()},n:{ActionScriptString(name)}}};";
+        }
+
+        private static string ActionScriptString(string value)
+        {
+            return "\"" + (value ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"")
+                .Replace("\r", "\\r").Replace("\n", "\\n").Replace("\t", "\\t")
+                .Replace("\u2028", "\\u2028").Replace("\u2029", "\\u2029") + "\"";
+        }
 
 		public static int SwitchType(string typename)
 		{
 			int IdType = 0;
-			string str = typename;
+			string str = typename?.Trim().ToLowerInvariant();
 			if (str != null)
 			{
 				switch (str)

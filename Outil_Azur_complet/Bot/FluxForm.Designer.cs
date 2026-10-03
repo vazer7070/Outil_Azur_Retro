@@ -129,7 +129,6 @@
             this.iTalk_Listview1.TabIndex = 0;
             this.iTalk_Listview1.UseCompatibleStateImageBehavior = false;
             this.iTalk_Listview1.View = System.Windows.Forms.View.Details;
-            this.iTalk_Listview1.SelectedIndexChanged += new System.EventHandler(this.iTalk_Listview1_SelectedIndexChanged);
             // 
             // iTalk_Button_11
             // 
@@ -143,7 +142,6 @@
             this.iTalk_Button_11.TabIndex = 0;
             this.iTalk_Button_11.Text = "X";
             this.iTalk_Button_11.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
             // 
             // FluxForm
             // 
@@ -156,7 +154,6 @@
             this.Name = "FluxForm";
             this.Text = "Logs";
             this.TransparencyKey = System.Drawing.Color.Fuchsia;
-            this.Load += new System.EventHandler(this.FluxForm_Load);
             this.iTalk_ThemeContainer1.ResumeLayout(false);
             this.iTalk_TabControl1.ResumeLayout(false);
             this.tabPage1.ResumeLayout(false);

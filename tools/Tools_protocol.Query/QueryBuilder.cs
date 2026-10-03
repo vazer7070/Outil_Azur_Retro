@@ -6,313 +6,156 @@ namespace Tools_protocol.Query
 {
 	public static class QueryBuilder
 	{
-		static List<string> InsertValues;
-
 		public static string MultiDeleteQuery(string table, string[] col, string[] value)
         {
-			List<string> S = new List<string>();
-			StringBuilder query = new StringBuilder("DELETE FROM ");
-			query.Append($"'{table}'");
-			query.Append(" WHERE ");
-			
-				for(int i = 0; i == col.Length; i++)
-                {
-					S.Add($"'{col[i]}' = '{value[i]}'");
-                }
-				query.Append(String.Join(" AND ", S));
-            
-			return query.ToString();
+			if (col == null) throw new ArgumentNullException(nameof(col));
+			if (value == null) throw new ArgumentNullException(nameof(value));
+			if (col.Length == 0 || col.Length != value.Length)
+				throw new ArgumentException("Chaque colonne doit avoir une valeur.");
+
+			var conditions = new List<string>(col.Length);
+			for (int i = 0; i < col.Length; i++)
+				conditions.Add($"{QuoteIdentifier(col[i])}={QuoteValue(value[i])}");
+			return $"DELETE FROM {QuoteIdentifier(table)} WHERE {string.Join(" AND ", conditions)}";
         }
-        public static string DeleteFromQuery(string dest, string quand, string operande_result)
+		public static string DeleteFromQuery(string dest, string quand, string operande_result)
 		{
-			string str;
-			StringBuilder query = new StringBuilder("DELETE FROM ");
-			query.Append(dest ?? "");
-			if (!string.IsNullOrEmpty(quand))
-			{
-				query.Append(" WHERE ");
-				query.Append(quand ?? "");
-				query.Append("=");
-				query.Append(string.Concat("'", operande_result, "'"));
-				str = query.ToString();
-			}
-			else
-			{
-				str = query.ToString();
-			}
-			return str;
+			if (string.IsNullOrEmpty(quand) != string.IsNullOrEmpty(operande_result))
+				throw new ArgumentException("La colonne et sa valeur doivent être renseignées ensemble.");
+			string query = "DELETE FROM " + QuoteIdentifier(dest);
+			return string.IsNullOrEmpty(quand) ? query :
+				query + " WHERE " + QuoteIdentifier(quand) + "=" + QuoteValue(operande_result);
 		}
 
 		public static string InsertIntoQuery(string table, string[] colums, string[] values, string quand)
 		{
-			StringBuilder query = new StringBuilder("INSERT INTO ");
-			query.Append(table);
-			string test = string.Join("", colums);
-			if(test != "*")
-            {
-				if (colums.Length.Equals(1))
-				{
-					string array = string.Join("", colums);
-					query.Append(string.Concat("(", array, ")"));
-				}
-				else if (colums.Length >= 2)
-				{
-					string array = string.Join(",", colums);
-					query.Append(string.Concat("(", array, ")"));
-				}
-			}
-			query.Append("VALUES");
-			if (values.Length.Equals(1))
-			{
-				string arrayvalues = string.Join("", values);
-				query.Append(string.Concat("('", arrayvalues, "')"));
-			}
-			else if (values.Length >= 2)
-			{
-                InsertValues = new List<string>();
-				string[] strArrays = values;
-				for (int num = 0; num < (int)strArrays.Length; num++)
-				{
-					string i = strArrays[num];
-                    InsertValues.Add(string.Concat("'", i, "'"));
-				}
-				string arrayvalues = string.Join(",", InsertValues.ToArray());
-				query.Append(string.Concat("(", arrayvalues, ")"));
-			}
+			if (colums == null) throw new ArgumentNullException(nameof(colums));
+			if (values == null) throw new ArgumentNullException(nameof(values));
+			if (values.Length == 0) throw new ArgumentException("Au moins une valeur est requise.", nameof(values));
+			if (colums.Length > 0 && !(colums.Length == 1 && colums[0] == "*") &&
+				colums.Length != values.Length)
+				throw new ArgumentException("Le nombre de colonnes et de valeurs doit être identique.");
 			if (!string.IsNullOrEmpty(quand))
+				throw new ArgumentException("INSERT INTO ne prend pas de clause WHERE.", nameof(quand));
+
+			var query = new StringBuilder("INSERT INTO ");
+			query.Append(QuoteIdentifier(table));
+			if (colums.Length > 0 && !(colums.Length == 1 && colums[0] == "*"))
 			{
-				query.Append("WHERE");
-				query.Append(quand);
+				var names = new List<string>(colums.Length);
+				foreach (string column in colums) names.Add(QuoteIdentifier(column));
+				query.Append('(').Append(string.Join(",", names)).Append(')');
 			}
-            InsertValues.Clear();
+			var literals = new List<string>(values.Length);
+			foreach (string value in values) literals.Add(QuoteValue(value));
+			query.Append(" VALUES (").Append(string.Join(",", literals)).Append(')');
 			return query.ToString();
 		}
 
 		public static string SelectExistQuery(string number, string table, string col, string value, bool upper)
 		{
-			StringBuilder query = new StringBuilder("SELECT EXISTS (SELECT ");
-			query.Append(number);
-			query.Append(" FROM ");
-			query.Append(table);
-			query.Append(" WHERE ");
-			query.Append(col);
-			query.Append('=');
-			if (!upper)
-			{
-				query.Append(string.Concat("'", value, "')"));
-			}
-			else
-			{
-				query.Append(string.Concat("'", value.ToUpper(), "')"));
-			}
-			return query.ToString();
+			string selected = number == "*" || int.TryParse(number, out _) ? number : QuoteIdentifier(number);
+			string compared = upper ? (value ?? string.Empty).ToUpperInvariant() : value;
+			return $"SELECT EXISTS (SELECT {selected} FROM {QuoteIdentifier(table)} " +
+				$"WHERE {QuoteIdentifier(col)}={QuoteValue(compared)})";
 		}
 
 		public static string SelectFromQuery(string[] subjet, string dest, string quand, string egals)
 		{
-			string str;
-			StringBuilder query = new StringBuilder("SELECT ");
-			if (subjet.Length.Equals(1))
-			{
-				query.Append(string.Join("", subjet));
-			}
-			else if ((int)subjet.Length >= 2)
-			{
-				query.Append(string.Join(",", subjet));
-			}
-			query.Append(" FROM ");
-			query.Append(dest);
-			if ((string.IsNullOrEmpty(quand) ? false : !string.IsNullOrEmpty(egals)))
-			{
-				query.Append(" WHERE ");
-				query.Append(quand);
-				query.Append('=');
-				query.Append(string.Concat("'", egals, "'"));
-				str = query.ToString();
-			}
-			else
-			{
-				str = query.ToString();
-			}
-			return str;
+			if (subjet == null || subjet.Length == 0)
+				throw new ArgumentException("Au moins une colonne doit être sélectionnée.", nameof(subjet));
+			if (string.IsNullOrEmpty(quand) != string.IsNullOrEmpty(egals))
+				throw new ArgumentException("La colonne et sa valeur doivent être renseignées ensemble.");
+			string columns = string.Join(",", Array.ConvertAll(subjet,
+				column => column == "*" ? "*" : QuoteIdentifier(column)));
+			string query = $"SELECT {columns} FROM {QuoteIdentifier(dest)}";
+			return string.IsNullOrEmpty(quand) ? query :
+				query + " WHERE " + QuoteIdentifier(quand) + "=" + QuoteValue(egals);
 		}
 
 		public static string SelectFromQueryAnd(string[] subjet, string dest, string quand1, string egals1, string quand2, string egals2)
 		{
-			StringBuilder query = new StringBuilder("SELECT ");
-			if (subjet.Length.Equals(1))
-			{
-				query.Append(string.Join("", subjet));
-			}
-			else if ((int)subjet.Length >= 2)
-			{
-				query.Append(string.Join(",", subjet));
-			}
-			query.Append(" FROM ");
-			query.Append(dest);
-			query.Append(" WHERE ");
-			query.Append(quand1);
-			query.Append('=');
-			query.Append(string.Concat("'", egals1, "'"));
-			query.Append(" AND ");
-			query.Append(quand2);
-			query.Append('=');
-			query.Append(string.Concat("'", egals2, "'"));
-			return query.ToString();
+			if (subjet == null || subjet.Length == 0)
+				throw new ArgumentException("Au moins une colonne doit être sélectionnée.", nameof(subjet));
+			string columns = string.Join(",", Array.ConvertAll(subjet,
+				column => column == "*" ? "*" : QuoteIdentifier(column)));
+			return $"SELECT {columns} FROM {QuoteIdentifier(dest)} WHERE " +
+				$"{QuoteIdentifier(quand1)}={QuoteValue(egals1)} AND " +
+				$"{QuoteIdentifier(quand2)}={QuoteValue(egals2)}";
 		}
 
 		public static string UpdateFromQuery(string table, string voulue, int operation, string result, string quand, string egals)
 		{
-			string str;
+			if (string.IsNullOrEmpty(quand) != string.IsNullOrEmpty(egals))
+				throw new ArgumentException("La colonne et sa valeur doivent être renseignées ensemble.");
+			string column = QuoteIdentifier(voulue);
 			StringBuilder query = new StringBuilder("UPDATE ");
-			query.Append(table);
+			query.Append(QuoteIdentifier(table));
 			query.Append(" SET ");
-			query.Append(voulue);
+			query.Append(column);
 			switch (operation)
 			{
-				case 1:
-				{
-					query.Append('=');
-					break;
-				}
-				case 2:
-				{
-					query.Append('=');
-					query.Append(voulue);
-					query.Append('+');
-					break;
-				}
-				case 3:
-				{
-					query.Append('=');
-					query.Append(voulue);
-					query.Append('-');
-					break;
-				}
-				case 4:
-				{
-					query.Append('=');
-					query.Append(voulue);
-					query.Append('*');
-					break;
-				}
-				case 5:
-				{
-					query.Append('=');
-					query.Append(voulue);
-					query.Append('/');
-					break;
-				}
+				case 1: query.Append('='); break;
+				case 2: query.Append('=').Append(column).Append('+'); break;
+				case 3: query.Append('=').Append(column).Append('-'); break;
+				case 4: query.Append('=').Append(column).Append('*'); break;
+				case 5: query.Append('=').Append(column).Append('/'); break;
+				default: throw new ArgumentOutOfRangeException(nameof(operation));
 			}
-			query.Append(string.Concat("'", result, "'"));
-			if (!string.IsNullOrEmpty(quand) && !string.IsNullOrEmpty(egals))
-			{
-				query.Append(" WHERE ");
-				query.Append(quand);
-				query.Append('=');
-				query.Append(string.Concat("'", egals, "'"));
-				str = query.ToString();
-			}
-			else
-			{
-				str = query.ToString();
-			}
-			return str;
+			query.Append(QuoteValue(result));
+			if (!string.IsNullOrEmpty(quand))
+				query.Append(" WHERE ").Append(QuoteIdentifier(quand)).Append('=').Append(QuoteValue(egals));
+			return query.ToString();
 		}
 
 		public static string UpdateMultipleFromQuery(string table, string[] col, int opesolo, string[] args, string where, string egals)
 		{
-			string str;
-			List<string> Col = new List<string>();
-			List<string> Args = new List<string>();
-			List<string> resultofparse = new List<string>();
-			StringBuilder query = new StringBuilder("UPDATE ");
-			query.Append(table);
-			query.Append(" SET");
-			if (col.Length.Equals(1) && args.Length.Equals(1))
+			if (col == null) throw new ArgumentNullException(nameof(col));
+			if (args == null) throw new ArgumentNullException(nameof(args));
+			if (col.Length == 0 || col.Length != args.Length)
+				throw new ArgumentException("Chaque colonne doit avoir une valeur.");
+			if (string.IsNullOrEmpty(where) || string.IsNullOrEmpty(egals))
+				throw new ArgumentException("Une condition WHERE est requise pour modifier des lignes.");
+
+			string operation;
+			switch (opesolo)
 			{
-				string i = string.Join("", col);
-				string j = string.Join("", args);
-				query.Append(i);
-				switch (opesolo)
-				{
-					case 1:
-					{
-						query.Append("=");
-						break;
-					}
-					case 2:
-					{
-						query.Append("=");
-						query.Append(i);
-						query.Append("+");
-						break;
-					}
-					case 3:
-					{
-						query.Append("=");
-						query.Append(i);
-						query.Append("-");
-						break;
-					}
-					case 4:
-					{
-						query.Append("=");
-						query.Append(i);
-						query.Append("*");
-						break;
-					}
-					case 5:
-					{
-						query.Append("=");
-						query.Append(i);
-						query.Append("/");
-						break;
-					}
-				}
-				query.Append(string.Concat("'", j, "'"));
+				case 1: operation = null; break;
+				case 2: operation = "+"; break;
+				case 3: operation = "-"; break;
+				case 4: operation = "*"; break;
+				case 5: operation = "/"; break;
+				default: throw new ArgumentOutOfRangeException(nameof(opesolo));
 			}
-			else if (((int)col.Length < 2 || (int)args.Length < 2 ? false : (int)col.Length == (int)args.Length))
+
+			var assignments = new List<string>(col.Length);
+			for (int i = 0; i < col.Length; i++)
 			{
-				for (int o = 0; o == (int)col.Length; o++)
-				{
-					if (!Col.Contains(col[0]))
-					{
-						Col.Add(col[0]);
-					}
-					if (!Args.Contains(args[0]))
-					{
-						Args.Add(args[0]);
-					}
-					Col.Add(col[o]);
-					Args.Add(string.Concat("'", args[o], "'"));
-				}
-				string[] colonnes = Col.ToArray();
-				string[] arguments = Args.ToArray();
-				for (int u = 0; u == (int)colonnes.Length; u++)
-				{
-					if (!resultofparse.Contains(colonnes[0]))
-					{
-						resultofparse.Add(string.Concat(colonnes[0], "=", arguments[0]));
-					}
-					resultofparse.Add(string.Concat(colonnes[u], "=", arguments[u]));
-				}
-				string[] parsing = resultofparse.ToArray();
-				query.Append(string.Join(",", parsing));
+				string name = QuoteIdentifier(col[i]);
+				string expression = operation == null ? QuoteValue(args[i]) : name + operation + QuoteValue(args[i]);
+				assignments.Add(name + "=" + expression);
 			}
-			if (!string.IsNullOrEmpty(egals) && !string.IsNullOrEmpty(where))
+			return $"UPDATE {QuoteIdentifier(table)} SET {string.Join(",", assignments)} WHERE {QuoteIdentifier(where)}={QuoteValue(egals)}";
+		}
+
+		private static string QuoteIdentifier(string identifier)
+		{
+			if (string.IsNullOrEmpty(identifier) ||
+				!((identifier[0] >= 'A' && identifier[0] <= 'Z') ||
+				  (identifier[0] >= 'a' && identifier[0] <= 'z') || identifier[0] == '_'))
+				throw new ArgumentException("Nom de table ou de colonne invalide.", nameof(identifier));
+			foreach (char c in identifier)
 			{
-				query.Append(" WHERE ");
-				query.Append(where);
-				query.Append("=");
-				query.Append(string.Concat("'", egals, "'"));
-				str = query.ToString();
+				if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+				      (c >= '0' && c <= '9') || c == '_'))
+					throw new ArgumentException("Nom de table ou de colonne invalide.", nameof(identifier));
 			}
-			else
-			{
-				str = query.ToString();
-			}
-			return str;
+			return "`" + identifier + "`";
+		}
+
+		private static string QuoteValue(string value)
+		{
+			return "'" + (value ?? string.Empty).Replace("\\", "\\\\").Replace("'", "''") + "'";
 		}
 	}
 }

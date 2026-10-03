@@ -121,7 +121,6 @@
             this.iTalk_Button_21.Size = new System.Drawing.Size(41, 32);
             this.iTalk_Button_21.TabIndex = 4;
             this.iTalk_Button_21.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_21.Click += new System.EventHandler(this.iTalk_Button_21_Click);
             // 
             // iTalk_Label1
             // 
@@ -162,7 +161,6 @@
             this.iTalk_Button_11.TabIndex = 1;
             this.iTalk_Button_11.Text = "Recherche";
             this.iTalk_Button_11.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
             // 
             // iTalk_Listview1
             // 
@@ -175,7 +173,6 @@
             this.iTalk_Listview1.TabIndex = 0;
             this.iTalk_Listview1.UseCompatibleStateImageBehavior = false;
             this.iTalk_Listview1.View = System.Windows.Forms.View.Details;
-            this.iTalk_Listview1.SelectedIndexChanged += new System.EventHandler(this.iTalk_Listview1_SelectedIndexChanged);
             // 
             // iTalk_ContextMenuStrip1
             // 
@@ -193,13 +190,11 @@
             this.connexionToolStripMenuItem.Name = "connexionToolStripMenuItem";
             this.connexionToolStripMenuItem.Size = new System.Drawing.Size(132, 22);
             this.connexionToolStripMenuItem.Text = "Connexion";
-            this.connexionToolStripMenuItem.Click += new System.EventHandler(this.connexionToolStripMenuItem_Click);
             // 
             // timer2
             // 
             this.timer2.Enabled = true;
             this.timer2.Interval = 1000;
-            this.timer2.Tick += new System.EventHandler(this.timer2_Tick);
             // 
             // PersoSelection
             // 
@@ -213,7 +208,6 @@
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "Selection du serveur";
             this.TransparencyKey = System.Drawing.Color.Fuchsia;
-            this.Load += new System.EventHandler(this.PersoSelection_Load);
             this.iTalk_ThemeContainer1.ResumeLayout(false);
             this.iTalk_TabControl1.ResumeLayout(false);
             this.tabPage1.ResumeLayout(false);

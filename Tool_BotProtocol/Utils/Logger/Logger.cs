@@ -15,27 +15,19 @@ namespace Tool_BotProtocol.Utils.Logger
 
         private void log_Final(string reference, string message, string color, Exception ex = null)
         {
-            try
-            {
-                LogsMessages log_Message = new LogsMessages(reference, message, ex);
-                log_event?.Invoke(log_Message, color);
-            }
-            catch (Exception e)
-            {
-                log_Final("LOGGER", "An error occured while registering the event", LogTypes.ERROR, e);
-            }
+            var subscribers = log_event;
+            if (subscribers == null) return;
+            var logMessage = new LogsMessages(reference, message, ex);
+            foreach (Action<LogsMessages, string> subscriber in subscribers.GetInvocationList())
+                try { subscriber(logMessage, color); } catch { /* A closed UI must not break the protocol or recurse. */ }
         }
         private void log_Chats(string reference, string message, string color, Exception ex = null)
         {
-            try
-            {
-                LogsMessages log_Message = new LogsMessages(reference, message, ex);
-                log_eventChat?.Invoke(log_Message, color);
-            }
-            catch (Exception e)
-            {
-                log_Chat("LOGGER", "An error occured while registering the event", LogTypes.ERROR, e);
-            }
+            var subscribers = log_eventChat;
+            if (subscribers == null) return;
+            var logMessage = new LogsMessages(reference, message, ex);
+            foreach (Action<LogsMessages, string> subscriber in subscribers.GetInvocationList())
+                try { subscriber(logMessage, color); } catch { }
         }
         private void log_Chat(string reference, string message, LogTypes color, Exception ex = null)
         {

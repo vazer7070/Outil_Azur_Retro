@@ -12,12 +12,12 @@ namespace Outil_Azur_complet.maps
 {
     public partial class OtherSizeForm : Form
     {
-        private const int MIN_SIZE = 1;
+        private const int MIN_SIZE = 2;
         private const int MAX_SIZE = 100;
         private readonly ErrorProvider _errorProvider;
 
-        public int Width { get; private set; }
-        public int Height { get; private set; }
+        public int MapWidth { get; private set; }
+        public int MapHeight { get; private set; }
         public bool IsValid { get; private set; }
 
         public OtherSizeForm()
@@ -31,6 +31,7 @@ namespace Outil_Azur_complet.maps
 
             InitializeEventHandlers();
             ConfigureInputValidation();
+            BuildEditorLayout();
         }
 
         private void InitializeEventHandlers()
@@ -40,6 +41,8 @@ namespace Outil_Azur_complet.maps
             
             iTalk_TextBox_Small1.KeyPress += NumberOnlyKeyPress;
             iTalk_TextBox_Small2.KeyPress += NumberOnlyKeyPress;
+            iTalk_Button_21.Click += ApplySize;
+            iTalk_Button_11.Click += CancelSize;
         }
 
         private void ConfigureInputValidation()
@@ -85,9 +88,10 @@ namespace Outil_Azur_complet.maps
         {
             if (ValidateForm())
             {
-                Width = int.Parse(iTalk_TextBox_Small1.Text);
-                Height = int.Parse(iTalk_TextBox_Small2.Text);
+                MapWidth = int.Parse(iTalk_TextBox_Small1.Text);
+                MapHeight = int.Parse(iTalk_TextBox_Small2.Text);
                 IsValid = true;
+                DialogResult = DialogResult.OK;
                 Close();
             }
         }
@@ -134,6 +138,7 @@ namespace Outil_Azur_complet.maps
         private void CancelSize(object sender, EventArgs e)
         {
             IsValid = false;
+            DialogResult = DialogResult.Cancel;
             Close();
         }
 

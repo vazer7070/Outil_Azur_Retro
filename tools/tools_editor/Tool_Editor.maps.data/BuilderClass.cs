@@ -19,9 +19,14 @@ namespace Tool_Editor.maps.data
             int gfx1 = Cell.GFX1 != null ? Cell.GFX1.ID : 0;
             int gfx2 = Cell.GFX2 != null ? Cell.GFX2.ID : 0;
             int gfx3 = Cell.GFX3 != null ? Cell.GFX3.ID : 0;
+            if (gfx1 < 0 || gfx1 > 2047 || gfx2 < 0 || gfx2 > 16383 || gfx3 < 0 || gfx3 > 16383 ||
+                Cell.RotaGFX1 < 0 || Cell.RotaGFX1 > 3 || Cell.RotaGFX2 < 0 || Cell.RotaGFX2 > 3 ||
+                Cell.NivSol < 0 || Cell.NivSol > 15 || Cell.IncliSol < 0 || Cell.IncliSol > 15 ||
+                Cell.Type() < 0 || Cell.Type() > 7)
+                throw new InvalidOperationException($"Les valeurs de la cellule {Cell.ID} dépassent les limites du format client.");
 
             int[] IntArray = new int[10];
-            IntArray[0] = (Cell.Los ? 1 : 0) | ((gfx1 & 0x600) >> 6) | ((gfx2 & 0x2000) >> 11) | ((gfx3 & 0x2000) >> 12);
+            IntArray[0] = (Cell.Active ? 32 : 0) | (Cell.Los ? 1 : 0) | ((gfx1 & 0x600) >> 6) | ((gfx2 & 0x2000) >> 11) | ((gfx3 & 0x2000) >> 12);
             IntArray[1] = (Cell.RotaGFX1 << 4) | (Cell.NivSol & 15);
             IntArray[2] = (Cell.Type() & 7) << 3 | ((gfx1 >> 6) & 7);
             IntArray[3] = gfx1 & 0x3f;

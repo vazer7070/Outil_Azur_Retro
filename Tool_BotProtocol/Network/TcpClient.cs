@@ -6,60 +6,87 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Network.ByPass;
 using Tool_BotProtocol.Utils.Crypto;
+using Tools_protocol.Network;
 
 namespace Tool_BotProtocol.Network
 {
     public class TcpClient : IDisposable
     {
-        private Socket socket;
-        private byte[] buffer;
-        public Accounts account;
-        private SemaphoreSlim _semaphore;
-        private bool _disposed;
+        private sealed class SocketSession
+        {
+            internal readonly Socket Socket;
+            internal readonly byte[] Buffer;
+            internal readonly NullTerminatedPacketDecoder Decoder = new NullTerminatedPacketDecoder();
 
+            internal SocketSession(IPAddress address)
+            {
+                Socket = new Socket(address.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                Buffer = new byte[Socket.ReceiveBufferSize];
+            }
+        }
+
+        private readonly object _sync = new object();
+        private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
+        private readonly List<int> _pings = new List<int>(50);
+        private SocketSession _session;
+        private int _sendUsers;
+        private bool _semaphoreDisposed;
+        private bool _disposed;
+        private bool _disconnectingAccount;
+
+        public Accounts account;
         public event Action<string> packetReceivedEvent;
         public event Action<string> packetSendEvent;
         public event Action<string> socketInformationEvent;
-
         public string apikey;
         public string Token;
-        private bool ByPassOK = false;
-
-        private List<int> _pings;
 
         public TcpClient(Accounts Account)
         {
             account = Account;
-            _semaphore = new SemaphoreSlim(1);
-            _pings = new List<int>(50);
         }
 
         public async Task ConnectToServer(IPAddress ip, int port)
         {
+            if (ip == null) throw new ArgumentNullException(nameof(ip));
+            if (port < 1 || port > 65535) throw new ArgumentOutOfRangeException(nameof(port));
+            SocketSession current, previous;
+            lock (_sync)
+            {
+                if (_disposed || _disconnectingAccount) throw new ObjectDisposedException(nameof(TcpClient));
+                current = new SocketSession(ip);
+                previous = _session;
+                _session = current;
+                previous?.Decoder.Reset();
+            }
+            CloseSession(previous);
             try
             {
                 if (GlobalConfig.BYPASS)
-                    ByPassOK = await ConnexionZaap();
-
-                socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                buffer = new byte[socket.ReceiveBufferSize];
-
-                await socket.ConnectAsync(ip, port);
-                if (ByPassOK && GlobalConfig.BYPASS)
-                    BeginReceive();
-                else
-                    BeginReceive();
+                    await ConnexionZaap().ConfigureAwait(false);
+                if (!IsCurrent(current)) return;
+                Task connecting = current.Socket.ConnectAsync(ip, port);
+                if (await Task.WhenAny(connecting, Task.Delay(10000)).ConfigureAwait(false) != connecting)
+                {
+                    CloseSession(current);
+                    try { await connecting.ConfigureAwait(false); } catch { }
+                    throw new TimeoutException("Le serveur n’a pas répondu dans le délai de connexion.");
+                }
+                await connecting.ConfigureAwait(false);
+                if (IsCurrent(current)) BeginReceive(current);
             }
-            catch (Exception ex)
+            catch (Exception error)
             {
-                MessageBox.Show(ex.Message);
-                DisconnectSocket();
+                if (IsCurrent(current))
+                {
+                    ReportInformation(error.ToString());
+                    DisconnectSession(current, false);
+                }
             }
         }
 
@@ -72,141 +99,201 @@ namespace Tool_BotProtocol.Network
             return true;
         }
 
-        private void BeginReceive()
+        private bool IsCurrent(SocketSession session)
         {
-            socket.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, ReceptionCallBack, null);
+            lock (_sync) return !_disposed && ReferenceEquals(_session, session);
         }
 
-        private void ReceptionCallBack(IAsyncResult ar)
+        private void BeginReceive(SocketSession session)
         {
+            if (!IsCurrent(session)) return;
+            session.Socket.BeginReceive(session.Buffer, 0, session.Buffer.Length,
+                SocketFlags.None, ReceptionCallBack, session);
+        }
+
+        private async void ReceptionCallBack(IAsyncResult ar)
+        {
+            var session = (SocketSession)ar.AsyncState;
             try
             {
-                if (!IsConnected() || _disposed)
+                int count = session.Socket.EndReceive(ar, out SocketError response);
+                if (!IsCurrent(session)) return;
+                if (count <= 0 || response != SocketError.Success)
                 {
-                    DisconnectSocket();
+                    DisconnectSession(session, true);
                     return;
                 }
-
-                int byteData = socket.EndReceive(ar, out SocketError reponse);
-                if (byteData <= 0 || reponse != SocketError.Success)
-                {
-                    account.Disconnect();
-                    return;
-                }
-
-                byte[] buff = new byte[byteData];
-                Array.Copy(buffer, buff, byteData);
-                ProcessReceivedData(buff);
-
-                BeginReceive();
+                await ProcessReceivedDataAsync(session, count).ConfigureAwait(false);
+                if (IsCurrent(session)) BeginReceive(session);
             }
-            catch (Exception e)
+            catch (Exception error)
             {
-                socketInformationEvent?.Invoke(e.ToString());
-                DisconnectSocket();
+                if (IsCurrent(session))
+                {
+                    ReportInformation(error.ToString());
+                    DisconnectSession(session, true);
+                }
             }
         }
 
-        private void ProcessReceivedData(byte[] data)
+        private async Task ProcessReceivedDataAsync(SocketSession session, int count)
         {
-            string dataStr = Encoding.UTF8.GetString(data);
-            string[] packets = dataStr.Replace("\x0a", string.Empty).Split('\0');
-            foreach (string packet in packets.Where(x => !string.IsNullOrEmpty(x)))
+            IList<string> packets;
+            lock (_sync)
             {
+                if (_disposed || !ReferenceEquals(_session, session)) return;
+                packets = session.Decoder.Append(session.Buffer, 0, count);
+            }
+            foreach (string packet in packets)
+            {
+                if (!IsCurrent(session)) return;
                 packetReceivedEvent?.Invoke(packet);
-                MessagesReception.Reception(this, packet);
+                if (!IsCurrent(session)) return;
+                await MessagesReception.ReceptionAsync(this, packet).ConfigureAwait(false);
             }
         }
 
         public async Task SendPacketAsync(string packet)
         {
+            SocketSession session;
+            lock (_sync)
+            {
+                if (_disposed || _session == null) return;
+                session = _session;
+                _sendUsers++;
+            }
+            bool entered = false;
             try
             {
-                if (!IsConnected())
-                    return;
-
-                byte[] bytePacket = Encoding.UTF8.GetBytes($"{packet}\n\x00");
-
                 await _semaphore.WaitAsync().ConfigureAwait(false);
-                await socket.SendAsync(new ArraySegment<byte>(bytePacket), SocketFlags.None);
-                packetSendEvent?.Invoke(packet);
-                _semaphore.Release();
+                entered = true;
+                if (!IsCurrent(session) || !session.Socket.Connected) return;
+                byte[] data = Encoding.UTF8.GetBytes((packet ?? string.Empty) + "\n\0");
+                int offset = 0;
+                while (offset < data.Length)
+                {
+                    if (!IsCurrent(session)) return;
+                    int sent = await session.Socket.SendAsync(
+                        new ArraySegment<byte>(data, offset, data.Length - offset), SocketFlags.None).ConfigureAwait(false);
+                    if (sent <= 0) throw new SocketException((int)SocketError.ConnectionReset);
+                    offset += sent;
+                }
+                if (IsCurrent(session)) packetSendEvent?.Invoke(packet);
             }
-            catch (Exception ex)
+            catch (Exception error)
             {
-                socketInformationEvent?.Invoke(ex.ToString());
-                DisconnectSocket();
+                if (IsCurrent(session))
+                {
+                    ReportInformation(error.ToString());
+                    DisconnectSession(session, true);
+                }
+            }
+            finally
+            {
+                if (entered) _semaphore.Release();
+                bool disposeSemaphore;
+                lock (_sync)
+                {
+                    _sendUsers--;
+                    disposeSemaphore = _disposed && _sendUsers == 0 && !_semaphoreDisposed;
+                    if (disposeSemaphore) _semaphoreDisposed = true;
+                }
+                if (disposeSemaphore) _semaphore.Dispose();
             }
         }
 
         public async Task SendPacket(string packet, bool reponse = false)
         {
-            await SendPacketAsync(packet);
+            await SendPacketAsync(packet).ConfigureAwait(false);
         }
 
         public void DisconnectSocket()
         {
-            if (IsConnected())
+            SocketSession current;
+            lock (_sync) current = _session;
+            if (current != null) DisconnectSession(current, false);
+        }
+
+        private void DisconnectSession(SocketSession session, bool notifyAccount)
+        {
+            Accounts currentAccount;
+            bool disconnectAccount;
+            lock (_sync)
             {
-                if (socket != null && socket.Connected)
-                {
-                    socket.Shutdown(SocketShutdown.Both);
-                    socket.Disconnect(false);
-                    socket.Close();
-                }
-                socketInformationEvent?.Invoke("Socket deconnecté de l'hôte");
+                if (!ReferenceEquals(_session, session)) return;
+                _session = null;
+                session.Decoder.Reset();
+                currentAccount = account;
+                disconnectAccount = notifyAccount && currentAccount != null &&
+                    ReferenceEquals(currentAccount.Connexion, this);
+                if (disconnectAccount) _disconnectingAccount = true;
             }
+            CloseSession(session);
+            ReportInformation("Socket déconnecté de l'hôte");
+            if (disconnectAccount)
+            {
+                // Identity is checked by Accounts; its UI events run outside transport locks.
+                try { currentAccount.Disconnect(this); }
+                finally { Dispose(); }
+            }
+        }
+
+        private static void CloseSession(SocketSession session)
+        {
+            if (session == null) return;
+            try { session.Socket.Shutdown(SocketShutdown.Both); }
+            catch (SocketException) { }
+            catch (ObjectDisposedException) { }
+            finally { session.Socket.Dispose(); }
+        }
+
+        private void ReportInformation(string message)
+        {
+            try { socketInformationEvent?.Invoke(message); }
+            catch { /* A logging subscriber must not interrupt socket cleanup. */ }
         }
 
         public bool IsConnected()
         {
-            try
+            lock (_sync)
             {
-                return !(_disposed || socket == null || !socket.Connected && socket.Available == 0);
-            }
-            catch (SocketException)
-            {
-                return false;
-            }
-            catch (ObjectDisposedException)
-            {
-                return false;
+                if (_disposed || _session == null) return false;
+                try { return _session.Socket.Connected; }
+                catch (SocketException) { return false; }
+                catch (ObjectDisposedException) { return false; }
             }
         }
 
         public int GetTotalPings() => _pings.Count;
-
-        public int GetPingAverage() => (int)_pings.Average();
-
+        public int GetPingAverage() => _pings.Count == 0 ? 0 : (int)_pings.Average();
         ~TcpClient() => Dispose(false);
 
-        public void Dispose() => Dispose(true);
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
 
         protected virtual void Dispose(bool disposing)
         {
-            if (!_disposed)
+            SocketSession current;
+            bool disposeSemaphore;
+            lock (_sync)
             {
-                if (socket != null && socket.Connected)
-                {
-                    socket.Shutdown(SocketShutdown.Both);
-                    socket.Disconnect(false);
-                    socket.Close();
-                }
-
-                if (disposing)
-                {
-                    socket.Dispose();
-                    _semaphore.Dispose();
-                }
-
-                _semaphore = null;
+                if (_disposed) return;
+                _disposed = true;
+                current = _session;
+                _session = null;
+                current?.Decoder.Reset();
+                disposeSemaphore = disposing && _sendUsers == 0 && !_semaphoreDisposed;
+                if (disposeSemaphore) _semaphoreDisposed = true;
                 account = null;
-                socket = null;
-                buffer = null;
                 packetReceivedEvent = null;
                 packetSendEvent = null;
-                _disposed = true;
+                socketInformationEvent = null;
             }
+            CloseSession(current);
+            if (disposeSemaphore) _semaphore.Dispose();
         }
     }
 

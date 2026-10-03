@@ -889,7 +889,7 @@ namespace iTalk
                     }
                 }
                 Parent.BackColor = BackColor;
-                Parent.MinimumSize = new Size(126, 39);
+                Parent.MinimumSize = new Size(Math.Max(126,Parent.MinimumSize.Width),Math.Max(39,Parent.MinimumSize.Height));
             }
         }
 
@@ -975,9 +975,11 @@ namespace iTalk
 
             if (_StartPosition == FormStartPosition.CenterParent || _StartPosition == FormStartPosition.CenterScreen)
             {
-                Rectangle SB = Screen.PrimaryScreen.Bounds;
+                Rectangle SB = Screen.FromControl(ParentForm).WorkingArea;
                 Rectangle CB = ParentForm.Bounds;
-                ParentForm.Location = new Point(SB.Width / 2 - CB.Width / 2, SB.Height / 2 - CB.Width / 2);
+                Rectangle center = _StartPosition == FormStartPosition.CenterParent && ParentForm.Owner != null ? ParentForm.Owner.Bounds : SB;
+                ParentForm.Location = new Point(Math.Max(SB.Left,Math.Min(SB.Right-CB.Width,center.Left+(center.Width-CB.Width)/2)),
+                    Math.Max(SB.Top,Math.Min(SB.Bottom-CB.Height,center.Top+(center.Height-CB.Height)/2)));
             }
             HasShown = true;
         }
@@ -3156,6 +3158,7 @@ namespace iTalk
 
     public class iTalk_NumericUpDown : Control
     {
+        public event EventHandler ValuesChanged;
 
         #region  Enums
 
@@ -3195,6 +3198,7 @@ namespace iTalk
                 {
                     _Value = value;
                 }
+                ValuesChanged?.Invoke(this, EventArgs.Empty);
                 Invalidate();
             }
         }
@@ -3215,6 +3219,7 @@ namespace iTalk
                 {
                     _Value = Minimum;
                 }
+                ValuesChanged?.Invoke(this, EventArgs.Empty);
                 Invalidate();
             }
         }
@@ -3235,6 +3240,7 @@ namespace iTalk
                 {
                     _Value = _Maximum;
                 }
+                ValuesChanged?.Invoke(this, EventArgs.Empty);
                 Invalidate();
             }
         }

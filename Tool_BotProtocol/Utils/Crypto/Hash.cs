@@ -18,10 +18,14 @@ namespace Tool_BotProtocol.Utils.Crypto
 
         public static string Crypt_Password(string password, string key)
         {
+            if (password == null) throw new ArgumentNullException(nameof(password));
+            if (string.IsNullOrEmpty(key) || password.Length > key.Length)
+                throw new ArgumentException("La clé de connexion est trop courte pour ce mot de passe.", nameof(key));
             StringBuilder str = new StringBuilder().Append("#1");
             for (int i = 0; i < password.Length; i++)
             {
                 char ch = password[i];
+                if (ch > 255) throw new ArgumentException("Ce protocole accepte les caractères de mot de passe sur un octet.", nameof(password));
                 char ch2 = key[i];
                 int num2 = ch / 16;
                 int num3 = ch % 16;
@@ -34,6 +38,8 @@ namespace Tool_BotProtocol.Utils.Crypto
 
         public static string Decrypt_IP(string packet)
         {
+            if (packet == null || packet.Length != 8 || packet.Any(character => character < '0' || character > '?'))
+                throw new ArgumentException("L’adresse IP encodée doit contenir huit caractères valides.", nameof(packet));
             StringBuilder ip = new StringBuilder();
 
             for (int i = 0; i < 8; i += 2)

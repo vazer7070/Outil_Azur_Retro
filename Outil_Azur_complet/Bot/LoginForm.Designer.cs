@@ -132,7 +132,6 @@
             this.iTalk_RadioButton2.Size = new System.Drawing.Size(132, 15);
             this.iTalk_RadioButton2.TabIndex = 16;
             this.iTalk_RadioButton2.Text = "Serveur officiel";
-            this.iTalk_RadioButton2.CheckedChanged += new iTalk.iTalk_RadioButton.CheckedChangedEventHandler(this.iTalk_RadioButton2_CheckedChanged);
             // 
             // iTalk_RadioButton1
             // 
@@ -144,7 +143,6 @@
             this.iTalk_RadioButton1.Size = new System.Drawing.Size(132, 15);
             this.iTalk_RadioButton1.TabIndex = 15;
             this.iTalk_RadioButton1.Text = "Serveur privé";
-            this.iTalk_RadioButton1.CheckedChanged += new iTalk.iTalk_RadioButton.CheckedChangedEventHandler(this.iTalk_RadioButton1_CheckedChanged);
             // 
             // iTalk_Label2
             // 
@@ -212,7 +210,6 @@
             this.iTalk_Button_12.TabIndex = 6;
             this.iTalk_Button_12.Text = "Se connecter";
             this.iTalk_Button_12.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_12.Click += new System.EventHandler(this.iTalk_Button_12_Click_1);
             // 
             // tabPage1
             // 
@@ -237,7 +234,6 @@
             this.iTalk_Listview1.TabIndex = 0;
             this.iTalk_Listview1.UseCompatibleStateImageBehavior = false;
             this.iTalk_Listview1.View = System.Windows.Forms.View.Details;
-            this.iTalk_Listview1.SelectedIndexChanged += new System.EventHandler(this.iTalk_Listview1_SelectedIndexChanged);
             // 
             // tabPage3
             // 
@@ -260,7 +256,6 @@
             this.tabPage3.Size = new System.Drawing.Size(362, 273);
             this.tabPage3.TabIndex = 2;
             this.tabPage3.Text = "Options";
-            this.tabPage3.Click += new System.EventHandler(this.tabPage3_Click);
             // 
             // iTalk_TextBox_Small6
             // 
@@ -338,7 +333,6 @@
             this.iTalk_Button_21.TabIndex = 1;
             this.iTalk_Button_21.Text = "Appliquer";
             this.iTalk_Button_21.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_21.Click += new System.EventHandler(this.iTalk_Button_21_Click);
             // 
             // iTalk_TextBox_Small5
             // 
@@ -354,7 +348,6 @@
             this.iTalk_TextBox_Small5.TabIndex = 0;
             this.iTalk_TextBox_Small5.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
             this.iTalk_TextBox_Small5.UseSystemPasswordChar = false;
-            this.iTalk_TextBox_Small5.TextChanged += new System.EventHandler(this.iTalk_TextBox_Small4_TextChanged);
             // 
             // iTalk_TextBox_Small4
             // 
@@ -370,7 +363,6 @@
             this.iTalk_TextBox_Small4.TabIndex = 0;
             this.iTalk_TextBox_Small4.TextAlignment = System.Windows.Forms.HorizontalAlignment.Left;
             this.iTalk_TextBox_Small4.UseSystemPasswordChar = false;
-            this.iTalk_TextBox_Small4.TextChanged += new System.EventHandler(this.iTalk_TextBox_Small4_TextChanged);
             // 
             // iTalk_TextBox_Small3
             // 
@@ -399,7 +391,6 @@
             this.iTalk_Button_11.TabIndex = 0;
             this.iTalk_Button_11.Text = "X";
             this.iTalk_Button_11.TextAlignment = System.Drawing.StringAlignment.Center;
-            this.iTalk_Button_11.Click += new System.EventHandler(this.iTalk_Button_11_Click);
             // 
             // iTalk_ContextMenuStrip1
             // 
@@ -412,7 +403,6 @@
             controlRenderer3.RoundedEdges = true;
             this.iTalk_ContextMenuStrip1.Renderer = controlRenderer3;
             this.iTalk_ContextMenuStrip1.Size = new System.Drawing.Size(174, 70);
-            this.iTalk_ContextMenuStrip1.Opening += new System.ComponentModel.CancelEventHandler(this.iTalk_ContextMenuStrip1_Opening);
             // 
             // connexionToolStripMenuItem
             // 
@@ -420,7 +410,6 @@
             this.connexionToolStripMenuItem.Name = "connexionToolStripMenuItem";
             this.connexionToolStripMenuItem.Size = new System.Drawing.Size(173, 22);
             this.connexionToolStripMenuItem.Text = "Connexion";
-            this.connexionToolStripMenuItem.Click += new System.EventHandler(this.connexionToolStripMenuItem_Click);
             // 
             // modifierToolStripMenuItem
             // 
@@ -438,7 +427,6 @@
             this.nomDeCompteToolStripMenuItem.Name = "nomDeCompteToolStripMenuItem";
             this.nomDeCompteToolStripMenuItem.Size = new System.Drawing.Size(161, 22);
             this.nomDeCompteToolStripMenuItem.Text = "Nom de compte";
-            this.nomDeCompteToolStripMenuItem.Click += new System.EventHandler(this.nomDeCompteToolStripMenuItem_Click);
             // 
             // motDePasseToolStripMenuItem
             // 
@@ -446,7 +434,6 @@
             this.motDePasseToolStripMenuItem.Name = "motDePasseToolStripMenuItem";
             this.motDePasseToolStripMenuItem.Size = new System.Drawing.Size(161, 22);
             this.motDePasseToolStripMenuItem.Text = "Mot de passe";
-            this.motDePasseToolStripMenuItem.Click += new System.EventHandler(this.motDePasseToolStripMenuItem_Click);
             // 
             // supprimerCompteToolStripMenuItem
             // 
@@ -454,7 +441,6 @@
             this.supprimerCompteToolStripMenuItem.Name = "supprimerCompteToolStripMenuItem";
             this.supprimerCompteToolStripMenuItem.Size = new System.Drawing.Size(173, 22);
             this.supprimerCompteToolStripMenuItem.Text = "Supprimer compte";
-            this.supprimerCompteToolStripMenuItem.Click += new System.EventHandler(this.supprimerCompteToolStripMenuItem_Click);
             // 
             // iTalk_Label7
             // 
@@ -522,7 +508,6 @@
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "Connexion";
             this.TransparencyKey = System.Drawing.Color.Fuchsia;
-            this.Load += new System.EventHandler(this.LoginForm_Load);
             this.iTalk_ThemeContainer1.ResumeLayout(false);
             this.iTalk_TabControl1.ResumeLayout(false);
             this.tabPage2.ResumeLayout(false);

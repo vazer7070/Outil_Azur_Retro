@@ -1,414 +1,242 @@
-﻿using System;
+﻿using MySql.Data.MySqlClient;
+using System;
 using System.Collections.Generic;
+using System.Data;
+using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 using System.Xml;
 using System.Xml.Linq;
+using Tools_protocol.Json;
 using Tools_protocol.Kryone.Database;
+using Tools_protocol.Managers;
+using Tools_protocol.Query;
 
 namespace Tools_protocol.Parser.XML
 {
     public static class XmlParser
     {
-        public static List<XElement> NormEffects = new List<XElement>();
-        public static List<XElement> CritEffects = new List<XElement>();
-        public static List<XElement> NormEffects2 = new List<XElement>();
-        public static List<XElement> CritEffects2 = new List<XElement>();
-        public static List<XElement> NormEffects3 = new List<XElement>();
-        public static List<XElement> CritEffects3 = new List<XElement>();
-        public static List<XElement> NormEffects4 = new List<XElement>();
-        public static List<XElement> CritEffects4 = new List<XElement>();
-        public static List<XElement> NormEffects5 = new List<XElement>();
-        public static List<XElement> CritEffects5 = new List<XElement>();
-        public static List<XElement> NormEffects6 = new List<XElement>();
-        public static List<XElement> CritEffects6 = new List<XElement>();
-
-        public static Task ParseSQLToXML(string path, string type, bool ForBot = false) => Task.Factory.StartNew(() =>
+        private static readonly Dictionary<string, string> Tables = new Dictionary<string, string>
         {
+            { "Maps", "cartes" }, { "Objets", "Template" }, { "Sorts", "sort" },
+            { "Panoplies", "panoplies" }, { "Joueurs", "perso" }, { "Métiers", "metiers" },
+            { "Maisons", "maisons" }, { "Zaaps", "zaaps" }, { "PNJs", "npcs" }, { "Monstres", "monstres" }
+        };
+
+        public static Task<int> ParseSQLToXML(string path, string type, bool ForBot = false)
+        {
+            if (EmuManager.EMUSELECTED != "Kryone")
+                throw new NotSupportedException("L'export de ressources est actuellement pris en charge pour Kryone.");
+            if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("Choisissez un dossier de sortie.", nameof(path));
+            if (type == null || !Tables.TryGetValue(type, out string key))
+                throw new ArgumentException("Ce type de ressource n'est pas pris en charge.", nameof(type));
+            if (ForBot && (type == "Panoplies" || type == "Joueurs" || type == "Maisons"))
+                throw new NotSupportedException("Le bot n'utilise pas ce type de ressource XML.");
+            string table = JsonManager.SearchAuth(key);
+            string query = QueryBuilder.SelectFromQuery(new[] { "*" }, table, "", "");
+            string connectionString = DatabaseManager.ConnectionString;
+            if (string.IsNullOrWhiteSpace(connectionString)) throw new InvalidOperationException("La base de données n'est pas connectée.");
+            string folder = Path.GetFullPath(path);
+            return Task.Run(() => Export(folder, type, ForBot, table, query, connectionString));
+        }
+
+        private static int Export(string folder, string type, bool forBot, string table, string query, string connectionString)
+        {
+            Directory.CreateDirectory(folder);
+            string staging = Path.Combine(folder, ".azur-export-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(staging);
+            try
+            {
+                if (forBot && type == "PNJs")
+                {
+                    string templates = JsonManager.SearchAuth("npc_template");
+                    QueryBuilder.SelectFromQuery(new[] { "*" }, templates, "", "");
+                    query = $"SELECT n.*, t.gfxID AS azur_gfx, t.sex AS azur_sex FROM `{table}` n " +
+                        $"LEFT JOIN `{templates}` t ON t.id=n.npcid";
+                }
+                int count = 0;
+                using (var connection = new MySqlConnection(connectionString))
+                using (var command = new MySqlCommand(query, connection))
+                {
+                    connection.Open();
+                    using (var reader = command.ExecuteReader())
+                    {
+                        if (forBot)
+                        {
+                            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            while (reader.Read())
+                            {
+                                string name;
+                                XElement record = BotRecord(type, reader, out name);
+                                if (!names.Add(name)) throw new InvalidDataException("Deux ressources produisent le même nom de fichier : " + name);
+                                record.Save(Path.Combine(staging, name));
+                                count++;
+                            }
+                        }
+                        else
+                        {
+                            var settings = new XmlWriterSettings { Indent = true, CheckCharacters = true };
+                            using (var writer = XmlWriter.Create(Path.Combine(staging, type + ".xml"), settings))
+                            {
+                                writer.WriteStartElement("TABLE");
+                                writer.WriteAttributeString("NAME", table);
+                                while (reader.Read())
+                                {
+                                    writer.WriteStartElement("RECORD");
+                                    for (int i = 0; i < reader.FieldCount; i++)
+                                    {
+                                        writer.WriteStartElement(XmlConvert.EncodeLocalName(reader.GetName(i)));
+                                        if (reader.IsDBNull(i)) writer.WriteAttributeString("NULL", "true");
+                                        else writer.WriteString(Text(reader.GetValue(i)));
+                                        writer.WriteEndElement();
+                                    }
+                                    writer.WriteEndElement();
+                                    count++;
+                                }
+                                writer.WriteEndElement();
+                            }
+                        }
+                    }
+                }
+                // Finish conversion before replacing any existing resource.
+                foreach (string source in Directory.GetFiles(staging, "*.xml"))
+                {
+                    string destination = Path.Combine(folder, Path.GetFileName(source));
+                    if (File.Exists(destination)) File.Replace(source, destination, null);
+                    else File.Move(source, destination);
+                }
+                return count;
+            }
+            finally
+            {
+                foreach (string file in Directory.GetFiles(staging)) File.Delete(file);
+                Directory.Delete(staging);
+            }
+        }
+
+        private static string Text(object value)
+        {
+            if (value is byte[] bytes) return Convert.ToBase64String(bytes);
+            if (value is DateTime date) return date.ToString("o", CultureInfo.InvariantCulture);
+            return Convert.ToString(value, CultureInfo.InvariantCulture) ?? "";
+        }
+        private static XElement Element(string name, object value) => new XElement(name, Text(value));
+
+        private static XElement BotRecord(string type, IDataRecord row, out string filename)
+        {
+            var record = new XElement("RECORD");
+            object id;
             switch (type)
             {
                 case "Maps":
-                    if (ForBot)
-                    {
-                        foreach (MapsList M in MapsList.AllMaps)
-                        {
-                            using (XmlWriter writer = XmlWriter.Create($"{path}{M.ID}.xml"))
-                            {
-                                writer.WriteStartElement("RECORD");
-                                writer.WriteElementString("ID", $"{M.ID}");
-                                writer.WriteElementString("LARGEUR", $"{M.Width}");
-                                writer.WriteElementString("LONGUEUR", $"{M.Heigth}");
-                                writer.WriteElementString("X", $"{M.MapPos.Split(',')[0]}");
-                                writer.WriteElementString("Y", $"{M.MapPos.Split(',')[1]}");
-                                writer.WriteElementString("MAP_DATA", $"{M.MapData}");
-                                writer.WriteElementString("BACK", $"{M.BackGround}");
-                                writer.WriteEndElement();
-                                writer.Flush();
-                            }
-
-                        }
-                    }
-                    MessageBox.Show("La génération des maps est terminée", "Convertion complète", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    id = row["id"];
+                    string[] position = Text(row["mappos"]).Split(',');
+                    if (position.Length < 2 || !int.TryParse(position[0], out _) || !int.TryParse(position[1], out _))
+                        throw new FormatException("La position de la carte " + id + " est invalide.");
+                    record.Add(Element("ID", id), Element("LARGEUR", row["width"]), Element("LONGUEUR", row["heigth"]),
+                        Element("X", position[0]), Element("Y", position[1]), Element("MAP_DATA", row["mapData"]), Element("BACK", row["background"]));
                     break;
                 case "Objets":
-                    if (ForBot)
-                    {
-                        foreach (ItemTemplateList T in ItemTemplateList.ItemFullDico.Values)
-                        {
-                            using (XmlWriter writer = XmlWriter.Create($"{path}{T.Id}.xml"))
-                            {
-                                writer.WriteStartElement("RECORD");
-                                writer.WriteElementString("ID", $"{T.Id}");
-                                writer.WriteElementString("TYPE", $"{T.Type}");
-                                writer.WriteElementString("NOM", $"{T.Name}");
-                                writer.WriteElementString("NIVEAU", $"{T.Level}");
-                                writer.WriteElementString("PODS", $"{T.Pod}");
-                                writer.WriteElementString("ETHERE", $"0");
-                                writer.WriteElementString("CONDITIONS", $"{T.Conditions}");
-                                writer.WriteElementString("STATS", $"{T.StatsTemplate}");
-                                writer.WriteEndElement();
-                                writer.Flush();
-                            }
-                        }
-                    }
-                    MessageBox.Show("La génération des objets est terminée", "Convertion complète", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    id = row["id"];
+                    record.Add(Element("ID", id), Element("TYPE", row["type"]), Element("NOM", row["name"]),
+                        Element("NIVEAU", row["level"]), Element("PODS", row["pod"]), Element("ETHERE", 0),
+                        Element("CONDITIONS", row["conditions"]), Element("STATS", row["statsTemplate"]));
                     break;
                 case "Métiers":
-                    if (ForBot)
-                    {
-                        foreach(JobsList J in JobsList.AllJobs)
-                        {
-                            using (XmlWriter writer = XmlWriter.Create($"{path}{J.ID}.xml"))
-                            {
-                                writer.WriteStartElement("RECORD");
-                                writer.WriteElementString("ID", $"{J.ID}");
-                                writer.WriteElementString("NOM", $"{J.Name}");
-                                writer.WriteElementString("TOOLS", $"{J.Tools}");
-                                writer.WriteElementString("CRAFTS", $"{J.Crafts}");
-                                writer.WriteElementString("SKILLS", $"{J.Skills}");
-                                writer.WriteElementString("AP", $"{J.AP}");
-                                writer.WriteEndElement();
-                                writer.Flush();
-                            }
-                        }
-                    }
-                    MessageBox.Show("La génération des métiers est terminée", "Convertion complète", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    id = row["id"];
+                    record.Add(Element("ID", id), Element("NOM", row["name"]), Element("TOOLS", row["tools"]),
+                        Element("CRAFTS", row["crafts"]), Element("SKILLS", row["skills"]), Element("AP", row["ap"]));
                     break;
                 case "PNJs":
-                    if (ForBot)
-                    {
-                        foreach(NPCList NPC in NPCList.AllPnj)
-                        {
-                            if(NPCList.PNJIdName.ContainsKey(NPC.NPCId.ToString()))
-                            {
-                                using (XmlWriter writer = XmlWriter.Create($"{path}{NPC.NPCId}.xml"))
-                                {
-                                    writer.WriteStartElement("RECORD");
-                                    writer.WriteElementString("ID", $"{NPC.NPCId}");
-                                    writer.WriteElementString("NOM", $"{NPCList.PNJIdName[NPC.NPCId.ToString()]}");
-                                    writer.WriteElementString("MAP", $"{NPC.MapId}");
-                                    writer.WriteElementString("CELLULE", $"{NPC.CellId}");
-                                    writer.WriteElementString("ORIENTATION", $"{NPC.Orientation}");
-                                    writer.WriteElementString("GFX", $"{NPCTemplateList.TemplatesPNJ[NPC.NPCId].GFXID}");
-                                    writer.WriteElementString("SEXE", $"{NPCTemplateList.TemplatesPNJ[NPC.NPCId].Sexe}");
-                                    writer.WriteEndElement();
-                                    writer.Flush();
-                                }
-                            }
-                        }
-                    }
-                     MessageBox.Show("La génération des PNJs est terminée", "Convertion complète", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    break;
+                    id = row["npcid"];
+                    if (row["azur_gfx"] == DBNull.Value || row["azur_sex"] == DBNull.Value)
+                        throw new InvalidDataException("Le modèle du PNJ " + id + " est absent.");
+                    string name;
+                    if (!NPCList.PNJIdName.TryGetValue(Text(id), out name)) name = "PNJ #" + Text(id);
+                    record.Add(Element("ID", id), Element("NOM", name), Element("MAP", row["mapid"]),
+                        Element("CELLULE", row["cellid"]), Element("ORIENTATION", row["orientation"]),
+                        Element("GFX", row["azur_gfx"]), Element("SEXE", row["azur_sex"]));
+                    filename = Text(id) + "_" + Text(row["mapid"]) + "_" + Text(row["cellid"]) + ".xml";
+                    ValidateFilename(filename);
+                    return record;
                 case "Zaaps":
-                    if (ForBot)
-                    {
-                        foreach(ZaapsList Z in ZaapsList.AllZaaps)
-                        {
-                            using (XmlWriter writer = XmlWriter.Create($"{path}{Z.Mapid}.xml"))
-                            {
-                                writer.WriteStartElement("RECORD");
-                                writer.WriteElementString("MAP", $"{Z.Mapid}");
-                                writer.WriteElementString("CELLULE", $"{Z.Cellid}");
-                                writer.WriteEndElement();
-                                writer.Flush();
-                            }
-                        }
-                    }
-                    MessageBox.Show("La génération des Zaaps est terminée", "Convertion complète", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    id = row["mapID"];
+                    record.Add(Element("MAP", id), Element("CELLULE", row["cellID"]));
                     break;
                 case "Monstres":
-                    if (ForBot)
-                    {
-                        foreach(MonsterList M in MonsterList.AllMonster.Values)
-                        {
-                            using (XmlWriter writer = XmlWriter.Create($"{path}{M.Id}.xml"))
-                            {
-                                writer.WriteStartElement("RECORD");
-                                writer.WriteElementString("ID", $"{M.Id}");
-                                writer.WriteElementString("NAME", $"{M.Name}");
-                                writer.WriteElementString("GFX", $"{M.GFXid}");
-                                writer.WriteEndElement();
-                                writer.Flush();
-                            }
-                        }
-                    }
-                    MessageBox.Show("La génération des monstres est terminée", "Convertion complète", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    id = row["id"];
+                    record.Add(Element("ID", id), Element("NAME", row["name"]), Element("GFX", row["gfxID"]));
                     break;
                 case "Sorts":
-                    if (ForBot)
+                    id = row["id"];
+                    var spell = new XElement("SORT", new XAttribute("ID", Text(id)), Element("NOM", row["nom"]));
+                    for (int level = 1; level <= 6; level++)
                     {
-
-                            foreach (SpellsList spells in SpellsList.AllSpells.Values)
-                            {
-                                if (SpellsList.EffectLvl1 != null)
-                                    SpellsList.EffectLvl1.Clear();
-                                if (SpellsList.EffectLvl2 != null)
-                                    SpellsList.EffectLvl2.Clear();
-                                if (SpellsList.EffectLvl3 != null)
-                                    SpellsList.EffectLvl3.Clear();
-                                if (SpellsList.EffectLvl4 != null)
-                                    SpellsList.EffectLvl4.Clear();
-                                if (SpellsList.EffectLvl5 != null)
-                                    SpellsList.EffectLvl5.Clear();
-                                if (SpellsList.EffectLvl6 != null)
-                                    SpellsList.EffectLvl6.Clear();
-
-                                string pa = "";
-                                string pomin = "";
-                                string pomax = "";
-                                string line = "";
-                                string seeline = "";
-                                string empty = "";
-                                string modif = "";
-                                string turn = "";
-                                string obj = "";
-                                string interval = "";
-                                string zone = "";
-                                List<string> L = new List<string>();
-                                List<string> LC = new List<string>();
-                                SpellsBrain SB = new SpellsBrain();
-
-                                SpellsList.ParseLevel(spells.Id, true);
-
-                            if (!File.Exists($"{path}{spells.Id}.xml"))
-                                using (XmlWriter writer = XmlWriter.Create($"{path}{spells.Id}.xml"))
-                                {
-                                    writer.WriteStartElement("SORTS");
-                                    XElement sort =
-                                        new XElement("SORT", new XAttribute("ID", $"{spells.Id}"));
-                                    sort.WriteTo(writer);
-                                    writer.WriteElementString("NOM", spells.Nom);
-
-
-                                    foreach (string h in SpellsList.ParsedSPells.Keys)
-                                    {
-                                        SB = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[0] == spells.Id.ToString() && x.Key.Split('|')[2] == "1").Value;
-                                        pa = SB.PA;
-                                        pomin = SB.PO.Split('à')[0].Trim();
-                                        pomax = SB.PO.Split('à')[1].Trim();
-                                        line = SB.LINE;
-                                        seeline = SB.LINE_SEE;
-                                        empty = SB.EMPTY_CELL;
-                                        modif = SB.PMODIF;
-                                        turn = SB.EC_TURN;
-                                        obj = SB.NBL.Trim();
-                                        interval = SB.INTERVAL.Trim();
-                                        zone = SB.Zone;
-                                        L = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[0] == spells.Id.ToString() && x.Key.Split('|')[2] == "1").Value.EFFECT;
-                                        foreach (string n_e in L)
-                                            NormEffects.Add(new XElement("EFFETS", new XAttribute("TYPE", n_e.Split('|')[0]), new XAttribute("COOLDOWN", n_e.Split('|')[1]), new XAttribute("BUT", n_e.Split('|')[2]), new XAttribute("ZONE", zone), new XAttribute("CRITIQUE", n_e.Split('|')[3])));
-                                        L.Clear();
-                                        LC = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[0] == spells.Id.ToString() && x.Key.Split('|')[2] == "1").Value.EFFECT_CRIT;
-                                        foreach (string c_e in LC)
-                                            CritEffects.Add(new XElement("EFFETS", new XAttribute("TYPE", c_e.Split('|')[0]), new XAttribute("COOLDOWN", c_e.Split('|')[1]), new XAttribute("BUT", c_e.Split('|')[2]), new XAttribute("ZONE", zone), new XAttribute("CRITIQUE", c_e.Split('|')[3].Trim().Split('?')[0])));
-                                        LC.Clear();
-                                        SB = null;
-
-                                        SB = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[0] == spells.Id.ToString() && x.Key.Split('|')[2] == "2").Value;
-                                        pa = SB.PA;
-                                        pomin = SB.PO.Split('à')[0].Trim();
-                                        pomax = SB.PO.Split('à')[1].Trim();
-                                        line = SB.LINE;
-                                        seeline = SB.LINE_SEE;
-                                        empty = SB.EMPTY_CELL;
-                                        modif = SB.PMODIF;
-                                        turn = SB.EC_TURN;
-                                        obj = SB.NBL.Trim();
-                                        interval = SB.INTERVAL.Trim();
-                                        zone = SB.Zone;
-                                        L = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[0] == spells.Id.ToString() && x.Key.Split('|')[2] == "2").Value.EFFECT;
-                                        foreach (string n_e in L)
-                                            NormEffects2.Add(new XElement("EFFETS", new XAttribute("TYPE", n_e.Split('|')[0]), new XAttribute("COOLDOWN", n_e.Split('|')[1]), new XAttribute("BUT", n_e.Split('|')[2]), new XAttribute("ZONE", zone), new XAttribute("CRITIQUE", n_e.Split('|')[3])));
-                                        L.Clear();
-                                        LC = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[0] == spells.Id.ToString() && x.Key.Split('|')[2] == "2").Value.EFFECT_CRIT;
-                                        foreach (string c_e in LC)
-                                            CritEffects2.Add(new XElement("EFFETS", new XAttribute("TYPE", c_e.Split('|')[0]), new XAttribute("COOLDOWN", c_e.Split('|')[1]), new XAttribute("BUT", c_e.Split('|')[2]), new XAttribute("ZONE", zone), new XAttribute("CRITIQUE", c_e.Split('|')[3].Trim().Split('?')[0])));
-                                        LC.Clear();
-                                        SB = null;
-
-                                        SB = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[0] == spells.Id.ToString() && x.Key.Split('|')[2] == "3").Value;
-                                        pa = SB.PA;
-                                        pomin = SB.PO.Split('à')[0].Trim();
-                                        pomax = SB.PO.Split('à')[1].Trim();
-                                        line = SB.LINE;
-                                        seeline = SB.LINE_SEE;
-                                        empty = SB.EMPTY_CELL;
-                                        modif = SB.PMODIF;
-                                        turn = SB.EC_TURN;
-                                        obj = SB.NBL.Trim();
-                                        interval = SB.INTERVAL.Trim();
-                                        zone = SB.Zone;
-                                        L = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[0] == spells.Id.ToString() && x.Key.Split('|')[2] == "3").Value.EFFECT;
-                                        foreach (string n_e in L)
-                                            NormEffects3.Add(new XElement("EFFETS", new XAttribute("TYPE", n_e.Split('|')[0]), new XAttribute("COOLDOWN", n_e.Split('|')[1]), new XAttribute("BUT", n_e.Split('|')[2]), new XAttribute("ZONE", zone), new XAttribute("CRITIQUE", n_e.Split('|')[3])));
-                                        L.Clear();
-                                        LC = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[0] == spells.Id.ToString() && x.Key.Split('|')[2] == "3").Value.EFFECT_CRIT;
-                                        foreach (string c_e in LC)
-                                            CritEffects3.Add(new XElement("EFFETS", new XAttribute("TYPE", c_e.Split('|')[0]), new XAttribute("COOLDOWN", c_e.Split('|')[1]), new XAttribute("BUT", c_e.Split('|')[2]), new XAttribute("ZONE", zone), new XAttribute("CRITIQUE", c_e.Split('|')[3].Trim().Split('?')[0])));
-                                        LC.Clear();
-                                        SB = null;
-
-                                        SB = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[0] == spells.Id.ToString() && x.Key.Split('|')[2] == "4").Value;
-                                        pa = SB.PA;
-                                        pomin = SB.PO.Split('à')[0].Trim();
-                                        pomax = SB.PO.Split('à')[1].Trim();
-                                        line = SB.LINE;
-                                        seeline = SB.LINE_SEE;
-                                        empty = SB.EMPTY_CELL;
-                                        modif = SB.PMODIF;
-                                        turn = SB.EC_TURN;
-                                        obj = SB.NBL.Trim();
-                                        interval = SB.INTERVAL.Trim();
-                                        zone = SB.Zone;
-                                        L = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[0] == spells.Id.ToString() && x.Key.Split('|')[2] == "4").Value.EFFECT;
-                                        foreach (string n_e in L)
-                                            NormEffects4.Add(new XElement("EFFETS", new XAttribute("TYPE", n_e.Split('|')[0]), new XAttribute("COOLDOWN", n_e.Split('|')[1]), new XAttribute("BUT", n_e.Split('|')[2]), new XAttribute("ZONE", zone), new XAttribute("CRITIQUE", n_e.Split('|')[3])));
-                                        L.Clear();
-                                        LC = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[0] == spells.Id.ToString() && x.Key.Split('|')[2] == "4").Value.EFFECT_CRIT;
-                                        foreach (string c_e in LC)
-                                            CritEffects4.Add(new XElement("EFFETS", new XAttribute("TYPE", c_e.Split('|')[0]), new XAttribute("COOLDOWN", c_e.Split('|')[1]), new XAttribute("BUT", c_e.Split('|')[2]), new XAttribute("ZONE", zone), new XAttribute("CRITIQUE", c_e.Split('|')[3].Trim().Split('?')[0])));
-                                        LC.Clear();
-                                        SB = null;
-
-                                        SB = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[0] == spells.Id.ToString() && x.Key.Split('|')[2] == "5").Value;
-                                        pa = SB.PA;
-                                        pomin = SB.PO.Split('à')[0].Trim();
-                                        pomax = SB.PO.Split('à')[1].Trim();
-                                        line = SB.LINE;
-                                        seeline = SB.LINE_SEE;
-                                        empty = SB.EMPTY_CELL;
-                                        modif = SB.PMODIF;
-                                        turn = SB.EC_TURN;
-                                        obj = SB.NBL.Trim();
-                                        interval = SB.INTERVAL.Trim();
-                                        zone = SB.Zone;
-                                        L = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[0] == spells.Id.ToString() && x.Key.Split('|')[2] == "5").Value.EFFECT;
-                                        foreach (string n_e in L)
-                                            NormEffects5.Add(new XElement("EFFETS", new XAttribute("TYPE", n_e.Split('|')[0]), new XAttribute("COOLDOWN", n_e.Split('|')[1]), new XAttribute("BUT", n_e.Split('|')[2]), new XAttribute("ZONE", zone), new XAttribute("CRITIQUE", n_e.Split('|')[3])));
-                                        L.Clear();
-                                        LC = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[0] == spells.Id.ToString() && x.Key.Split('|')[2] == "5").Value.EFFECT_CRIT;
-                                        foreach (string c_e in LC)
-                                            CritEffects5.Add(new XElement("EFFETS", new XAttribute("TYPE", c_e.Split('|')[0]), new XAttribute("COOLDOWN", c_e.Split('|')[1]), new XAttribute("BUT", c_e.Split('|')[2]), new XAttribute("ZONE", zone), new XAttribute("CRITIQUE", c_e.Split('|')[3].Trim().Split('?')[0])));
-                                        LC.Clear();
-                                        SB = null;
-
-                                        SB = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[0] == spells.Id.ToString() && x.Key.Split('|')[2] == "6").Value;
-                                        pa = SB.PA;
-                                        pomin = SB.PO.Split('à')[0].Trim();
-                                        pomax = SB.PO.Split('à')[1].Trim();
-                                        line = SB.LINE;
-                                        seeline = SB.LINE_SEE;
-                                        empty = SB.EMPTY_CELL;
-                                        modif = SB.PMODIF;
-                                        turn = SB.EC_TURN;
-                                        obj = SB.NBL.Trim();
-                                        interval = SB.INTERVAL.Trim();
-                                        zone = SB.Zone;
-                                        L = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[0] == spells.Id.ToString() && x.Key.Split('|')[2] == "6").Value.EFFECT;
-                                        foreach (string n_e in L)
-                                            NormEffects6.Add(new XElement("EFFETS", new XAttribute("TYPE", n_e.Split('|')[0]), new XAttribute("COOLDOWN", n_e.Split('|')[1]), new XAttribute("BUT", n_e.Split('|')[2]), new XAttribute("ZONE", zone), new XAttribute("CRITIQUE", n_e.Split('|')[3])));
-                                        L.Clear();
-                                        LC = SpellsList.ParsedSPells.FirstOrDefault(x => x.Key.Split('|')[0] == spells.Id.ToString() && x.Key.Split('|')[2] == "6").Value.EFFECT_CRIT;
-                                        foreach (string c_e in LC)
-                                            CritEffects6.Add(new XElement("EFFETS", new XAttribute("TYPE", c_e.Split('|')[0]), new XAttribute("COOLDOWN", c_e.Split('|')[1]), new XAttribute("BUT", c_e.Split('|')[2]), new XAttribute("ZONE", zone), new XAttribute("CRITIQUE", c_e.Split('|')[3].Trim().Split('?')[0])));
-                                        LC.Clear();
-                                        SB = null;
-                                    }
-
-                                    XElement level1 = new XElement("NIVEAU", new XAttribute("NIVEAU", "1"), new XAttribute("PA", pa), new XAttribute("MIN_RANGE", pomin), new XAttribute("MAX_RANGE", pomax), new XAttribute("LIGNE", line), new XAttribute("LIGNE_DE_VUE", seeline), new XAttribute("NEED_EMPTY_CELL", empty), new XAttribute("MODIF", modif), new XAttribute("PER_TURN", turn), new XAttribute("PER_OBJECTIVE", obj), new XAttribute("INTERVAL", interval));
-                                    level1.WriteTo(writer);
-                                    foreach (XElement t in NormEffects)
-                                        t.WriteTo(writer);
-                                    //  foreach (XElement x in CritEffects)
-                                    //     x.WriteTo(writer);
-                                    NormEffects.Clear();
-                                    CritEffects.Clear();
-                                    level1 = null;
-
-                                    XElement level2 = new XElement("NIVEAU", new XAttribute("NIVEAU", "2"), new XAttribute("PA", pa), new XAttribute("MIN_RANGE", pomin), new XAttribute("MAX_RANGE", pomax), new XAttribute("LIGNE", line), new XAttribute("LIGNE_DE_VUE", seeline), new XAttribute("NEED_EMPTY_CELL", empty), new XAttribute("MODIF", modif), new XAttribute("PER_TURN", turn), new XAttribute("PER_OBJECTIVE", obj), new XAttribute("INTERVAL", interval));
-                                    level2.WriteTo(writer);
-                                    foreach (XElement t in NormEffects2)
-                                        t.WriteTo(writer);
-                                    //  foreach (XElement x in CritEffects2)
-                                    //      x.WriteTo(writer);
-                                    NormEffects2.Clear();
-                                    CritEffects2.Clear();
-                                    level2 = null;
-
-                                    XElement level3 = new XElement("NIVEAU", new XAttribute("NIVEAU", "3"), new XAttribute("PA", pa), new XAttribute("MIN_RANGE", pomin), new XAttribute("MAX_RANGE", pomax), new XAttribute("LIGNE", line), new XAttribute("LIGNE_DE_VUE", seeline), new XAttribute("NEED_EMPTY_CELL", empty), new XAttribute("MODIF", modif), new XAttribute("PER_TURN", turn), new XAttribute("PER_OBJECTIVE", obj), new XAttribute("INTERVAL", interval));
-                                    level3.WriteTo(writer);
-                                    foreach (XElement t in NormEffects3)
-                                        t.WriteTo(writer);
-                                    //  foreach (XElement x in CritEffects3)
-                                    //      x.WriteTo(writer);
-                                    NormEffects3.Clear();
-                                    CritEffects3.Clear();
-                                    level3 = null;
-
-                                    XElement level4 = new XElement("NIVEAU", new XAttribute("NIVEAU", "4"), new XAttribute("PA", pa), new XAttribute("MIN_RANGE", pomin), new XAttribute("MAX_RANGE", pomax), new XAttribute("LIGNE", line), new XAttribute("LIGNE_DE_VUE", seeline), new XAttribute("NEED_EMPTY_CELL", empty), new XAttribute("MODIF", modif), new XAttribute("PER_TURN", turn), new XAttribute("PER_OBJECTIVE", obj), new XAttribute("INTERVAL", interval));
-                                    level4.WriteTo(writer);
-                                    foreach (XElement t in NormEffects4)
-                                        t.WriteTo(writer);
-                                    // foreach (XElement x in CritEffects4)
-                                    //   x.WriteTo(writer);
-                                    NormEffects4.Clear();
-                                    CritEffects4.Clear();
-                                    level4 = null;
-
-                                    XElement level5 = new XElement("NIVEAU", new XAttribute("NIVEAU", "5"), new XAttribute("PA", pa), new XAttribute("MIN_RANGE", pomin), new XAttribute("MAX_RANGE", pomax), new XAttribute("LIGNE", line), new XAttribute("LIGNE_DE_VUE", seeline), new XAttribute("NEED_EMPTY_CELL", empty), new XAttribute("MODIF", modif), new XAttribute("PER_TURN", turn), new XAttribute("PER_OBJECTIVE", obj), new XAttribute("INTERVAL", interval));
-                                    level5.WriteTo(writer);
-                                    foreach (XElement t in NormEffects5)
-                                        t.WriteTo(writer);
-                                    foreach (XElement x in CritEffects5)
-                                        x.WriteTo(writer);
-                                    NormEffects5.Clear();
-                                    CritEffects5.Clear();
-                                    level5 = null;
-
-                                    XElement level6 = new XElement("NIVEAU", new XAttribute("NIVEAU", "6"), new XAttribute("PA", pa), new XAttribute("MIN_RANGE", pomin), new XAttribute("MAX_RANGE", pomax), new XAttribute("LIGNE", line), new XAttribute("LIGNE_DE_VUE", seeline), new XAttribute("NEED_EMPTY_CELL", empty), new XAttribute("MODIF", modif), new XAttribute("PER_TURN", turn), new XAttribute("PER_OBJECTIVE", obj), new XAttribute("INTERVAL", interval));
-                                    level6.WriteTo(writer);
-                                    foreach (XElement t in NormEffects6)
-                                        t.WriteTo(writer);
-                                    foreach (XElement x in CritEffects6)
-                                        x.WriteTo(writer);
-                                    NormEffects6.Clear();
-                                    CritEffects6.Clear();
-                                    level6 = null;
-
-                                    writer.WriteEndElement();
-                                    writer.Flush();
-                                }
-
-                                
-                            }
-                        
+                        string data = Text(row["lvl" + level]);
+                        if (!string.IsNullOrWhiteSpace(data) && data != "-1") spell.Add(SpellLevel(data, level));
                     }
-                    MessageBox.Show("La génération des sorts est terminée", "Convertion complète", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    record = new XElement("SORTS", spell);
                     break;
+                default: throw new NotSupportedException("Ce type de ressource ne possède pas de format XML pour le bot.");
             }
-        }, TaskCreationOptions.LongRunning);
+            filename = Text(id) + ".xml";
+            ValidateFilename(filename);
+            return record;
+        }
+
+        private static void ValidateFilename(string filename)
+        {
+            if (Path.GetFileName(filename) != filename || filename.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+                throw new InvalidDataException("L'identifiant de ressource ne peut pas être utilisé comme nom de fichier.");
+        }
+
+        private static XElement SpellLevel(string data, int level)
+        {
+            string[] fields = data.Split(',').Select(value => value.Trim()).ToArray();
+            if (fields.Length != 19 && fields.Length != 20)
+                throw new FormatException($"Le niveau {level} du sort utilise un format inconnu ({fields.Length} champs).");
+            int zoneIndex = fields.Length - 5;
+            var node = new XElement("NIVEAU", new XAttribute("NIVEAU", level),
+                Number("PA", fields[2]), Number("MIN_RANGE", fields[3]), Number("MAX_RANGE", fields[4]),
+                Flag("LIGNE", fields[7]), Flag("LIGNE_DE_VUE", fields[8]), Flag("NEED_EMPTY_CELL", fields[9]),
+                Flag("MODIF", fields[10]), Number("PER_TURN", fields[11]), Number("PER_OBJECTIVE", fields[12]),
+                Number("INTERVAL", fields[13]));
+            int effectIndex = 0;
+            AddEffects(node, fields[0], false, fields[zoneIndex], ref effectIndex);
+            AddEffects(node, fields[1], true, fields[zoneIndex], ref effectIndex);
+            return node;
+        }
+
+        private static XAttribute Number(string name, string value)
+        {
+            if (!byte.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out byte number))
+                throw new FormatException("La valeur " + name + " du sort est invalide : " + value);
+            return new XAttribute(name, number);
+        }
+        private static XAttribute Flag(string name, string value)
+        {
+            if (value == "1") value = "true";
+            if (value == "0") value = "false";
+            if (!bool.TryParse(value, out bool flag)) throw new FormatException("La valeur " + name + " du sort est invalide.");
+            return new XAttribute(name, flag);
+        }
+        private static void AddEffects(XElement parent, string data, bool critical, string zones, ref int index)
+        {
+            if (string.IsNullOrWhiteSpace(data) || data == "-1") return;
+            foreach (string encoded in data.Split('|'))
+            {
+                string[] effect = encoded.Split(';');
+                if (effect.Length < 5 || !int.TryParse(effect[0], out int id))
+                    throw new FormatException("Un effet de sort est incomplet.");
+                string zone;
+                if (zones.Length == 2) zone = zones;
+                else if (zones.Length >= (index + 1) * 2) zone = zones.Substring(index * 2, 2);
+                else throw new FormatException("La zone d'un effet de sort est absente.");
+                parent.Add(new XElement("EFFETS", new XAttribute("TYPE", id), new XAttribute("COOLDOWN", effect[4]),
+                    new XAttribute("BUT", effect[1]), new XAttribute("ZONE", zone), new XAttribute("CRITIQUE", critical)));
+                index++;
+            }
+        }
     }
 }

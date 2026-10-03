@@ -76,7 +76,7 @@ namespace Outil_Azur_complet.maps
             targetMap.Height = rect.Height / CellsData.SizeCell;
             
             // Initialiser le tableau de cellules avec les nouvelles dimensions
-            targetMap.Cells = new CellsData[(targetMap.Height * (targetMap.Width * 2 - 1) - targetMap.Width + 1)];
+            targetMap.Cells = new CellsData[Map.CellCount(targetMap.Width, targetMap.Height)];
         }
 
         private void LoadBackground(BaseTag tag)
@@ -204,4 +204,4 @@ namespace Outil_Azur_complet.maps
             }
         }
     }
-} 
+}

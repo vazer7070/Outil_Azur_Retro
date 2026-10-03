@@ -16,11 +16,13 @@ namespace Outil_Azur_complet.maps
 {
     public partial class BG_Select : Form
     {
-        MapForm MF = new MapForm();
+        MapForm MF;
         public Image I;
         public BG_Select()
         {
             InitializeComponent();
+            BuildEditorLayout();
+            Disposed+=(s,e)=>IM.Dispose();
         }
         public ImageList IM = new ImageList();
 
@@ -39,6 +41,7 @@ namespace Outil_Azur_complet.maps
 
             IM.ImageSize = new Size(166, 100);
             IM.ColorDepth = ColorDepth.Depth32Bit;
+            IntPtr imageHandle=IM.Handle;
 
             int i = 0;
             foreach (TilesData T in TilesData.Backgrounds_Tiles)
@@ -46,7 +49,7 @@ namespace Outil_Azur_complet.maps
                 if (T != null)
                 {
                     iTalk_Listview1.Items.Add(T.ID.ToString(), i);
-                    IM.Images.Add(T.Image());
+                    using(var image=T.Image())IM.Images.Add(image);
                     i += 1;
                 }
             }
@@ -56,7 +59,7 @@ namespace Outil_Azur_complet.maps
 
         private void iTalk_Button_21_Click(object sender, EventArgs e)
         {
-            if (iTalk_Listview1.Items.Count == 0)
+            if (MF == null || iTalk_Listview1.SelectedItems.Count == 0)
                 return;
             MF.DrawBackground(TilesData.Backgrounds_Tiles[Convert.ToInt32(iTalk_Listview1.SelectedItems[0].Text)]);
             I = TilesData.Backgrounds_Tiles[Convert.ToInt32(iTalk_Listview1.SelectedItems[0].Text)].Image();

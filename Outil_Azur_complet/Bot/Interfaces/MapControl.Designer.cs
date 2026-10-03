@@ -15,6 +15,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
         /// <param name="disposing">true si les ressources managées doivent être supprimées ; sinon, false.</param>
         protected override void Dispose(bool disposing)
         {
+            if (disposing) Unsubscribe();
             if (disposing && (components != null))
             {
                 components.Dispose();

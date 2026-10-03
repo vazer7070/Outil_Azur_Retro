@@ -12,47 +12,20 @@ namespace Tool_BotProtocol.Game.Maps.Interactives
 {
     public class Zaaps
     {
-        static int MapId { get; set; }
-        static int CellId { get; set; }
-
         public static ConcurrentDictionary<int, int> Z = new ConcurrentDictionary<int, int>();
-
-        static string ZPath = @".\ressources\Bot\BotZaaps";
-        public static async Task LoadZaapsAsync()
+        static string ZPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ressources", "Bot", "BotZaaps");
+        public static Task LoadZaapsAsync()
         {
-            try
+            return Task.Run(() =>
             {
-                DirectoryInfo zaapsFolder = new DirectoryInfo(ZPath);
-                FileInfo[] files = zaapsFolder.GetFiles();
-
-                List<Task> tasks = new List<Task>();
-
-                foreach (FileInfo file in files)
+                var loaded = new ConcurrentDictionary<int, int>();
+                foreach (string file in Directory.EnumerateFiles(ZPath, "*.xml"))
                 {
-                    if (file.Exists)
-                    {
-                        tasks.Add(Task.Run(async () =>
-                        {
-                            XElement xmlmap = await Task.Run(() => XElement.Load(file.FullName));
-
-                            int MapId = int.Parse(xmlmap.Element("MAP").Value);
-                            int CellId = int.Parse(xmlmap.Element("CELLULE").Value);
-
-                            Z.TryAdd(MapId, CellId);
-                        }));
-                    }
+                    XElement xml = XElement.Load(file);
+                    loaded[int.Parse(xml.Element("MAP").Value)] = int.Parse(xml.Element("CELLULE").Value);
                 }
-
-                await Task.WhenAll(tasks);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message);
-                return;
-            }
+                Z = loaded;
+            });
         }
-
-
-
     }
 }

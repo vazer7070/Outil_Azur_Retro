@@ -16,6 +16,7 @@ namespace Outil_Azur_complet
         [STAThread]
         static void Main()
         {
+            System.IO.Directory.SetCurrentDirectory(Application.StartupPath);
             Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense("NTU3Njg4QDMxMzkyZTM0MmUzMFlBY2pPdFBwVmUvdGtkRG81ZFJwUlFsVlA3aXV4djZIbk9BaUUyQzVmbFE9");
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);

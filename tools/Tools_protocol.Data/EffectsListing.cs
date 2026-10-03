@@ -1,4 +1,4 @@
-using System;
+Ôªøusing System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -108,17 +108,17 @@ namespace Tools_protocol.Data
     "Ajoute $ en resistance Neutre=264",
     "Reduction des degats physique de $=184",
     "Reduction des degats magique de $=183",
-    "Vole $1 ‡ $2 PDV (eau)=91",
-    "Vole $1 ‡ $2 PDV (terre)=92",
-    "Vole $1 ‡ $2 PDV (air)=93",
-    "Vole $1 ‡ $2 PDV (feu)=94",
-    "Vole $1 ‡ $2 PDV (neutre)=95",
-    "Dommages $1 ‡ $2 (eau)=96",
-    "Dommages $1 ‡ $2 (terre)=97",
-    "Dommages $1 ‡ $2 (air)=98",
-    "Dommages $1 ‡ $2 (feu)=99",
-    "Dommages $1 ‡ $2 (neutre)=100",
-    "PDV rendus : $1 ‡ $2=108"
+    "Vole $1 √† $2 PDV (eau)=91",
+    "Vole $1 √† $2 PDV (terre)=92",
+    "Vole $1 √† $2 PDV (air)=93",
+    "Vole $1 √† $2 PDV (feu)=94",
+    "Vole $1 √† $2 PDV (neutre)=95",
+    "Dommages $1 √† $2 (eau)=96",
+    "Dommages $1 √† $2 (terre)=97",
+    "Dommages $1 √† $2 (air)=98",
+    "Dommages $1 √† $2 (feu)=99",
+    "Dommages $1 √† $2 (neutre)=100",
+    "PDV rendus : $1 √† $2=108"
 };
         private static List<string> ItemsEffets = new List<string>
 {
@@ -270,15 +270,15 @@ namespace Tools_protocol.Data
     "269=Vol intell",
     "270=Vol sagesse",
     "271=Vol force",
-    "293=Augmente les deg‚ts de base du sort $1 de $2",
+    "293=Augmente les deg√¢ts de base du sort $1 de $2",
     "320=Vol de PO",
-    "400=Creer un  piËge",
+    "400=Creer un  pi√®ge",
     "401=Creer un glyphe",
     "666=Pas d'effet complementaire",
     "672=Dommages = $% de la vie de l'attaquant",
     "783=Pousse jusqu'a la vise",
     "788=Chatiment de $1 sur $2 tours",
-    "776=$% de deg‚ts subis",
+    "776=$% de deg√¢ts subis",
     "951=Enleve l'Etat $",
     "950=Etat"
 };
@@ -291,7 +291,15 @@ namespace Tools_protocol.Data
 		{
 			EffectsListing.EffectList = new Dictionary<string, string>();
 			EffectsListing.ItemEffectList = new Dictionary<string, string>();
+            foreach (string line in ItemsEffets) { int split = line.IndexOf('='); ItemEffectList[line.Substring(split+1)] = line.Substring(0,split); }
+            ItemEffects_count = ItemEffectList.Count;
 			EffectsListing.SpellsEffectList = new Dictionary<string, string>();
+			foreach (string line in SpellEffets)
+			{
+				int separator = line.IndexOf('=');
+				if (separator > 0) SpellsEffectList[line.Substring(0, separator)] = line.Substring(separator + 1);
+			}
+			SpellsEffects_count = SpellsEffectList.Count;
 		}
 
 		public EffectsListing()
@@ -324,7 +332,7 @@ namespace Tools_protocol.Data
             for (int i = 0; i < (int)strArrays.Length; i++)
             {
                 string effet = strArrays[i];
-                EffectsListing.ItemEffectList.Add(effet.Split(new char[] { '=' })[1], effet.Split(new char[] { '=' })[0]);
+                int split = effet.IndexOf('='); if (split > 0) ItemEffectList[effet.Substring(split+1)] = effet.Substring(0,split);
             }
             EffectsListing.ItemEffects_count = EffectsListing.ItemEffectList.Count<KeyValuePair<string, string>>();
         }
@@ -336,8 +344,9 @@ namespace Tools_protocol.Data
             string[] strArrays = File.ReadAllLines(path);
             for (int i = 0; i < (int)strArrays.Length; i++)
             {
-                string effet = strArrays[i];
-                EffectsListing.SpellsEffectList.Add(effet.Split(new char[] { '=' })[0], effet.Split(new char[] { '=' })[1]);
+				string effet = strArrays[i];
+                int separator = effet.IndexOf('=');
+                if (separator > 0) EffectsListing.SpellsEffectList[effet.Substring(0, separator)] = effet.Substring(separator + 1);
             }
             EffectsListing.SpellsEffects_count = EffectsListing.SpellsEffectList.Count<KeyValuePair<string, string>>();
         }

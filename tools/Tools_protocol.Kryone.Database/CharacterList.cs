@@ -4,20 +4,24 @@ using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Runtime.CompilerServices;
 using System.Windows.Forms;
 using Tools_protocol.Json;
+using Tools_protocol.Managers;
 using Tools_protocol.Query;
 
 namespace Tools_protocol.Kryone.Database
 {
-	public class CharacterList
+    [EmuManager("Kryone", "CharacterList")]
+    public class CharacterList
 	{
 		
 
-		public static Dictionary<string, CharacterList> PersoAll = new Dictionary<string, CharacterList>();
+		public static Dictionary<string, CharacterList> PersoAll = new Dictionary<string, CharacterList>(StringComparer.OrdinalIgnoreCase);
 
 		public static List<string> ItemsPerso = new List<string>();
+		public static string InventoryLoadError { get; private set; }
 
 		public static Dictionary<int, string> IdAccount = new Dictionary<int, string>();
 
@@ -158,59 +162,71 @@ namespace Tools_protocol.Kryone.Database
 			Wife = (int)reader["wife"];
 			Prison = (long)reader["prison"];
 			Server = (int)reader["server"];
-			Logged = (int)reader["logged"];
+			// NULL is an unknown connection state, never proof that a player is offline.
+			Logged = reader["logged"] == DBNull.Value ? -1 : Convert.ToInt32(reader["logged"]);
 		}
 
 		public static void AllPerso()
 		{
 			string[] args = new string[] { "*" };
 			string query = QueryBuilder.SelectFromQuery(args, TablePerso, "", "");
-
-			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
+			var characters = new Dictionary<string, CharacterList>(StringComparer.OrdinalIgnoreCase);
+			var namesById = new Dictionary<int, string>();
+			using (var connection = new MySqlConnection(DatabaseManager.ConnectionString))
+			using (var command = new MySqlCommand(query, connection))
 			{
-				try
+				connection.Open();
+				using (var reader = command.ExecuteReader())
 				{
-					connection.Open();
-					MySqlDataReader lecteur = new MySqlCommand(query, connection).ExecuteReader();
-					CharacterList CL = null;
-					while (lecteur.Read())
+					while (reader.Read())
 					{
-						CL = new CharacterList(lecteur);
-						PersoAll.Add(CL.Name, CL);
-						if (!IdAccount.ContainsKey(CL.Id))
-						{
-							IdAccount.Add(CL.Id, CL.Name);
-						}
+						var character = new CharacterList(reader);
+							if (characters.TryGetValue(character.Name, out var duplicate))
+								throw new InvalidOperationException($"Les personnages {duplicate.Id} et {character.Id} portent le même nom ({character.Name}). Corrigez ces noms dans le serveur avant de recharger les personnages.");
+							characters.Add(character.Name, character);
+						namesById.Add(character.Id, character.Name);
 					}
-					PersoCount = PersoAll.Count;
-					lecteur.Close();
-					lecteur.Dispose();
-					connection.Close();
-					connection.Dispose();
 				}
-				catch (MySqlException) { }
 			}
-			
+			PersoAll = characters;
+			IdAccount = namesById;
+			PersoCount = characters.Count;
 		}
 
 		public static void GetInventory(string perso)
 		{
+			InventoryLoadError = null;
 			preinventory.Clear();
 			ItemsPerso.Clear();
-			foreach(string item in Listing(perso).Objets.Split('|'))
+			string inventory = Listing(perso)?.Objets;
+			if (string.IsNullOrWhiteSpace(inventory))
+				return;
+			foreach(string item in inventory.Split('|'))
             {
 				if (!string.IsNullOrWhiteSpace(item))
                     preinventory.Add(item);
-            }	
+			}
+			var itemIds = preinventory.Select(item => int.TryParse(item, out int id) ? id : -1)
+				.Where(id => id >= 0).Distinct().ToArray();
+			LoadInventoryItems(itemIds);
+			var templateIds = itemIds.Where(id => ItemList.ItemsList.ContainsKey(id))
+				.Select(id => ItemList.ItemsList[id].Template).Distinct().ToArray();
+			var templateNames = LoadTemplateNames(templateIds);
 			foreach(string i in preinventory)
             {
-				int h = Convert.ToInt32(i);
-				if (ItemList.ItemsList.ContainsKey(h))
-                {
-					int n = ItemList.ItemsList.FirstOrDefault( x => x.Key == h).Value.Template;
-					string name = ItemTemplateList.GetItem(n, 1);
-				   ItemsPerso.Add($"{name} ({h}) x{ItemList.ItemsList.FirstOrDefault(x => x.Key == h).Value.Qua}");
+				if (!int.TryParse(i, out int h))
+				{
+					ItemsPerso.Add($"Objet inconnu ({i})");
+					continue;
 				}
+				if (ItemList.ItemsList.TryGetValue(h, out ItemList item))
+                {
+					string name = templateNames.TryGetValue(item.Template, out string loadedName)
+						? loadedName : ItemTemplateList.GetItem(item.Template, 1);
+					ItemsPerso.Add($"{name} ({h}) x{item.Qua}");
+				}
+				else ItemsPerso.Add($"Objet ({h}) - " +
+					(InventoryLoadError == null ? "absent de la table world" : "base world indisponible"));
 			}
 
 
@@ -222,10 +238,15 @@ namespace Tools_protocol.Kryone.Database
 
 		public static void GetSpells(string perso)
 		{
-			string[] strArrays = Listing(perso).Spells.Split(new char[] { ',' });
+			SpellsList.SpellsShow.Clear();
+			string spells = Listing(perso)?.Spells;
+			if (string.IsNullOrWhiteSpace(spells))
+				return;
+			string[] strArrays = spells.Split(new char[] { ',' });
 			for (int i = 0; i < (int)strArrays.Length; i++)
 			{
-				SpellsList.AddSpellsToList(strArrays[i]);
+				if (!string.IsNullOrWhiteSpace(strArrays[i]) && strArrays[i].Contains(";"))
+					SpellsList.AddSpellsToList(strArrays[i]);
 			}
 		}
 
@@ -247,14 +268,73 @@ namespace Tools_protocol.Kryone.Database
 
 		public static CharacterList Listing(string name)
 		{
-			
-				try
+			if (string.IsNullOrWhiteSpace(name))
+				return null;
+			return PersoAll.TryGetValue(name, out CharacterList character) ? character : null;
+		}
+
+		private static bool ValidTable(string table)
+		{
+			return !string.IsNullOrWhiteSpace(table) &&
+				Regex.IsMatch(table, @"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant);
+		}
+
+		private static void LoadInventoryItems(int[] ids)
+		{
+			string table = ItemList.TableItems;
+			if (ids.Length == 0) return;
+			if (!ValidTable(table)) { InventoryLoadError = "Le nom de la table des objets world est invalide dans la configuration."; return; }
+			if (string.IsNullOrWhiteSpace(DatabaseManager2.ConnectionString)) { InventoryLoadError = "La connexion à la base world n'est pas active. Vérifiez sa configuration."; return; }
+			try
+			{
+				var loaded = new Dictionary<int, ItemList>();
+				using (var connection = new MySqlConnection(DatabaseManager2.ConnectionString))
 				{
-					return CharacterList.PersoAll[name];
+					connection.Open();
+					for (int offset = 0; offset < ids.Length; offset += 500)
+						using (var command = new MySqlCommand { Connection = connection })
+						{
+							int[] batch = ids.Skip(offset).Take(500).ToArray();
+							string parameters = string.Join(",", batch.Select((id, index) => "@id" + index));
+							command.CommandText = $"SELECT `guid`,`template`,`qua`,`pos`,`stats`,`puit` FROM `{table}` WHERE `guid` IN ({parameters})";
+							for (int index = 0; index < batch.Length; index++) command.Parameters.AddWithValue("@id" + index, batch[index]);
+							using (var reader = command.ExecuteReader())
+								while (reader.Read())
+								{
+									var item = new ItemList(reader);
+									loaded[item.Guid] = item;
+								}
+						}
 				}
-				catch (MySqlException) { return null; }
-			
-			
+				foreach (int id in ids) ItemList.ItemsList.Remove(id);
+				foreach (var entry in loaded) ItemList.ItemsList[entry.Key] = entry.Value;
+			}
+			catch (MySqlException error) { InventoryLoadError = "Lecture des objets world impossible : " + error.Message; }
+		}
+
+		private static Dictionary<int, string> LoadTemplateNames(int[] ids)
+		{
+			var names = new Dictionary<int, string>();
+			string table = ItemTemplateList.TableTemplate;
+			if (ids.Length == 0 || !ValidTable(table) ||
+				string.IsNullOrWhiteSpace(DatabaseManager.ConnectionString)) return names;
+			try
+			{
+				using (var connection = new MySqlConnection(DatabaseManager.ConnectionString))
+				using (var command = new MySqlCommand { Connection = connection })
+				{
+					string parameters = string.Join(",", ids.Select((id, index) => "@id" + index));
+					command.CommandText = $"SELECT `id`, `name` FROM `{table}` WHERE `id` IN ({parameters})";
+					for (int index = 0; index < ids.Length; index++)
+						command.Parameters.AddWithValue("@id" + index, ids[index]);
+					connection.Open();
+					using (var reader = command.ExecuteReader())
+						while (reader.Read())
+							names[Convert.ToInt32(reader["id"])] = Convert.ToString(reader["name"]);
+				}
+			}
+			catch (MySqlException) { /* Le numéro du modèle reste visible. */ }
+			return names;
 		}
 	}
 }

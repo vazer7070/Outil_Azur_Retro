@@ -1,10 +1,7 @@
-﻿using Org.BouncyCastle.Crypto.Engines;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Forms;
+using Tool_BotProtocol.Frames.Auth;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Network;
@@ -14,86 +11,119 @@ namespace Tool_BotProtocol.Frames.Jeu
     internal class ServerSelectionFrame : Frame
     {
         [MessageAttribution("HG")]
-        public Task WelcomeInGame(TcpClient client, string message) => Task.Run(async () => await client.SendPacket($"AT{client.account.GameTicket}"));
-
-        [MessageAttribution("ATK0")]
-        public Task ServerSelected(TcpClient client, string message) => Task.Run(async () =>
+        public Task WelcomeInGame(TcpClient client, string message)
         {
-            await client.SendPacket("Ak0");
-            await client.SendPacket("AV");
-        });
-        [MessageAttribution("ATK")]
-        public Task ServerSelectionned(TcpClient client, string message) => Task.Run(async () =>
-        {
-            await client.SendPacketAsync("AV");
-        });
-        [MessageAttribution("AV0")]
-        public Task List_Perso(TcpClient client, string message) => Task.Run(async () =>
-        {
-            await client.SendPacket("Ages");
-            await client.SendPacket("AL");
-            await client.SendPacket("Af");
-        });
-
-        [MessageAttribution("ALK")]
-        public Task Perso_Selection(TcpClient client, string message) => Task.Run(async () =>
-        {
-
-            Accounts A = client.account;
-            A.AccountCharactersInfo.Clear();
-            string[] S = message.Substring(3).Split('|');
-            int count = 2;
-            int idconnected = 0;
-            while (count < S.Length)
+            if (string.IsNullOrEmpty(client.account?.GameTicket))
             {
-                string[] S2 = S[count].Split(';');
-                int id = int.Parse(S2[0]);
-                string name = S2[1];
-                int lvl = int.Parse(S2[2]);
-                int GfxId = int.Parse(S2[3]);
-
-                A.AccountCharactersInfo.TryAdd(id, $"{name}|{lvl}|{GfxId}|");
-
-                if (name.Equals(A.Game.Server.NameNewCharacter))
-                {
-                    idconnected = id;
-                }
-                count++;
+                AccountLoginFrame.Fail(client, "Le ticket de connexion au serveur de jeu est absent.");
+                return Task.CompletedTask;
             }
-            if (!A.Game.Server.ExitCreationMenu)
-                A.Game.Server.AddCharacterMenu();
+            return client.SendPacket("AT" + client.account.GameTicket);
+        }
+        [MessageAttribution("ATK0")]
+        public async Task ServerSelected(TcpClient client, string message)
+        {
+            await client.SendPacket("Ak0").ConfigureAwait(false);
+            await client.SendPacket("AV").ConfigureAwait(false);
+        }
+        [MessageAttribution("ATK")]
+        public Task ServerSelectionned(TcpClient client, string message) => client.SendPacket("AV");
+        [MessageAttribution("AV0")]
+        public async Task List_Perso(TcpClient client, string message)
+        {
+            await client.SendPacket("Agfr").ConfigureAwait(false);
+            await client.SendPacket("AL").ConfigureAwait(false);
+            await client.SendPacket("Af").ConfigureAwait(false);
+        }
+        [MessageAttribution("ALK")]
+        public async Task Perso_Selection(TcpClient client, string message)
+        {
+            Accounts account = client.account;
+            if (account == null) return;
+            string[] fields = message.Substring(3).Split('|');
+            long subscription;
+            int advertised;
+            if (fields.Length < 2 || !long.TryParse(fields[0], out subscription) ||
+                !int.TryParse(fields[1], out advertised) || advertised < 0)
+            {
+                account.Logger.LogError("PERSONNAGES", "Liste de personnages invalide.");
+                return;
+            }
+            var characters = new Dictionary<int, string>();
+            int createdId = 0;
+            for (int index = 2; index < fields.Length; index++)
+            {
+                if (string.IsNullOrEmpty(fields[index])) continue;
+                string[] character = fields[index].Split(';');
+                int id, level, appearance;
+                if (character.Length < 4 || !int.TryParse(character[0], out id) || id <= 0 ||
+                    string.IsNullOrWhiteSpace(character[1]) || !int.TryParse(character[2], out level) || level < 1 ||
+                    !int.TryParse(character[3], out appearance))
+                {
+                    account.Logger.LogDanger("PERSONNAGES", "Un personnage mal formé a été ignoré.");
+                    continue;
+                }
+                characters[id] = character[1] + "|" + level + "|" + appearance + "|";
+                if (string.Equals(character[1], account.Game.Server.NameNewCharacter, StringComparison.Ordinal)) createdId = id;
+            }
+            account.AboTime = Math.Max(0, subscription);
+            account.AccountCharactersInfo.Clear();
+            foreach (var character in characters) account.AccountCharactersInfo.TryAdd(character.Key, character.Value);
+            if (characters.Count != advertised)
+                account.Logger.LogDanger("PERSONNAGES", "Le nombre de personnages reçu diffère du nombre annoncé.");
+            if (account.Game.Server.ExitCreationMenu && createdId > 0)
+            {
+                account.Game.Server.ExitCreationMenu = false;
+                await client.SendPacket("AS" + createdId).ConfigureAwait(false);
+                await client.SendPacket("AF").ConfigureAwait(false);
+            }
             else
             {
-                await A.Connexion.SendPacket($"AS{idconnected}");
-                await A.Connexion.SendPacket("AF");
+                account.Game.Server.ExitCreationMenu = false;
+                account.SetConnectionStatus("Choisissez un personnage");
+                account.Game.Server.AddCharacterMenu();
             }
-        });
+        }
         [MessageAttribution("BT")]
-        public Task GetServerTime(TcpClient client, string message) => Task.Run(async () => await client.SendPacket("GI"));
-
-        [MessageAttribution("ASK")]
-        public Task HaveSelectedPerso(TcpClient client, string message) => Task.Run(async () =>
+        public void GetServerTime(TcpClient client, string message)
         {
-            Accounts A = client?.account;
-            string[] S = message.Substring(4).Split('|');
-
-            int id = int.Parse(S[0]);
-            string name = S[1];
-            byte level = byte.Parse(S[2]);
-            byte ID_Race = byte.Parse(S[3]);
-            byte Sex = byte.Parse(S[4]);
-
-            A.Game.character.SetPerso_Data(id, name, level, Sex, ID_Race);
-            A.Game.character.Inventory.Add_Items(S[9]);
-            A.Game.character.PersoSelectedEvent();
-            A.Game.character.AFK_Timer.Change(1200000, 1200000);
-            client.account.AccountStates = AccountStates.CONNECTED_INACTIVE;
-
-            await client.SendPacketAsync("BYA");
-            await client.SendPacket("GC1");
-
-            
-        });
-
+            // GI is sent once when GDM delivers the map; BT is only the server clock.
+        }
+        [MessageAttribution("ASK")]
+        public async Task HaveSelectedPerso(TcpClient client, string message)
+        {
+            Accounts account = client.account;
+            if (account == null) return;
+            if (!message.StartsWith("ASK|", StringComparison.Ordinal))
+            {
+                AccountLoginFrame.Fail(client, "Sélection de personnage invalide.");
+                return;
+            }
+            string[] fields = message.Substring(4).Split('|');
+            int id, race;
+            byte level, sex;
+            if (fields.Length < 10 || !int.TryParse(fields[0], out id) || id <= 0 ||
+                string.IsNullOrWhiteSpace(fields[1]) || !byte.TryParse(fields[2], out level) || level == 0 ||
+                !int.TryParse(fields[3], out race) || race < -1 || race > byte.MaxValue ||
+                !byte.TryParse(fields[4], out sex) || sex > 1)
+            {
+                AccountLoginFrame.Fail(client, "Le serveur a envoyé un personnage incomplet ou invalide.");
+                return;
+            }
+            account.Game.character.SetPerso_Data(id, fields[1], level, sex, race < 0 ? (byte)0 : (byte)race);
+            try { account.Game.character.Inventory.Add_Items(fields[9]); }
+            catch (Exception error) when (error is AggregateException || error is FormatException ||
+                error is OverflowException || error is IndexOutOfRangeException)
+            {
+                AccountLoginFrame.Fail(client, "Le serveur a envoyé un inventaire de personnage invalide.");
+                return;
+            }
+            account.Game.character.PersoSelectedEvent();
+            account.Game.character.AFK_Timer.Change(1200000, 1200000);
+            account.SetConnectionStatus("Chargement de la carte…");
+            account.AccountStates = AccountStates.CONNECTED_INACTIVE;
+            await client.SendPacket("BYA").ConfigureAwait(false);
+            await client.SendPacket("GC1").ConfigureAwait(false);
+        }
     }
 }

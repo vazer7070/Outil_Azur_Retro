@@ -16,6 +16,8 @@ namespace Tool_BotProtocol.Game
 {
     public  class GameClass: IEliminable, IDisposable
     {
+        private readonly object lifecycleSync = new object();
+        private bool disposed;
         public GameServer Server { get; set; }
         public Map Map { get; private set; }
         public CharacterClass character { get; private set; }
@@ -28,18 +30,35 @@ namespace Tool_BotProtocol.Game
             Map = new Map();
             character= new CharacterClass(A);
             Manager = new Manager(A, Map, character);
+            Fight = new Fights(A);
             PersoInWorld = new ConcurrentDictionary<int, Dictionary<string, Cell>>();
         }
         public void Clear()
         {
+            lock (lifecycleSync)
+            {
+                if (disposed) return;
+           Manager.Clear();
+           Fight.Clear(false);
            Map.Clear();
             character.Clear();
             Server.Clear();
+            PersoInWorld.Clear();
+            }
         }
 
         public void Dispose()
         {
-            
+            lock (lifecycleSync)
+            {
+                if (disposed) return;
+                disposed = true;
+            Manager?.Dispose();
+            Fight?.Dispose();
+            character?.Dispose();
+            Map?.Dispose();
+            PersoInWorld.Clear();
+            }
         }
     }
 }

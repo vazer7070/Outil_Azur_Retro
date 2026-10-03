@@ -1,11 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
+using System;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Tool_BotProtocol.Frames.Messages;
@@ -15,50 +9,53 @@ using Tool_BotProtocol.Game.Maps.Interactives;
 using Tool_BotProtocol.Game.Monstres;
 using Tool_BotProtocol.Game.NPC;
 using Tool_BotProtocol.Game.Perso.Inventory;
-
+using Tool_BotProtocol.Game.Perso.Spells;
 namespace Outil_Azur_complet.Bot
 {
     public partial class LoadingBotForm : Form
     {
+        private Label status;
+        private ProgressBar progress;
+        private RichTextBox journal;
+        private Control retry, proceed;
+        private bool loading;
+        private int failures;
         public LoadingBotForm()
         {
-            InitializeComponent();
+            var root=BotUi.Window(this,"Bot · Préparation","Chargement des ressources locales avant la connexion.");
+            var card=BotUi.Card("Ressources du bot","L’absence d’une ressource est indiquée ci-dessous. La connexion reste disponible pour le diagnostic.");
+            journal=BotUi.Journal();status=BotUi.Status("Préparation…");progress=new ProgressBar { Dock=DockStyle.Bottom,Height=18,Maximum=8 };
+            retry=BotUi.Button("Retenter",async(s,e)=>await LoadDataAsync(),false,120);proceed=BotUi.Button("Ouvrir la connexion",(s,e)=>OpenLoginForm(),true,190);proceed.Enabled=false;
+            BotUi.Body(card).Controls.Add(journal);BotUi.Body(card).Controls.Add(status);BotUi.Body(card).Controls.Add(progress);BotUi.Body(card).Controls.Add(BotUi.Actions(proceed,retry,BotUi.Button("Fermer",(s,e)=>Close(),false,100)));root.Controls.Add(card,0,1);
+            Load+=async(s,e)=>await LoadDataAsync();
         }
-
-        private async void LoadingBotForm_Load(object sender, EventArgs e)
-        {
-            await LoadDataAsync();
-            OpenLoginForm();
-        }
-
         private async Task LoadDataAsync()
         {
-            await Task.Run(async () =>
+            if(loading)return;loading=true;failures=0;retry.Enabled=proceed.Enabled=false;progress.Value=0;journal.Clear();
+            try
             {
-                Directory.CreateDirectory(@".\ressources\Bot\BotMaps");
-                Directory.CreateDirectory(@".\ressources\Bot\BotObjets");
-                Directory.CreateDirectory(@".\ressources\Bot\BotJobs");
-                Directory.CreateDirectory(@".\ressources\Bot\AccountSingle");
-                Directory.CreateDirectory(@".\ressources\Bot\BotZaaps");
-                Directory.CreateDirectory(@".\ressources\Bot\BotNPCs");
-                Directory.CreateDirectory(@".\ressources\Bot\BotMonsters\");
-
+                foreach(var folder in new[] { "BotMaps","BotObjets","BotJobs","AccountSingle","BotZaaps","BotNPCs","BotMonsters","BotSorts" })Directory.CreateDirectory(Path.Combine(".","ressources","Bot",folder));
                 MessagesReception.Init();
-                await Jobs.LoadAllJobsAsync();
-                await Map.LoadAllMapsAsync();
-                await Monstres.LoadAllMonstersAsync();
-                await PNJ.LoadAllNPCAsync();
-                await Zaaps.LoadZaapsAsync();
-                await InventoryClass.LoadAllObjectsAsync();
-            });
+                await LoadStep("Métiers",Jobs.LoadAllJobsAsync,()=>Jobs.AllJobs.Count);await LoadStep("Cartes",Map.LoadAllMapsAsync,()=>Map.AllBotMaps.Count);await LoadStep("Monstres",Monstres.LoadAllMonstersAsync,()=>Monstres.AllMonstersTemplate.Count);await LoadStep("Personnages non joueurs",PNJ.LoadAllNPCAsync,()=>PNJ.AllPNJ.Count);await LoadStep("Zaaps",Zaaps.LoadZaapsAsync,()=>Zaaps.Z.Count);await LoadStep("Objets",InventoryClass.LoadAllObjectsAsync,()=>InventoryObjects.FullInventory.Count);await LoadStep("Sorts",()=>Task.Run((Action)Spell.LoadAllSpells),()=>Spell.AllSpells.Count);
+                if (IsDisposed || Disposing) return;
+                foreach(var warning in Map.LoadWarnings) { failures++;BotUi.Append(journal,"Carte ignorée : "+warning); }
+                status.Text="Indexation des décors PNG…";
+                await Outil_Azur_complet.Bot.Controls.BotMapArtwork.WarmupAsync();
+                if (IsDisposed || Disposing) return;
+                progress.Value=progress.Maximum;BotUi.Append(journal,"Décors PNG : index prêt. Les visuels manquants seront signalés sur chaque carte.");
+                status.Text=failures==0?"Préparation terminée. Ouvrez la connexion pour choisir votre compte.":failures+" ressource(s) absente(s) ou invalide(s). Exportez les ressources depuis le parseur pour jouer ; le diagnostic réseau reste disponible.";
+            }
+            catch(Exception ex) { if(!IsDisposed&&!Disposing) { status.Text="La préparation n’est pas complète.";BotUi.Append(journal,ex.Message); } }
+            finally { loading=false;if(!IsDisposed&&!Disposing)retry.Enabled=proceed.Enabled=true; }
         }
-
-        private void OpenLoginForm()
+        private async Task LoadStep(string name,Func<Task> load,Func<int> count)
         {
-            LoginForm LF = new LoginForm();
-            LF.Show();
-            Close();
+            if(IsDisposed||Disposing)return;
+            status.Text="Chargement : "+name+"…";
+            try { await Task.Run(load);if(IsDisposed||Disposing)return;int loaded=count();BotUi.Append(journal,name+" : "+loaded+" élément(s) chargé(s)." );if(loaded==0)failures++; }
+            catch(Exception ex) { if(IsDisposed||Disposing)return;failures++;BotUi.Append(journal,name+" : "+ex.Message); }
+            if(!IsDisposed)progress.Value=Math.Min(progress.Maximum,progress.Value+1);
         }
+        private void OpenLoginForm() { new LoginForm().Show();Close(); }
     }
-
 }

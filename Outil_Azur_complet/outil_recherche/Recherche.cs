@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -23,6 +24,34 @@ namespace Outil_Azur_complet.outil_recherche
         public Recherche()
         {
             InitializeComponent();
+            iTalk_Button_22.Click += (sender, args) => OpenItemEditor();
+            iTalk_Button_25.Click += (sender, args) => OpenItemEditor();
+            iTalk_Button_210.Click += (sender, args) => OpenItemEditor();
+            iTalk_Button_26.Click += (sender, args) => OpenItemEditor();
+            iTalk_Button_23.Enabled = false;
+            iTalk_Button_23.Text = "Suppression indisponible";
+            iTalk_Button_24.Enabled = false;
+            iTalk_Button_29.Enabled = false;
+            iTalk_Button_211.Enabled = false;
+            iTalk_Button_27.Enabled = false;
+        }
+
+        private void OpenItemEditor()
+        {
+            var editor = new editeur_items.itemeditor();
+            editor.Show(this);
+        }
+
+        private static void LoadPicture(PictureBox target, string preferredPath)
+        {
+            string path = !string.IsNullOrWhiteSpace(preferredPath) && File.Exists(preferredPath)
+                ? preferredPath : SearchManager.Search_pictureItem(0, 0);
+            Image replacement = null;
+            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+                using (var source = Image.FromFile(path)) replacement = new Bitmap(source);
+            var previous = target.Image;
+            target.Image = replacement;
+            previous?.Dispose();
         }
 
         private void iTalk_RadioButton1_CheckedChanged(object sender)
@@ -84,22 +113,11 @@ namespace Outil_Azur_complet.outil_recherche
                     if (ItemTemplateList.ItemFullDico.ContainsKey(id))
                     {
                         ItemTemplateList.AddNameByData(type);
-                        if(SearchManager.Search_pictureItem(id, type) != "")
-                        {
-                            pictureBox1.Image = Image.FromFile(SearchManager.Search_pictureItem(id, type));
-                            ReturnInBox();
-                            ListingInSearch(id);
-                            SeeStats(id);
-                            iTalk_Label18.Text = $"{listBox1.Items.Count} items similaires trouvés";
-                        }
-                        else
-                        {
-                            pictureBox1.Image = Image.FromFile(SearchManager.Search_pictureItem(0, 0));
-                            ReturnInBox();
-                            ListingInSearch(id);
-                            SeeStats(id);
-                            iTalk_Label18.Text = $"{listBox1.Items.Count} items similaires trouvés";
-                        }
+                        LoadPicture(pictureBox1, SearchManager.Search_pictureItem(id, type));
+                        ReturnInBox();
+                        ListingInSearch(id);
+                        SeeStats(id);
+                        iTalk_Label18.Text = $"{listBox1.Items.Count} items similaires trouvés";
                     }
                     else
                     {
@@ -126,52 +144,8 @@ namespace Outil_Azur_complet.outil_recherche
         }
         public void SayNumberItems(int numberofitem)
         {
-            switch (numberofitem)
-            {
-                case 2:
-                    iTalk_ComboBox1.Items.Add("Avec 2 objet(s)");
-                    break;
-                case 3:
-                    iTalk_ComboBox1.Items.Add("Avec 2 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 3 objet(s)");
-                    break;
-                case 4:
-                    iTalk_ComboBox1.Items.Add("Avec 2 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 3 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 4 objet(s)");
-                    break;
-                case 5:
-                    iTalk_ComboBox1.Items.Add("Avec 2 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 3 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 4 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 5 objet(s)");
-                    break;
-                case 6:
-                    iTalk_ComboBox1.Items.Add("Avec 2 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 3 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 4 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 5 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 6 objet(s)");
-                    break;
-                case 7:
-                    iTalk_ComboBox1.Items.Add("Avec 2 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 3 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 4 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 5 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 6 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 7 objet(s)");
-                    break;
-                case 8:
-                    iTalk_ComboBox1.Items.Add("Avec 2 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 3 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 4 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 5 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 6 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 7 objet(s)");
-                    iTalk_ComboBox1.Items.Add("Avec 8 objet(s)");
-                    break;
-
-            }
+            for (int count = 2; count <= numberofitem; count++)
+                iTalk_ComboBox1.Items.Add($"Avec {count} objet(s)");
         }
         public void ReturnInBox()
         {
@@ -188,13 +162,15 @@ namespace Outil_Azur_complet.outil_recherche
             iTalk_Label14.Text = ItemTemplateList.GetItem(id, 4);
             iTalk_Label15.Text = ItemTemplateList.GetItem(id, 5);
             iTalk_Label16.Text = ItemTemplateList.GetItem(id, 6);
-            iTalk_Label24.Text = ItemTemplateList.GetItem(id, 7).Split(';')[0];
-            iTalk_Label30.Text = ItemTemplateList.GetItem(id, 7).Split(';')[1];
-            iTalk_Label26.Text = ItemTemplateList.GetItem(id, 7).Split(';')[2];
-            iTalk_Label32.Text = ItemTemplateList.GetItem(id, 7).Split(';')[3];
-            iTalk_Label34.Text = ItemTemplateList.GetItem(id, 7).Split(';')[4];
-            iTalk_Label36.Text = ItemTemplateList.GetItem(id, 7).Split(';')[5];
-            if (ItemTemplateList.GetItem(id, 7).Split(';')[6] == "1")
+            string[] weapon = (ItemTemplateList.GetItem(id, 7) ?? string.Empty).Split(';');
+            string WeaponValue(int index) => index < weapon.Length ? weapon[index] : "-";
+            iTalk_Label24.Text = WeaponValue(0);
+            iTalk_Label30.Text = WeaponValue(1);
+            iTalk_Label26.Text = WeaponValue(2);
+            iTalk_Label32.Text = WeaponValue(3);
+            iTalk_Label34.Text = WeaponValue(4);
+            iTalk_Label36.Text = WeaponValue(5);
+            if (WeaponValue(6) == "1")
             {
                 iTalk_Label37.Text = "oui";
             }
@@ -210,18 +186,9 @@ namespace Outil_Azur_complet.outil_recherche
             int id = ItemTemplateList.ReturnItemId(name);
             int type = Convert.ToInt32(ItemTemplateList.GetItem(id, 2));
             string path = SearchManager.Search_pictureItem(id, type);
-            if (!path.Equals(""))
-            {
-                pictureBox1.Image = Image.FromFile(path);
-                SeeStats(id);
-                ListingInSearch(id);
-            }
-            else
-            {
-                pictureBox1.Image = Image.FromFile(SearchManager.Search_pictureItem(0, 0));
-                SeeStats(id);
-                ListingInSearch(id);
-            }
+            LoadPicture(pictureBox1, path);
+            SeeStats(id);
+            ListingInSearch(id);
         }
         private void tabPage2_Click(object sender, EventArgs e)
         {
@@ -271,7 +238,7 @@ namespace Outil_Azur_complet.outil_recherche
             }
             foreach(string str in listBox2.Items)
             {
-                list.Add(str.ToLower());
+                list.Add(str);
             }
             foreach (string str in listBox4.Items)
             {
@@ -315,14 +282,7 @@ namespace Outil_Azur_complet.outil_recherche
             int a = ItemTemplateList.ReturnItemId(listBox3.SelectedItem.ToString());
             int t = Convert.ToInt32(ItemTemplateList.GetItem(a, 2));
             string path = SearchManager.Search_pictureItem(a, t);
-            if (!path.Equals(""))
-            {
-                pictureBox2.Image = Image.FromFile(path);
-            }
-            else
-            {
-                pictureBox2.Image = Image.FromFile(SearchManager.Search_pictureItem(0,0));
-            }
+            LoadPicture(pictureBox2, path);
         }
 
         private void iTalk_Listview1_SelectedIndexChanged(object sender, EventArgs e)
@@ -337,7 +297,7 @@ namespace Outil_Azur_complet.outil_recherche
                 listBox2.Items.Clear();
                 foreach (string str in list)
                 {
-                    if (str.StartsWith(iTalk_TextBox_Small4.Text.Trim()))
+                    if (str.StartsWith(iTalk_TextBox_Small4.Text.Trim(), StringComparison.OrdinalIgnoreCase))
 
                     {
                         listBox2.Items.Add(str);
@@ -363,11 +323,12 @@ namespace Outil_Azur_complet.outil_recherche
 
         private void iTalk_ComboBox1_SelectedIndexChanged(object sender, EventArgs e)
         {
+            if (iTalk_ComboBox1.SelectedItem == null || IDPANO == 0) return;
             if (ItemSetList.Name_Effects != null)
                 ItemSetList.Name_Effects.Clear();
             if (iTalk_Listview1.Items != null)
                 iTalk_Listview1.Items.Clear();
-            if (iTalk_ComboBox1.Items != null || IDPANO != 0)
+            if (IDPANO != 0)
             {
                 string PO = iTalk_ComboBox1.SelectedItem.ToString();
                 if (PO.Contains("2"))
@@ -425,7 +386,7 @@ namespace Outil_Azur_complet.outil_recherche
                 listBox4.Items.Clear();
                 foreach (string str in list2)
                 {
-                    if (str.StartsWith(iTalk_TextBox_Small5.Text.Trim()))
+                    if (str.StartsWith(iTalk_TextBox_Small5.Text.Trim(), StringComparison.OrdinalIgnoreCase))
 
                     {
                         listBox4.Items.Add(str);
@@ -492,14 +453,7 @@ namespace Outil_Azur_complet.outil_recherche
             }
             string path = SearchManager.Search_pictureItem(id, type);
             SetDropInfo(k);
-            if (path.Equals(""))
-            {
-                pictureBox4.Image = Image.FromFile(SearchManager.Search_pictureItem(0, 0));
-            }
-            else
-            {
-                pictureBox4.Image = Image.FromFile(SearchManager.Search_pictureItem(id,type));
-            }
+            LoadPicture(pictureBox4, path);
             if (string.IsNullOrEmpty(N))
             {
                 listBox5.Items.Add("N/A mob");
@@ -523,11 +477,11 @@ namespace Outil_Azur_complet.outil_recherche
             string b = DropsList.DropInfo(k, 2);
             if (cont == "N/A mob")
             {
-                pictureBox3.Image = Image.FromFile(SearchManager.Search_pictureItem(0, 0));
+                LoadPicture(pictureBox3, null);
             }
             else
             {
-                pictureBox3.Image = Image.FromFile(SearchManager.Search_MonsterPicture(b));
+                LoadPicture(pictureBox3, SearchManager.Search_MonsterPicture(b));
                 MonsterDropInfo(Convert.ToUInt32(b));
             }
         }
@@ -553,7 +507,12 @@ namespace Outil_Azur_complet.outil_recherche
             {
                 if(!iTalk_TextBox_Small6.Text.Equals("") && string.IsNullOrEmpty(iTalk_TextBox_Small8.Text))
                 {
-                    int id = Convert.ToInt32(iTalk_TextBox_Small6.Text);
+                    if (!int.TryParse(iTalk_TextBox_Small6.Text, out int id))
+                    {
+                        MessageBox.Show("L'ID doit être un nombre entier.", "Recherche impossible",
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
                     if (MonsterList.AllMonster.ContainsKey(id))
                     {
                         try
@@ -613,14 +572,7 @@ namespace Outil_Azur_complet.outil_recherche
         public void MonsterPicture(int id)
         {
             string P = SearchManager.Search_MonsterPicture(id.ToString());
-            if (P == "")
-            {
-                pictureBox5.Image = Image.FromFile(SearchManager.Search_pictureItem(0, 0));
-            }
-            else
-            {
-                pictureBox5.Image = Image.FromFile(P);
-            }
+            LoadPicture(pictureBox5, P);
         }
         public void MonsterLabelInfos(int id)
         {
@@ -666,7 +618,7 @@ namespace Outil_Azur_complet.outil_recherche
             if (iTalk_Listview6.Items != null)
                 iTalk_Listview6.Items.Clear();
 
-            if (listBox7.SelectedItem.ToString().Equals(""))
+            if (listBox7.SelectedItem == null || string.IsNullOrWhiteSpace(listBox7.SelectedItem.ToString()))
             {
 
             }
@@ -755,14 +707,7 @@ namespace Outil_Azur_complet.outil_recherche
             else
             {
                 string pics = SearchManager.Search_SpellsPicture(SpellsList.ReturnSpellsIDByName(listBox6.SelectedItem.ToString()).ToString());
-                if (pics.Equals(""))
-                {
-                    pictureBox6.Image = Image.FromFile(SearchManager.Search_pictureItem(0,0));
-                }
-                else
-                {
-                    pictureBox6.Image = Image.FromFile(pics);
-                }
+                LoadPicture(pictureBox6, pics);
                 iTalk_Label118.Text = SpellsList.ReturnSpellsIDByName(listBox6.SelectedItem.ToString()).ToString();
                 iTalk_Label119.Text = listBox6.SelectedItem.ToString();
                 SpellsList.ParseLevel(SpellsList.ReturnSpellsIDByName(listBox6.SelectedItem.ToString()));
@@ -1344,12 +1289,17 @@ namespace Outil_Azur_complet.outil_recherche
                 listBox6.Items.Clear();
                 foreach (string str in list3)
                 {
-                    if (str.StartsWith(iTalk_TextBox_Small7.Text.Trim()))
+                    if (str.StartsWith(iTalk_TextBox_Small7.Text.Trim(), StringComparison.OrdinalIgnoreCase))
 
                     {
                         listBox6.Items.Add(str);
                     }
                 }
+            }
+            else
+            {
+                listBox6.Items.Clear();
+                foreach (string str in list3) listBox6.Items.Add(str);
             }
         }
 
