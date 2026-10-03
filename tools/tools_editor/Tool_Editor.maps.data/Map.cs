@@ -1,5 +1,4 @@
-﻿using Microsoft.VisualBasic;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -14,6 +13,23 @@ namespace Tool_Editor.maps.data
     [Serializable]
     public class Map
     {
+        /// <summary>Demande la clé d'une carte chiffrée ; remplaçable pour les tests ou un autre front.</summary>
+        public static Func<string, string> RequestKey = AskKey;
+
+        private static string AskKey(string message)
+        {
+            using (var form = new Form { Text = "Carte chiffrée", FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterScreen, MinimizeBox = false, MaximizeBox = false, ClientSize = new Size(420, 130) })
+            using (var label = new Label { Text = message, Location = new Point(12, 12), Size = new Size(396, 36) })
+            using (var input = new TextBox { Location = new Point(12, 52), Width = 396 })
+            using (var ok = new Button { Text = "Valider", DialogResult = DialogResult.OK, Location = new Point(242, 90), Width = 80 })
+            using (var cancel = new Button { Text = "Annuler", DialogResult = DialogResult.Cancel, Location = new Point(328, 90), Width = 80 })
+            {
+                form.Controls.AddRange(new Control[] { label, input, ok, cancel });
+                form.AcceptButton = ok; form.CancelButton = cancel;
+                return form.ShowDialog() == DialogResult.OK ? input.Text.Trim() : "";
+            }
+        }
+
         [NonSerialized]
         public int IDClient = 0;
         [NonSerialized]
@@ -75,7 +91,7 @@ namespace Tool_Editor.maps.data
                 {
                     if (string.IsNullOrWhiteSpace(Key) && IsCrypt())
                     {
-                        Key = Interaction.InputBox("Saisissez la clé hexadécimale de cette carte chiffrée.", "Carte chiffrée");
+                        Key = RequestKey("Saisissez la clé hexadécimale de cette carte chiffrée.");
                         if (string.IsNullOrWhiteSpace(Key))
                             throw new OperationCanceledException("L'ouverture de la carte chiffrée a été annulée.");
                     }
