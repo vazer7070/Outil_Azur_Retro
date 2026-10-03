@@ -15,7 +15,13 @@ namespace Outil_Azur_complet
     {
         Menu menu = new Menu();
 
-        public static string EMUSELECT;
+        /// <summary>Identifiant de l'émulateur configuré ; l'affectation sélectionne son profil dans EmulatorRegistry.</summary>
+        public static string EMUSELECT
+        {
+            get { return EmulatorRegistry.HasEmulator ? EmulatorRegistry.Current.Id : emulatorRequested; }
+            set { emulatorRequested = value; EmulatorRegistry.Select(value); }
+        }
+        private static string emulatorRequested;
         public static bool MapEditorOK;
         public static bool NoDB;
         public static bool Reboot;
@@ -200,13 +206,12 @@ namespace Outil_Azur_complet
                     EMUSELECT = JsonManager.SearchConfig("emu");
                     if (string.IsNullOrWhiteSpace(EMUSELECT))
                     {
-                        EmulatorRegistry.Select(null);
                         iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + "Merci de choisir un émulateur.!\n";
                         NoDB = true;
                         VerifAssetsFolders();
                         return;
                     }
-                    if (!EmulatorRegistry.Select(EMUSELECT))
+                    if (!EmulatorRegistry.HasEmulator)
                     {
                         iTalk_RichTextBox1.Text = iTalk_RichTextBox1.Text + $"L'émulateur {EMUSELECT} n'est pas reconnu, merci de choisir un émulateur compatible.\n";
                         NoDB = true;
