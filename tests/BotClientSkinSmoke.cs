@@ -85,10 +85,14 @@ internal static class BotClientSkinSmoke
                     Check(Count(image, c => c.R > 200 && c.G > 180 && c.B > 140 && c.B < 215) > 60, "Secondary button does not show the client's parchment pill");
                 }
                 var banner = All(login).FirstOrDefault(x => x.Name == "client-oeufs");
-                Check(banner != null && banner.Height >= 90, "Login screen lacks the client's class-egg banner");
-                var pictures = All(banner).OfType<PictureBox>().Where(x => x.Image != null).ToArray();
-                Check(pictures.Length == 2 && pictures.Any(x => x.Name == "client-logo"), "Banner lacks the eggs or the logo picture");
-                Check(banner.BackColor.A == 255 && banner.BackColor.R < 120, "Banner background was not taken from the client image");
+                Check(banner != null && banner.Height >= 80, "Login screen lacks the client's class-egg banner");
+                Check(All(banner).OfType<PictureBox>().Count(x => x.Image != null) == 1, "Egg banner lacks its picture");
+                Check(banner.BackColor.A == 255 && banner.BackColor.R < 120, "Egg banner background was not taken from the client image");
+                var header = All(login).FirstOrDefault(x => x.Name == "client-bandeau-connexion");
+                Check(header != null && header.Height >= 60 && header.Dock == DockStyle.Top, "Login screen lacks the client's illustrated header");
+                var pictures = All(header).OfType<PictureBox>().Where(x => x.Image != null).ToArray();
+                Check(pictures.Length == 2 && pictures.Any(x => x.Name == "client-logo" && x.Dock == DockStyle.Left), "Header lacks the illustration or the logo");
+                Check(header.BackColor.R > 180 && header.BackColor.B < 170, "Header background was not taken from the client's beige band");
                 login.Close();
             }
 

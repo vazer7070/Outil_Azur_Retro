@@ -6,6 +6,7 @@ Ces PNG proviennent de `modules/core.swf` du client Dofus 1.34 remis par l'utili
 | --- | --- | --- |
 | logo.png | `UI_Login` (DefineSprite 579), recadrage du logo | Bandeau de l'écran de connexion |
 | oeufs.png | `UI_Login`, bandeau des œufs de classe | Bas de l'écran de connexion |
+| bandeau-connexion.png | `UI_Login`, illustration du bandeau supérieur (bitmap JPEG) | Haut de l'écran de connexion |
 | socle.png | `UI_CreateCharacter` (DefineSprite 764), blason et socle | Sous le portrait de l'aperçu de création |
 | de-couleur.png, sexe-homme.png, sexe-femme.png | `UI_CreateCharacter`, dé des couleurs et sélecteurs de sexe | Dé sur les boutons « Choisir… » ; sélecteurs disponibles |
 | bouton-principal-haut.png | `ChooseCharacterBtnPlayUp` (1322) | Pilule orange des actions principales (`ClientButton`) |

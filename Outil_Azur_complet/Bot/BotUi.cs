@@ -46,19 +46,21 @@ namespace Outil_Azur_complet.Bot
         /// Bandeau pris dans un écran du client fourni : une image principale (par exemple les œufs de classe de l'écran
         /// de connexion) et, à gauche, une image d'accompagnement (le logo). Renvoie <c>null</c> sans ces fichiers.
         /// </summary>
-        internal static Control Banner(string asset, int height, string leftAsset = null)
+        internal static Control Banner(string asset, int height, string leftAsset = null, bool keepRight = false)
         {
             var image = ClientAssets.Get(asset); if (image == null) return null;
-            // Le fond reprend la couleur du coin de l'image pour que le bandeau se fonde dans le décor du client.
-            Color back = image.GetPixel(Math.Min(3, image.Width - 1), image.Height - Math.Min(4, image.Height));
-            if (back.A < 250) back = Frame;
+            // Le fond reprend la couleur d'un bord de l'image pour que le bandeau se fonde dans le décor du client.
+            Color back = keepRight ? image.GetPixel(Math.Min(2, image.Width - 1), image.Height / 2)
+                : image.GetPixel(Math.Min(3, image.Width - 1), image.Height - Math.Min(4, image.Height));
+            if (back.A < 250) back = Frame; else back = Color.FromArgb(255, back);
             var banner = new Panel { Dock = DockStyle.Bottom, Height = height, BackColor = back, Margin = new Padding(0),
-                Padding = new Padding(8, 4, 8, 4), Name = "client-" + asset, AccessibleName = "Décor du client : " + asset };
-            banner.Controls.Add(new PictureBox { Dock = DockStyle.Fill, Image = image, SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Color.Transparent, Margin = new Padding(0) });
+                Padding = keepRight ? new Padding(0) : new Padding(8, 4, 8, 4), Name = "client-" + asset, AccessibleName = "Décor du client : " + asset };
+            // keepRight : l'illustration garde sa hauteur et reste à droite, le fond prolonge son bord gauche.
+            banner.Controls.Add(new PictureBox { Dock = keepRight ? DockStyle.Right : DockStyle.Fill, Image = image, SizeMode = PictureBoxSizeMode.Zoom,
+                Width = keepRight ? Math.Max(1, height * image.Width / Math.Max(1, image.Height)) : 0, BackColor = Color.Transparent, Margin = new Padding(0) });
             var left = leftAsset == null ? null : ClientAssets.Get(leftAsset);
             if (left != null) {
-                var side = new PictureBox { Dock = DockStyle.Left, Width = (int)(height * 1.1), Image = left, SizeMode = PictureBoxSizeMode.Zoom,
+                var side = new PictureBox { Dock = DockStyle.Left, Width = (int)(height * 1.15), Image = left, SizeMode = PictureBoxSizeMode.Zoom, Padding = new Padding(6, 2, 2, 2),
                     BackColor = Color.Transparent, Margin = new Padding(0), Name = "client-" + leftAsset, AccessibleName = "Décor du client : " + leftAsset };
                 banner.Controls.Add(side);
             }
