@@ -240,7 +240,7 @@ namespace Tool_BotProtocol.Game.Accounts
         }
 
         public bool Isbusy() => _accountState != AccountStates.CONNECTED_INACTIVE && _accountState != AccountStates.REGENERATION;
-        public bool Is_In_Dialog() => _accountState == AccountStates.STORAGE || _accountState == AccountStates.DIALOG || _accountState == AccountStates.EXCHANGE || _accountState == AccountStates.BUYING || _accountState == AccountStates.SELLING;
+        public bool Is_In_Dialog() => _accountState == AccountStates.STORAGE || _accountState == AccountStates.DIALOG || _accountState == AccountStates.EXCHANGE || _accountState == AccountStates.BUYING || _accountState == AccountStates.SELLING || _accountState == AccountStates.ZAAP;
         public bool IsFighting() => _accountState == AccountStates.FIGHTING;
         public bool IsGathering() => _accountState == AccountStates.GATHERING;
         public bool IsMoving() => _accountState == AccountStates.MOVING;

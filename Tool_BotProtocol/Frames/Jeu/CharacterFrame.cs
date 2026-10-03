@@ -307,8 +307,9 @@ namespace Tool_BotProtocol.Frames.Jeu
             client.account.Game.character.Inventory.NotifyRefused(text);
         }
 
+        /// <summary>ECK&lt;type&gt;|&lt;identifiant&gt; : échange créé. Le type 0 ouvre la boutique PNJ ; les autres gardent l'état « stockage ».</summary>
         [MessageAttribution("ECK")]
-        public void GoInStorage(TcpClient client, string message) => client.account.AccountStates = AccountStates.STORAGE;
+        public void GoInStorage(TcpClient client, string message) => client.account.Game.Interactions.Shop.OnExchangeCreated(message.Substring(3));
 
         [MessageAttribution("ERK")]
         public Task AskExchange(TcpClient client, string message) => Task.Run(async () =>

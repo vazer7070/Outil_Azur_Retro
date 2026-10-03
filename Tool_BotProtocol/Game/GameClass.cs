@@ -23,6 +23,8 @@ namespace Tool_BotProtocol.Game
         public CharacterClass character { get; private set; }
         public Fights Fight { get; private set; }
         public Manager Manager { get; private set; }
+        /// <summary>Fenêtres ouvertes par le serveur : dialogue PNJ, zaaps, boutique PNJ.</summary>
+        public Interactions.InteractionsClass Interactions { get; private set; }
         public ConcurrentDictionary<int, Dictionary<string, Cell>> PersoInWorld;
          internal GameClass(Accounts.Accounts A)
         {
@@ -31,6 +33,7 @@ namespace Tool_BotProtocol.Game
             character= new CharacterClass(A);
             Manager = new Manager(A, Map, character);
             Fight = new Fights(A);
+            Interactions = new Interactions.InteractionsClass(A);
             PersoInWorld = new ConcurrentDictionary<int, Dictionary<string, Cell>>();
         }
         public void Clear()
@@ -38,6 +41,7 @@ namespace Tool_BotProtocol.Game
             lock (lifecycleSync)
             {
                 if (disposed) return;
+           Interactions.Clear();
            Manager.Clear();
            Fight.Clear(false);
            Map.Clear();
