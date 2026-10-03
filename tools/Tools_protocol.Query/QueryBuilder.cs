@@ -138,18 +138,33 @@ namespace Tools_protocol.Query
 			return $"UPDATE {QuoteIdentifier(table)} SET {string.Join(",", assignments)} WHERE {QuoteIdentifier(where)}={QuoteValue(egals)}";
 		}
 
-		private static string QuoteIdentifier(string identifier)
+		/// <summary>
+		/// Vrai si le nom peut être utilisé entre accents graves : lettres, chiffres, soulignés,
+		/// et des points à l'intérieur du nom (StarLoco nomme certaines tables « world.entity.objects »).
+		/// </summary>
+		public static bool IsIdentifier(string identifier)
 		{
 			if (string.IsNullOrEmpty(identifier) ||
 				!((identifier[0] >= 'A' && identifier[0] <= 'Z') ||
 				  (identifier[0] >= 'a' && identifier[0] <= 'z') || identifier[0] == '_'))
-				throw new ArgumentException("Nom de table ou de colonne invalide.", nameof(identifier));
+				return false;
+			char previous = '\0';
 			foreach (char c in identifier)
 			{
 				if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
-				      (c >= '0' && c <= '9') || c == '_'))
-					throw new ArgumentException("Nom de table ou de colonne invalide.", nameof(identifier));
+				      (c >= '0' && c <= '9') || c == '_' || c == '.'))
+					return false;
+				if (c == '.' && previous == '.') return false;
+				previous = c;
 			}
+			return previous != '.';
+		}
+
+		/// <summary>Entoure un nom de table ou de colonne valide d'accents graves.</summary>
+		public static string QuoteIdentifier(string identifier)
+		{
+			if (!IsIdentifier(identifier))
+				throw new ArgumentException("Nom de table ou de colonne invalide.", nameof(identifier));
 			return "`" + identifier + "`";
 		}
 

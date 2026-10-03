@@ -45,6 +45,7 @@ namespace Tools_protocol.Emulators
     public abstract class EmulatorProfile
     {
         private readonly Dictionary<string, TableLocation> tables = new Dictionary<string, TableLocation>(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> physicalNames = new Dictionary<string, string>(StringComparer.Ordinal);
 
         /// <summary>Identifiant écrit dans config.json (champ Emu).</summary>
         public abstract string Id { get; }
@@ -60,16 +61,41 @@ namespace Tools_protocol.Emulators
         /// <summary>Vrai si l'émulateur utilise une seconde base (world/game) en plus de auth/login.</summary>
         public virtual bool UsesWorldDatabase => true;
 
+        /// <summary>
+        /// Famille des classes de données (AccountList, CharacterList…) qui lisent cet émulateur.
+        /// Les émulateurs qui reprennent le modèle de Kryone renvoient "Kryone".
+        /// </summary>
+        public virtual string DataModel => Id;
+
         public bool Supports(EmulatorFeature feature) => feature == EmulatorFeature.None || (Features & feature) == feature;
 
-        /// <summary>Déclare une table logique (clé des fichiers auth_tables.json / world_tables.json).</summary>
+        /// <summary>
+        /// Déclare des tables logiques (clés des fichiers auth_tables.json / world_tables.json) dont le nom
+        /// réel est lu dans ces fichiers de correspondance.
+        /// </summary>
         protected void Map(TableLocation location, params string[] logicalNames)
         {
             foreach (string name in logicalNames)
                 tables[name] = location;
         }
 
+        /// <summary>
+        /// Déclare une table logique avec son nom réel : le profil fait alors autorité et les fichiers
+        /// de correspondance ne sont pas consultés pour cette table.
+        /// Nommée différemment de <see cref="Map"/> pour que deux noms logiques ne soient jamais pris pour un nom réel.
+        /// </summary>
+        protected void MapTo(TableLocation location, string logicalName, string physicalName)
+        {
+            if (string.IsNullOrWhiteSpace(logicalName)) throw new ArgumentException("Le nom logique de la table est vide.", nameof(logicalName));
+            if (string.IsNullOrWhiteSpace(physicalName)) throw new ArgumentException("Le nom réel de la table " + logicalName + " est vide.", nameof(physicalName));
+            tables[logicalName] = location;
+            physicalNames[logicalName] = physicalName;
+        }
+
         public bool KnowsTable(string logicalName) => tables.ContainsKey(logicalName);
+
+        /// <summary>Tables logiques connues du profil.</summary>
+        public IEnumerable<string> Tables => tables.Keys;
 
         public TableLocation? Locate(string logicalName)
         {
@@ -77,15 +103,30 @@ namespace Tools_protocol.Emulators
             return tables.TryGetValue(logicalName, out location) ? location : (TableLocation?)null;
         }
 
-        /// <summary>Nom réel de la table, ou une chaîne vide si l'émulateur ne la connaît pas.</summary>
+        /// <summary>
+        /// Nom réel de la table, ou une chaîne vide si l'émulateur ne la connaît pas.
+        /// Le nom déclaré par le profil est prioritaire ; sinon la correspondance JSON de l'utilisateur est lue.
+        /// </summary>
         public string Table(string logicalName)
         {
+            string physical;
+            if (logicalName != null && physicalNames.TryGetValue(logicalName, out physical)) return physical;
             switch (Locate(logicalName))
             {
                 case TableLocation.Auth: return JsonManager.SearchAuth(logicalName) ?? "";
                 case TableLocation.World: return JsonManager.SearchWorld(logicalName) ?? "";
                 default: return "";
             }
+        }
+
+        /// <summary>
+        /// Nom réel d'une colonne de la table des exemplaires d'objets, à partir de son nom Kryone
+        /// (guid, template, qua, pos, stats, puit).
+        /// </summary>
+        public virtual string ItemColumn(string logicalColumn)
+        {
+            if (string.IsNullOrWhiteSpace(logicalColumn)) throw new ArgumentException("Le nom logique de la colonne est vide.", nameof(logicalColumn));
+            return logicalColumn;
         }
 
         /// <summary>Charge les caches nécessaires aux outils, une fois les connexions établies.</summary>
