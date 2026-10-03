@@ -96,6 +96,18 @@ internal static class BotClientSkinSmoke
                 login.Close();
             }
 
+            // 3 bis. Choix du serveur : bannière de UI_ChooseServer au-dessus de la liste.
+            using (var servers = new PersoSelection(config, false))
+            {
+                servers.Show(); Application.DoEvents();
+                var banner = All(servers).FirstOrDefault(x => x.Name == "client-bandeau-serveurs");
+                Check(banner != null && banner.Dock == DockStyle.Top && banner.Height >= 50, "Server screen lacks the client's banner");
+                Check(All(banner).OfType<PictureBox>().Single(x => x.Image != null).Dock == DockStyle.Left && banner.BackColor.R < 140 && banner.BackColor.R > banner.BackColor.G + 20, "Server banner is not anchored left on its dark red edge");
+                var list = All(servers).OfType<ListView>().First();
+                Check(list.Height > 100 && list.Top >= banner.Bottom, "Server list is hidden by the banner");
+                servers.Close();
+            }
+
             // 4. Création : le portrait se tient sur le socle du client, sur le parchemin de son écran.
             using (var account = new Accounts(config))
             using (var create = new CreateCharacter(account))
