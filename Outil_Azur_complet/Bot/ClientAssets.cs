@@ -190,21 +190,23 @@ namespace Outil_Azur_complet.Bot
             if (width < 1 || height < 1) return null;
             var copy = new Bitmap(width, height, PixelFormat.Format32bppArgb);
             if (rgb == -1) return copy;
-            using (var graphics = Graphics.FromImage(copy)) {
-                graphics.CompositingMode = CompositingMode.SourceCopy;
-                lock (source) graphics.DrawImage(source, 0, 0, width, height);
-            }
-            var data = copy.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
             try {
-                int color = rgb & 0xFFFFFF; var row = new int[width];
-                for (int y = 0; y < height; y++) {
-                    IntPtr line = IntPtr.Add(data.Scan0, y * data.Stride);
-                    Marshal.Copy(line, row, 0, width);
-                    for (int x = 0; x < width; x++) row[x] = (row[x] & unchecked((int)0xFF000000)) | color;
-                    Marshal.Copy(row, 0, line, width);
+                using (var graphics = Graphics.FromImage(copy)) {
+                    graphics.CompositingMode = CompositingMode.SourceCopy;
+                    lock (source) graphics.DrawImage(source, 0, 0, width, height);
                 }
-            } finally { copy.UnlockBits(data); }
-            return copy;
+                var data = copy.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+                try {
+                    int color = rgb & 0xFFFFFF; var row = new int[width];
+                    for (int y = 0; y < height; y++) {
+                        IntPtr line = IntPtr.Add(data.Scan0, y * data.Stride);
+                        Marshal.Copy(line, row, 0, width);
+                        for (int x = 0; x < width; x++) row[x] = (row[x] & unchecked((int)0xFF000000)) | color;
+                        Marshal.Copy(row, 0, line, width);
+                    }
+                } finally { copy.UnlockBits(data); }
+                return copy;
+            } catch { copy.Dispose(); throw; }
         }
 
         /// <summary>Nombre de fonds et de motifs d'emblème du client (<c>EMBLEM_BACKS_COUNT</c>, <c>EMBLEM_UPS_COUNT</c>).</summary>
@@ -255,19 +257,21 @@ namespace Outil_Azur_complet.Bot
             if (fill == null && contour == null && motif == null) return null;
             var result = new Bitmap(size, size, PixelFormat.Format32bppArgb);
             float scale = size / 80f;
-            using (var graphics = Graphics.FromImage(result)) {
-                graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                var backBox = new RectangleF(1 * scale, 1 * scale, 78 * scale, 78 * scale);
-                if (shadow) {
-                    var shadowBox = new RectangleF(0, 0, 80 * scale, 80 * scale);
-                    DrawTinted(graphics, fill, 0xFFFFFF, shadowBox); DrawTinted(graphics, contour, 0xFFFFFF, shadowBox);
+            try {
+                using (var graphics = Graphics.FromImage(result)) {
+                    graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                    var backBox = new RectangleF(1 * scale, 1 * scale, 78 * scale, 78 * scale);
+                    if (shadow) {
+                        var shadowBox = new RectangleF(0, 0, 80 * scale, 80 * scale);
+                        DrawTinted(graphics, fill, 0xFFFFFF, shadowBox); DrawTinted(graphics, contour, 0xFFFFFF, shadowBox);
+                    }
+                    DrawTinted(graphics, fill, backColor, backBox);
+                    DrawShared(graphics, contour, backBox);
+                    DrawTinted(graphics, motif, upColor, new RectangleF(15 * scale, 15 * scale, 50 * scale, 50 * scale));
                 }
-                DrawTinted(graphics, fill, backColor, backBox);
-                DrawShared(graphics, contour, backBox);
-                DrawTinted(graphics, motif, upColor, new RectangleF(15 * scale, 15 * scale, 50 * scale, 50 * scale));
-            }
-            return result;
+                return result;
+            } catch { result.Dispose(); throw; }
         }
 
         /// <summary>
@@ -284,15 +288,17 @@ namespace Outil_Azur_complet.Bot
             int width, height;
             lock (empty) { width = empty.Width; height = empty.Height; }
             var result = new Bitmap(width, height, PixelFormat.Format32bppArgb);
-            using (var graphics = Graphics.FromImage(result)) {
-                lock (empty) graphics.DrawImage(empty, 0, 0, width, height);
-                float bottom = (18 + 20) * 2f, top = bottom - (float)ratio * 36 * 2f;
-                if (bottom > top) {
-                    graphics.SetClip(new RectangleF(0, top, width, bottom - top));
-                    lock (full) graphics.DrawImage(full, 0, 0, full.Width, full.Height);
+            try {
+                using (var graphics = Graphics.FromImage(result)) {
+                    lock (empty) graphics.DrawImage(empty, 0, 0, width, height);
+                    float bottom = (18 + 20) * 2f, top = bottom - (float)ratio * 36 * 2f;
+                    if (bottom > top) {
+                        graphics.SetClip(new RectangleF(0, top, width, bottom - top));
+                        lock (full) graphics.DrawImage(full, 0, 0, full.Width, full.Height);
+                    }
                 }
-            }
-            return result;
+                return result;
+            } catch { result.Dispose(); throw; }
         }
 
         private static void DrawTinted(Graphics graphics, Bitmap source, int rgb, RectangleF box)
