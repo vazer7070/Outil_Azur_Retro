@@ -123,12 +123,8 @@ namespace Outil_Azur_complet.Bot.Menus
             return skills;
         }
 
-        private static string OwnGuild(GameClass game)
-        {
-            int? id = game?.character?.id;
-            if (!id.HasValue || game.Map?.Entites == null) return null;
-            return game.Map.Entites.TryGetValue(id.Value, out var self) ? (self as PlayerActor)?.GuildName : null;
-        }
+        /// <summary>Guilde du personnage d'après son <c>GM</c> (<c>Map.Self</c>), comme <c>Player.guildInfos.name</c>.</summary>
+        private static string OwnGuild(GameClass game) => (game?.Map?.Self as PlayerActor)?.GuildName;
 
         private static Image Icon(int type)
         {
@@ -170,29 +166,17 @@ namespace Outil_Azur_complet.Bot.Menus
         }
 
         /// <summary>
-        /// Enregistre dans le tiroir les volets des fenêtres ouvertes par les objets interactifs (zaapi, code, document) ;
-        /// sans effet pour un volet déjà présent.
-        /// </summary>
-        public static void RegisterPanels(PanelHost panels)
-        {
-            if (panels == null || panels.IsDisposed) return;
-            if (panels.Get<ZaapiPanel>() == null) panels.Register(new ZaapiPanel());
-            if (panels.Get<KeyCodePanel>() == null) panels.Register(new KeyCodePanel());
-            if (panels.Get<DocumentPanel>() == null) panels.Register(new DocumentPanel());
-        }
-
-        /// <summary>
         /// Branche les objets interactifs sur la carte : un clic gauche sur un objet qui a un menu l'affiche (Maj : première
-        /// compétence active), et l'ouverture d'un zaapi, d'une saisie de code ou d'un document ajoute son volet au tiroir
-        /// la première fois. Le branchement se défait quand la carte est libérée.
+        /// compétence active) au lieu de déplacer le personnage. Les volets Zaapis, Code et Document sont enregistrés par la
+        /// fenêtre de jeu (<c>BuildDrawer</c>). Le branchement se défait quand la carte est libérée.
         /// </summary>
-        public static void Attach(MapControl map, PanelHost panels)
+        public static void Attach(MapControl map)
         {
             if (map == null || map.IsDisposed || map.Router == null) return;
             lock (attachments)
             {
                 if (attachments.TryGetValue(map, out _)) return;
-                attachments.Add(map, new Attachment(map, panels));
+                attachments.Add(map, new Attachment(map));
             }
         }
 
@@ -206,41 +190,17 @@ namespace Outil_Azur_complet.Bot.Menus
         private sealed class Attachment
         {
             private readonly MapControl map;
-            private readonly PanelHost panels;
             private readonly InteractionRouter router;
-            private readonly GameClass game;
             private bool detached;
 
-            internal Attachment(MapControl map, PanelHost panels)
+            internal Attachment(MapControl map)
             {
-                this.map = map; this.panels = panels; router = map.Router;
-                game = router.Account?.Game;
+                this.map = map; router = map.Router;
                 router.MoveRequested += OnMoveRequested;
-                if (game?.Interactions != null)
-                {
-                    game.Interactions.Zaapi.Changed += OnZaapiChanged;
-                    game.Interactions.Interactive.Code.Changed += OnCodeChanged;
-                    game.Interactions.Interactive.Document.Changed += OnDocumentChanged;
-                }
                 map.Disposed += (s, e) => Detach();
             }
 
             internal ContextMenuStrip LastMenu { get; private set; }
-
-            private void OnZaapiChanged() => EnsurePanel<ZaapiPanel>(game?.Interactions?.Zaapi);
-            private void OnCodeChanged() => EnsurePanel<KeyCodePanel>(game?.Interactions?.Interactive?.Code);
-            private void OnDocumentChanged() => EnsurePanel<DocumentPanel>(game?.Interactions?.Interactive?.Document);
-
-            /// <summary>Fenêtre ouverte par le serveur sans volet dans le tiroir : le volet est ajouté et s'affiche de lui-même.</summary>
-            private void EnsurePanel<T>(InteractionWindow window) where T : GamePanel, new()
-            {
-                if (detached || window == null || !window.IsOpen || panels == null || panels.IsDisposed) return;
-                BotUi.OnUi(map, () =>
-                {
-                    if (detached || panels.IsDisposed || panels.Get<T>() != null) return;
-                    panels.Register(new T());
-                });
-            }
 
             private async Task OnMoveRequested(object sender, MapClickEventArgs e)
             {
@@ -274,12 +234,6 @@ namespace Outil_Azur_complet.Bot.Menus
                 if (detached) return;
                 detached = true;
                 router.MoveRequested -= OnMoveRequested;
-                if (game?.Interactions != null)
-                {
-                    game.Interactions.Zaapi.Changed -= OnZaapiChanged;
-                    game.Interactions.Interactive.Code.Changed -= OnCodeChanged;
-                    game.Interactions.Interactive.Document.Changed -= OnDocumentChanged;
-                }
                 ContextMenuStrip last = LastMenu; LastMenu = null;
                 if (last != null && !last.IsDisposed) last.Dispose();
             }

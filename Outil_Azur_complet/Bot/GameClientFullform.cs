@@ -240,7 +240,7 @@ namespace Outil_Azur_complet.Bot
             drawer.Feedback += ShowActionFeedback;
             drawer.PanelShown += (s,e) => LayoutDrawer();
             foreach (IGamePanel panel in new IGamePanel[] { new StatsPanel(), new InventoryPanel(), new SpellsPanel(), new JobsPanel(),
-                new JournalPanel(), new DialoguePanel(), new ZaapsPanel(), new ShopPanel(), new ExchangePanel(), new StoragePanel() })
+                new JournalPanel(), new DialoguePanel(), new ZaapsPanel(), new ShopPanel(), new ExchangePanel(), new StoragePanel(), new ZaapiPanel(), new KeyCodePanel(), new DocumentPanel() })
                 drawer.Register(panel);
             host.Controls.Add(drawer); drawer.BringToFront();
             host.Resize += (s,e) => LayoutDrawer(); LayoutDrawer();
@@ -382,6 +382,7 @@ namespace Outil_Azur_complet.Bot
             mapControl.SpellSelectionChanged += SpellSelectionChanged;
             mapControl.ActionFeedback += ShowActionFeedback;
             mapControl.Router.Panels = drawer;
+            Outil_Azur_complet.Bot.Menus.InteractiveMenuProvider.Attach(mapControl);
             mapArea.Controls.Add(mapControl); mapControl.SendToBack(); drawer.BringToFront(); UpdateMapDisplay();
         }
         public void displaylife() => RefreshState();

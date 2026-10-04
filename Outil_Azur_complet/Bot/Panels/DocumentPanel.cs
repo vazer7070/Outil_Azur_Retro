@@ -260,26 +260,26 @@ namespace Outil_Azur_complet.Bot.Panels
                 using (var frame = new Pen(BotUi.Frame, 2)) graphics.DrawRectangle(frame, Rectangle.Round(drawn));
             if (document == null)
             {
-                DrawLines(graphics, Region(drawn, 0.10f, 0.20f, 0.80f, 0.60f), new[] { ("Aucun document", 10f, FontStyle.Bold, BotUi.Muted) });
+                DrawLines(graphics, Zone(drawn, 0.10f, 0.20f, 0.80f, 0.60f), new[] { ("Aucun document", 10f, FontStyle.Bold, BotUi.Muted) });
                 return;
             }
             switch (type)
             {
                 case "parchment":
-                    DrawLines(graphics, Region(drawn, 0.12f, 0.12f, 0.82f, 0.76f), TitleLines(document));
+                    DrawLines(graphics, Zone(drawn, 0.12f, 0.12f, 0.82f, 0.76f), TitleLines(document));
                     break;
                 case "roadsignleft": case "roadsignright":
                     // Planche de la pancarte (d'après UI_DocumentRoadSignLeft) : texte de la seule page.
                     var lines = document.PageParagraphs(0).Select(paragraph => (paragraph.PlainText.Trim(), paragraph.IsTitle || paragraph.Runs.Any(run => run.Bold) ? 10f : 8.5f,
                         paragraph.Runs.Any(run => run.Bold) ? FontStyle.Bold : paragraph.Class == "s" ? FontStyle.Italic : FontStyle.Regular, BotUi.Ink)).Where(line => line.Item1.Length > 0).ToArray();
-                    DrawLines(graphics, Region(drawn, 0.06f, 0.25f, 0.88f, 0.40f), lines.Length > 0 ? lines : TitleLines(document));
+                    DrawLines(graphics, Zone(drawn, 0.06f, 0.25f, 0.88f, 0.40f), lines.Length > 0 ? lines : TitleLines(document));
                     break;
                 default:
-                    DrawLines(graphics, Region(drawn, 0.53f, 0.12f, 0.38f, 0.72f), TitleLines(document));
+                    DrawLines(graphics, Zone(drawn, 0.53f, 0.12f, 0.38f, 0.72f), TitleLines(document));
                     var left = new List<(string, float, FontStyle, Color)>();
                     if (chapter.Length > 0) left.Add((chapter, 8.5f, FontStyle.Bold, BotUi.Ink));
                     if (pageLabel.Length > 0) left.Add((pageLabel, 8f, FontStyle.Italic, BotUi.Muted));
-                    DrawLines(graphics, Region(drawn, 0.09f, 0.12f, 0.36f, 0.72f), left.ToArray());
+                    DrawLines(graphics, Zone(drawn, 0.09f, 0.12f, 0.36f, 0.72f), left.ToArray());
                     break;
             }
         }
@@ -294,7 +294,7 @@ namespace Outil_Azur_complet.Bot.Panels
             return lines.ToArray();
         }
 
-        private static RectangleF Region(RectangleF bounds, float x, float y, float width, float height) =>
+        private static RectangleF Zone(RectangleF bounds, float x, float y, float width, float height) =>
             new RectangleF(bounds.X + bounds.Width * x, bounds.Y + bounds.Height * y, bounds.Width * width, bounds.Height * height);
 
         /// <summary>Lignes centrées verticalement dans la zone, coupées par mots et terminées par « … » si la place manque.</summary>
