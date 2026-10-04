@@ -206,7 +206,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
                 InteractionResult zaap = await interactions.Zaap.OpenAsync(cellId);
                 ActionFeedback?.Invoke(zaap.Message); Account.Logger.LogInfo("CARTE", zaap.Message); return;
             }
-            MoveResults result = Account.Game.Manager.Mouvements.GetCellsMove(destination, map.CellsOccuped());
+            MoveResults result = await Account.Game.Manager.Mouvements.MoveToAsync(destination);
             string message;
             switch(result) {
                 case MoveResults.EXIT: message = "Déplacement vers la cellule " + cellId; break;

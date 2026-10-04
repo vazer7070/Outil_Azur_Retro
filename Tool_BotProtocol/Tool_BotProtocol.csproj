@@ -201,6 +201,7 @@
     <Compile Include="Game\Managers\Mouvements\MoveResults.cs" />
     <Compile Include="Game\Managers\Mouvements\TeleportCellEnum.cs" />
     <Compile Include="Game\Maps\Mouvements\Pathfinder.cs" />
+    <Compile Include="Game\Maps\Mouvements\MoveSpeeds.cs" />
     <Compile Include="Game\Maps\Cell.cs" />
     <Compile Include="Game\Maps\Enums\CellTypes.cs" />
     <Compile Include="Game\Maps\Enums\TeleportCellsEnum.cs" />
