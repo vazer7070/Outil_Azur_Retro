@@ -142,8 +142,20 @@ internal static class BotTransportSmoke
                     await Eventually(() => received.Count == 4, "Reconnection stopped reception");
                     Check(received.ToArray()[3] == "zzneuf", "An old incomplete frame contaminated the new session");
 
+                    // One packet per send (StarLoco splits each send on LF): multi-line or NUL packets never leave.
+                    var rejected = new ConcurrentQueue<string>();
+                    int sentPackets = 0;
+                    client.PacketRejected += (packet, reason) => rejected.Enqueue(packet);
+                    client.PacketSent += packet => System.Threading.Interlocked.Increment(ref sentPackets);
+                    await Within(client.SendPacketAsync("zzune\nzzdeux"), "A rejected send blocked");
+                    await Within(client.SendPacketAsync("zznul\0zz"), "A rejected send blocked");
+                    await Within(client.SendPacketAsync(""), "A rejected send blocked");
+                    await Task.Delay(40);
+                    Check(rejected.ToArray().SequenceEqual(new[] { "zzune\nzzdeux", "zznul\0zz", "" }) && second.Available == 0 && sentEvents == 0,
+                        "A multi-line, NUL or empty packet reached the server");
+
                     ActiveSocket(client).SendBufferSize = 2048;
-                    string large = new string('x', 2 * 1024 * 1024) + "é\nfin";
+                    string large = new string('x', 2 * 1024 * 1024) + "é fin";
                     byte[] expectedLarge = Encoding.UTF8.GetBytes(large + "\n\0");
                     byte[] expectedNext = Encoding.UTF8.GetBytes("zzapres\n\0");
                     Task<byte[]> readLarge = Task.Run(() => ReadExact(second, expectedLarge.Length));
@@ -154,7 +166,7 @@ internal static class BotTransportSmoke
                     Check(ReadExact(second, expectedNext.Length).SequenceEqual(expectedNext),
                         "The next queued packet was truncated or interleaved");
                     await Within(Task.WhenAll(sendLarge, sendNext), "Serialized sends did not finish");
-                    Check(sentEvents == 2, "Successful send events were duplicated or omitted");
+                    Check(sentEvents == 2 && sentPackets == 2, "Successful send events were duplicated or omitted");
 
                     string blocked = new string('y', 8 * 1024 * 1024);
                     Task failed = client.SendPacketAsync(blocked);

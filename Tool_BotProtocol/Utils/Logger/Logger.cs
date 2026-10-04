@@ -12,6 +12,17 @@ namespace Tool_BotProtocol.Utils.Logger
     {
         public event Action<LogsMessages, string> log_event;
         public event Action<LogsMessages, string> log_eventChat;
+        /// <summary>Messages de niveau debug (paquets sans gestionnaire…) : jamais affichés dans le journal principal, réservés aux diagnostics.</summary>
+        public event Action<LogsMessages> debug_event;
+
+        public void LogDebug(string reference, string message)
+        {
+            var subscribers = debug_event;
+            if (subscribers == null) return;
+            var logMessage = new LogsMessages(reference, message, null);
+            foreach (Action<LogsMessages> subscriber in subscribers.GetInvocationList())
+                try { subscriber(logMessage); } catch { /* A diagnostic subscriber must not break the protocol. */ }
+        }
 
         private void log_Final(string reference, string message, string color, Exception ex = null)
         {
