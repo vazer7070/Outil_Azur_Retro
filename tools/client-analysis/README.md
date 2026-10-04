@@ -44,3 +44,14 @@ python3 exporter_png.py svg/ png/ 1
 - Les JPEG Flash (segment de tables puis image, `FF D9 FF D8` au milieu des données, `JPEGTables` partagé) sont recollés avant décodage ; un bitmap encore illisible est signalé dans `index.tsv` et sa zone reste vide.
 - Les écrans construits à l'exécution (bandeau, inventaire, sorts, options) n'ont que peu d'art statique : seul leur cadre est exporté.
 - La décompilation est une pseudo-décompilation : elle suffit à lire les formats de paquets, pas à recompiler le client.
+
+## Décor des cartes (`exporter_decor.py`)
+
+```sh
+# swfsvg compilé au préalable (étape 4) ; Pillow et cairosvg : pip install pillow cairosvg
+python3 exporter_decor.py <client> ../../Outil_Azur_complet/Resources/Bot/Decor
+```
+
+Le script exporte les symboles numérotés de `clips/gfx/g1.swf` et `g2.swf` (sols ; au-delà de 500 px, fonds désignés par `BACK`), `o1.swf` à `o11.swf` (objets) et `cell.swf` vers `sols/`, `backgrounds/`, `objets/` et `cellules/`, puis écrit `ancres.tsv` (`type id xmin ymin largeur hauteur image`, séparés par des tabulations) : coin haut gauche de chaque PNG par rapport au point d'enregistrement du symbole, c'est-à-dire la position de la cellule dans le client (l'origine de la carte pour un fond). `BotMapArtwork` dessine chaque PNG à « cellule + (xmin, ymin) ». Les marges transparentes sont découpées, les PNG passent en palette de 256 couleurs quand l'écart reste faible et un symbole vide devient un PNG transparent de 1 px. Le journal final énumère les identifiants présents dans deux bibliothèques (la première occurrence, dans l'ordre o1… o11, est gardée), les fonds de plus de 500 px, les SVG repris parce que cairosvg échoue sur des dégradés minuscules, les symboles vides et les avertissements de `swfsvg`. Une nouvelle exécution remplace les PNG numérotés écrits à la racine de chaque dossier ; une bibliothèque rangée en sous-dossiers reste intacte.
+
+Mesuré sur le client 1.34 fourni (4 cœurs) : 5 649 PNG et 63,3 Mo en un peu plus de 4 minutes (voir `Outil_Azur_complet/Resources/Bot/Decor/PROVENANCE.md`). Les images 2 à 15 des sols, affichées sur les cellules en pente, ne sont exportées que si `swfsvg` accepte `--frame N` (le script le détecte) ; les formes morphées et les textes statiques ne sont pas rendus.
