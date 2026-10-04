@@ -67,7 +67,8 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
         {
             this.account = account; this.options = options;
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-            BackColor = BotUi.FrameLight; Size = new Size(TabWidth + Gap + 8 * (Cell + Gap), 2 * (Cell + Gap) + 2);
+            // Onglets, corps à corps, 7 colonnes de cases, puis la colonne des pages (sorts au-delà de 14, ajout du bot).
+            BackColor = BotUi.FrameLight; Size = new Size(TabWidth + Gap + 9 * (Cell + Gap), 2 * (Cell + Gap) + 2);
             AccessibleName = "Barre de raccourcis";
             spellsTab = TabButton(BannerArt.Text("BANNER_TAB_SPELLS", "Sorts"), ShortcutTab.Spells);
             itemsTab = TabButton(BannerArt.Text("BANNER_TAB_ITEMS", "Obj."), ShortcutTab.Items);
@@ -395,7 +396,8 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
 
         private Button PageButton(string text, int direction, string name)
         {
-            var button = new TabLabelButton(text, () => false) { Size = new Size((Cell - 1) / 2, Cell), Font = BotFonts.Get(8, FontStyle.Bold), AccessibleName = name, Visible = false };
+            var button = new TabLabelButton(text, () => false) { Size = new Size(Cell, Cell), Font = BotFonts.Get(9, FontStyle.Bold), AccessibleName = name, Visible = false,
+                Tag = "client-icon" };
             button.Click += (s, e) => { page = Math.Max(0, Math.Min(pageCount - 1, page + direction)); RefreshContent(); };
             return button;
         }
@@ -405,7 +407,8 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
             spellsTab.Location = new Point(0, 1); itemsTab.Location = new Point(0, Cell + Gap + 1);
             int left = TabWidth + Gap;
             closeCombat.Location = new Point(left, 1);
-            previous.Location = new Point(left, Cell + Gap + 1); next.Location = new Point(left + Cell - next.Width, Cell + Gap + 1);
+            int pages = left + 8 * (Cell + Gap);
+            previous.Location = new Point(pages, 1); next.Location = new Point(pages, Cell + Gap + 1);
             for (int i = 0; i < Slots; i++)
                 slots[i].Location = new Point(left + (i % 7 + 1) * (Cell + Gap), 1 + (i / 7) * (Cell + Gap));
         }
@@ -510,6 +513,14 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
         {
             try { if (menu.IsHandleCreated) menu.BeginInvoke((Action)menu.Dispose); else menu.Dispose(); }
             catch (InvalidOperationException) { menu.Dispose(); }
+        }
+
+        // Les cases ont leur propre menu (MouseUp droit) : le clic droit ne remonte pas jusqu'au menu global du bandeau.
+        protected override void WndProc(ref Message m)
+        {
+            const int WM_CONTEXTMENU = 0x7B;
+            if (m.Msg == WM_CONTEXTMENU) { m.Result = IntPtr.Zero; return; }
+            base.WndProc(ref m);
         }
 
         protected override void Dispose(bool disposing)

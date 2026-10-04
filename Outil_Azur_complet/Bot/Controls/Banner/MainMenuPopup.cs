@@ -130,7 +130,7 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
                 foreach (var entry in new[] {
                     Tuple.Create(MainMenuChoice.ChangeCharacter, BannerArt.Text("CHANGE_CHARACTER", "Changer de perso")),
                     Tuple.Create(MainMenuChoice.Logoff, BannerArt.Text("LOGOFF", "Déconnecter")),
-                    Tuple.Create(MainMenuChoice.Quit, "Quitter AzurClientRetro"),
+                    Tuple.Create(MainMenuChoice.Quit, "Fermer la fenêtre de jeu"),
                     Tuple.Create(MainMenuChoice.Cancel, BannerArt.Text("CANCEL_SMALL", "Annuler")) })
                 {
                     MainMenuChoice value = entry.Item1;

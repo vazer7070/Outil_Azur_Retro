@@ -343,6 +343,9 @@
     <Compile Include="Bot\Menus\FriendsMenuProvider.cs" />
     <Compile Include="Bot\Menus\PlayerMenuProvider.cs" />
     <Compile Include="Bot\Shortcuts.cs" />
+    <Compile Include="Bot\OptionsForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Bot\Controls\Banner\BannerArt.cs" />
     <Compile Include="Bot\Controls\Banner\LifeHeart.cs">
       <SubType>Component</SubType>

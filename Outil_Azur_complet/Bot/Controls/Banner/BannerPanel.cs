@@ -100,18 +100,21 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
     /// </summary>
     public sealed class BannerPanel : Panel
     {
-        /// <summary>Boutons ronds dans l'ordre du client : nom du volet, icône, clé de l'infobulle, repli, raccourci.</summary>
+        /// <summary>
+        /// Boutons ronds dans l'ordre du client : nom du volet, icône, clé de l'infobulle, repli, raccourci, nom court
+        /// (accessibilité et messages « à venir »).
+        /// </summary>
         private static readonly string[,] Definitions =
         {
-            { "Stats", "icone-caracteristiques", "YOUR_STATS_JOB", "Tes caractéristiques et métiers", "CHARAC" },
-            { "Spells", "icone-sorts", "YOUR_SPELLS", "Tes sorts", "SPELLS" },
-            { "Inventory", "icone-inventaire", "YOUR_INVENTORY", "Ton inventaire", "INVENTORY" },
-            { "Quests", "icone-quetes", "YOUR_QUESTS", "Tes quêtes", "QUESTS" },
-            { "WorldMap", "icone-carte", "YOUR_BOOK", "Ta géoposition", "MAP" },
-            { "Friends", "icone-amis", "YOUR_FRIENDS", "Tes amis", "FRIENDS" },
-            { "Guild", "icone-guilde", "YOUR_GUILD", "Ta guilde", "GUILD" },
-            { "Mount", "icone-monture", "MY_MOUNT", "Ta monture", "MOUNT" },
-            { "Conquest", "icone-pvp", "CONQUEST_WORD", "Conquête", "" },
+            { "Stats", "icone-caracteristiques", "YOUR_STATS_JOB", "Tes caractéristiques et métiers", "CHARAC", "Caractéristiques" },
+            { "Spells", "icone-sorts", "YOUR_SPELLS", "Tes sorts", "SPELLS", "Sorts" },
+            { "Inventory", "icone-inventaire", "YOUR_INVENTORY", "Ton inventaire", "INVENTORY", "Inventaire" },
+            { "Quests", "icone-quetes", "YOUR_QUESTS", "Tes quêtes", "QUESTS", "Quêtes" },
+            { "WorldMap", "icone-carte", "YOUR_BOOK", "Ta géoposition", "MAP", "Carte du monde" },
+            { "Friends", "icone-amis", "YOUR_FRIENDS", "Tes amis", "FRIENDS", "Amis" },
+            { "Guild", "icone-guilde", "YOUR_GUILD", "Ta guilde", "GUILD", "Guilde" },
+            { "Mount", "icone-monture", "MY_MOUNT", "Ta monture", "MOUNT", "Monture" },
+            { "Conquest", "icone-pvp", "CONQUEST_WORD", "Conquête", "", "Conquête" },
         };
         public const string FightsPanelName = "FightsList";
         private const int RowGap = 5;
@@ -140,7 +143,8 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
             Controls.Add(Gauge);
             for (int i = 0; i < Definitions.GetLength(0); i++)
             {
-                var button = new BannerButton(Definitions[i, 0], Definitions[i, 1]) { AccessibleName = BannerArt.Text(Definitions[i, 2], Definitions[i, 3]) };
+                var button = new BannerButton(Definitions[i, 0], Definitions[i, 1]) { AccessibleName = Definitions[i, 5],
+                    AccessibleDescription = BannerArt.Text(Definitions[i, 2], Definitions[i, 3]) };
                 string name = Definitions[i, 0];
                 button.Click += (s, e) => OpenPanel(name);
                 buttons.Add(button); Controls.Add(button);
@@ -296,7 +300,7 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
             {
                 BannerButton button = buttons[i];
                 button.Available = panels?.Find(button.PanelName) != null;
-                string tip = button.AccessibleName;
+                string tip = button.AccessibleDescription;
                 if (button.PanelName == "Inventory" && character?.Inventory != null && character.Inventory.Pods_Max > 0)
                     tip += "\n\n" + BannerArt.Text("PLAYER_WEIGHT", "%1 pods sur %2", BannerArt.Thousands(character.Inventory.Actual_pods), BannerArt.Thousands(character.Inventory.Pods_Max));
                 string shortcut = Definitions[i, 4];
@@ -472,6 +476,8 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
         protected override void OnLayout(LayoutEventArgs levent)
         {
             base.OnLayout(levent);
+            // Controls.Add déclenche une mise en page pendant le constructeur, avant que tous les contrôles existent.
+            if (Gauge == null || mainMenuButton == null || fights == null || Shortcuts == null) return;
             int height = ClientSize.Height, width = ClientSize.Width;
             int side = Math.Max(40, Math.Min(height - 4, 92));
             Gauge.SetBounds(0, Math.Max(0, (height - side) / 2), side, side);

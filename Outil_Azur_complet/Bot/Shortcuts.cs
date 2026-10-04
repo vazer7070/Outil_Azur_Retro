@@ -11,9 +11,11 @@ namespace Outil_Azur_complet.Bot
     /// <summary>Un raccourci du client : nom (<c>CHARAC</c>, <c>SH3</c>…), description, catégorie et touches en vigueur.</summary>
     public sealed class ShortcutDefinition
     {
-        internal ShortcutDefinition(string name, string description, string category, ShortcutKey key, ShortcutKey? alternate, ShortcutKey clientKey, bool handled)
+        internal ShortcutDefinition(string name, string description, string category, ShortcutKey key, ShortcutKey? alternate, ShortcutKey clientKey, bool handled,
+            bool outsideChatOnly)
         {
             Name = name; Description = description; Category = category; Key = key; Alternate = alternate; ClientKey = clientKey; Handled = handled;
+            OutsideChatOnly = outsideChatOnly;
         }
         public string Name { get; }
         public string Description { get; }
@@ -25,6 +27,11 @@ namespace Outil_Azur_complet.Bot
         public ShortcutKey ClientKey { get; }
         /// <summary>Faux pour les raccourcis que le bot n'exécute pas (console d'administration, barre déplaçable…) ou que gère la discussion.</summary>
         public bool Handled { get; }
+        /// <summary>
+        /// <c>o</c> du client : vrai, le raccourci est ignoré pendant la saisie d'un texte (<c>_aNoChatShortcuts</c>) ; faux,
+        /// il agit à tout moment (Échap, Ctrl+Fin, Ctrl+F).
+        /// </summary>
+        public bool OutsideChatOnly { get; }
         public bool IsCustom => !Key.Equals(ClientKey);
         public string Label => Shortcuts.Describe(Key) + (Alternate.HasValue ? " / " + Shortcuts.Describe(Alternate.Value) : string.Empty);
     }
@@ -114,6 +121,9 @@ namespace Outil_Azur_complet.Bot
             ("ESCAPE", 27, 0, "Autres raccourcis", "Fermer l'interface ouverte"),
         };
 
+        // Raccourcis du jeu 1 marqués o="false" (actifs pendant la saisie) dans shortcuts_fr.
+        private static readonly HashSet<string> AnyTime = new HashSet<string>(StringComparer.Ordinal) { "NEXTTURN", "FULLSCREEN", "ESCAPE" };
+
         /// <summary>Table en vigueur : <c>shortcuts.xml</c> si chargé, sinon la table intégrée ; touches de l'utilisateur appliquées.</summary>
         public static ShortcutTable Build(BotOptions options)
         {
@@ -132,12 +142,13 @@ namespace Outil_Azur_complet.Bot
                     IReadOnlyDictionary<string, string> info = LangData.Raw("shortcuts", "SH", name);
                     string description = info != null && info.TryGetValue("d", out string d) && !string.IsNullOrEmpty(d) ? d : name;
                     string category = info != null && info.TryGetValue("c", out string c) ? CategoryName(c) : string.Empty;
-                    definitions.Add(Make(name, description, category, client, alternate, overrides));
+                    bool outsideChat = !key.TryGetValue("o", out string o) || o != "false";
+                    definitions.Add(Make(name, description, category, client, alternate, overrides, outsideChat));
                 }
                 return new ShortcutTable(definitions, true);
             }
             foreach (var entry in BuiltIn)
-                definitions.Add(Make(entry.Name, entry.Description, entry.Category, new ShortcutKey(entry.Key, entry.Modifiers), null, overrides));
+                definitions.Add(Make(entry.Name, entry.Description, entry.Category, new ShortcutKey(entry.Key, entry.Modifiers), null, overrides, !AnyTime.Contains(entry.Name)));
             return new ShortcutTable(definitions, false);
         }
 
@@ -191,10 +202,11 @@ namespace Outil_Azur_complet.Bot
         }
 
         private static ShortcutDefinition Make(string name, string description, string category, ShortcutKey client, ShortcutKey? alternate,
-            IReadOnlyDictionary<string, ShortcutKey> overrides)
+            IReadOnlyDictionary<string, ShortcutKey> overrides, bool outsideChatOnly)
         {
             bool custom = overrides.TryGetValue(name, out ShortcutKey chosen);
-            return new ShortcutDefinition(name, description, category, custom ? chosen : client, custom ? null : alternate, client, HandledNames.Contains(name));
+            return new ShortcutDefinition(name, description, category, custom ? chosen : client, custom ? null : alternate, client, HandledNames.Contains(name),
+                outsideChatOnly);
         }
 
         private static string CategoryName(string id)

@@ -126,9 +126,11 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
     {
         private const string Punctuation = ".!?~";
 
-        public static ChatLine FromMessage(ChatMessage message, bool spectator)
+        /// <param name="censor">Filtre des mots du client (option <c>CensorshipFilter</c>), appliqué au texte des messages ; <c>null</c> = aucun.</param>
+        public static ChatLine FromMessage(ChatMessage message, bool spectator, Func<string, string> censor = null)
         {
             if (message == null) return null;
+            string Clean(string text) => censor == null || string.IsNullOrEmpty(text) ? text : censor(text);
             var segments = new List<ChatSegment>();
             string author = message.Author;
             switch (message.Kind)
@@ -137,13 +139,13 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
                     segments.Add(new ChatSegment(ChatUiText.Get("FROM", "de").Trim() + " "));
                     segments.Add(Name(message, true));
                     segments.Add(new ChatSegment(" : "));
-                    AddText(segments, message.Text, message, false);
+                    AddText(segments, Clean(message.Text), message, false);
                     break;
                 case ChatMessageKind.WhisperSent:
                     segments.Add(new ChatSegment(ChatUiText.Get("TO_DESTINATION", "à").Trim() + " "));
                     segments.Add(Name(message, false));
                     segments.Add(new ChatSegment(" : "));
-                    AddText(segments, message.Text, message, false);
+                    AddText(segments, Clean(message.Text), message, false);
                     break;
                 case ChatMessageKind.Channel:
                     if (message.Channel == ChatChannels.Default)
@@ -155,17 +157,17 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
                             case ChatMessageStyle.Emote:
                                 segments.Add(Name(message, true));
                                 segments.Add(new ChatSegment(" ", false, true));
-                                AddText(segments, EmoteSentence(message.Text), message, true);
+                                AddText(segments, EmoteSentence(Clean(message.Text)), message, true);
                                 break;
                             case ChatMessageStyle.Think:
                                 segments.Add(Name(message, true));
                                 segments.Add(new ChatSegment(" " + ChatUiText.Get("THINKS_WORD", "pense") + " : ", false, true));
-                                AddText(segments, message.Text, message, true);
+                                AddText(segments, Clean(message.Text), message, true);
                                 break;
                             default:
                                 segments.Add(Name(message, false));
                                 segments.Add(new ChatSegment(" : "));
-                                AddText(segments, message.Text, message, false);
+                                AddText(segments, Clean(message.Text), message, false);
                                 break;
                         }
                     }
@@ -175,7 +177,7 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
                         segments.Add(new ChatSegment("(" + ChannelLabel(message.Channel, spectator) + ") "));
                         segments.Add(Name(message, false));
                         segments.Add(new ChatSegment(" : "));
-                        AddText(segments, ChatMessage.PlainText(message.RawText), message, false);
+                        AddText(segments, Clean(ChatMessage.PlainText(message.RawText)), message, false);
                     }
                     break;
                 default:
@@ -339,8 +341,10 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
         public bool ShowTimestamps
         {
             get { return showTimestamps; }
-            set { if (showTimestamps == value) return; showTimestamps = value; Relayout(true); }
+            set { if (showTimestamps == value) return; showTimestamps = value; Relayout(true); ShowTimestampsChanged?.Invoke(this, EventArgs.Empty); }
         }
+        /// <summary>L'heure des lignes a été affichée ou masquée (menu de la ligne) : la fenêtre de jeu garde l'option.</summary>
+        public event EventHandler ShowTimestampsChanged;
         public int RowCount => rows.Count;
         public int FirstRow => firstRow;
         public int VisibleRowCount => Math.Max(1, (ClientSize.Height - Padding.Vertical) / Math.Max(1, rowHeight));
