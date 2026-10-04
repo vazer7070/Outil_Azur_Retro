@@ -93,11 +93,13 @@ namespace Outil_Azur_complet.Bot
 
         // ------------------------------------------------------------------------------------------------------
         // Familles d'images exportées du client (Resources/Bot/<Famille>, voir chaque PROVENANCE.md), copiées à
-        // côté de l'exécutable dans ressources/Bot/<Famille>. Accès par famille et nom relatif (« 15/488 » pour
+        // côté de l'exécutable dans ressources/Bot/<Famille>. Accès par famille et nom relatif (« 1/107 » pour
         // Items, « back/3 » pour Emblems, « 0/-1_-1 » pour WorldMap) ; tout fichier absent, nom invalide ou PNG
         // illisible donne null. Les images rendues sont partagées par le cache : ne pas les modifier ni les
-        // libérer. Get lit le disque sur le thread appelant : depuis l'interface, passer par GetAsync ou
-        // TryCached (jamais de lecture de PNG pendant un Paint).
+        // libérer, et les verrouiller (lock (image)) le temps d'un dessin, comme Tinted, Emblem et Heart qui
+        // peuvent tourner hors du thread de l'interface (GDI+ refuse deux dessins simultanés d'un Bitmap).
+        // Get lit le disque sur le thread appelant : depuis l'interface, passer par GetAsync ou TryCached
+        // (jamais de lecture de PNG pendant un Paint).
 
         private sealed class CachedAsset
         {

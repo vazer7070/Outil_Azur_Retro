@@ -42,7 +42,7 @@ python3 tools/client-analysis/exporter_icons.py --client "<client 1.34>" --sorti
 | UI_BannerChatCommandAll.png | `UI_BannerChatCommandAll` | Bouton des canaux du chat |
 | UI_BannerClockBack.png, UI_BannerClockArrowHours.png, UI_BannerClockArrowMinutes.png | symboles du même nom | Horloge du bandeau : `Clock` n'est qu'un cadre invisible, le client y pose ces pièces par le code |
 | UI_BannerCompassBack.png, UI_BannerCompassArrow.png, UI_BannerCompassNoArrow.png | symboles du même nom | Boussole du bandeau : même cas que l'horloge (`Compass`) |
-| FilterIcon0.png, FilterIcon1.png, FilterIcon2.png, FilterIcon3.png, FilterIcon4.png, FilterIcon5.png, FilterIcon6.png, FilterIcon7.png | `FilterIcon0` à `FilterIcon7` | Filtres de l'inventaire (`FilterIcon8` est vide) |
+| FilterIcon0.png, FilterIcon1.png, FilterIcon2.png, FilterIcon3.png, FilterIcon4.png, FilterIcon5.png, FilterIcon6.png, FilterIcon7.png | `FilterIcon0` à `FilterIcon7` | Boutons de filtre du chat (`_btnFilter0` à `_btnFilter7`) ; `FilterIcon8` (canal des débutants) n'est pas un symbole exporté de `core.swf` |
 | ButtonChatUp.png, ButtonChatDown.png, ButtonSitUp.png, ButtonSitDown.png, ButtonEmoteUp.png, ButtonEmoteDown.png, SmileysHighlight.png | symboles du même nom | Boutons de la barre de chat, surbrillance du panneau des smileys |
 | Star.png | `Star` | Disponible |
 | StarBorder.png, StarBorder_fill.png, StarBorder_contour.png | `StarBorder` ; `_fill` : l'instance `fill` seule (la partie recolorée par `STARS_COLORS`), `_contour` : le reste, dans le même cadre | Étoiles des groupes de monstres |

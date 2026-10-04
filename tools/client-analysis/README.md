@@ -8,7 +8,7 @@ références qui en découlent (`docs/PROTOCOLE_CLIENT_1_34.md`, `ressources/Bot
 ## Prérequis
 
 - Rust (cargo) pour `avm1dump` et `swfsvg` (dépendance : la crate `swf` de Ruffle).
-- Python 3 pour `as2lite.py` et `relever_protocole.py` ; `pip install cairosvg` pour `exporter_png.py` ; `pip install cairosvg pillow` pour `exporter_sprites.py` et ses tests (sous Windows, cairosvg demande aussi la bibliothèque Cairo, `libcairo-2.dll`).
+- Python 3 pour `as2lite.py` et `relever_protocole.py` ; `pip install cairosvg` pour `exporter_png.py` ; `pip install cairosvg pillow` pour `exporter_sprites.py`, `exporter_icons.py` et leurs tests (sous Windows, cairosvg demande aussi la bibliothèque Cairo, `libcairo-2.dll`).
 
 ## Chaîne complète
 
@@ -47,6 +47,7 @@ python3 exporter_sprites.py <client>/clips/sprites ../../Outil_Azur_complet/Reso
 | `swfsvg` | Exporte en SVG un symbole exporté (forme, clip, bouton à l'état relâché) ou la scène d'un SWF, à l'image voulue : dégradés, bitmaps JPEG/sans perte en base64, transformations de couleur, masques, formes morphées. Les aplats magenta `#FF00FF` sont des emplacements remplis à l'exécution : ils sont omis, sauf sous une transformation de couleur du SWF qui remplace la teinte (0.2.2). Écrit aussi `index.tsv` (cadre de chaque rendu). Voir la section suivante. |
 | `exporter_png.py` | Convertit les SVG en PNG avec cairosvg. |
 | `exporter_sprites.py` | Enchaîne `swfsvg --list`, `--frame` et `--scene` sur `clips/sprites/<gfx>.swf`, convertit avec cairosvg, rogne les marges transparentes, assemble les cycles en bandes et écrit `ancres.tsv`. Voir la section « Sprites d'acteurs ». |
+| `exporter_icons.py` | Exporte les icônes et images que le client charge à l'exécution (objets, portraits, smileys, émotes, métiers, alignements, emblèmes, carte du monde, sorts manquants, symboles du bandeau et du chat de `core.swf`) vers `Outil_Azur_complet/Resources/Bot/<Famille>`, avec un `PROVENANCE.md` par famille. Voir la section « Icônes du client ». |
 
 ## `swfsvg` : symboles, scène, images et index
 
@@ -199,3 +200,30 @@ python3 exporter_decor.py <client> ../../Outil_Azur_complet/Resources/Bot/Decor
 Le script exporte les symboles numérotés de `clips/gfx/g1.swf` et `g2.swf` (sols ; au-delà de 500 px, fonds désignés par `BACK`), `o1.swf` à `o11.swf` (objets) et `cell.swf` vers `sols/`, `backgrounds/`, `objets/` et `cellules/`, puis écrit `ancres.tsv` (`type id xmin ymin largeur hauteur image`, séparés par des tabulations) : coin haut gauche de chaque PNG par rapport au point d'enregistrement du symbole, c'est-à-dire la position de la cellule dans le client (l'origine de la carte pour un fond). `BotMapArtwork` dessine chaque PNG à « cellule + (xmin, ymin) ». Les marges transparentes sont découpées, les PNG passent en palette de 256 couleurs quand l'écart reste faible et un symbole vide devient un PNG transparent de 1 px. Le journal final énumère les identifiants présents dans deux bibliothèques (la première occurrence, dans l'ordre o1… o11, est gardée), les fonds de plus de 500 px, les SVG repris parce que cairosvg échoue sur des dégradés minuscules, les symboles vides et les avertissements de `swfsvg`. Une nouvelle exécution remplace les PNG numérotés écrits à la racine de chaque dossier ; une bibliothèque rangée en sous-dossiers reste intacte.
 
 Mesuré sur le client 1.34 fourni (4 cœurs) : 5 649 PNG et 63,3 Mo en un peu plus de 4 minutes (voir `Outil_Azur_complet/Resources/Bot/Decor/PROVENANCE.md`). Les images 2 à 15 des sols, affichées sur les cellules en pente, ne sont exportées que si `swfsvg` accepte `--frame N` (le script le détecte) ; les formes morphées et les textes statiques ne sont pas rendus.
+
+## Icônes du client (`exporter_icons.py`)
+
+```sh
+# swfsvg 0.2.2 compilé au préalable (étape 4) ; Pillow et cairosvg : pip install pillow cairosvg
+python3 exporter_icons.py --client "<client 1.34>" --sortie ../../Outil_Azur_complet/Resources/Bot \
+    [--familles Smileys,Emotes,Jobs,Alignments,Emblems,Portraits,Items,Spells,WorldMap,UI] \
+    [--swfsvg swfsvg/target/release/swfsvg] [--processus N] [--travail <dossier>] [--limite N] [--remplacer]
+
+# tests (SWF fabriqués dans le test, faux swfsvg de tests/, aucun fichier du client)
+python3 tests/test_exporter_icons.py
+```
+
+| Famille | Source | Sortie (sous `--sortie`) | Rendu |
+|---|---|---|---|
+| `Smileys`, `Emotes` | `clips/smileys/<n>.swf`, `clips/emotes/<n>.swf` | `Smileys/<n>.png`, `Emotes/<n>.png` | scène, échelle 2, 48 px au plus |
+| `Jobs`, `Alignments` | `clips/jobs/<g>.swf`, `clips/alignments/{,mini/,orders/,feats/}<n>.swf` | même arborescence | scène, échelle 2, 64 px au plus |
+| `Emblems` | `clips/emblems/back/<n>.swf`, `clips/emblems/up/<n>.swf` | `Emblems/back/<n>.png` (instance `back` seule, à teinter), `back/<n>_contour.png` (le reste, même cadre), `up/<n>.png` | scène, échelle 2 |
+| `Portraits` | `clips/artworks/big/<n>.swf` | `Portraits/<n>.png` | scène, échelle 1, 320 px au plus |
+| `Items` | `clips/items/<type>/<gfx>.swf` | `Items/<type>/<gfx>.png` | scène, échelle 2, 80 px au plus |
+| `Spells` | `clips/spells/icons/<id>.swf` | `sorts/<id>.png`, seulement les absents (sauf `--remplacer`) | scène, échelle 2, 80 px au plus |
+| `WorldMap` | exports `x_y` et `subarea_<id>` de `clips/maps/<zone>.swf`, `hints.swf`, `dungeon.swf` | `WorldMap/<zone>/<x_y>.png` + `tuiles.tsv`, `<zone>/sous-zones/<id>.png` + `sous-zones.tsv`, `hints/<id>.png`, `dungeon.png` | symboles, échelle 1 (indices : 2, 48 px) |
+| `UI` | symboles de `modules/core.swf` listés dans `SYMBOLES_UI` | `Client/<Symbole>.png` (+ calques `StarBorder_fill`, `StarBorder_contour`, `Heart_vide`) | symboles, échelle 2 |
+
+Le client affiche ces SWF dans un `Loader` qui ajuste le contenu à son cadre : le recadrage de `swfsvg` sur le contenu est donc le sien. Les transformations de couleur que `swfsvg` écrit en `feColorMatrix` (ignorés par cairosvg) sont appliquées aux couleurs mêmes, le magenta pur restant devient transparent, et chaque PNG passe en palette de 256 couleurs quand l'écart moyen par canal reste sous 4,5/255 sur les pixels visibles. Les calques recolorés à l'exécution (`Color.setRGB`) sont obtenus en réécrivant une copie du SWF sans l'instance nommée, ou avec elle seule, et posés dans le même cadre que le rendu complet. `tuiles.tsv` et `sous-zones.tsv` (`nom x y largeur hauteur`) donnent le coin haut gauche de chaque PNG dans le repère de la carte du monde au zoom 100 (tuile `x_y` posée en `x × 600`, `y × 345`). Quand cairo refuse un dégradé devenu presque ponctuel à une échelle inférieure à 1, l'image est rendue à l'échelle 1 puis réduite. Un SWF illisible ou vide est journalisé et listé dans le `PROVENANCE.md` de sa famille ; la série continue. La commande exacte et les fichiers non exportés de chaque famille sont dans `Outil_Azur_complet/Resources/Bot/<Famille>/PROVENANCE.md` (`Client/PROVENANCE.md` pour `UI`, `sorts/PROVENANCE.md` pour `Spells`).
+
+Mesuré le 4 octobre 2026 sur le client 1.34 fourni (4 cœurs) : 6 208 SWF ou symboles en 2 min 40 s, 6 034 PNG et 29 Mo ; 191 contours de sous-zones de `0.swf`, le portrait `884` et l'objet `15/488` n'ont aucun dessin dans le SWF, et le portrait `9058` ne rend rien.
