@@ -131,7 +131,7 @@ namespace Tool_BotProtocol.Game.Exchanges
         /// </summary>
         public Task<InteractionResult> RefuseAsync() => DropRequestAsync(false);
 
-        /// <summary>« Ignorer » du client : le joueur est ignoré pour la session puis la demande est refusée (<c>EV</c>).</summary>
+        /// <summary>« Ignorer » du client : le joueur rejoint la liste noire temporaire (session) puis la demande est refusée (<c>EV</c>).</summary>
         public Task<InteractionResult> IgnoreAsync() => DropRequestAsync(true);
 
         /// <summary>Envoie <c>EMO+&lt;objet&gt;|&lt;quantité&gt;</c> : ajoute une quantité d'un objet du sac à sa proposition.</summary>
@@ -391,7 +391,8 @@ namespace Tool_BotProtocol.Game.Exchanges
             if (ignore && !request.Outgoing)
                 lock (sync) ignored.Add(request.PartnerName);
             InteractionResult result = await SendAsync("EV", request.Outgoing ? "Demande d'échange annulée."
-                : ignore ? request.PartnerName + " est ignoré pour la session ; demande refusée." : "Demande d'échange de " + request.PartnerName + " refusée.")
+                : ignore ? Lang("TEMPORARY_BLACKLISTED", request.PartnerName + " est ignoré jusqu'à la fin de la session.", request.PartnerName)
+                : "Demande d'échange de " + request.PartnerName + " refusée.")
                 .ConfigureAwait(false);
             if (result.Sent)
             {

@@ -93,7 +93,13 @@ namespace Tool_BotProtocol.Game.Exchanges
             account = owner;
             Registration[] known;
             lock (StaticSync) { EnsureDiscovered(); known = Registrations.Values.Distinct().ToArray(); }
-            foreach (Registration registration in known) Resolve(registration);
+            // Fenêtres créées d'avance (propriétés Shop, Exchange, Storage) ; une fabrique extérieure défaillante est
+            // journalisée et retentée à son premier ECK, sans empêcher la création du compte.
+            foreach (Registration registration in known)
+            {
+                try { Resolve(registration); }
+                catch (Exception error) when (!(error is OutOfMemoryException)) { account?.Logger?.LogException(Reference, error); }
+            }
         }
 
         /// <summary>Déclare la fenêtre d'un type depuis une autre bibliothèque ; la fabrique est appelée une fois par compte.</summary>
@@ -155,7 +161,13 @@ namespace Tool_BotProtocol.Game.Exchanges
             string data = separator < 0 ? string.Empty : body.Substring(separator + 1);
             if (!int.TryParse(head, NumberStyles.Integer, CultureInfo.InvariantCulture, out int type))
                 return RefuseAsync("Échange de type illisible (ECK" + body + ") : fermeture demandée au serveur.");
-            IExchange window = For(type);
+            IExchange window;
+            try { window = For(type); }
+            catch (Exception error) when (!(error is OutOfMemoryException))
+            {
+                account?.Logger?.LogException(Reference, error);
+                return RefuseAsync("La fenêtre de l'échange « " + ExchangeTypes.Describe(type) + " » n'a pas pu être créée : fermeture demandée au serveur.");
+            }
             if (window == null)
                 return RefuseAsync("Échange « " + ExchangeTypes.Describe(type) + " » (ECK" + type + ") non pris en charge par le bot : fermeture demandée au serveur.");
             IExchange previous;
@@ -163,9 +175,14 @@ namespace Tool_BotProtocol.Game.Exchanges
             if (previous != null && !ReferenceEquals(previous, window) && previous.IsOpen)
             {
                 account?.Logger?.LogDanger(Reference, "Nouvel échange ouvert alors que le précédent n'était pas fermé : il est oublié.");
-                previous.Clear();
+                Safe(previous, "ECK", w => w.Clear());
             }
-            window.OnCreated(type, data);
+            if (!Safe(window, "ECK", w => w.OnCreated(type, data)))
+            {
+                lock (sync) { if (ReferenceEquals(current, window)) current = null; }
+                Safe(window, "ECK", w => w.Clear());
+                return RefuseAsync("L'échange « " + ExchangeTypes.Describe(type) + " » n'a pas pu être ouvert : fermeture demandée au serveur.");
+            }
             RaiseChanged();
             return Task.CompletedTask;
         }
@@ -205,11 +222,11 @@ namespace Tool_BotProtocol.Game.Exchanges
         {
             IExchange window;
             lock (sync) { window = current; current = null; }
-            if (window != null) window.OnLeave(suffix);
+            if (window != null) Safe(window, "EV", w => w.OnLeave(suffix));
             else
             {
                 PlayerExchange players = Get<PlayerExchange>();
-                if (players != null && players.PendingRequest != null) ((IExchange)players).OnLeave(suffix);
+                if (players != null && players.PendingRequest != null) Safe(players, "EV", w => w.OnLeave(suffix));
                 else account?.Logger?.LogDebug(Reference, "EV" + suffix + " reçu sans échange ouvert.");
             }
             ResetLegacyState();
@@ -221,11 +238,7 @@ namespace Tool_BotProtocol.Game.Exchanges
         {
             IExchange[] all;
             lock (sync) { current = null; all = instances.Values.Distinct().ToArray(); }
-            foreach (IExchange window in all)
-            {
-                try { window.Clear(); }
-                catch (Exception error) { account?.Logger?.LogException(Reference, error); }
-            }
+            foreach (IExchange window in all) Safe(window, "Clear", w => w.Clear());
             LastMessage = string.Empty;
         }
 
@@ -233,7 +246,7 @@ namespace Tool_BotProtocol.Game.Exchanges
         /// Texte du client (<c>lang.xml</c> chargé par <c>LangData</c>) avec ses paramètres <c>%1</c>…, ou le texte de repli
         /// rédigé pour le bot quand la clé n'est pas disponible.
         /// </summary>
-        internal static string Text(string key, string fallback, params string[] args)
+        public static string Text(string key, string fallback, params string[] args)
         {
             try
             {
@@ -255,7 +268,18 @@ namespace Tool_BotProtocol.Game.Exchanges
                 account?.Logger?.LogDebug(Reference, "Paquet " + prefix + (data ?? string.Empty) + " reçu hors échange : ignoré.");
                 return;
             }
-            action(window);
+            Safe(window, prefix, action);
+        }
+
+        /// <summary>Appel protégé d'une fenêtre (celles d'autres bibliothèques ne passent pas par <see cref="ExchangeWindow"/>).</summary>
+        private bool Safe(IExchange window, string prefix, Action<IExchange> action)
+        {
+            try { action(window); return true; }
+            catch (Exception error) when (!(error is OutOfMemoryException))
+            {
+                account?.Logger?.LogError(Reference, "Paquet " + prefix + " non appliqué par " + window.GetType().Name + " : " + error.Message);
+                return false;
+            }
         }
 
         private Task RefuseAsync(string message)
