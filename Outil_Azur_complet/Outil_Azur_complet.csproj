@@ -269,9 +269,6 @@
     <Compile Include="Bot\GameClientFullform.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="Bot\GameClientFullform.Interactions.cs">
-      <SubType>Form</SubType>
-    </Compile>
     <Compile Include="Bot\GameClientFullform.Designer.cs">
       <DependentUpon>GameClientFullform.cs</DependentUpon>
     </Compile>
@@ -301,6 +298,14 @@
     <Compile Include="Bot\Panels\PanelHost.cs">
       <SubType>Component</SubType>
     </Compile>
+    <Compile Include="Bot\Panels\DialoguePanel.cs" />
+    <Compile Include="Bot\Panels\ZaapsPanel.cs" />
+    <Compile Include="Bot\Panels\ShopPanel.cs" />
+    <Compile Include="Bot\Panels\InventoryPanel.cs" />
+    <Compile Include="Bot\Panels\StatsPanel.cs" />
+    <Compile Include="Bot\Panels\SpellsPanel.cs" />
+    <Compile Include="Bot\Panels\JobsPanel.cs" />
+    <Compile Include="Bot\Panels\JournalPanel.cs" />
     <Compile Include="Bot\Controls\ActorMenuRegistry.cs" />
     <Compile Include="Bot\Controls\ActorContextMenu.cs" />
     <Compile Include="Bot\Controls\HudPanel.cs">
