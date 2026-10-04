@@ -39,6 +39,7 @@ namespace Outil_Azur_complet.Bot.Panels
         private bool wasActive, hadOutgoing;
         private Form inviteDialog;
         private string inviteShown;
+        private IReadOnlyList<PartyLocation> shownLocations;
 
         public PartyPanel()
         {
@@ -261,15 +262,22 @@ namespace Outil_Azur_complet.Bot.Panels
                     + (compass.Angle.HasValue ? string.Empty : " (carte actuelle)")
                     + (group.FollowedId.HasValue ? " · suivi de " + (group.Find(group.FollowedId.Value)?.Name ?? "?") : string.Empty)
                 : "Boussole : aucune cible.";
-            locations.BeginUpdate(); locations.Items.Clear();
-            foreach (PartyLocation place in party.Locations)
+            // La liste n'est reconstruite que pour un nouvel IH (le tableau reçu est gardé tel quel par le modèle) :
+            // le rafraîchissement fréquent de la fenêtre de jeu ne fait ni clignoter ni perdre la sélection.
+            IReadOnlyList<PartyLocation> received = party.Locations;
+            if (!ReferenceEquals(received, shownLocations))
             {
-                var row = locations.Items.Add(place.PlayerName.Length > 0 ? place.PlayerName : "?");
-                row.SubItems.Add("[" + place.X.ToString(CultureInfo.InvariantCulture) + "," + place.Y.ToString(CultureInfo.InvariantCulture) + "]");
-                row.SubItems.Add(place.MapId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty);
-                row.Tag = place;
+                shownLocations = received;
+                locations.BeginUpdate(); locations.Items.Clear();
+                foreach (PartyLocation place in received)
+                {
+                    var row = locations.Items.Add(place.PlayerName.Length > 0 ? place.PlayerName : "?");
+                    row.SubItems.Add("[" + place.X.ToString(CultureInfo.InvariantCulture) + "," + place.Y.ToString(CultureInfo.InvariantCulture) + "]");
+                    row.SubItems.Add(place.MapId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty);
+                    row.Tag = place;
+                }
+                locations.EndUpdate();
             }
-            locations.EndUpdate();
             status.Text = party.LastMessage;
             UpdateButtons();
         }
@@ -506,7 +514,11 @@ namespace Outil_Azur_complet.Bot.Panels
         /// <summary>Remplace les membres affichés (fil de l'interface) et lance la lecture des illustrations manquantes.</summary>
         public void SetMembers(IReadOnlyList<PartyMember> members, long? leaderId, long? followedId, long selfId)
         {
-            items = members ?? new PartyMember[0];
+            members = members ?? new PartyMember[0];
+            // Mêmes membres (instances immuables du modèle), même chef, même suivi : rien à redessiner, le survol est gardé.
+            if (leader == leaderId && followed == followedId && self == selfId && items.Count == members.Count
+                && items.Zip(members, (shown, next) => ReferenceEquals(shown, next)).All(same => same)) return;
+            items = members;
             leader = leaderId; followed = followedId; self = selfId;
             hover = -1;
             Height = Math.Max(1, items.Count) * RowHeight + 1;

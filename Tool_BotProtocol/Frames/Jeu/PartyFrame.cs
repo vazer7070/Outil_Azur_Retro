@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Groupes;
