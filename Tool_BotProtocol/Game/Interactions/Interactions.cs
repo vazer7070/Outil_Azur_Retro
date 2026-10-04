@@ -97,6 +97,8 @@ namespace Tool_BotProtocol.Game.Interactions
         public Exchanges.PlayerExchange Exchange { get; private set; }
         /// <summary>Coffre ou banque (type 5) (lot F4).</summary>
         public Exchanges.StorageExchange Storage { get; private set; }
+        /// <summary>Groupe du personnage : invitations, membres, suivi, localisation (lot F1).</summary>
+        public Groupes.PartyActions Party { get; private set; }
 
         internal InteractionsClass(Accounts.Accounts account)
         {
@@ -106,8 +108,9 @@ namespace Tool_BotProtocol.Game.Interactions
             Shop = Exchanges.Get<NpcShop>();
             Exchange = Exchanges.Get<Exchanges.PlayerExchange>();
             Storage = Exchanges.Get<Exchanges.StorageExchange>();
+            Party = new Groupes.PartyActions(account);
         }
 
-        public void Clear() { Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); }
+        public void Clear() { Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Party.Clear(); }
     }
 }
