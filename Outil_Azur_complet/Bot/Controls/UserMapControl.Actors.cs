@@ -559,17 +559,17 @@ namespace Outil_Azur_complet.Bot.Controls
                 GraphicsState saved = graphics.Save();
                 try
                 {
-                    if (actor.IsMirrored)
+                    // Image posée en pixels du PNG dans un repère translaté et mis à l'échelle (retourné pour le miroir) :
+                    // libgdiplus ignore la transformation de la vue avec DrawImage(PointF[]…), pas avec un rectangle.
+                    graphics.TranslateTransform(actor.IsMirrored ? target.Right : target.Left, target.Top);
+                    graphics.ScaleTransform((actor.IsMirrored ? -1 : 1) * target.Width / source.Width, target.Height / source.Height);
+                    var destination = new Rectangle(0, 0, source.Width, source.Height);
+                    using (ImageAttributes attributes = actor.IsHovered ? OverheadLayer.SelectionTint() : new ImageAttributes())
                     {
-                        graphics.TranslateTransform(target.Right, target.Top);
-                        graphics.ScaleTransform(-1, 1);
-                        target = new RectangleF(0, 0, target.Width, target.Height);
+                        // Bords de l'image répétés en miroir : pas de liseré pris sur l'image voisine de la bande.
+                        attributes.SetWrapMode(WrapMode.TileFlipXY);
+                        graphics.DrawImage(sheet.Image, destination, source.X, source.Y, source.Width, source.Height, GraphicsUnit.Pixel, attributes);
                     }
-                    var points = new[] { new PointF(target.Left, target.Top), new PointF(target.Right, target.Top), new PointF(target.Left, target.Bottom) };
-                    if (actor.IsHovered)
-                        using (ImageAttributes tint = OverheadLayer.SelectionTint())
-                            graphics.DrawImage(sheet.Image, points, source, GraphicsUnit.Pixel, tint);
-                    else graphics.DrawImage(sheet.Image, points, source, GraphicsUnit.Pixel);
                 }
                 finally { graphics.Restore(saved); }
                 return;

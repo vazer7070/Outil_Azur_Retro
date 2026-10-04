@@ -231,18 +231,27 @@ namespace Outil_Azur_complet.Bot.Controls
             float sx = flipX ? -1 : 1, sy = flipY ? -1 : 1;
             PointF P(float x, float y) => new PointF(tip.X + sx * x, tip.Y + sy * y);
             float right = box.Width, top = -(box.Height + PicHeight), bottom = -PicHeight;
-            using (var path = new GraphicsPath(FillMode.Winding))
+            PointF a = P(0, top), b = P(right, bottom);
+            // Union de régions et non remplissage « winding » d'un chemin : le sens des ellipses de libgdiplus est
+            // l'inverse de celui des rectangles, ce qui percerait le nuage là où les cercles chevauchent le rectangle.
+            using (var path = new GraphicsPath())
+            using (var cloud = new Region(RectangleF.FromLTRB(Math.Min(a.X, b.X), Math.Min(a.Y, b.Y), Math.Max(a.X, b.X), Math.Max(a.Y, b.Y))))
             {
-                PointF a = P(0, top), b = P(right, bottom);
                 path.AddRectangle(RectangleF.FromLTRB(Math.Min(a.X, b.X), Math.Min(a.Y, b.Y), Math.Max(a.X, b.X), Math.Max(a.Y, b.Y)));
-                void Circle(float x, float y, float radius) { PointF c = P(x, y); path.AddEllipse(c.X - radius, c.Y - radius, radius * 2, radius * 2); }
+                void Circle(float x, float y, float radius)
+                {
+                    PointF c = P(x, y);
+                    var bounds = new RectangleF(c.X - radius, c.Y - radius, radius * 2, radius * 2);
+                    path.AddEllipse(bounds);
+                    using (var circle = new GraphicsPath()) { circle.AddEllipse(bounds); cloud.Union(circle); }
+                }
                 for (float x = 0; x <= right; x += 14) { Circle(x, top, 7); Circle(x, bottom, 7); }
                 for (float y = top; y <= bottom; y += 14) { Circle(right, y, 7); Circle(0, y, 7); }
                 Circle(0, bottom + 5, 8);
                 Circle(-5, 5, 4);
-                // Halo noir (GlowFilter du client) puis nuage blanc à 90 %.
+                // Halo noir (GlowFilter du client) sous le contour de chaque forme, puis nuage blanc à 90 % par-dessus.
                 using (var glow = new Pen(Color.FromArgb(77, 0, 0, 0), 3f) { LineJoin = LineJoin.Round }) graphics.DrawPath(glow, path);
-                using (var brush = new SolidBrush(Color.FromArgb(230, 255, 255, 255))) graphics.FillPath(brush, path);
+                using (var brush = new SolidBrush(Color.FromArgb(230, 255, 255, 255))) graphics.FillRegion(brush, cloud);
             }
         }
     }
