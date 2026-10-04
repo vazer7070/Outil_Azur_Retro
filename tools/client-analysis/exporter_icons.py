@@ -84,6 +84,8 @@ def lire_swf(donnees):
         raise SwfInvalide("SWF vide")
     nbits = corps[0] >> 3
     debut = (5 + 4 * nbits + 7) // 8 + 4
+    if len(corps) < debut:
+        raise SwfInvalide("en-tête tronqué")
     return version, corps[:debut], lire_balises(corps, debut, len(corps))
 
 
@@ -267,7 +269,9 @@ def lire_index(dossier):
 
 def swfsvg(binaire, swf, dossier, scene=False, noms=()):
     os.makedirs(dossier, exist_ok=True)
-    commande = [binaire] + (["--scene", "--name", "scene"] if scene else []) + [swf, dossier] + list(noms)
+    # Un swfsvg écrit en Python (faux swfsvg des tests) est lancé par cet interpréteur.
+    lanceur = [sys.executable, binaire] if binaire.endswith(".py") else [binaire]
+    commande = lanceur + (["--scene", "--name", "scene"] if scene else []) + [swf, dossier] + list(noms)
     sortie = subprocess.run(commande, capture_output=True, text=True, timeout=300)
     if sortie.returncode != 0:
         raise RuntimeError("swfsvg %s : %s" % (os.path.basename(swf), (sortie.stderr or "").strip()[:300]))
