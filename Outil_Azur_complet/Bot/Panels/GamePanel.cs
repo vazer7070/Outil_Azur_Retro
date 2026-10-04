@@ -75,6 +75,13 @@ namespace Outil_Azur_complet.Bot.Panels
             if (disposed || action == null) return;
             Control target = Host != null && !Host.IsDisposed ? (Control)Host : view;
             if (target == null || target.IsDisposed) return;
+            // Un tiroir jamais affiché n'a pas de poignée : l'action serait perdue (.NET) ou exécutée sur le fil réseau (Mono).
+            // On passe alors par la fenêtre de jeu, qui en a une dès son ouverture.
+            if (!target.IsHandleCreated)
+            {
+                Form form = target.FindForm();
+                if (form != null && !form.IsDisposed && form.IsHandleCreated) target = form;
+            }
             BotUi.OnUi(target, () => { if (!disposed) action(); });
         }
 

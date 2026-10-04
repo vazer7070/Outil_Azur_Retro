@@ -299,8 +299,14 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Bot\Panels\DialoguePanel.cs" />
+    <Compile Include="Bot\Panels\NpcPortraits.cs" />
     <Compile Include="Bot\Panels\ZaapsPanel.cs" />
     <Compile Include="Bot\Panels\ShopPanel.cs" />
+    <Compile Include="Bot\Panels\ExchangeItemGrid.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Panels\ExchangePanel.cs" />
+    <Compile Include="Bot\Panels\StoragePanel.cs" />
     <Compile Include="Bot\Panels\InventoryPanel.cs" />
     <Compile Include="Bot\Panels\StatsPanel.cs" />
     <Compile Include="Bot\Panels\SpellsPanel.cs" />
@@ -312,7 +318,7 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Bot\Interfaces\InteractionRouter.cs" />
-    <Compile Include="Bot\Menus\NpcBasicMenuProvider.cs" />
+    <Compile Include="Bot\Menus\NpcMenuProvider.cs" />
     <Compile Include="Bot\LoginForm.Designer.cs">
       <DependentUpon>LoginForm.cs</DependentUpon>
     </Compile>
@@ -703,6 +709,20 @@
     <Copy SourceFiles="@(BotSpellIcon)" DestinationFiles="@(BotSpellIcon->'$(OutDir)ressources\Bot\sorts\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(BotSpriteAsset)" DestinationFiles="@(BotSpriteAsset->'$(OutDir)ressources\Bot\sprites\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
+  <!-- Textes des fichiers de langue du client (lang2xml.py) : lus par Tool_BotProtocol.Game.Data.LangData. -->
+  <Target Name="CopyBotLangAssets" AfterTargets="Build">
+    <ItemGroup>
+      <BotLangAsset Include="$(ProjectDir)Resources\Bot\BotLang\*.xml" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BotLangAsset)" DestinationFolder="$(OutDir)ressources\Bot\BotLang" SkipUnchangedFiles="true" />
+  </Target>
+  <!-- Décor exporté du client par tools/client-analysis/exporter_decor.py (PNG et ancres.tsv, voir Resources\Bot\Decor\PROVENANCE.md). -->
+  <Target Name="CopyBotDecorAssets" AfterTargets="Build">
+    <ItemGroup>
+      <BotDecorAsset Include="$(ProjectDir)Resources\Bot\Decor\**\*.png;$(ProjectDir)Resources\Bot\Decor\ancres.tsv" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BotDecorAsset)" DestinationFiles="@(BotDecorAsset->'$(OutDir)ressources\maps\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
   <!-- The supplied image/sound libraries historically live under bin/Debug.
        Make other build configurations usable with the same runtime assets. -->
   <Target Name="CopyAzurRuntimeAssets" AfterTargets="Build" Condition="'$(Configuration)' != 'Debug' and Exists('$(ProjectDir)bin\Debug\ressources')">
@@ -711,6 +731,10 @@
     </ItemGroup>
     <MakeDir Directories="$(OutDir)ressources\maps\backgrounds;$(OutDir)ressources\maps\sols;$(OutDir)ressources\maps\objets;$(OutDir)ressources\maps\musics" />
     <Copy SourceFiles="@(AzurRuntimeAsset)" DestinationFiles="@(AzurRuntimeAsset->'$(OutDir)ressources\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+  <!-- Ancres des sprites d'acteurs (tools/client-analysis/exporter_sprites.py) ; les PNG voisins sont copiés par CopyBotSpellAssets. -->
+  <Target Name="CopyBotSpriteAnchors" AfterTargets="Build">
+    <Copy SourceFiles="$(ProjectDir)Resources\Bot\sprites\ancres.tsv" DestinationFolder="$(OutDir)ressources\Bot\sprites" SkipUnchangedFiles="true" Condition="Exists('$(ProjectDir)Resources\Bot\sprites\ancres.tsv')" />
   </Target>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>

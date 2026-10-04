@@ -82,6 +82,7 @@ internal static class BotMapViewSmoke
                     "Map artwork lost an encoded scenery layer");
                 Check(scenery.Cells[5].GroundFlip && scenery.Cells[5].Object1Flip && scenery.Cells[6].GroundRotation == 1,
                     "Map artwork ignored flips or rotations");
+                Check(scenery.WaitForAssets(10000), "Map artwork PNG loading did not finish");
                 Check(scenery.MissingAssetCount == 0 && scenery.LoadedAssetCount >= 5, "Valid fixture PNG library was reported missing");
                 using (FileStream exclusive = File.Open(groundPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
                     Check(exclusive.Length > 0, "Scenery retained a file lock");
@@ -96,10 +97,10 @@ internal static class BotMapViewSmoke
             }
             map.MapData = EncodedCell(1900, 0, 0, false, 0) + data.Substring(10);
             using (var missing = new BotMapArtwork(map, directory))
-                Check(missing.MissingAssetCount == 1 && missing.Status.Contains("sol 1900"), "Missing scenery silently disappeared");
+                Check(missing.WaitForAssets(10000) && missing.MissingAssetCount == 1 && missing.Status.Contains("sol 1900"), "Missing scenery silently disappeared");
             map.MapData = EncodedCell(11, 14, 0, false, 0) + data.Substring(10);
             using (var transparent = new BotMapArtwork(map, directory))
-                Check(transparent.WorldBounds.Width < 220 && transparent.WorldBounds.Height < 200,
+                Check(transparent.WaitForAssets(10000) && transparent.WorldBounds.Width < 220 && transparent.WorldBounds.Height < 200,
                     "Transparent PNG margins shrank the fitted map");
         }
 

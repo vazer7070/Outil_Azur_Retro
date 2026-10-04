@@ -338,3 +338,69 @@ fn bad_input_is_reported_without_panic() {
     assert!(o.status.success());
     assert!(String::from_utf8_lossy(&o.stderr).contains("inexistant"));
 }
+
+/// Forme 20×20 remplie par `fill`, posée ×4 dans le clip exporté `peint` (comme les sprites du
+/// client, dont les formes sont presque toujours mises à l'échelle par leur clip parent).
+fn write_paint_swf(path: &Path, fill: FillStyle, extra: Vec<Tag<'static>>) {
+    let shape = Tag::DefineShape(Shape {
+        version: 3,
+        id: 41,
+        shape_bounds: bounds(0.0, 0.0, 20.0, 20.0),
+        edge_bounds: bounds(0.0, 0.0, 20.0, 20.0),
+        flags: ShapeFlag::empty(),
+        styles: ShapeStyles { fill_styles: vec![fill], line_styles: vec![] },
+        shape: rect_records(0.0, 0.0, 20.0, 20.0, Some(1)),
+    });
+    let mut scaled = place(1, PlaceObjectAction::Place(41), None);
+    scaled.matrix = Some(Matrix::scale(Fixed16::from_f32(4.0), Fixed16::from_f32(4.0)));
+    let mut tags = extra;
+    tags.push(shape);
+    tags.push(sprite(42, vec![tag(scaled), Tag::ShowFrame]));
+    tags.push(Tag::ExportAssets(vec![ExportedAsset { id: 42, name: SwfStr::from_utf8_str("peint") }]));
+    tags.push(Tag::ShowFrame);
+    let header = Header { compression: Compression::None, version: 8, stage_size: bounds(0.0, 0.0, 550.0, 400.0), frame_rate: Fixed8::from_f32(12.0), num_frames: 1 };
+    let mut out = Vec::new();
+    write_swf(&header, &tags, &mut out).expect("écriture du SWF de test");
+    std::fs::write(path, out).expect("SWF de test");
+}
+
+fn attribute(svg: &str, name: &str) -> String {
+    let start = svg.find(&format!("{}=\"", name)).unwrap_or_else(|| panic!("{} absent : {}", name, svg)) + name.len() + 2;
+    svg[start..start + svg[start..].find('"').unwrap()].to_string()
+}
+
+#[test]
+fn fill_matrices_are_not_scaled_twice() {
+    // Le tracé est dans <g transform="matrix(4 …)"> : le motif d'un bitmap et un dégradé
+    // s'expriment dans l'espace de la forme ; leur ajouter la pose du clip les réduisait encore
+    // de 4, d'où des motifs minuscules répétés sur la forme (fumées de l'épée de combat 3).
+    let w = Work::new("paint");
+    let mut argb = Vec::new();
+    for _ in 0..4 {
+        argb.extend_from_slice(&[255, 200, 40, 40]);
+    }
+    let mut zlib = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+    std::io::Write::write_all(&mut zlib, &argb).unwrap();
+    let data = std::borrow::Cow::Owned(zlib.finish().unwrap());
+    let bitmap = Tag::DefineBitsLossless(DefineBitsLossless { version: 2, id: 40, format: BitmapFormat::Rgb32, width: 2, height: 2, data });
+    // Un pixel du bitmap couvre 10 pixels de la forme (matrice d'un remplissage bitmap : 20 × 10).
+    let fill = FillStyle::Bitmap { id: 40, matrix: Matrix::scale(Fixed16::from_f32(200.0), Fixed16::from_f32(200.0)), is_smoothed: false, is_repeating: false };
+    let swf = w.dir.join("bitmap.swf").to_string_lossy().to_string();
+    write_paint_swf(Path::new(&swf), fill, vec![bitmap]);
+    ok(&[&swf, &w.out(), "peint"]);
+    let svg = w.read("peint.svg");
+    assert!(svg.contains("<g transform=\"matrix(4 0 0 4 0 0)\""), "pose du clip absente : {}", svg);
+    assert_eq!(attribute(&svg, "patternTransform"), "matrix(10 0 0 10 0 0)");
+    assert_eq!(view_box(&svg), "0 0 80 80");
+
+    let gradient = FillStyle::LinearGradient(Gradient {
+        matrix: Matrix::scale(Fixed16::from_f32(0.5), Fixed16::from_f32(0.5)),
+        spread: GradientSpread::Pad,
+        interpolation: GradientInterpolation::Rgb,
+        records: vec![GradientRecord { ratio: 0, color: Color { r: 0, g: 0, b: 0, a: 255 } }, GradientRecord { ratio: 255, color: Color { r: 255, g: 255, b: 255, a: 255 } }],
+    });
+    let swf = w.dir.join("degrade.swf").to_string_lossy().to_string();
+    write_paint_swf(Path::new(&swf), gradient, vec![]);
+    ok(&[&swf, &w.out(), "peint"]);
+    assert_eq!(attribute(&w.read("peint.svg"), "gradientTransform"), "matrix(0.5 0 0 0.5 0 0)");
+}

@@ -54,6 +54,15 @@ try {
     $azurTests += 'BotSessionSmoke'
     $azurTests += 'BotActorsModelSmoke'
     $azurTests += 'BotPanelsSmoke'
+    $azurTests += 'BotServerExportsSmoke'
+    $azurTests += 'BotLangDataSmoke'
+    $azurTests += 'BotDecorAnchorsSmoke'
+    $azurTests += 'BotFightProtocolSmoke'
+    $azurTests += 'BotChatProtocolSmoke'
+    $azurTests += 'BotNpcDialogTextsSmoke'
+    $azurTests += 'BotSpriteSheetsSmoke'
+    $azurTests += 'BotMovementSmoke'
+    $azurTests += 'BotExchangeSmoke'
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'
@@ -118,6 +127,11 @@ try {
         & cargo test --release --quiet --manifest-path (Join-Path $azurRoot 'tools\client-analysis\swfsvg\Cargo.toml')
         if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de swfsvg.' }
         Write-Host 'Tests de swfsvg réussis.'
+        # Export des sprites d'acteurs (Python, cairosvg et Pillow) : faux swfsvg, aucun fichier du client.
+        $azurPython = Get-Command python3, python -ErrorAction SilentlyContinue | Select-Object -First 1
+        if (!$azurPython) { throw 'Python 3 est introuvable : installez-le avec cairosvg et Pillow ou retirez -Outils.' }
+        & $azurPython.Source (Join-Path $azurRoot 'tools\client-analysis\tests\test_exporter_sprites.py')
+        if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de exporter_sprites.py.' }
     }
     Write-Host "$($azurTests.Count) tests réussis. Fichiers temporaires et journaux : $azurWork"
 }

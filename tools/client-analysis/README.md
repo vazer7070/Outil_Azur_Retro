@@ -8,7 +8,7 @@ références qui en découlent (`docs/PROTOCOLE_CLIENT_1_34.md`, `ressources/Bot
 ## Prérequis
 
 - Rust (cargo) pour `avm1dump` et `swfsvg` (dépendance : la crate `swf` de Ruffle).
-- Python 3 pour `as2lite.py` et `relever_protocole.py` ; `pip install cairosvg` pour `exporter_png.py`.
+- Python 3 pour `as2lite.py` et `relever_protocole.py` ; `pip install cairosvg` pour `exporter_png.py` ; `pip install cairosvg pillow` pour `exporter_sprites.py` et ses tests (sous Windows, cairosvg demande aussi la bibliothèque Cairo, `libcairo-2.dll`).
 
 ## Chaîne complète
 
@@ -31,6 +31,10 @@ cargo run --release --manifest-path swfsvg/Cargo.toml -- --list <client>/clips/s
 
 # 5. Conversion en PNG (échelle facultative)
 python3 exporter_png.py svg/ png/ 1
+
+# 6. Sprites d'acteurs du bot : images de repos, cycles de marche et de course, ancres
+python3 exporter_sprites.py <client>/clips/sprites ../../Outil_Azur_complet/Resources/Bot/sprites \
+    --swfsvg swfsvg/target/release/swfsvg --jobs 4
 ```
 
 ## Ce que fait chaque outil
@@ -42,6 +46,7 @@ python3 exporter_png.py svg/ png/ 1
 | `relever_protocole.py` | Suit les chaînes `if (r0 === "x") goto` des méthodes `onMessage` de `dofus.aks.*` pour recomposer les préfixes, relève les `aks.send(...)` et résume la lecture de chaque réponse (`split`, indices, `parseInt`). |
 | `swfsvg` | Exporte en SVG un symbole exporté (forme, clip, bouton à l'état relâché) ou la scène d'un SWF, à l'image voulue : dégradés, bitmaps JPEG/sans perte en base64, transformations de couleur, masques, formes morphées. Les aplats magenta `#FF00FF` sont des emplacements remplis à l'exécution : ils sont omis. Écrit aussi `index.tsv` (cadre de chaque rendu). Voir la section suivante. |
 | `exporter_png.py` | Convertit les SVG en PNG avec cairosvg. |
+| `exporter_sprites.py` | Enchaîne `swfsvg --list`, `--frame` et `--scene` sur `clips/sprites/<gfx>.swf`, convertit avec cairosvg, rogne les marges transparentes, assemble les cycles en bandes et écrit `ancres.tsv`. Voir la section « Sprites d'acteurs ». |
 
 ## `swfsvg` : symboles, scène, images et index
 
@@ -95,12 +100,14 @@ le client, on le dessine à `ancre + (⌊xmin⌋, ⌊ymin⌋) × échelle`.
 
 Rendu : les masques (`clipDepth`) deviennent des `<clipPath>` et le cadre se limite à la partie
 visible ; les formes morphées sont interpolées au `ratio` de leur placement ; une forme vide ne
-compte pas dans le cadre. Quelques symboles `static*` du client sont en réalité des animations
+compte pas dans le cadre. Les dégradés et les remplissages bitmap sont exprimés dans le repère de la
+forme, à l'intérieur du `<g transform>` de son placement (avant la version 0.2.1, la pose du clip leur
+était appliquée deux fois : motifs minuscules répétés, ombres en damier). Quelques symboles `static*` du client sont en réalité des animations
 (`sprites/1219.swf` : l'épouvantail sort du sol, caché par un masque à l'image 1) : `--list` en
 donne le nombre d'images et `--frame` permet de choisir une image représentative. Un SWF illisible
 arrête la commande avec un message et le code 1 (2 pour une option invalide), jamais une panique.
 
-Tests : `cargo test` dans `swfsvg/` (13 tests ; le SWF de test est fabriqué par les tests avec la
+Tests : `cargo test` dans `swfsvg/` (14 tests ; le SWF de test est fabriqué par les tests avec la
 crate `swf`, aucun fichier du client n'est nécessaire).
 
 Temps mesurés (conteneur 4 cœurs, un processus par SWF, binaire `--release`) :
@@ -118,9 +125,72 @@ Temps mesurés (conteneur 4 cœurs, un processus par SWF, binaire `--release`) :
 Robustesse : `--list` et `--scene` sur les 7 735 SWF de `clips/` (195 s) puis `--frame all` sur tous
 les exports d'un sprite sur dix (93 SWF, 260 s) : aucun échec, aucune panique.
 
+## Sprites d'acteurs : `exporter_sprites.py`
+
+```text
+exporter_sprites.py <client>/clips/sprites <sortie> [--swfsvg CHEMIN] [--animes FICHIER]
+                    [--gfx 10,11,...] [--echelle 1] [--jobs N] [--sans-palette]
+```
+
+Requiert swfsvg 0.2.1 ou plus (`--swfsvg`, sinon `$SWFSVG`, le `PATH` ou `swfsvg/target/release`),
+cairosvg et Pillow. Pour chaque `<gfx>.swf` :
+
+- `<gfx>_static<O>.png` (`O` = `S`, `R`, `L`, `F`, `B`, casse du nom d'export ignorée) : la **dernière
+  image utile** du symbole (`--list`), celle où le client s'arrête après l'animation de repos ;
+- `<gfx>_scene.png` quand le SWF n'exporte aucun `static<O>` (épées de combat 0-5, tombes) : image 1
+  de la scène ;
+- pour les gfx du fichier `--animes` (par défaut `<sortie>/sprites_animes.txt`, un gfx par ligne) :
+  `<gfx>_walk<O>.png` et `<gfx>_run<O>.png`, bandes horizontales de toutes les images utiles rendues
+  dans un même cadre (`--frame all`) ;
+- `<sortie>/ancres.tsv` : `gfx anim xmin ymin largeur hauteur images` (en-tête compris), où le point
+  d'ancrage du client est le pixel (`-xmin`, `-ymin`) de chaque image.
+
+Les marges transparentes sont rognées (cadre commun pour une bande), le magenta est effacé comme dans
+`exporter_png.py`, la palette 8 bits n'est retenue que si elle ne change presque rien aux pixels
+visibles. `--gfx` remplace seulement les lignes et les PNG des gfx cités ; les autres fichiers du
+dossier (les anciens `<gfx><O>.png` du bot) ne sont jamais touchés. Un SWF illisible est signalé et
+la série continue. Le détail des conventions et la commande utilisée pour le dépôt sont dans
+`Outil_Azur_complet/Resources/Bot/sprites/PROVENANCE.md`.
+
+| Commande | Durée (4 cœurs) | Sortie |
+|---|---|---|
+| tous les sprites, `--jobs 4`, 24 gfx animés | 3 min 10 s | 2 556 PNG, 16,1 Mo, `ancres.tsv` de 2 556 lignes |
+
+Tests : `python3 tests/test_exporter_sprites.py` (faux `swfsvg` écrit en Python dans `tests/`, aucun
+fichier du client) : image de repos, casse, scène, bandes, magenta, rognage, échelle, `--gfx`.
+
 ## Limites connues
 
 - Les JPEG Flash (segment de tables puis image, `FF D9 FF D8` au milieu des données, `JPEGTables` partagé) sont recollés avant décodage ; un bitmap encore illisible est signalé dans `index.tsv` et sa zone reste vide.
 - Les écrans construits à l'exécution (bandeau, inventaire, sorts, options) n'ont que peu d'art statique : seul leur cadre est exporté.
 - `swfsvg` ne rend pas les filtres ni les modes de fusion (`PlaceObject3` : ombres, lueurs), ni le texte statique (seul son cadre compte), ni les champs de texte. Il n'exécute pas le code des images : un `stop()` est repéré même sous condition, les `gotoAndPlay`, la recoloration des personnages et les accessoires posés par le client ne sont pas reproduits.
 - La décompilation est une pseudo-décompilation : elle suffit à lire les formats de paquets, pas à recompiler le client.
+
+## Textes de langue → XML du bot (`lang2xml.py`)
+
+Les noms de PNJ, les dialogues, les noms de zones, les monstres, les objets, les sorts, les émotes et les messages `Im` ne sont dans aucune table de l'émulateur : le client les lit dans `lang/swf/<famille>_fr_<version>.swf` (un seul `DoAction` qui affecte des objets AS2 : `D.q[id] = "…"`, `N.d[id] = {n, a}`, `MA.m[id] = {x, y, sa…}`). `lang2xml.py` enchaîne `avm1dump`, `as2lite.py` et une lecture des affectations littérales (aucun code n'est exécuté ; une affectation répétée garde la dernière valeur), puis écrit un XML par famille pour `Tool_BotProtocol.Game.Data.LangData` :
+
+```sh
+# 13 familles lues par le bot (défaut) ou toutes les familles connues (28)
+python3 lang2xml.py "<pack Lang>/dofus/lang/swf" ../../Outil_Azur_complet/Resources/Bot/BotLang \
+    [--familles bot|toutes|dialog,npc…] [--avm1dump avm1dump/target/release/avm1dump] [--travail <dossier>]
+
+# conversion d'une pseudo-décompilation déjà produite
+python3 lang2xml.py --as npc_fr_508.as.txt --famille npc --version 508 --sortie npc.xml
+
+# tests (affectations écrites dans le test, aucun SWF)
+python3 test_lang2xml.py
+```
+
+La version de chaque famille est lue dans `lang/versions_fr.txt` quand le fichier existe, sinon la plus haute présente. Mesuré le 4 octobre 2026 : 28 familles en ≈ 20 s, 8,1 Mo de XML. Format, contenu et commande exacte : `Outil_Azur_complet/Resources/Bot/BotLang/PROVENANCE.md`.
+
+## Décor des cartes (`exporter_decor.py`)
+
+```sh
+# swfsvg compilé au préalable (étape 4) ; Pillow et cairosvg : pip install pillow cairosvg
+python3 exporter_decor.py <client> ../../Outil_Azur_complet/Resources/Bot/Decor
+```
+
+Le script exporte les symboles numérotés de `clips/gfx/g1.swf` et `g2.swf` (sols ; au-delà de 500 px, fonds désignés par `BACK`), `o1.swf` à `o11.swf` (objets) et `cell.swf` vers `sols/`, `backgrounds/`, `objets/` et `cellules/`, puis écrit `ancres.tsv` (`type id xmin ymin largeur hauteur image`, séparés par des tabulations) : coin haut gauche de chaque PNG par rapport au point d'enregistrement du symbole, c'est-à-dire la position de la cellule dans le client (l'origine de la carte pour un fond). `BotMapArtwork` dessine chaque PNG à « cellule + (xmin, ymin) ». Les marges transparentes sont découpées, les PNG passent en palette de 256 couleurs quand l'écart reste faible et un symbole vide devient un PNG transparent de 1 px. Le journal final énumère les identifiants présents dans deux bibliothèques (la première occurrence, dans l'ordre o1… o11, est gardée), les fonds de plus de 500 px, les SVG repris parce que cairosvg échoue sur des dégradés minuscules, les symboles vides et les avertissements de `swfsvg`. Une nouvelle exécution remplace les PNG numérotés écrits à la racine de chaque dossier ; une bibliothèque rangée en sous-dossiers reste intacte.
+
+Mesuré sur le client 1.34 fourni (4 cœurs) : 5 649 PNG et 63,3 Mo en un peu plus de 4 minutes (voir `Outil_Azur_complet/Resources/Bot/Decor/PROVENANCE.md`). Les images 2 à 15 des sols, affichées sur les cellules en pente, ne sont exportées que si `swfsvg` accepte `--frame N` (le script le détecte) ; les formes morphées et les textes statiques ne sont pas rendus.

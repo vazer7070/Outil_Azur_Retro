@@ -262,7 +262,13 @@ namespace Outil_Azur_complet.Bot.Controls
             artworkError = null;
             if (map?.HasMapData == true)
             {
-                try { artwork = new BotMapArtwork(map); }
+                try
+                {
+                    // The PNG are read by a background task: refit and repaint once they are published.
+                    artwork = new BotMapArtwork(map);
+                    artwork.AssetsLoaded += ArtworkAssetsLoaded;
+                    if (artwork.AssetsReady) ArtworkAssetsLoaded(artwork, EventArgs.Empty);
+                }
                 catch (Exception error)
                 {
                     artworkError = "Décor indisponible : " + error.Message;
@@ -270,6 +276,19 @@ namespace Outil_Azur_complet.Bot.Controls
                 }
             }
             zoom = 1; pan = PointF.Empty; CellH = null;
+            DisplayStateChanged?.Invoke();
+        }
+
+        private void ArtworkAssetsLoaded(object sender, EventArgs e)
+        {
+            if (IsDisposed || !ReferenceEquals(sender, artwork)) return;
+            if (InvokeRequired)
+            {
+                try { if (IsHandleCreated) BeginInvoke(new Action(() => ArtworkAssetsLoaded(sender, e))); }
+                catch (InvalidOperationException) { } // handle destroyed meanwhile: nothing left to repaint
+                return;
+            }
+            DrawGrille();
             DisplayStateChanged?.Invoke();
         }
 

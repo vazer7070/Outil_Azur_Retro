@@ -1,0 +1,23 @@
+<?xml version='1.0' encoding='utf-8'?>
+<BotLang famille="emotes" langue="fr" version="112" source="emotes_fr_112.swf">
+<emote id="1" nom="S'asseoir" commande="sit" />
+<emote id="2" nom="Faire un signe de la main" commande="bye" />
+<emote id="3" nom="Applaudir" commande="appl" />
+<emote id="4" nom="Se mettre en colère" commande="mad" />
+<emote id="5" nom="Montrer sa peur" commande="fear" />
+<emote id="6" nom="Montrer son arme" commande="weap" />
+<emote id="7" nom="Jouer de la flûte" commande="pipo" />
+<emote id="8" nom="Lâcher les gaz" commande="oups" />
+<emote id="9" nom="Saluer" commande="hi" />
+<emote id="10" nom="Faire un bisou" commande="kiss" />
+<emote id="11" nom="Pierre" commande="pfc1" />
+<emote id="12" nom="Feuille" commande="pfc2" />
+<emote id="13" nom="Ciseaux" commande="pfc3" />
+<emote id="14" nom="Croiser les bras" commande="cross" />
+<emote id="15" nom="Montrer du doigt" commande="point" />
+<emote id="16" nom=". . . . . " commande="crow" />
+<emote id="19" nom="S'allonger" commande="rest" />
+<emote id="21" nom="Champion" commande="champ" />
+<emote id="22" nom="Aura de puissance" commande="aura" />
+<emote id="23" nom="Aura vampyrique" commande="bat" />
+</BotLang>

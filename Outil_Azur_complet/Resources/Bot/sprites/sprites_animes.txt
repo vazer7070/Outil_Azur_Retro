@@ -1,0 +1,30 @@
+# Gfx dont tools/client-analysis/exporter_sprites.py exporte aussi les cycles de marche et de
+# course (<gfx>_walk<O>.png, <gfx>_run<O>.png). Un gfx par ligne ; # commence un commentaire.
+# Ajouter un gfx (monstre, PNJ, monture...) puis relancer l'export avec --gfx <id> pour lui
+# donner ses bandes : compter environ 0,3 à 0,6 Mo par gfx.
+#
+# Personnages joueurs : gfx = classe x 10 + sexe (0 masculin, 1 féminin), classes 1 à 12.
+10
+11
+20
+21
+30
+31
+40
+41
+50
+51
+60
+61
+70
+71
+80
+81
+90
+91
+100
+101
+110
+111
+120
+121

@@ -113,7 +113,7 @@ internal static class BotUiSmoke
                     var xml=System.Xml.Linq.XElement.Load(Path.Combine(TestPaths.ApplicationBin,"ressources","Bot","BotMaps","7411.xml"));
                     Map.AllBotMaps[7411]=new Map { MapID=7411,MapWidth=byte.Parse(xml.Element("LARGEUR").Value),MapHeight=byte.Parse(xml.Element("LONGUEUR").Value),X=int.Parse(xml.Element("X").Value),Y=int.Parse(xml.Element("Y").Value),MapData=xml.Element("MAP_DATA").Value,Back_ID=int.Parse(xml.Element("BACK").Value) };
                     account.Game.Map.SetRefreshMap("7411|date|");account.Game.character.Cell=account.Game.Map.MapCells[282];
-                    var mapView=(Outil_Azur_complet.Bot.Interfaces.MapControl)Get(dashboard,"mapControl");Check(mapView.ArtworkStatus.Contains("Décor chargé"),"Bundled map scenery is unavailable from the application directory");
+                    var mapView=(Outil_Azur_complet.Bot.Interfaces.MapControl)Get(dashboard,"mapControl");for(int wait=0;wait<200&&mapView.ArtworkStatus.StartsWith("Chargement du décor");wait++){Application.DoEvents();System.Threading.Thread.Sleep(50);}Check(mapView.ArtworkStatus.Contains("Décor chargé"),"Bundled map scenery is unavailable from the application directory");
                     Render(dashboard,"bot-astrub",true);mapView.ZoomIn();Render(dashboard,"bot-astrub-zoom",true);mapView.Fit();
                     ((ComboBox)Get(dashboard,"channel")).SelectedIndex=5;((TextBox)Get(dashboard,"recipient")).Text="Destinataire fictif";Render(dashboard,"bot-discussion-privee",true);Check(((TextBox)Get(dashboard,"chatInput")).Width>=130,"Private recipient makes message entry unusable");dashboard.Close();
                 }

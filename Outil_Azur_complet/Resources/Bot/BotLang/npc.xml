@@ -1,0 +1,1096 @@
+<?xml version='1.0' encoding='utf-8'?>
+<BotLang famille="npc" langue="fr" version="508" source="npc_fr_508.swf">
+<action id="1" nom="Acheter/Vendre" />
+<action id="2" nom="Échanger" />
+<action id="3" nom="Parler" />
+<action id="4" nom="Déposer/Reprendre un familier" />
+<action id="5" nom="Vendre" />
+<action id="6" nom="Acheter" />
+<action id="7" nom="Ressusciter un familier" />
+<action id="8" nom="Échanger une monture" />
+<action id="9" nom="Consulter les maisons" />
+<action id="10" nom="Consulter les enclos" />
+<pnj id="1" nom="Percepteur" actions="3" />
+<pnj id="23" nom="Charlotte" actions="1,2,3" />
+<pnj id="26" nom="Séline" actions="1,3" />
+<pnj id="35" nom="Laura Soho" actions="1,3" />
+<pnj id="37" nom="Amine" actions="1,3" />
+<pnj id="38" nom="Rish Claymore" actions="1,2,3" />
+<pnj id="40" nom="Filgar Feel" actions="1,3" />
+<pnj id="41" nom="Setag" actions="1,3" />
+<pnj id="42" nom="Zeurg" actions="1,2,3" />
+<pnj id="43" nom="Epuop Tik" actions="1,2,3" />
+<pnj id="45" nom="Rigal Main Crochue" actions="1,3" />
+<pnj id="46" nom="Elya Wood" actions="1,2,3" />
+<pnj id="47" nom="Edrige Valling" actions="1,2,3" />
+<pnj id="51" nom="Kelog Korflex" actions="1,2,3" />
+<pnj id="52" nom="Azra Lazarus" actions="1,2,3" />
+<pnj id="53" nom="Farle Ingalsse" actions="1,2,3" />
+<pnj id="54" nom="Shika Ingalsse" actions="3" />
+<pnj id="55" nom="Captain Iglout" actions="3" />
+<pnj id="57" nom="Bowisse" actions="1,2,3" />
+<pnj id="58" nom="Hanniboul Smisse" actions="1,3" />
+<pnj id="59" nom="Agrid Shakoku" actions="1,2,3" />
+<pnj id="60" nom="Harrys Corb" actions="1,2,3" />
+<pnj id="61" nom="Casper Van Brushing" actions="1,2,3" />
+<pnj id="62" nom="Graham Finame" actions="1,3" />
+<pnj id="63" nom="Abely Bobeule" actions="1,3" />
+<pnj id="66" nom="Ralgout" actions="1,3" />
+<pnj id="78" nom="Gardien du Kanojedo" actions="3" />
+<pnj id="79" nom="Hugo Bélo" actions="1,2,3" />
+<pnj id="80" nom="Grizmine" actions="3" />
+<pnj id="81" nom="Linda Malibou" actions="1,2,3" />
+<pnj id="82" nom="Boude Spenssour" actions="3" />
+<pnj id="83" nom="Teransse Houlle" actions="3" />
+<pnj id="84" nom="Vil Smisse" actions="3" />
+<pnj id="87" nom="Ded Aléïcar" actions="2,3" />
+<pnj id="88" nom="Lanseuft de Troille" actions="2,3" />
+<pnj id="89" nom="Aria Knofob" actions="3" />
+<pnj id="90" nom="Mori Arty" actions="2,3" />
+<pnj id="91" nom="Simgood le marin" actions="2,3" />
+<pnj id="92" nom="Hourax Hipipe" actions="1,2,3" />
+<pnj id="93" nom="Ale One" actions="2,3" />
+<pnj id="94" nom="Kwaker Vans" actions="2,3" />
+<pnj id="95" nom="Allen Déchakal" actions="2,3" />
+<pnj id="96" nom="Bellus Sel" actions="3" />
+<pnj id="97" nom="Karim Katékit" actions="2,3" />
+<pnj id="98" nom="Frankie" actions="2,3" />
+<pnj id="99" nom="Lara Soft" actions="2,3" />
+<pnj id="100" nom="Banquier" actions="3" />
+<pnj id="101" nom="Loopine" actions="2,3" />
+<pnj id="102" nom="Salamon Rudy" actions="2,3" />
+<pnj id="103" nom="Ely Woullack" actions="3" />
+<pnj id="104" nom="Keck Auprune" actions="2,3" />
+<pnj id="105" nom="Djonz" actions="3" />
+<pnj id="106" nom="Lee Aibig" actions="2,3" />
+<pnj id="107" nom="Lou Pachoups" actions="2,3" />
+<pnj id="108" nom="Ronsha" actions="2,3" />
+<pnj id="109" nom="Ness Laye" actions="2,3" />
+<pnj id="110" nom="Quincy Praïze" actions="2,3" />
+<pnj id="111" nom="Otho Laringo" actions="2,3" />
+<pnj id="112" nom="Ariz" actions="2,3" />
+<pnj id="113" nom="Téha Chicks" actions="2,3" />
+<pnj id="114" nom="Jimmy Rasta" actions="2,3" />
+<pnj id="115" nom="Aga Dou" actions="1,2,3" />
+<pnj id="117" nom="Bolzano Vieilletrasse" actions="2,3" />
+<pnj id="118" nom="Heûl Leise" actions="2,3" />
+<pnj id="119" nom="Assistant d'Otomaï " actions="2,3" />
+<pnj id="120" nom="Max" actions="2,3" />
+<pnj id="121" nom="Koussein Trengon" actions="2,3" />
+<pnj id="122" nom="Ali Akelle" actions="2,3" />
+<pnj id="123" nom="Ozen Le sage" actions="2,3" />
+<pnj id="124" nom="Eowïne Fiole" actions="2,3" />
+<pnj id="125" nom="Drogho Cralasar" actions="2,3" />
+<pnj id="127" nom="Harry Stote" actions="1,3" />
+<pnj id="128" nom="Maître Roublard" actions="3" />
+<pnj id="129" nom="Eleveur de Dragoeuf" actions="2,3" />
+<pnj id="132" nom="Gregor Mendal" actions="3" />
+<pnj id="133" nom="Sosh" actions="1,3" />
+<pnj id="134" nom="Lily" actions="3" />
+<pnj id="136" nom="Lily" actions="3" />
+<pnj id="137" nom="Wa Wabbit" actions="3" />
+<pnj id="139" nom="Logel le Lenald" actions="3" />
+<pnj id="140" nom="Lilou la Lenald" actions="3" />
+<pnj id="141" nom="Wabbit du Matin Pewlant" actions="3" />
+<pnj id="142" nom="Logel le Lenald" actions="3" />
+<pnj id="143" nom="Wabbit du Midi Wayonnant" actions="3" />
+<pnj id="144" nom="Wabbit du Soiw Woulant" actions="3" />
+<pnj id="145" nom="Lenald des Temps Anciens" actions="3" />
+<pnj id="146" nom="Wob" actions="3" />
+<pnj id="147" nom="Gawde Wabbit" actions="3" />
+<pnj id="148" nom="Gawdien Dofus" actions="3" />
+<pnj id="149" nom="Gawdien Dofus" actions="3" />
+<pnj id="151" nom="Gropinson Cruaulé " actions="3" />
+<pnj id="153" nom="Promoteur de l'agence Touriste" actions="3" />
+<pnj id="154" nom="Kib Roche" actions="3" />
+<pnj id="155" nom="Kanniboul cuisinier" actions="3" />
+<pnj id="156" nom="Issé Heau" actions="2,3" />
+<pnj id="157" nom="Employé de l'agence Touriste" actions="3" />
+<pnj id="159" nom="Kanniboul masque" actions="3" />
+<pnj id="160" nom="Moon" actions="3" />
+<pnj id="161" nom="Kara Hibe" actions="2,3" />
+<pnj id="162" nom="Ortimus" actions="3" />
+<pnj id="163" nom="Prêtre" actions="1,3" />
+<pnj id="164" nom="Cherlook Holmus" actions="3" />
+<pnj id="165" nom="Servante" actions="3" />
+<pnj id="166" nom="Uba Tessé " actions="1,3" />
+<pnj id="167" nom="Kande Boffler" actions="3" />
+<pnj id="168" nom="Boff Chalon" actions="3" />
+<pnj id="169" nom="Vid Cheber" actions="3" />
+<pnj id="170" nom="Benn Zin" actions="3" />
+<pnj id="171" nom="Al Okab" actions="3" />
+<pnj id="172" nom="Alshain" actions="3" />
+<pnj id="173" nom="Rotabla le berger triste" actions="3" />
+<pnj id="174" nom="Altaïr" actions="3" />
+<pnj id="175" nom="Chaferfu" actions="3" />
+<pnj id="176" nom="Hel Munster" actions="1,3" />
+<pnj id="177" nom="Altaïr" actions="3" />
+<pnj id="178" nom="Don Rouann" actions="3" />
+<pnj id="180" nom="Amayiro" actions="3" />
+<pnj id="181" nom="Tarazed" actions="3" />
+<pnj id="183" nom="Oto Mustam" actions="3" />
+<pnj id="184" nom="Tarche" actions="3" />
+<pnj id="185" nom="Dame Cloude" actions="3" />
+<pnj id="186" nom="Niamuh Boulkier" actions="3" />
+<pnj id="187" nom="Shere Hacanon" actions="3" />
+<pnj id="188" nom="Finche Aticus" actions="3" />
+<pnj id="189" nom="Trev Pelsantery" actions="3" />
+<pnj id="190" nom="Rei Rosert" actions="3" />
+<pnj id="191" nom="Flora Retnie" actions="3" />
+<pnj id="192" nom="Hersa Griffe Sombre " actions="3" />
+<pnj id="193" nom="Arone" actions="2,3,4" />
+<pnj id="194" nom="Torche" actions="3" />
+<pnj id="195" nom="Père Furax" />
+<pnj id="196" nom="Wogew l'hewmite" actions="3" />
+<pnj id="197" nom="Leonzi Trool" actions="3" />
+<pnj id="198" nom="Tabi de Grace Malcean" actions="3" />
+<pnj id="199" nom="Clara Daule" actions="3" />
+<pnj id="200" nom="Layol Nidalap " actions="3" />
+<pnj id="201" nom="Larry Poller" actions="1,3" />
+<pnj id="202" nom="Jett Marte" actions="3" />
+<pnj id="203" nom="William Lenglad" actions="3" />
+<pnj id="204" nom="Vicky Facheyon" actions="3" />
+<pnj id="205" nom="Maude Ere" />
+<pnj id="206" nom="Erem Dran" actions="3" />
+<pnj id="207" nom="Larik Oubiac" actions="3" />
+<pnj id="208" nom="Nani Tago" />
+<pnj id="209" nom="Gigi" />
+<pnj id="210" nom="Neige" actions="3" />
+<pnj id="211" nom="Yvan Amarh" actions="3" />
+<pnj id="212" nom="Sen Eiser" actions="3" />
+<pnj id="213" nom="Galde Avout" actions="3" />
+<pnj id="214" nom="Hete Renelt" actions="3" />
+<pnj id="215" nom="Capitaine Alrok" actions="3" />
+<pnj id="216" nom="Onnel Passepat" actions="3" />
+<pnj id="217" nom="Grace Malcean" actions="3" />
+<pnj id="218" nom="Ruth Banke" actions="3" />
+<pnj id="219" nom="Majono Takubin" />
+<pnj id="220" nom="Anik Mech" actions="3" />
+<pnj id="221" nom="Moub Reicifitra" actions="1,3" />
+<pnj id="222" nom="Chevalier Neuthr" actions="3" />
+<pnj id="223" nom="Doug Tulvin" actions="3" />
+<pnj id="224" nom="Milie Reilloc" />
+<pnj id="225" nom="Gaï Tane" actions="3" />
+<pnj id="226" nom="Ecureuil clairvoyant" actions="3" />
+<pnj id="227" nom="Dike Tarak" actions="3" />
+<pnj id="228" nom="Sanagouk" />
+<pnj id="229" nom="Marsel Leax" actions="3" />
+<pnj id="230" nom="Kaze koule" actions="3" />
+<pnj id="231" nom="Ned Etsith" actions="3" />
+<pnj id="232" nom="Sey jissey" />
+<pnj id="233" nom="Ture Inge" actions="3" />
+<pnj id="234" nom="Enoué Chupac" />
+<pnj id="235" nom="Bill Iédebar" actions="3" />
+<pnj id="236" nom="Connie Vini" actions="1,3" />
+<pnj id="237" nom="Roca Charmé " actions="1,3" />
+<pnj id="238" nom="Tsog" />
+<pnj id="239" nom="Musa " actions="1,3" />
+<pnj id="240" nom="Tavernier Feubuk" actions="1,3" />
+<pnj id="241" nom="Marge Gondersun" actions="1,3" />
+<pnj id="242" nom="Mak Gahan" actions="3" />
+<pnj id="243" nom="Ivrogne anonyme" actions="3" />
+<pnj id="244" nom="Tavernier Tabasse" actions="1,3" />
+<pnj id="245" nom="Seci Ves" actions="3" />
+<pnj id="246" nom="Guerrier Brank Thoof" actions="3" />
+<pnj id="247" nom="Guerrier Seta Bnamron" actions="3" />
+<pnj id="248" nom="Guerrier Tink Berval" actions="3" />
+<pnj id="249" nom="Guerrier Kad Maxy" actions="3" />
+<pnj id="250" nom="Guerrier Jack Rottance" actions="3" />
+<pnj id="251" nom="Guerrier Haco Norss" actions="3" />
+<pnj id="252" nom="Guerrier Xale DuGros" actions="3" />
+<pnj id="253" nom="Guerrier Nager Nacmeil" actions="3" />
+<pnj id="254" nom="Guerrier Sivart Bicelk" actions="3" />
+<pnj id="255" nom="Guerrier Bishom Pot" actions="3" />
+<pnj id="256" nom="Kosuke Ichazum" actions="1,3" />
+<pnj id="257" nom="Capitaine Malfe" actions="3" />
+<pnj id="258" nom="Fryda Griffe-de-la-Nuit" actions="3" />
+<pnj id="259" nom="Rekojel" actions="3" />
+<pnj id="260" nom="Tek Apout" actions="3" />
+<pnj id="261" nom="Kazzy Duno" actions="3" />
+<pnj id="262" nom="Allen Tokar" actions="3" />
+<pnj id="263" nom="Lansy Odsson" />
+<pnj id="264" nom="Rafaj" actions="3" />
+<pnj id="265" nom="Dante Sion" actions="3" />
+<pnj id="266" nom="Baal O'Char" actions="3" />
+<pnj id="267" nom="Diabalou" actions="3" />
+<pnj id="268" nom="Mimi Fista" actions="3" />
+<pnj id="269" nom="Vagabond" actions="3" />
+<pnj id="270" nom="Servante démoniaque" actions="3" />
+<pnj id="271" nom="Bout d'chair " actions="1,3" />
+<pnj id="272" nom="Roupi Chipon " actions="1,3" />
+<pnj id="273" nom="Tadosse" actions="3" />
+<pnj id="274" nom="Rucar" actions="1,3" />
+<pnj id="275" nom="Runyac" />
+<pnj id="276" nom="Oket" />
+<pnj id="277" nom="Milone Corichel" actions="1,3" />
+<pnj id="278" nom="Artok" actions="1,3" />
+<pnj id="279" nom="Boulor" actions="3" />
+<pnj id="280" nom="Sotsiah Peh" actions="1,3" />
+<pnj id="281" nom="Gymy Ro" actions="3" />
+<pnj id="282" nom="ZolTAN" actions="3" />
+<pnj id="283" nom="Trysy" actions="3" />
+<pnj id="284" nom="Enamira" actions="3" />
+<pnj id="285" nom="Fulsura" actions="3" />
+<pnj id="286" nom="Nim Nei" />
+<pnj id="287" nom="Tamiat" actions="3" />
+<pnj id="288" nom="Koli" actions="3" />
+<pnj id="289" nom="Sperwel" actions="3" />
+<pnj id="290" nom="Iakos" actions="3" />
+<pnj id="291" nom="Sanglier des plaines" />
+<pnj id="292" nom="Tavernier Bagrutte" actions="1,3" />
+<pnj id="293" nom="Tavernier Alakarte" actions="1,3" />
+<pnj id="294" nom="Tavernier Chopenbois" actions="1,3" />
+<pnj id="295" nom="Tavernier Pinchaut" actions="1,3" />
+<pnj id="296" nom="Tavernier Ferayeur" actions="1,3" />
+<pnj id="297" nom="Oshimo" actions="1,2,3,4" />
+<pnj id="298" nom="Nissacram" actions="3" />
+<pnj id="300" nom="Bhan Laka" actions="1,3" />
+<pnj id="301" nom="Gringo" />
+<pnj id="302" nom="Gringa" />
+<pnj id="303" nom="Gringu" />
+<pnj id="304" nom="Gringi" />
+<pnj id="305" nom="Jerhyn Gholein" actions="3" />
+<pnj id="306" nom="Ala Raine" actions="1,3" />
+<pnj id="307" nom="Tabach le Greffier" actions="3" />
+<pnj id="308" nom="Aigurraf le Greffier" actions="3" />
+<pnj id="309" nom="Ybaul, Greffière" actions="3" />
+<pnj id="310" nom="Kaffra Kyper" actions="3" />
+<pnj id="311" nom="Chevalier Hertuen" actions="3" />
+<pnj id="312" nom="Bruli Ounim" actions="1,3" />
+<pnj id="313" nom="Rika Charmé " actions="1" />
+<pnj id="314" nom="Huta Wouite" actions="1,3" />
+<pnj id="315" nom="Paro Cabanne" actions="1,3" />
+<pnj id="316" nom="Angelo Bolle" actions="1,3" />
+<pnj id="317" nom="Ixa Mustam" />
+<pnj id="318" nom="Danathor" actions="3" />
+<pnj id="319" nom="Rei Nisuc" actions="3" />
+<pnj id="320" nom="Trof Hapyus" actions="3" />
+<pnj id="321" nom="Krachan Porterr" actions="1,3" />
+<pnj id="322" nom="Kro Burk" actions="3" />
+<pnj id="323" nom="Jiaye Djaul" actions="1,3" />
+<pnj id="324" nom="Kwoker Djaul" />
+<pnj id="325" nom="Ichassi Djaul" actions="3" />
+<pnj id="326" nom="Malicia Misère" actions="1,3" />
+<pnj id="327" nom="Reve Nocturne" />
+<pnj id="328" nom="Aldir Atolmond" actions="1,3" />
+<pnj id="329" nom="Ranj Thé " actions="3" />
+<pnj id="330" nom="Capitaine Essacarf" actions="3" />
+<pnj id="331" nom="Houé Dapyus" actions="3" />
+<pnj id="332" nom="Goldo Arak" />
+<pnj id="333" nom="Colonel Lyeno" actions="3" />
+<pnj id="334" nom="Chevalier Nogard" actions="3" />
+<pnj id="335" nom="Sbab " actions="3" />
+<pnj id="336" nom="Capitaine Koda" actions="3" />
+<pnj id="337" nom="Gobelin" actions="3" />
+<pnj id="338" nom="Chef Milicien" />
+<pnj id="339" nom="Milicien" />
+<pnj id="340" nom="Greg Aougos" />
+<pnj id="341" nom="Raaga" actions="3" />
+<pnj id="342" nom="Raaga" actions="3" />
+<pnj id="343" nom="Sentinelle Tevi Lup" actions="3" />
+<pnj id="344" nom="Sentinelle Chô Peleux" actions="3" />
+<pnj id="345" nom="Sentinelle Yourig Ella" actions="3" />
+<pnj id="346" nom="Sentinelle Eche Pediot" actions="3" />
+<pnj id="347" nom="Sentinelle Emide Routte" actions="3" />
+<pnj id="348" nom="Garde Pritt Ganslante" actions="3" />
+<pnj id="349" nom="Garde Herviss Ganslante" actions="3" />
+<pnj id="350" nom="Garde Aybou Ganslante" actions="3" />
+<pnj id="351" nom="Satirev Refibrom " actions="3" />
+<pnj id="352" nom="Coupable I" actions="3" />
+<pnj id="353" nom="Coupable II" actions="3" />
+<pnj id="354" nom="Coupable III" actions="3" />
+<pnj id="355" nom="Rimaraf" />
+<pnj id="356" nom="Mèr" actions="3" />
+<pnj id="357" nom="Puja Mustam" actions="3" />
+<pnj id="358" nom="Gardien Ace Bruth" actions="3" />
+<pnj id="359" nom="Ecureuil attachant" actions="3" />
+<pnj id="360" nom="Ecureuil savant" actions="3" />
+<pnj id="361" nom="Ecureuil séduisant" actions="3" />
+<pnj id="362" nom="Ecureuil ambulant" actions="3" />
+<pnj id="363" nom="Chevalier Fougarde" actions="3" />
+<pnj id="364" nom="Trojen Tihpor" actions="3" />
+<pnj id="365" nom="Mulic Bere" actions="3" />
+<pnj id="366" nom="Meneur Rocopal" actions="3" />
+<pnj id="367" nom="Domen" actions="3" />
+<pnj id="368" nom="Chafer Archer" />
+<pnj id="369" nom="Heticili Ufot " actions="3" />
+<pnj id="370" nom="Guf Ruheu" actions="3" />
+<pnj id="371" nom="Reuth Rezed" actions="3" />
+<pnj id="372" nom="Mente Heur " actions="3" />
+<pnj id="373" nom="Ecureuil miraculeux" actions="3" />
+<pnj id="374" nom="Gelée Royale Bleue" actions="3" />
+<pnj id="375" nom="Gelée Royale Citron" actions="3" />
+<pnj id="376" nom="Gelée Royale Fraise" actions="3" />
+<pnj id="377" nom="Gelée Royale Menthe" actions="3" />
+<pnj id="378" nom="Ganymède" actions="3" />
+<pnj id="379" nom="Brik Enbroc" actions="1,3" />
+<pnj id="380" nom="Frye Handiz" actions="3" />
+<pnj id="382" nom="Ganymède" actions="3" />
+<pnj id="383" nom="Girle Pylote" actions="3" />
+<pnj id="384" nom="Chaki Triss" actions="1,3" />
+<pnj id="385" nom="Deneb Okab" actions="3" />
+<pnj id="386" nom="Pousse-pousse" />
+<pnj id="387" nom="Yan Chenap" actions="3" />
+<pnj id="388" nom="Efu Irtaface" actions="3" />
+<pnj id="389" nom="Mama Ayuto" actions="3" />
+<pnj id="391" nom="Mam Hikofre" actions="3" />
+<pnj id="392" nom="Tarazed" actions="3" />
+<pnj id="393" nom="Yova Etna" actions="3" />
+<pnj id="394" nom="Marine Lond" actions="3" />
+<pnj id="395" nom="Dicenai Lond" actions="3" />
+<pnj id="396" nom="Faur Inkaisse" actions="3" />
+<pnj id="397" nom="Maxims" actions="1,3" />
+<pnj id="398" nom="Hinss Hairt" actions="3" />
+<pnj id="399" nom="Belguel Cul-Talon" actions="3" />
+<pnj id="400" nom="Krip Soue" actions="3" />
+<pnj id="401" nom="Bullie Duble " actions="1,3" />
+<pnj id="402" nom="Sû Benhir " actions="1,3" />
+<pnj id="403" nom="Frank Genis" actions="3" />
+<pnj id="404" nom="Miss Reeze Teurf" actions="1,3" />
+<pnj id="405" nom="Notend Less" actions="3" />
+<pnj id="406" nom="Fey Gnan" actions="3" />
+<pnj id="407" nom="Pat Pott" actions="3" />
+<pnj id="408" nom="Rudla Faurtune" actions="3" />
+<pnj id="409" nom="Ze Krow" actions="1,3" />
+<pnj id="410" nom="Ka Tuor" actions="3" />
+<pnj id="411" nom="Bouftocornus" />
+<pnj id="412" nom="Longibouftus" />
+<pnj id="413" nom="Bworkitus" />
+<pnj id="414" nom="Dragominotorus" />
+<pnj id="415" nom="Fleutus Riktus" actions="3" />
+<pnj id="416" nom="Gorko Casku" actions="3" />
+<pnj id="417" nom="Nours Eulbu" />
+<pnj id="418" nom="Vylag Hoise" actions="3" />
+<pnj id="419" nom="Trool Farceur" />
+<pnj id="420" nom="Trool Rieur" />
+<pnj id="421" nom="Trool Blagueur" />
+<pnj id="422" nom="Limine Bryone" actions="3" />
+<pnj id="423" nom="Silimote Fougaris" actions="3" />
+<pnj id="424" nom="Tajide Ragalde" actions="3" />
+<pnj id="425" nom="Elisa Granite" actions="3" />
+<pnj id="426" nom="Eluhise Valing" actions="3" />
+<pnj id="427" nom="Rihine Pléhouverte" actions="3" />
+<pnj id="428" nom="Sirmine Daguiero" actions="3" />
+<pnj id="429" nom="Hirpine Fécalamité " actions="3" />
+<pnj id="430" nom="Félénie Grismina" actions="3" />
+<pnj id="431" nom="Lisa Modas" actions="3" />
+<pnj id="432" nom="Emilie Yuh" actions="3" />
+<pnj id="433" nom="Juhdo Peule" actions="3" />
+<pnj id="434" nom="Orlando Peule" actions="3" />
+<pnj id="435" nom="Haïkido Peule" actions="3" />
+<pnj id="436" nom="Brigitebardo Peule" actions="3" />
+<pnj id="437" nom="Marlonebrando Peule" actions="3" />
+<pnj id="438" nom="Ricardo Peule" actions="3" />
+<pnj id="439" nom="Bernardo Peule" actions="3" />
+<pnj id="440" nom="Edmondo Peule" actions="3" />
+<pnj id="441" nom="Ninetainedo Peule" actions="3" />
+<pnj id="442" nom="Micado Peule" actions="3" />
+<pnj id="443" nom="Makdo Peule" actions="3" />
+<pnj id="444" nom="Kib Roche" actions="3" />
+<pnj id="446" nom="Henual" />
+<pnj id="447" nom="Wally Elconom" actions="3" />
+<pnj id="448" nom="Eilof Aledec" actions="3" />
+<pnj id="449" nom="Erty Trapchet" actions="3" />
+<pnj id="450" nom="Yke Harou" actions="3" />
+<pnj id="451" nom="Pleur Nycheuz" actions="3" />
+<pnj id="452" nom="Oz Dralett" actions="3" />
+<pnj id="453" nom="Marp" actions="3" />
+<pnj id="454" nom="Louc Drif" actions="3" />
+<pnj id="455" nom="Seria" actions="3" />
+<pnj id="456" nom="Fuu Yie" actions="3" />
+<pnj id="457" nom="Soki" actions="3" />
+<pnj id="458" nom="Aida" actions="3" />
+<pnj id="459" nom="Yol Grivind" actions="3" />
+<pnj id="460" nom="Locette Lurnbell" actions="3" />
+<pnj id="461" nom="Gros piou" />
+<pnj id="462" nom="Shani Sings" actions="1,3" />
+<pnj id="463" nom="Sam Croa" actions="1,3" />
+<pnj id="464" nom="Tek Abir" actions="1,3" />
+<pnj id="465" nom="Yve Konpetmin" actions="3" />
+<pnj id="466" nom="Tekat Bra" />
+<pnj id="467" nom="Alit Elfminate" actions="3" />
+<pnj id="468" nom="Menge Paca" actions="3" />
+<pnj id="470" nom="Phite Pouque" actions="3" />
+<pnj id="471" nom="Allisteria" actions="3" />
+<pnj id="472" nom="Saketsu" actions="1,3" />
+<pnj id="473" nom="Montrakwartz" actions="3" />
+<pnj id="474" nom="Mon'Hawt'Wit'" actions="3" />
+<pnj id="475" nom="Ogivol Scalarcin" actions="3" />
+<pnj id="476" nom="Jim Fleps" actions="3" />
+<pnj id="477" nom="Grand-mère" actions="3" />
+<pnj id="478" nom="Ztiv Oztin" actions="3" />
+<pnj id="479" nom="Nepra Lido" actions="3" />
+<pnj id="480" nom="Setsinbol" actions="3" />
+<pnj id="481" nom="Joe Pierlivet" actions="3" />
+<pnj id="482" nom="Deudoiné " actions="1,3" />
+<pnj id="483" nom="Ticra" actions="3" />
+<pnj id="484" nom="Oli Venders" actions="1,3" />
+<pnj id="485" nom="Clint Pot" actions="3" />
+<pnj id="486" nom="Nibé Lulle" actions="1,3" />
+<pnj id="487" nom="Iolo Enchoua" actions="3" />
+<pnj id="488" nom="Trois-Fleurs" actions="3" />
+<pnj id="489" nom="Howard le Simaisrien" actions="3" />
+<pnj id="490" nom="Diver Birel" actions="3" />
+<pnj id="491" nom="Soun Rinos" actions="3" />
+<pnj id="492" nom="Touh Flowa" actions="3" />
+<pnj id="493" nom="Clyde Peus" actions="3" />
+<pnj id="494" nom="Rok Elreuss" actions="3" />
+<pnj id="495" nom="Meow Moew" actions="3" />
+<pnj id="496" nom="Sadadi Sama" actions="3" />
+<pnj id="497" nom="Abrazelon Sixgriffe" actions="3" />
+<pnj id="498" nom="Fallanster" actions="3" />
+<pnj id="501" nom="Le Remplisseur" actions="3" />
+<pnj id="502" nom="Seth Sourcet" actions="1,3" />
+<pnj id="503" nom="Enileda" actions="1,3" />
+<pnj id="504" nom="Leon Edehcub" actions="3" />
+<pnj id="505" nom="Gasdaure" actions="3" />
+<pnj id="506" nom="Wilde Pyrite" actions="3" />
+<pnj id="510" nom="Ogivol Scalarcin" />
+<pnj id="511" nom="Padgref Demoël" />
+<pnj id="512" nom="Brumen Tinctorias" />
+<pnj id="513" nom="Frakacia Leukocytine" />
+<pnj id="514" nom="Nervous Brakdoun" />
+<pnj id="515" nom="Fouduglen l'Ecureuil" />
+<pnj id="516" nom="Qil Bil" />
+<pnj id="520" nom="Essiac d'Engrape" actions="3" />
+<pnj id="522" nom="Al Etsop" actions="3" />
+<pnj id="524" nom="Louse Degraine" actions="3" />
+<pnj id="525" nom="Mercenaire d'Astrub" actions="3" />
+<pnj id="526" nom="Mercenaire d'Astrub" actions="3" />
+<pnj id="527" nom="Mercenaire d'Astrub" actions="3" />
+<pnj id="528" nom="Mercenaire d'Astrub" actions="3" />
+<pnj id="529" nom="Bouftou apprivoisé " actions="3" />
+<pnj id="530" nom="Bouftou apprivoisé " actions="3" />
+<pnj id="531" nom="Bouftou apprivoisé " actions="3" />
+<pnj id="532" nom="Bouftou apprivoisé " actions="3" />
+<pnj id="533" nom="Bouftou apprivoisé " actions="3" />
+<pnj id="534" nom="Uneul Nak" actions="3" />
+<pnj id="535" nom="Unortel Nak" actions="3" />
+<pnj id="536" nom="Unhorel Nak" actions="3" />
+<pnj id="537" nom="Unkouy Nak" actions="3" />
+<pnj id="538" nom="Gazpacho" actions="3" />
+<pnj id="540" nom="Gazogen" actions="3" />
+<pnj id="541" nom="Gazteropod" actions="3" />
+<pnj id="542" nom="Gazoline" actions="3" />
+<pnj id="543" nom="Ant Emicheun" actions="3" />
+<pnj id="544" nom="Radlu Minite le Mineur Sombre" actions="3" />
+<pnj id="545" nom="Gwenolaz Barnumuze" actions="3" />
+<pnj id="546" nom="Vendeur de Ressources d'Astrub" actions="3,5,6" />
+<pnj id="547" nom="Vendeur Forgeron d'Astrub" actions="3,5,6" />
+<pnj id="548" nom="Vendeur Sculpteur d'Astrub" actions="3,5,6" />
+<pnj id="549" nom="???" actions="3" />
+<pnj id="550" nom="Vendeur Mineur d'Astrub" actions="3,5,6" />
+<pnj id="551" nom="Vendeur Paysan d'Astrub" actions="3,5,6" />
+<pnj id="552" nom="Vendeur Cordonnier d'Astrub" actions="3,5,6" />
+<pnj id="553" nom="Vendeur Boucher d'Astrub" actions="3,5,6" />
+<pnj id="554" nom="Vendeur Bûcheron d'Astrub" actions="3,5,6" />
+<pnj id="555" nom="Vendeur Bijoutier d'Astrub" actions="3,5,6" />
+<pnj id="557" nom="Vendeur Alchimiste d'Astrub" actions="3,5,6" />
+<pnj id="558" nom="Emia Elliesol" actions="1,3" />
+<pnj id="559" nom="Vendeur Poissonnier d'Astrub" actions="3,5,6" />
+<pnj id="560" nom="Vendeur Tailleur d'Astrub" actions="3,5,6" />
+<pnj id="561" nom="Vendeur Boulanger d'Astrub" actions="3,5,6" />
+<pnj id="562" nom="Vendeur Pêcheur d'Astrub" actions="3,5,6" />
+<pnj id="563" nom="Vendeur Chasseur d'Astrub" actions="3,5,6" />
+<pnj id="564" nom="Unterix Unter" actions="1,3" />
+<pnj id="565" nom="Waldo Pyrite" actions="3" />
+<pnj id="566" nom="Walter Pyrite" actions="3" />
+<pnj id="567" nom="Vendeur Forgeron de Bonta" actions="3,5,6" />
+<pnj id="568" nom="Vendeur Mineur de Bonta" actions="3,5,6" />
+<pnj id="569" nom="Vendeur Sculpteur de Bonta" actions="3,5,6" />
+<pnj id="570" nom="Vendeur Alchimiste de Bonta" actions="3,5,6" />
+<pnj id="571" nom="Vendeur Tailleur de Bonta" actions="3,5,6" />
+<pnj id="572" nom="Vendeur Bijoutier de Bonta" actions="3,5,6" />
+<pnj id="573" nom="Vendeur Cordonnier de Bonta" actions="3,5,6" />
+<pnj id="574" nom="Vendeur de Ressources de Bonta" actions="3,5,6" />
+<pnj id="575" nom="Vendeur Boulanger de Bonta" actions="3,5,6" />
+<pnj id="576" nom="Vendeur Paysan de Bonta" actions="3,5,6" />
+<pnj id="577" nom="Bish Fone" actions="1,3" />
+<pnj id="578" nom="Vendeur Bûcheron de Bonta" actions="3,5,6" />
+<pnj id="579" nom="Vendeur de Poisson de Bonta" actions="3,5,6" />
+<pnj id="580" nom="Vendeur de Viande de Bonta" actions="3,5,6" />
+<pnj id="581" nom="Vendeur Forgeron de Brâkmar" actions="3,5,6" />
+<pnj id="582" nom="Vendeur Mineur de Brâkmar" actions="3,5,6" />
+<pnj id="583" nom="Vendeur Sculpteur de Brâkmar" actions="3,5,6" />
+<pnj id="584" nom="Vendeur Alchimiste de Brâkmar" actions="3,5,6" />
+<pnj id="585" nom="Vendeur Tailleur de Brâkmar" actions="3,5,6" />
+<pnj id="586" nom="Vendeur Bijoutier de Brâkmar" actions="3,5,6" />
+<pnj id="587" nom="Vendeur Cordonnier de Brâkmar" actions="3,5,6" />
+<pnj id="588" nom="Vendeur de Ressources de Brâkmar" actions="3,5,6" />
+<pnj id="589" nom="Vendeur Boulanger de Brâkmar" actions="3,5,6" />
+<pnj id="590" nom="Vendeur Paysan de Brâkmar" actions="3,5,6" />
+<pnj id="591" nom="Vendeur Bûcheron de Brâkmar" actions="3,5,6" />
+<pnj id="592" nom="Vendeur de Viande de Brâkmar" actions="3,5,6" />
+<pnj id="593" nom="Vendeur de Poisson de Brâkmar" actions="3,5,6" />
+<pnj id="594" nom="Kana Petch" actions="1,3" />
+<pnj id="595" nom="Yul Brinner" actions="3" />
+<pnj id="596" nom="Chipo Atufe" actions="1,3" />
+<pnj id="597" nom="Ygat Chouse" actions="1,3" />
+<pnj id="598" nom="Rose Artempeth" actions="3" />
+<pnj id="599" nom="Cirle Drawde" actions="3" />
+<pnj id="600" nom="Latem Sa" actions="3" />
+<pnj id="601" nom="Ahenn Peuh" actions="3" />
+<pnj id="602" nom="Esuellat" actions="3" />
+<pnj id="603" nom="Mercenaire d'Astrub" actions="3" />
+<pnj id="604" nom="Mercenaire d'Astrub" actions="3" />
+<pnj id="605" nom="Disciple mercenaire" actions="1,3" />
+<pnj id="606" nom="Gardien" actions="3" />
+<pnj id="607" nom="Disciple Roublard" />
+<pnj id="608" nom="Krowbe Jondon " actions="3" />
+<pnj id="609" nom="Guy San Nolan" actions="3" />
+<pnj id="610" nom="Manganeze Pyrite" />
+<pnj id="611" nom="Tong Sten" actions="3" />
+<pnj id="612" nom="Sko Balt" actions="3" />
+<pnj id="613" nom="Toyo Dzink" actions="3" />
+<pnj id="614" nom="Blouh Béryl" actions="3" />
+<pnj id="615" nom="Kernite" actions="3" />
+<pnj id="616" nom="Brookite Pyrite" actions="3" />
+<pnj id="619" nom="Papy nowal" />
+<pnj id="620" nom="Amayiro (MAJ)" actions="3" />
+<pnj id="621" nom="Garde Chopynwa" actions="3" />
+<pnj id="622" nom="Narber Dapiwa le Marchand" actions="1,3" />
+<pnj id="623" nom="Surivitna le Shaman" actions="3" />
+<pnj id="624" nom="Pyrite" actions="3" />
+<pnj id="625" nom="Conseiller Boyowa" actions="3" />
+<pnj id="626" nom="Conseiller Legawa" actions="3" />
+<pnj id="627" nom="Conseiller Rinsdwa" actions="3" />
+<pnj id="628" nom="Conseiller Anshwa" actions="3" />
+<pnj id="629" nom="Conseiller Nougwa" actions="3" />
+<pnj id="630" nom="Assistant Shaman" actions="3" />
+<pnj id="631" nom="Fleurawa la Marchande" actions="3" />
+<pnj id="632" nom="Le Grandapan" actions="3" />
+<pnj id="633" nom="Ronald le Sage Lenald" actions="3" />
+<pnj id="634" nom="Maître d'Akwadala" actions="3" />
+<pnj id="635" nom="Plumawa la Marchande" actions="3" />
+<pnj id="636" nom="Maître de Feudala" actions="3" />
+<pnj id="637" nom="Marchande Petite Etoile" actions="3" />
+<pnj id="638" nom="Chef Pandikaze" actions="3" />
+<pnj id="640" nom="Wanald le Sage Lenald" actions="3" />
+<pnj id="641" nom="Maître de Terrdala" actions="3" />
+<pnj id="642" nom="Maître d'Aerdala" actions="3" />
+<pnj id="643" nom="Garde Aerdala" actions="3" />
+<pnj id="644" nom="Pandiwan Kenobi" actions="3" />
+<pnj id="645" nom="Bouwada" actions="3" />
+<pnj id="646" nom="Henual" actions="3" />
+<pnj id="647" nom="Poochan" actions="3" />
+<pnj id="648" nom="Poochan" actions="3" />
+<pnj id="649" nom="Lanma" actions="3" />
+<pnj id="650" nom="Sli" actions="3" />
+<pnj id="651" nom="Nakunne" actions="3" />
+<pnj id="652" nom="Gèmpa Metoasa" actions="3" />
+<pnj id="653" nom="Gèmpa" actions="3" />
+<pnj id="654" nom="Maitre Pandasiman" actions="3" />
+<pnj id="655" nom="Henual" actions="3" />
+<pnj id="656" nom="Elogio" actions="3" />
+<pnj id="657" nom="Leurne" actions="3" />
+<pnj id="658" nom="Bawler" actions="3" />
+<pnj id="659" nom="Nergal" actions="3" />
+<pnj id="660" nom="Soukawa le Marchand" actions="3" />
+<pnj id="661" nom="Bazarwa la Marchande" actions="3" />
+<pnj id="662" nom="Pladawa" actions="3" />
+<pnj id="663" nom="Binzawa le Marchand" actions="3" />
+<pnj id="664" nom="Maître du Pandawushu" actions="3" />
+<pnj id="665" nom="Fourbyawa le Marchand" actions="3" />
+<pnj id="666" nom="Corserawa le Marchand" actions="3" />
+<pnj id="667" nom="Loudmerawa le Marin" actions="3" />
+<pnj id="668" nom="Capitaine Banwana" actions="3" />
+<pnj id="669" nom="Bobardawa le Marchand" actions="3" />
+<pnj id="670" nom="Bardawa le Marchand" actions="3" />
+<pnj id="671" nom="Camelotawa le Marchand" actions="3" />
+<pnj id="672" nom="Bushido Peule" actions="3" />
+<pnj id="673" nom="Dark Vlad" actions="3" />
+<pnj id="674" nom="Timouss" actions="3" />
+<pnj id="675" nom="Garde Tono Portwa" actions="3" />
+<pnj id="676" nom="Garde Toide Grocwayo" actions="3" />
+<pnj id="677" nom="Ipatsu Debanbwa" />
+<pnj id="678" nom="Vendeur Bouclier de Pandala" actions="3,5,6" />
+<pnj id="679" nom="Ebru Of El" actions="1,3" />
+<pnj id="680" nom="Elviana Tirips" actions="3" />
+<pnj id="681" nom="Stayfun Bonnawa" actions="3" />
+<pnj id="682" nom="Boyrun Pticou" actions="1,3" />
+<pnj id="683" nom="Ledrob Terceséc" actions="1,3" />
+<pnj id="684" nom="Divad Dleifrepok" actions="3" />
+<pnj id="685" nom="Rok Gnorok" />
+<pnj id="686" nom="Aermyne 'Braco' Scalptaras" />
+<pnj id="687" nom="Musha l'Oni" />
+<pnj id="688" nom="Marzwel le Gobelin" />
+<pnj id="689" nom="Zatoïshwan" />
+<pnj id="690" nom="Maître Djakky Chwan" actions="3" />
+<pnj id="691" nom="Dollarawan Le Banquier" actions="3" />
+<pnj id="692" nom="Yenawa le Banquier" actions="3" />
+<pnj id="693" nom="Tourist" actions="3" />
+<pnj id="694" nom="Runago Gho" actions="1,3" />
+<pnj id="695" nom="Runoga Gha" actions="1,3" />
+<pnj id="696" nom="Maximus" actions="3" />
+<pnj id="697" nom="Penih Tencier" actions="3" />
+<pnj id="698" nom="Vendeur d'âmes de Bonta" actions="3,5,6" />
+<pnj id="699" nom="Vendeur d'âmes de Brâkmar" actions="3,5,6" />
+<pnj id="700" nom="Garde Uboi Porefeu" actions="3" />
+<pnj id="701" nom="Bulbig" actions="3" />
+<pnj id="702" nom="Tourista" actions="3" />
+<pnj id="703" nom="Bwon Bargwain" actions="3" />
+<pnj id="704" nom="Narber Rihen Levihawa" actions="1,3" />
+<pnj id="705" nom="Maître Pandore" actions="3" />
+<pnj id="706" nom="Mamowa" actions="3" />
+<pnj id="707" nom="Zamawa" actions="3" />
+<pnj id="708" nom="Tanukouï San" actions="3" />
+<pnj id="709" nom="Berthawa" actions="3" />
+<pnj id="710" nom="Peki Peki" actions="3" />
+<pnj id="711" nom="Tavernier du Ripate" actions="1,3" />
+<pnj id="712" nom="Bworkie" actions="3" />
+<pnj id="714" nom="Vendeur Animaux de Bonta" actions="3,5,6" />
+<pnj id="715" nom="Vendeur Animaux de Brâkmar" actions="3,5,6" />
+<pnj id="716" nom="Vendeur de Documents de Bonta" actions="3,5,6" />
+<pnj id="717" nom="Vendeur Documents de Brâkmar" actions="3,5,6" />
+<pnj id="718" nom="Vendeur Runes de Bonta" actions="3,5,6" />
+<pnj id="719" nom="Vendeur Runes de Brâkmar" actions="3,5,6" />
+<pnj id="720" nom="Vendeur Bricoleur de Bonta" actions="3,5,6" />
+<pnj id="721" nom="Vendeur Bricoleur de Brâkmar" actions="3,5,6" />
+<pnj id="722" nom="Vendeur Milice de Bonta" actions="3,5,6" />
+<pnj id="723" nom="Milice de Brâkmar" actions="3,5,6" />
+<pnj id="725" nom="Nowa" actions="3" />
+<pnj id="726" nom="Mage Ax " actions="3" />
+<pnj id="727" nom="Badufron chef mercenaire" actions="3" />
+<pnj id="729" nom="Acidrik Fenlapanse" actions="3" />
+<pnj id="730" nom="Nacf Virgil, vendeur de Parchemins" actions="1,3" />
+<pnj id="731" nom="Test" actions="3" />
+<pnj id="732" nom="Nistracolamus" actions="3" />
+<pnj id="733" nom="Arpagnagrobis" actions="3" />
+<pnj id="734" nom="Milicienne de Brâkmar" actions="3" />
+<pnj id="735" nom="Milicienne de Bonta" actions="3" />
+<pnj id="736" nom="Edgg Komb" actions="3" />
+<pnj id="737" nom="Vark Agram" actions="3" />
+<pnj id="738" nom="Oyster" actions="3" />
+<pnj id="739" nom="Kartier Tremai" actions="3" />
+<pnj id="740" nom="Haraquiri" actions="3" />
+<pnj id="741" nom="Rocco Fidelio" actions="3" />
+<pnj id="742" nom="Monabella" actions="3" />
+<pnj id="743" nom="Verumacha" actions="3" />
+<pnj id="744" nom="Guedin Loursgro" actions="3" />
+<pnj id="745" nom="Squale Lerouge" actions="3" />
+<pnj id="746" nom="Gemfé Labelle" actions="3" />
+<pnj id="747" nom="Degui Quetiristou" actions="3" />
+<pnj id="748" nom="Walak" actions="3" />
+<pnj id="749" nom="Alka Traz" />
+<pnj id="750" nom="Luki Loushiano" />
+<pnj id="751" nom="Guan Tanamault" />
+<pnj id="752" nom="Mashino" actions="1,4" />
+<pnj id="753" nom="Oshima" actions="3,7" />
+<pnj id="754" nom="Gardien Koalak" actions="3" />
+<pnj id="755" nom="Koulosse" actions="3" />
+<pnj id="756" nom="Oshar Marif" actions="3" />
+<pnj id="757" nom="Maître Koalak (105)" actions="3" />
+<pnj id="758" nom="Kakolak" actions="3" />
+<pnj id="759" nom="Frivolak" actions="3" />
+<pnj id="760" nom="Skeunk" actions="3" />
+<pnj id="761" nom="Rubise" actions="3" />
+<pnj id="762" nom="Emeraude" actions="3" />
+<pnj id="763" nom="Diamantine" actions="3" />
+<pnj id="764" nom="Saphira" actions="3" />
+<pnj id="765" nom="Liroye Merline" actions="3" />
+<pnj id="766" nom="Fidji Merline" actions="3" />
+<pnj id="767" nom="Bibliothécaire" />
+<pnj id="768" nom="Marcelle Rouste" actions="1,3" />
+<pnj id="769" nom="Jean-Sol Patre" actions="1,3" />
+<pnj id="770" nom="Nikos Monote" actions="3" />
+<pnj id="771" nom="Klako" actions="1,3" />
+<pnj id="772" nom="Krakotte" actions="3" />
+<pnj id="773" nom="Tishima" actions="4" />
+<pnj id="774" nom="Virgil" actions="3" />
+<pnj id="775" nom="Bowork" actions="3" />
+<pnj id="776" nom="Magnus Magus" actions="3" />
+<pnj id="777" nom="Kourk Ingalsse" actions="3" />
+<pnj id="778" nom="Kazy Ingalsse" actions="3" />
+<pnj id="779" nom="Halda Moccione" actions="3" />
+<pnj id="780" nom="Mawy Ingalsse" actions="3" />
+<pnj id="781" nom="El Scarador" actions="3" />
+<pnj id="782" nom="Herman Capotie" />
+<pnj id="783" nom="Lorkos" actions="3" />
+<pnj id="784" nom="Fwoued" actions="3" />
+<pnj id="785" nom="George Cash" actions="3" />
+<pnj id="786" nom="Maître des clés" actions="1" />
+<pnj id="787" nom="Sister Halliwell" actions="1" />
+<pnj id="788" nom="Takeshi No Pain" actions="1" />
+<pnj id="789" nom="Ziho" actions="3" />
+<pnj id="790" nom="Vendeur de runes" actions="1,3" />
+<pnj id="791" nom="Nopa Prespic" actions="1" />
+<pnj id="792" nom="Nopa Bouftou" actions="1" />
+<pnj id="793" nom="Nopa Bworker" actions="1" />
+<pnj id="794" nom="Nopa Abra" actions="1" />
+<pnj id="795" nom="Hector Nowel" actions="3" />
+<pnj id="796" nom="Obad" actions="3" />
+<pnj id="797" nom="Josette Taplane" actions="3" />
+<pnj id="798" nom="Capitaine Igloute" actions="3" />
+<pnj id="799" nom="Gardien du donjon des rats de Bonta" actions="3" />
+<pnj id="800" nom="Gardien du donjon des rats de Brâkmar" actions="3" />
+<pnj id="801" nom="Snobin Parchume" actions="3" />
+<pnj id="802" nom="Dainde Porteplume" actions="3" />
+<pnj id="803" nom="Valcor" actions="3" />
+<pnj id="804" nom="Captain Starky" actions="3" />
+<pnj id="805" nom="Piétinor le bourrin" actions="3" />
+<pnj id="806" nom="Piélant" actions="3" />
+<pnj id="807" nom="Maskara" actions="3" />
+<pnj id="808" nom="Koka Dekolak" actions="3" />
+<pnj id="809" nom="Nounou Veauté " actions="1,3" />
+<pnj id="810" nom="Bouftouteater" actions="3" />
+<pnj id="811" nom="Metag Robill" actions="3" />
+<pnj id="812" nom="Vendeur de chapeaux" actions="1" />
+<pnj id="813" nom="Le maître des clefs" actions="3" />
+<pnj id="814" nom="Pat Akess" actions="3" />
+<pnj id="815" nom="Chris de Naire" actions="3" />
+<pnj id="816" nom="Bricky Brock" actions="1" />
+<pnj id="817" nom="Kal Vissi" actions="3" />
+<pnj id="818" nom="Aperirel" actions="3" />
+<pnj id="819" nom="Monsieur El" actions="3" />
+<pnj id="820" nom="Madame El" actions="3" />
+<pnj id="821" nom="Paindep" actions="3" />
+<pnj id="822" nom="Marie Zoto" actions="3" />
+<pnj id="823" nom="Fred Austère" actions="3" />
+<pnj id="824" nom="Jorg Dy" actions="3" />
+<pnj id="825" nom="Pol Bokuz" actions="1,3" />
+<pnj id="826" nom="Mouss Bouff" actions="3" />
+<pnj id="827" nom="essai mineur sombre [WIP]" />
+<pnj id="828" nom="Bandit de gras chemin" actions="3" />
+<pnj id="829" nom="Moumoule essai" />
+<pnj id="830" nom="Feldz Paffe" actions="3" />
+<pnj id="831" nom="Krazybwork" actions="3" />
+<pnj id="832" nom="Bworkidais le paxifik" actions="3" />
+<pnj id="833" nom="Bworknroll" actions="3" />
+<pnj id="834" nom="Gobatchef" actions="3" />
+<pnj id="835" nom="Raxitik" actions="3" />
+<pnj id="836" nom="Gobiere Trokeur" actions="2,3" />
+<pnj id="837" nom="Plastik Gobelait" actions="3" />
+<pnj id="838" nom="Titi Gobelait" actions="3" />
+<pnj id="839" nom="Pinta Gone" actions="3" />
+<pnj id="840" nom="Bworkcelhaine" actions="3" />
+<pnj id="841" nom="Mulou Grankrok" actions="3" />
+<pnj id="842" nom="Bworkepik" actions="3" />
+<pnj id="843" nom="Struk'toer Nhin" actions="3" />
+<pnj id="844" nom="Chef Bworkestre" actions="3" />
+<pnj id="845" nom="Gobriel" actions="3" />
+<pnj id="846" nom="Jicé Aouaire" actions="3" />
+<pnj id="847" nom="Arietta Fiole" actions="3" />
+<pnj id="848" nom="Potan Nhin" actions="3" />
+<pnj id="849" nom="Contremaître Ikul" actions="3" />
+<pnj id="850" nom="Poss'Ybel Nhin" actions="3" />
+<pnj id="851" nom="Bworkcine" actions="3" />
+<pnj id="852" nom="Gobrose" actions="3" />
+<pnj id="853" nom="Gobmichet" actions="3" />
+<pnj id="854" nom="Capitaine des Kerubims" actions="3" />
+<pnj id="855" nom="Disskray Nhin" actions="3" />
+<pnj id="856" nom="Str'huit Nhin" actions="3" />
+<pnj id="857" nom="Posteur Nhin " actions="3" />
+<pnj id="858" nom="Pipelette Nhin" actions="3" />
+<pnj id="859" nom="Xelorat Masket" actions="3" />
+<pnj id="860" nom="Milicien Kerubim" actions="3" />
+<pnj id="861" nom="Milicien Kerubim" actions="3" />
+<pnj id="862" nom="Milicien Kerubim" actions="3" />
+<pnj id="863" nom="Paysan d'Incarnam" actions="3" />
+<pnj id="864" nom="Gilles Caper" actions="3" />
+<pnj id="865" nom="Galileo Maginifico" actions="3" />
+<pnj id="866" nom="Semper Idefix" actions="3" />
+<pnj id="867" nom="Tom Legeux" actions="3" />
+<pnj id="868" nom="Evayée Doureve" actions="3" />
+<pnj id="869" nom="Piou" actions="3" />
+<pnj id="870" nom="Tenva Lakruche" actions="3" />
+<pnj id="871" nom="Laura Thée" actions="3" />
+<pnj id="872" nom="Grobid Le Vétéran Kerubim" actions="3" />
+<pnj id="873" nom="Milicien Kerubim" actions="3" />
+<pnj id="874" nom="Anta Brok" actions="2,3" />
+<pnj id="875" nom="Amaché Ganymede" actions="3" />
+<pnj id="876" nom="Atapé Ganymede" actions="3" />
+<pnj id="877" nom="Arevnyr Ganymede" actions="3" />
+<pnj id="878" nom="Aymé Tairnaile" actions="3" />
+<pnj id="879" nom="Eek Mite" actions="3" />
+<pnj id="880" nom="Ecraz Néhofite" actions="3" />
+<pnj id="881" nom="Bûcheron d'Incarnam" actions="3" />
+<pnj id="882" nom="Chasseur d'Incarnam" actions="3" />
+<pnj id="883" nom="Pêcheur d'Incarnam" actions="3" />
+<pnj id="884" nom="Zaulie Portklais" actions="3" />
+<pnj id="885" nom="Matu Vuh" actions="3" />
+<pnj id="886" nom="Ma'ster Donge" actions="3" />
+<pnj id="887" nom="Marylork" actions="3" />
+<pnj id="888" nom="Avaulé Ganymede " actions="3" />
+<pnj id="889" nom="Serveuse de Grobid" actions="3" />
+<pnj id="890" nom="Habitué de la taverne" actions="3" />
+<pnj id="891" nom="Lykhen Lesurviven" actions="3" />
+<pnj id="893" nom="Conseiller Yse Vewybad" actions="3" />
+<pnj id="894" nom="Seth Zérauséro" actions="3" />
+<pnj id="897" nom="Intendant San Lavalss" actions="3" />
+<pnj id="899" nom="Frost Hize" actions="1,3" />
+<pnj id="900" nom="Al Blourrad" actions="3" />
+<pnj id="902" nom="Noble de la cour" actions="3" />
+<pnj id="903" nom="Dame de la cour" actions="3" />
+<pnj id="904" nom="Prince d'Wa" actions="3" />
+<pnj id="906" nom="Bob Lenald" actions="3" />
+<pnj id="907" nom="Valet Deauj" actions="3" />
+<pnj id="908" nom="Valet Deauj" />
+<pnj id="911" nom="Valet Lelisdanla" actions="3" />
+<pnj id="912" nom="Test" actions="3" />
+<pnj id="913" nom="Garde Montay" actions="3,8" />
+<pnj id="914" nom="Otomaï " actions="3" />
+<pnj id="916" nom="Trône d'Allister" />
+<pnj id="923" nom="Mali Key" actions="3" />
+<pnj id="924" nom="Ursula en Tresses" />
+<pnj id="925" nom="Capitaine Kradoc" actions="3" />
+<pnj id="926" nom="Professeur Fournesol" actions="3" />
+<pnj id="927" nom="Chevalier Noir et Rose" actions="3" />
+<pnj id="928" nom="Gardien du Pont de la Mort" actions="3" />
+<pnj id="929" nom="Polka Merer" actions="3" />
+<pnj id="930" nom="Docteur Nauh" actions="3" />
+<pnj id="931" nom="Paulette Pain-bèche" actions="3" />
+<pnj id="932" nom="Jean Nauh" actions="3" />
+<pnj id="933" nom="Docteur Morose" actions="3" />
+<pnj id="934" nom="Jeanne Morose" actions="3" />
+<pnj id="935" nom="Spitte Fayeur" actions="3" />
+<pnj id="936" nom="Flip Flap" actions="3" />
+<pnj id="937" nom="Crocodaille Dandi" actions="3" />
+<pnj id="938" nom="Kolibrie" actions="3" />
+<pnj id="939" nom="Kito" actions="3" />
+<pnj id="940" nom="Peggy la Porkass" actions="3" />
+<pnj id="941" nom="Tina Montini" actions="3" />
+<pnj id="942" nom="Capitaine Flams" actions="3" />
+<pnj id="943" nom="Mulèze" actions="3" />
+<pnj id="944" nom="Test Nyx [WIP]" actions="3" />
+<pnj id="945" nom="Razbitume" actions="3" />
+<pnj id="946" nom="Chachka" actions="3" />
+<pnj id="947" nom="Lack" />
+<pnj id="949" nom="Jock" />
+<pnj id="950" nom="Berkzoy" />
+<pnj id="952" nom="Vendeur de parchemins" actions="1,3" />
+<pnj id="954" nom="Kroula" actions="3" />
+<pnj id="955" nom="Hélène Meyer" actions="3" />
+<pnj id="956" nom="Kimiya" actions="3" />
+<pnj id="957" nom="Denis Brouillard" actions="3" />
+<pnj id="958" nom="Classman" actions="1" />
+<pnj id="959" nom="Craqueleur Poli Poli" actions="3" />
+<pnj id="960" nom="Pauquet [WIP]" />
+<pnj id="962" nom="Exoram" actions="3" />
+<pnj id="963" nom="Xephirès" actions="3" />
+<pnj id="964" nom="Tertofi Ablaru" actions="3" />
+<pnj id="965" nom="Ekusoyk Ubnan" actions="3" />
+<pnj id="966" nom="Xarthan" actions="3" />
+<pnj id="968" nom="Chef des espions" actions="3" />
+<pnj id="969" nom="Tacticien de Bonta" actions="3" />
+<pnj id="970" nom="Puissant milicien bontarien" actions="3" />
+<pnj id="971" nom="Norb" actions="3" />
+<pnj id="972" nom="Nara" actions="3" />
+<pnj id="973" nom="Commandant bontarien Kad" actions="3" />
+<pnj id="974" nom="Milicien équipé " actions="3" />
+<pnj id="975" nom="Archère équipée" actions="3" />
+<pnj id="977" nom="Turorte" actions="3" />
+<pnj id="978" nom="Thanos" actions="3" />
+<pnj id="979" nom="Espion blessé " actions="3" />
+<pnj id="980" nom="Agent de Brâkmar" actions="3" />
+<pnj id="981" nom="Espion en fuite" actions="3" />
+<pnj id="982" nom="Iop en cape brâkmarienne" actions="3" />
+<pnj id="983" nom="Marquis" actions="3" />
+<pnj id="984" nom="Sadida en cape bontarienne" actions="3" />
+<pnj id="1010" nom="Merlan l'Enchaîneur" actions="3" />
+<pnj id="1012" nom="Kapi Taigne" actions="3" />
+<pnj id="1034" nom="Bibiblop" actions="3" />
+<pnj id="1035" nom="Ronan le Blagueur" actions="3" />
+<pnj id="1036" nom="Ernesto Rouste" actions="3" />
+<pnj id="1037" nom="Lina Vortald" actions="3" />
+<pnj id="1041" nom="Morrie Gane" actions="3" />
+<pnj id="1042" nom="Raymond Santho" actions="3" />
+<pnj id="1043" nom="Âme de Terra Tibya" actions="3" />
+<pnj id="1045" nom="Eni Hoube" actions="3" />
+<pnj id="1046" nom="Terra Tibya" actions="3" />
+<pnj id="1047" nom="Espionne Brâkmarienne" actions="3" />
+<pnj id="1048" nom="Mac Ronald" actions="3" />
+<pnj id="1049" nom="Terra Cogita" actions="3" />
+<pnj id="1050" nom="Renégat bontarien" actions="3" />
+<pnj id="1051" nom="Dépouille de renégat" actions="3" />
+<pnj id="1053" nom="Vendeur de Dofus" actions="1" />
+<pnj id="1054" nom="Boumawa" actions="3" />
+<pnj id="1076" nom="Doro le Blak" actions="3,7" />
+<pnj id="1077" nom="Assistante d'Otomaï " actions="3" />
+<pnj id="1080" nom="Trok" actions="2,3" />
+<pnj id="1088" nom="Snori Nairb" actions="3" />
+<pnj id="1090" nom="Pandalida" actions="3" />
+<pnj id="1091" nom="Xélora Busai" actions="3" />
+<pnj id="1092" nom="Sabine" actions="3" />
+<pnj id="1093" nom="Geôlier de Sabine" actions="3" />
+<pnj id="1094" nom="Chef des voleurs" actions="3" />
+<pnj id="1095" nom="Voleur de Brâkmar" actions="3" />
+<pnj id="1096" nom="Nana moche qui rit" actions="3" />
+<pnj id="1097" nom="Gardien du puits" actions="3" />
+<pnj id="1098" nom="Ybur Effel" actions="3" />
+<pnj id="1099" nom="Highlambert" actions="3" />
+<pnj id="1100" nom="Riyou Tchevlakouk" actions="3" />
+<pnj id="1101" nom="Chef du convoi" actions="3" />
+<pnj id="1102" nom="Bwak de feu" actions="3" />
+<pnj id="1103" nom="Lelievwe Pâle Pitane" actions="3" />
+<pnj id="1104" nom="Sim le Soft" actions="3" />
+<pnj id="1105" nom="Nek'Ro Nomikon" actions="3" />
+<pnj id="1106" nom="Bandit des plaines" actions="3" />
+<pnj id="1108" nom="Ecaline" actions="3" />
+<pnj id="1109" nom="Kate Woumane" actions="3" />
+<pnj id="1110" nom="Grimpill" actions="3" />
+<pnj id="1111" nom="Corbac" />
+<pnj id="1112" nom="Garde de la tour" actions="3" />
+<pnj id="1113" nom="Gueurle" actions="3" />
+<pnj id="1114" nom="Garde de convoi" />
+<pnj id="1115" nom="Trape" actions="3" />
+<pnj id="1116" nom="Arlette Ba" actions="3" />
+<pnj id="1117" nom="Néforun" actions="3" />
+<pnj id="1118" nom="Dréna Nassema" actions="3" />
+<pnj id="1119" nom="Eniripsa de Brâkmar" actions="3" />
+<pnj id="1120" nom="Jibworknouille" actions="3" />
+<pnj id="1121" nom="Thomas Sacre" actions="3" />
+<pnj id="1123" nom="Poursuivant brâkmarien" actions="3" />
+<pnj id="1127" nom="Emma Sacre" actions="3" />
+<pnj id="1128" nom="Nibor Dépitré " actions="3" />
+<pnj id="1129" nom="Chef des renégats bontariens" actions="3" />
+<pnj id="1130" nom="Garde déguisé " actions="3" />
+<pnj id="1131" nom="Voleur de Brâkmar" actions="3" />
+<pnj id="1133" nom="Voleur de Brâkmar" actions="3" />
+<pnj id="1134" nom="Voleur de Brâkmar" actions="3" />
+<pnj id="1135" nom="La Gonflante" actions="3" />
+<pnj id="1140" nom="Jissey Pandamme" actions="3" />
+<pnj id="1158" nom="Vendeur de capes" actions="1" />
+<pnj id="1162" nom="Pavu Papry" actions="3" />
+<pnj id="1163" nom="Klik Klak" actions="3" />
+<pnj id="1165" nom="Iturik" actions="3" />
+<pnj id="1166" nom="Dikaprio" actions="3" />
+<pnj id="1216" nom="Goultard" actions="3" />
+<pnj id="1217" nom="Norach" actions="3" />
+<pnj id="1218" nom="Goultard" actions="3" />
+<pnj id="1220" nom="Vendeur Bricoleur d'Astrub" actions="3,5,6" />
+<pnj id="1221" nom="Vendeur Fées d'artifice" actions="3,5,6" />
+<pnj id="1222" nom="Maître Pifo" actions="3" />
+<pnj id="1223" nom="Fée Risette" actions="3" />
+<pnj id="1224" nom="Ali Macbeth" actions="3" />
+<pnj id="1225" nom="Sel Dawa" actions="3" />
+<pnj id="1226" nom="Pandale Douce" actions="3" />
+<pnj id="1227" nom="Phil Arthur" actions="3" />
+<pnj id="1228" nom="Baramine" actions="3" />
+<pnj id="1229" nom="Laforay" actions="3" />
+<pnj id="1230" nom="Bob l'Enutrof" actions="3" />
+<pnj id="1231" nom="Garde Heury" actions="3" />
+<pnj id="1232" nom="Félix Nowel" actions="3" />
+<pnj id="1233" nom="Zezette Nowel" actions="2,3" />
+<pnj id="1234" nom="Syn Jorge" actions="3" />
+<pnj id="1235" nom="Dédé Toure Neman" actions="3" />
+<pnj id="1236" nom="Capitaine Ardier" actions="3" />
+<pnj id="1237" nom="Maire Cantile" actions="3" />
+<pnj id="1238" nom="Moroh Ra" actions="3" />
+<pnj id="1239" nom="Cassiopée Hisane" actions="3" />
+<pnj id="1240" nom="Circé Réal" actions="3" />
+<pnj id="1241" nom="Bisale Vinlenta" actions="3" />
+<pnj id="1242" nom="Chef Rhonté " actions="3" />
+<pnj id="1243" nom="Capitaine Gneux" actions="3" />
+<pnj id="1244" nom="Walter Aygo" actions="1,3" />
+<pnj id="1245" nom="Clarisse Tosha" actions="3" />
+<pnj id="1246" nom="Lucette Brifian" actions="3" />
+<pnj id="1247" nom="Hyppolite Tairmy" actions="3" />
+<pnj id="1248" nom="Hugo Frais" actions="3" />
+<pnj id="1249" nom="Laurent Gebleuh" actions="3" />
+<pnj id="1250" nom="Justin Dwa" actions="3" />
+<pnj id="1251" nom="Albert Paisse" actions="3" />
+<pnj id="1252" nom="Bonnie Barrow" actions="3" />
+<pnj id="1253" nom="Clyde Parker" actions="3" />
+<pnj id="1254" nom="Jean-Pierre Kofkof" actions="3" />
+<pnj id="1255" nom="Annette Daimpeau" actions="3" />
+<pnj id="1256" nom="Paul Igam" actions="3" />
+<pnj id="1257" nom="Germain Danlsak" actions="3" />
+<pnj id="1258" nom="Firmin Tassion" actions="1,3" />
+<pnj id="1259" nom="Abdhoul Heure" actions="3" />
+<pnj id="1260" nom="Eric Azaraille" actions="3" />
+<pnj id="1261" nom="Diana Jaune" actions="3" />
+<pnj id="1262" nom="Casper Kolateur " actions="3" />
+<pnj id="1263" nom="Quentin Flush" actions="3" />
+<pnj id="1264" nom="Mousse Haka" actions="3" />
+<pnj id="1265" nom="Karl Groucho" actions="3" />
+<pnj id="1266" nom="Léthaline Sigisbul" actions="3" />
+<pnj id="1267" nom="Ze Rorc" actions="3" />
+<pnj id="1268" nom="Hata Marie" actions="3" />
+<pnj id="1269" nom="Esprit de Cabotine" actions="3" />
+<pnj id="1270" nom="Jozébo Vez" actions="3" />
+<pnj id="1272" nom="Ernest Laye" actions="1,3" />
+<pnj id="1273" nom="Mel" actions="3" />
+<pnj id="1274" nom="Ordralfabétist" actions="3" />
+<pnj id="1275" nom="Kyrie Lawache" actions="3" />
+<pnj id="1276" nom="Aurore Boréale" actions="3" />
+<pnj id="1277" nom="Frigostine" actions="3" />
+<pnj id="1278" nom="Al Shab" actions="3" />
+<pnj id="1279" nom="Mac Givré " actions="3" />
+<pnj id="1280" nom="Agnès Péha" actions="3" />
+<pnj id="1282" nom="Damar" actions="3" />
+<pnj id="1283" nom="Grand-père" actions="3" />
+<pnj id="1284" nom="Biloute" actions="3" />
+<pnj id="1285" nom="Truffo" actions="3" />
+<pnj id="1286" nom="Agent de la compagnie Asfog et Fils." actions="3" />
+<pnj id="1287" nom="Agent immobilier de Bonta" actions="3" />
+<pnj id="1288" nom="Hôtesse d'accueil" actions="3" />
+<pnj id="1289" nom="Agent immobilier de Brâkmar" actions="3" />
+<pnj id="1290" nom="Valy Domidat" actions="3" />
+<pnj id="1291" nom="Francky" actions="3" />
+<pnj id="1292" nom="Bonhomme de neige" actions="3" />
+<pnj id="1293" nom="Richard Rouge" actions="3" />
+<pnj id="1294" nom="Staurme Sioux" actions="3" />
+<pnj id="1295" nom="Staurme Jauni" actions="3" />
+<pnj id="1296" nom="Grimebène" actions="3" />
+<pnj id="1297" nom="Bambelle" actions="3" />
+<pnj id="1298" nom="Gormor l'Equarisseur" actions="3" />
+<pnj id="1299" nom="Panoramist" actions="3" />
+<pnj id="1300" nom="Waldos FieldChester Potcobble" actions="3" />
+<pnj id="1301" nom="Marin" actions="3" />
+<pnj id="1302" nom="Mousse" actions="3" />
+<pnj id="1303" nom="Docker" actions="3" />
+<pnj id="1304" nom="Chienchien des glaces" />
+<pnj id="1305" nom="Pêcheur du lac" actions="3" />
+<pnj id="1306" nom="Dazel" actions="3" />
+<pnj id="1307" nom="Zobie la mousse" actions="3" />
+<pnj id="1308" nom="Lafairé Danlsak" actions="3" />
+<pnj id="1310" nom="Monsieur Pingouin" />
+<pnj id="1312" nom="Fantômayte" />
+<pnj id="1313" nom="Vengeuse Masquée" />
+<pnj id="1314" nom="YeCh'Ti" />
+<pnj id="1317" nom="Jarvi Jukkas" actions="3" />
+<pnj id="1318" nom="Nayd Uches" actions="3" />
+<pnj id="1319" nom="Pleni l'Ancien" actions="3" />
+<pnj id="1320" nom="Ken Tucky" actions="3" />
+<pnj id="1321" nom="Barin enrubé " actions="3" />
+<pnj id="1322" nom="Docker enrubé " actions="3" />
+<pnj id="1323" nom="Larry Tutthe" actions="3" />
+<pnj id="1324" nom="Gaston" actions="3" />
+<pnj id="1325" nom="Chasseur blessé " actions="3" />
+<pnj id="1326" nom="Djauns" actions="3" />
+<pnj id="1327" nom="Ogivol Victor" actions="3" />
+<pnj id="1328" nom="Chef des chasseurs de YeCh'Ti" actions="3" />
+<pnj id="1329" nom="Pisteur du YeCh'Ti" actions="3" />
+<pnj id="1330" nom="Chasseur de YeCh'Ti" actions="3" />
+<pnj id="1331" nom="Nico" actions="3" />
+<pnj id="1332" nom="Elcaste" actions="3" />
+<pnj id="1333" nom="Sufur" actions="3" />
+<pnj id="1334" nom="Klétor" actions="3" />
+<pnj id="1335" nom="Joe Froid" actions="3" />
+<pnj id="1336" nom="Jojo Akim" actions="3" />
+<pnj id="1337" nom="Esprit Zonier" actions="3" />
+<pnj id="1338" nom="Oyop" actions="3" />
+<pnj id="1339" nom="Merton Valend" actions="3" />
+<pnj id="1340" nom="Ainer Meon" actions="3" />
+<pnj id="1341" nom="Konnoth Elssen" actions="3" />
+<pnj id="1342" nom="Endars Heldi" actions="3" />
+<pnj id="1343" nom="Renu Usterhos" actions="3" />
+<pnj id="1344" nom="Maho Tsétougivré " actions="3" />
+<pnj id="1345" nom="Soryo Givrefoux" />
+<pnj id="1346" nom="Tengu Givrefoux" />
+<pnj id="1347" nom="Yokaï Givrefoux" />
+<pnj id="1348" nom="Ghislaine" actions="3" />
+<pnj id="1349" nom="Jean-Louis" />
+<pnj id="1350" nom="Groméo Montay" actions="3" />
+<pnj id="1351" nom="Ginette Capoué " actions="3" />
+<pnj id="1352" nom="Vieux Capoué " actions="3" />
+<pnj id="1353" nom="Robin Marimoni" actions="3" />
+<pnj id="1354" nom="Heike Holo" actions="3" />
+<pnj id="1355" nom="Judas Sticau" actions="3" />
+<pnj id="1356" nom="Beulin" />
+<pnj id="1357" nom="Fantômahawk" actions="3" />
+<pnj id="1358" nom="Lave Azza" actions="3" />
+<pnj id="11940" nom="Ernesto Rouste" actions="3" />
+<pnj id="98657" nom="Suebur Dirgah" actions="3" />
+<pnj id="98658" nom="Chafer Maudit" actions="3" />
+</BotLang>
