@@ -200,6 +200,15 @@ internal static class BotPartySmoke
                     Feed(account, "PIEnInconnu fictif");
                     Check(party.OutgoingInvitee == null && party.LastMessage.Contains("Inconnu fictif"), "PIEn was not reported");
                     Feed(account, "PIEa"); Feed(account, "PIEf"); Check(party.LastMessage.Length > 0, "PIEa/PIEf were not reported");
+                    // StarLoco répond aussi PIEn<nom> à BW<nom> : la demande « Informations » en attente est servie, sans erreur de groupe.
+                    var notices = new List<MapActionNotice>(); account.Game.Interactions.MapActions.Notice += notice => notices.Add(notice);
+                    string beforeWhois = party.LastMessage;
+                    Check(Sent(account.Game.Interactions.MapActions.WhoisAsync("Absent fictif")) && Read(peer) == "BWAbsent fictif", "Whois does not send BW<name>");
+                    Feed(account, "PIEnAbsent fictif");
+                    Check(notices.Any(notice => notice.Kind == MapActionNoticeKind.Error && notice.Text.Contains("Absent fictif")) && party.LastMessage == beforeWhois,
+                        "PIEn answering BW was not given to the pending whois request");
+                    Feed(account, "PIEnAbsent fictif");
+                    Check(party.LastMessage.Contains("Absent fictif") && party.LastMessage != beforeWhois, "PIEn without a whois request was not reported as a party error");
                     Check(Sent(party.InviteAsync("Autre fictif")) && Read(peer) == "PIAutre fictif", "Second invitation not sent");
                     Feed(account, "PIKPersonnage de test|Autre fictif");
                     Check(party.OutgoingInvitee == "Autre fictif" && invitations.Count == 1, "Outgoing PIK was not recorded or was taken as a received invitation");

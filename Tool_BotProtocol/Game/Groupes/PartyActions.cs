@@ -301,17 +301,22 @@ namespace Tool_BotProtocol.Game.Groupes
             return SendRawAsync("PR");
         }
 
-        /// <summary><c>PIE&lt;n|a|f&gt;[nom]</c> : invitation impossible (<c>Party.onInvite(false, …)</c>).</summary>
+        /// <summary>
+        /// <c>PIE&lt;n|a|f&gt;[nom]</c> : invitation impossible (<c>Party.onInvite(false, …)</c>). Comme le client, seul un message
+        /// d'erreur est affiché : l'invitation déjà en cours (boîte « Annuler ») et une invitation reçue restent ouvertes.
+        /// StarLoco répond aussi <c>PIEn&lt;nom&gt;</c> à <c>BW&lt;nom&gt;</c> (« Informations » sur un joueur absent) : la demande
+        /// en attente des actions de la carte est servie d'abord, sinon le message est celui de l'invitation.
+        /// </summary>
         internal void OnInviteErrorPacket(string message)
         {
             string body = message.Length > 3 ? message.Substring(3) : string.Empty;
-            lock (sync) outgoingInvitee = null;
             char code = body.Length > 0 ? body[0] : '\0';
             string name = body.Length > 1 ? body.Substring(1) : string.Empty;
             if (code == 'a') Fail(PartyTexts.Get("PARTY_ALREADY_IN_GROUP", "Ce joueur appartient déjà à un groupe."));
             else if (code == 'f') Fail(PartyTexts.Get("PARTY_FULL", "Le groupe est complet ({0} membres).", Groupe.MaxMembers.ToString(CultureInfo.InvariantCulture)));
+            else if (code == 'n' && account?.Game?.Interactions?.MapActions?.ReportWhoisNotFound(name) == true)
+                account.Logger?.LogDebug(Reference, "PIEn" + name + " : réponse à une demande d'informations sur le joueur.");
             else Fail(PartyTexts.Get("CANT_FIND_ACCOUNT_OR_CHARACTER", "{0} est introuvable ou n'est pas connecté.", name));
-            RaiseInvitationClosed();
         }
 
         /// <summary><c>PCK&lt;chef&gt;</c> : le personnage entre dans un groupe (<c>Party.onCreate</c>).</summary>
@@ -412,7 +417,9 @@ namespace Tool_BotProtocol.Game.Groupes
         {
             string invitee, inviter;
             lock (sync) { invitee = outgoingInvitee; inviter = pendingInviter; outgoingInvitee = null; pendingInviter = null; }
-            if (invitee != null) account?.Logger?.LogInfo(Reference, "Invitation de " + invitee + " close sans entrée dans le groupe.");
+            // StarLoco envoie aussi PR à l'invitant quand l'invité accepte (après PM+ si le groupe existait déjà).
+            if (invitee != null)
+                account?.Logger?.LogInfo(Reference, Group.Contains(invitee) ? invitee + " a rejoint le groupe." : "Invitation de " + invitee + " refusée ou annulée.");
             if (inviter != null) account?.Logger?.LogInfo(Reference, "Invitation de " + inviter + " annulée par le serveur.");
             RaiseChanged();
             RaiseInvitationClosed();

@@ -24,7 +24,10 @@ namespace Tool_BotProtocol.Frames.Jeu
         [MessageAttribution("PIK")]
         public Task GetGroup(TcpClient client, string message) => Run(client, message, party => party.OnInvitePacket(message));
 
-        /// <summary><c>PIE&lt;n|a|f&gt;[nom]</c> : invitation impossible (introuvable, déjà groupé, groupe complet).</summary>
+        /// <summary>
+        /// <c>PIE&lt;n|a|f&gt;[nom]</c> : invitation impossible (introuvable, déjà groupé, groupe complet) ; <c>PIEn&lt;nom&gt;</c> répond
+        /// aussi à <c>BW&lt;nom&gt;</c> chez StarLoco (servi d'abord à la demande d'informations en attente des actions de la carte).
+        /// </summary>
         [MessageAttribution("PIE")]
         public void InviteError(TcpClient client, string message) => Apply(client, message, party => party.OnInviteErrorPacket(message));
 
