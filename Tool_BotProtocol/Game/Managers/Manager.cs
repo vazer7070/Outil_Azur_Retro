@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System;
 using Tool_BotProtocol.Game.Managers.Mouvements;
 using Tool_BotProtocol.Game.Managers.recoltes;
 using Tool_BotProtocol.Game.Maps;
@@ -14,23 +10,20 @@ namespace Tool_BotProtocol.Game.Managers
     public  class Manager : IEliminable, IDisposable
     {
         public Mouvement Mouvements { get; private set; }
-        public RecoltesClass Recolte { get; private set; }
-        public Teleport.Teleport Teleport { get; private set; }
+        /// <summary>Récolte et état des objets interactifs de la carte (<c>GDF</c>).</summary>
+        public Harvest Harvest { get; private set; }
         private bool disposed;
 
         public Manager(Accounts.Accounts A, Map map, CharacterClass perso)
         {
             Mouvements = new Mouvement(A, map, perso);
-            Recolte = new RecoltesClass(A, Mouvements, map);
-            Teleport = new Teleport.Teleport(A, Mouvements, map);
+            Harvest = new Harvest(A, Mouvements, map);
         }
 
         public void Clear()
         {
-            
-            Recolte.Clear();
+            Harvest.Clear();
             Mouvements.Clear();
-            Teleport.Clear();
         }
 
         public void Dispose() => Dispose(true);
@@ -39,8 +32,7 @@ namespace Tool_BotProtocol.Game.Managers
             if(disposed) return;
             if(d)
             {
-                Recolte.Dispose();
-                Teleport.Dispose();
+                Harvest.Dispose();
                 Mouvements.Dispose();
             }
             Mouvements = null;

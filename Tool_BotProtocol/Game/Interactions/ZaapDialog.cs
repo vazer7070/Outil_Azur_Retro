@@ -41,14 +41,16 @@ namespace Tool_BotProtocol.Game.Interactions
 
         internal ZaapDialog(Accounts.Accounts account) : base(account) { }
 
-        /// <summary>Vrai si la cellule porte le zaap de la carte (BotZaaps) ou un interactif à compétence 114.</summary>
+        /// <summary>
+        /// Vrai si la cellule porte le zaap de la carte : <c>BotZaaps</c>, ou un objet interactif de gfx 7000/7026/7029/4287
+        /// (les gfx que <c>GameCase.canDoAction</c> de StarLoco accepte pour 114), ou à compétence 114.
+        /// </summary>
         public bool IsZaapCell(short cellId)
         {
             Map map = Account?.Game?.Map;
             if (map == null) return false;
             if (Zaaps.Z.TryGetValue(map.MapID, out int zaapCell) && zaapCell == cellId) return true;
-            return map.Interactives.TryGetValue(cellId, out Interactives interactive)
-                && interactive?.Interactive?.Capacities != null && interactive.Interactive.Capacities.Contains(ZaapSkill);
+            return map.Interactives.TryGetValue(cellId, out Interactives interactive) && interactive != null && interactive.IsZaap;
         }
 
         /// <summary>Utilise le zaap de la carte : <c>GA500&lt;cellule&gt;;114</c>, comme <c>GameActions.sendActions</c>.</summary>
