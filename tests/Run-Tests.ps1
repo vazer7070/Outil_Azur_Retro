@@ -52,6 +52,7 @@ try {
     $azurTests += 'EmulatorProfileSmoke'
     $azurTests += 'BotSessionSmoke'
     $azurTests += 'BotActorsModelSmoke'
+    $azurTests += 'BotFightProtocolSmoke'
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'
