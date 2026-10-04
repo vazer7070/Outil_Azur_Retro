@@ -20,4 +20,10 @@ Sans dessin dans le SWF même (sprite ou scène vide), donc sans PNG (1) :
 
 - `clips/items/15/488.swf`
 
+SWF ignorés : nom non numérique, hors des chemins `<dossier>/<n>.swf` que compose le client (3) :
+
+- `clips/items/11/a1.swf`
+- `clips/items/16/111_bis.swf`
+- `clips/items/41/Sans nom-1.swf`
+
 Les illustrations conservent les droits de leurs titulaires d'origine, comme celles de `../Selection` et `../Client`.

@@ -529,6 +529,9 @@ def enregistrer(image, chemin):
 
 # `CircleChrono`, `Clock`, `Compass` et `Emblem` ne contiennent qu'un cadre invisible : le client les
 # dessine par le code à partir des symboles ci-dessous (aiguilles, fonds) ou des SWF d'emblèmes.
+# `CircleChrono` y attache deux `CircleChronoHalfDefault`, demi-disques magenta (aplat recoloré par la
+# couleur de style `bgcolor`) que le code masque et tourne : swfsvg omet le magenta, il n'y a rien à
+# exporter, le bot dessine un secteur de la couleur voulue.
 # `UI_MainMenu` et `UI_WaypointItemLocate` sont déjà dans Client/ (onglet-menu.png, zaap.png).
 SYMBOLES_UI = [
     # Bandeau (jauges, boutons ronds, œil des combats, menu principal, canaux)
@@ -562,8 +565,23 @@ def fichiers(dossier, motif=r"^(-?\d+)\.swf$"):
     return [chemin for _, chemin in sorted(trouves)]
 
 
-def taches_simples(client, famille, sous_dossier, sortie, echelle, maximum):
+def swf_ignores(dossier, motif=r"^(-?\d+)\.swf$", sauf=()):
+    """SWF d'un dossier dont le nom ne suit pas `motif` : le client compose ses chemins avec un
+    identifiant numérique et ne les demande pas ainsi ; ils sont listés dans PROVENANCE.md."""
+    if not os.path.isdir(dossier):
+        return []
+    return sorted(os.path.join(dossier, nom) for nom in os.listdir(dossier)
+                  if nom.lower().endswith(".swf") and not re.match(motif, nom) and nom not in sauf)
+
+
+def noter_ignores(ignores, famille, dossier, **options):
+    if ignores is not None:
+        ignores.setdefault(famille, []).extend(swf_ignores(dossier, **options))
+
+
+def taches_simples(client, famille, sous_dossier, sortie, echelle, maximum, ignores=None):
     taches = []
+    noter_ignores(ignores, famille, os.path.join(client, sous_dossier))
     for chemin in fichiers(os.path.join(client, sous_dossier)):
         nom = os.path.splitext(os.path.basename(chemin))[0]
         taches.append({"famille": famille, "type": "scene", "swf": chemin, "sortie": sortie + nom,
@@ -571,19 +589,23 @@ def taches_simples(client, famille, sous_dossier, sortie, echelle, maximum):
     return taches
 
 
-def lister_taches(client, familles, sortie_racine, remplacer):
+def lister_taches(client, familles, sortie_racine, remplacer, ignores=None):
+    """Tâches de rendu des familles demandées ; `ignores` (dict facultatif) reçoit par famille les SWF
+    au nom non numérique que la série laisse de côté."""
     clips = os.path.join(client, "clips")
     taches = []
     if "Smileys" in familles:
-        taches += taches_simples(clips, "Smileys", "smileys", "Smileys/", 2, 48)
+        taches += taches_simples(clips, "Smileys", "smileys", "Smileys/", 2, 48, ignores)
     if "Emotes" in familles:
-        taches += taches_simples(clips, "Emotes", "emotes", "Emotes/", 2, 48)
+        taches += taches_simples(clips, "Emotes", "emotes", "Emotes/", 2, 48, ignores)
     if "Jobs" in familles:
-        taches += taches_simples(clips, "Jobs", "jobs", "Jobs/", 2, 64)
+        taches += taches_simples(clips, "Jobs", "jobs", "Jobs/", 2, 64, ignores)
     if "Alignments" in familles:
         for sous in ("", "mini/", "orders/", "feats/"):
-            taches += taches_simples(clips, "Alignments", "alignments/" + sous, "Alignments/" + sous, 2, 64)
+            taches += taches_simples(clips, "Alignments", "alignments/" + sous, "Alignments/" + sous, 2, 64, ignores)
     if "Emblems" in familles:
+        noter_ignores(ignores, "Emblems", os.path.join(clips, "emblems", "back"))
+        noter_ignores(ignores, "Emblems", os.path.join(clips, "emblems", "up"))
         for chemin in fichiers(os.path.join(clips, "emblems", "back")):
             nom = os.path.splitext(os.path.basename(chemin))[0]
             taches.append({"famille": "Emblems", "type": "embleme-fond", "swf": chemin, "sortie": "Emblems/back/" + nom, "echelle": 2})
@@ -591,19 +613,21 @@ def lister_taches(client, familles, sortie_racine, remplacer):
             nom = os.path.splitext(os.path.basename(chemin))[0]
             taches.append({"famille": "Emblems", "type": "scene", "swf": chemin, "sortie": "Emblems/up/" + nom, "echelle": 2, "max": 100})
     if "Portraits" in familles:
-        taches += taches_simples(clips, "Portraits", os.path.join("artworks", "big"), "Portraits/", 1, 320)
+        taches += taches_simples(clips, "Portraits", os.path.join("artworks", "big"), "Portraits/", 1, 320, ignores)
     if "Items" in familles:
         racine = os.path.join(clips, "items")
         types = sorted((int(n), n) for n in os.listdir(racine) if n.isdigit()) if os.path.isdir(racine) else []
         for _, type_objet in types:
-            taches += taches_simples(racine, "Items", type_objet, "Items/%s/" % type_objet, 2, 80)
+            taches += taches_simples(racine, "Items", type_objet, "Items/%s/" % type_objet, 2, 80, ignores)
     if "Spells" in familles:
+        noter_ignores(ignores, "Spells", os.path.join(clips, "spells", "icons"))
         for chemin in fichiers(os.path.join(clips, "spells", "icons")):
             nom = os.path.splitext(os.path.basename(chemin))[0]
             if not remplacer and os.path.exists(os.path.join(sortie_racine, "sorts", nom + ".png")):
                 continue
             taches.append({"famille": "Spells", "type": "scene", "swf": chemin, "sortie": "sorts/" + nom, "echelle": 2, "max": 80})
     if "WorldMap" in familles:
+        noter_ignores(ignores, "WorldMap", os.path.join(clips, "maps"), sauf=("hints.swf", "dungeon.swf"))
         for chemin in fichiers(os.path.join(clips, "maps")):
             zone = os.path.splitext(os.path.basename(chemin))[0]
             noms = exports_ou_rien(chemin)
@@ -697,7 +721,8 @@ def executer(tache, binaire, sortie_racine, travail):
 # PROVENANCE.md de chaque famille.
 
 SOURCES = {
-    "Smileys": ("clips/smileys/<n>.swf", "Smileys/<n>.png", "Smileys du chat (`BS<n>`, `cS<id>|<n>`) : 1 à 15 dans le panneau « Smileys » (`SMILEYS_ICONS_PATH + n`), 91 à 99 pour les jauges de la monture.",
+    "Smileys": ("clips/smileys/<n>.swf", "Smileys/<n>.png", "Smileys du chat (`BS<n>`, `cS<id>|<n>`) : 1 à 15 dans le panneau « Smileys » (`SMILEYS_ICONS_PATH + n`), 91 à 99 pour les jauges de la monture. "
+                "`all.swf`, qui regroupe les mêmes smileys pour le mode « streaming » du client (`SMILEYS_ICONS_PATH + \"all.swf\"`), n'est pas exporté.",
                 "--scene, échelle 2, côté le plus long limité à 48 px"),
     "Emotes": ("clips/emotes/<n>.swf", "Emotes/<n>.png", "Icônes des attitudes (`eU<n>`, onglet attitudes du panneau « Smileys », `EMOTES_ICONS_PATH + n`).",
                "--scene, échelle 2, côté le plus long limité à 48 px"),
@@ -731,7 +756,7 @@ SOURCES = {
 }
 
 
-def ecrire_provenance(sortie_racine, famille, resultats, commande):
+def ecrire_provenance(sortie_racine, famille, resultats, commande, ignores=()):
     source, cible, usage, mode = SOURCES[famille]
     dossier = os.path.join(sortie_racine, cible.split("/")[0])
     ecrits = [r for r in resultats if r["tache"]["famille"] == famille and r["ecrits"]]
@@ -767,6 +792,11 @@ def ecrire_provenance(sortie_racine, famille, resultats, commande):
         for swf in sorted(par_swf, key=naturel):
             symboles = sorted((n for n in par_swf[swf] if n), key=naturel)
             lignes.append("- `%s`%s" % (swf, " : " + ", ".join(symboles) if symboles else ""))
+    if ignores:
+        relatifs = sorted((os.path.relpath(c, CLIENT_RACINE).replace(os.sep, "/") for c in ignores),
+                          key=lambda n: [int(x) if x.isdigit() else x for x in re.split(r"(\d+)", n)])
+        lignes += ["", "SWF ignorés : nom non numérique, hors des chemins `<dossier>/<n>.swf` que compose le client (%d) :" % len(relatifs), ""]
+        lignes += ["- `%s`" % n for n in relatifs]
     lignes += ["", "Les illustrations conservent les droits de leurs titulaires d'origine, comme celles de `../Selection` et `../Client`."]
     if famille == "Spells" and ecrits:
         noms = sorted((os.path.basename(e) for r in ecrits for e in r["ecrits"]), key=lambda n: int(n) if n.lstrip("-").isdigit() else 0)
@@ -826,7 +856,8 @@ def main(argv=None):
             VERSION_SWFSVG = re.search(r'^version\s*=\s*"([^"]+)"', f.read(), re.M).group(1)
     except (OSError, AttributeError):
         pass
-    taches = lister_taches(CLIENT_RACINE, familles, options.sortie, options.remplacer)
+    ignores = {}
+    taches = lister_taches(CLIENT_RACINE, familles, options.sortie, options.remplacer, ignores)
     if options.limite:
         compte, retenues = {}, []
         for t in taches:
@@ -851,14 +882,15 @@ def main(argv=None):
         commande += " --remplacer"
     for famille in familles:
         if famille in SOURCES:
-            ecrire_provenance(options.sortie, famille, resultats, commande.replace("--familles " + ",".join(familles), "--familles " + famille))
+            ecrire_provenance(options.sortie, famille, resultats, commande.replace("--familles " + ",".join(familles), "--familles " + famille),
+                              ignores.get(famille, ()))
     if "WorldMap" in familles:
         ecrire_tuiles(options.sortie, resultats)
     for famille in familles:
         mine = [r for r in resultats if r["tache"]["famille"] == famille]
-        print("%-10s %5d SWF/symboles, %5d PNG, %6.1f Mo, %d sans dessin, %d non exportés" % (
+        print("%-10s %5d SWF/symboles, %5d PNG, %6.1f Mo, %d sans dessin, %d non exportés, %d SWF ignorés" % (
             famille, len(mine), sum(len(r["ecrits"]) for r in mine), sum(r["octets"] for r in mine) / 1e6,
-            sum(1 for r in mine if r["vide"]), sum(1 for r in mine if r["erreur"])))
+            sum(1 for r in mine if r["vide"]), sum(1 for r in mine if r["erreur"]), len(ignores.get(famille, ()))))
     for r in resultats:
         if r["erreur"]:
             t = r["tache"]

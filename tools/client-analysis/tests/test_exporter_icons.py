@@ -168,6 +168,7 @@ class Export(unittest.TestCase):
         self.faux("clips/smileys/lisezmoi.swf", {"scene": True})
         self.faux("clips/items/9/12.swf", {"scene": True})
         self.faux("clips/items/9/3.swf", {"scene": True})
+        self.faux("clips/items/9/12_bis.swf", {"scene": True})
         for chemin in ("clips/artworks/big/7.swf", "clips/maps/0.swf", "clips/maps/hints.swf"):
             chemin = os.path.join(self.client, *chemin.split("/"))
             os.makedirs(os.path.dirname(chemin), exist_ok=True)
@@ -215,6 +216,12 @@ class Export(unittest.TestCase):
         self.assertIn("`clips/smileys/2.swf` : rendu vide", smileys)
         self.assertIn("`clips/artworks/big/7.swf` : RuntimeError", self.lire("Portraits", "PROVENANCE.md"))
         self.assertIn("2 PNG", self.lire("Items", "PROVENANCE.md"))
+        # Noms non numériques : jamais demandés par le client, ni rendus ni oubliés (listés).
+        self.assertFalse(os.path.exists(os.path.join(self.sortie, "Items", "9", "12_bis.png")))
+        self.assertIn("SWF ignorés", self.lire("Items", "PROVENANCE.md"))
+        self.assertIn("- `clips/items/9/12_bis.swf`", self.lire("Items", "PROVENANCE.md"))
+        self.assertIn("- `clips/smileys/lisezmoi.swf`", smileys)
+        self.assertNotIn("SWF ignorés", self.lire("Portraits", "PROVENANCE.md"))
         self.assertIn("0 PNG", self.lire("Emotes", "PROVENANCE.md"), "famille absente du client : provenance vide, pas d'erreur")
 
     def test_options_invalides(self):
