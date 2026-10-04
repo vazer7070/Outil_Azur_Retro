@@ -736,6 +736,15 @@
   <Target Name="CopyBotSpriteAnchors" AfterTargets="Build">
     <Copy SourceFiles="$(ProjectDir)Resources\Bot\sprites\ancres.tsv" DestinationFolder="$(OutDir)ressources\Bot\sprites" SkipUnchangedFiles="true" Condition="Exists('$(ProjectDir)Resources\Bot\sprites\ancres.tsv')" />
   </Target>
+  <!-- Volet Groupe : illustrations clips/artworks/mini et éléments UI_PartyItem exportés par tools/client-analysis/exporter_groupe.py (voir les PROVENANCE.md). -->
+  <Target Name="CopyBotPartyAssets" AfterTargets="Build">
+    <ItemGroup>
+      <BotMiniArtwork Include="$(ProjectDir)Resources\Bot\Artworks\Mini\*.png" />
+      <BotPartyAsset Include="$(ProjectDir)Resources\Bot\Party\*.png" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BotMiniArtwork)" DestinationFolder="$(OutDir)ressources\Bot\Artworks\Mini" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(BotPartyAsset)" DestinationFolder="$(OutDir)ressources\Bot\Party" SkipUnchangedFiles="true" />
+  </Target>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
       <ErrorText>Ce projet fait référence à des packages NuGet qui sont manquants sur cet ordinateur. Utilisez l'option de restauration des packages NuGet pour les télécharger. Pour plus d'informations, consultez http://go.microsoft.com/fwlink/?LinkID=322105. Le fichier manquant est : {0}.</ErrorText>
