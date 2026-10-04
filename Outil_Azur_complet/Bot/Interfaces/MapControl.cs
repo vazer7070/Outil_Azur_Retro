@@ -35,6 +35,8 @@ namespace Outil_Azur_complet.Bot.Interfaces
         public string ArtworkStatus => UserMap.ArtworkStatus;
         public bool ShowGrid { get => UserMap.ShowGrid; set => UserMap.ShowGrid = value; }
         public bool ShowCellIds { get => UserMap.ShowCellId; set => UserMap.ShowCellId = value; }
+        /// <summary>Qualité de rendu (option <c>DefaultQuality</c> du client : basse, moyenne, haute).</summary>
+        public MapQuality Quality { get => UserMap.MapQ; set => UserMap.MapQ = value; }
         /// <summary>Option du client « voir tous les monstres du groupe » (vraie par défaut).</summary>
         public bool ViewAllMonsterInGroup { get => UserMap.ViewAllMonsterInGroup; set => UserMap.ViewAllMonsterInGroup = value; }
         /// <summary>Option du client « effets du chat » : bulles au-dessus des acteurs (vraie par défaut).</summary>
