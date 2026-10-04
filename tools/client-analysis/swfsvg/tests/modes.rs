@@ -404,3 +404,101 @@ fn fill_matrices_are_not_scaled_twice() {
     ok(&[&swf, &w.out(), "peint"]);
     assert_eq!(attribute(&w.read("peint.svg"), "gradientTransform"), "matrix(0.5 0 0 0.5 0 0)");
 }
+
+/// Un dégradé est exprimé dans le repère de sa forme : le `<g transform>` de la forme le place
+/// déjà, sa matrice ne doit pas être composée une seconde fois avec celle du placement (les icônes
+/// d'objets réduites à 5 % du client donnaient des dégradés de 0,1 pixel que cairo refusait).
+#[test]
+fn gradient_fills_stay_in_shape_space() {
+    let w = Work::new("gradient");
+    let gradient = Gradient {
+        matrix: Matrix::scale(Fixed16::from_f64(0.015625), Fixed16::from_f64(0.015625)),
+        spread: GradientSpread::Pad,
+        interpolation: GradientInterpolation::Rgb,
+        records: vec![
+            GradientRecord { ratio: 0, color: Color { r: 255, g: 0, b: 0, a: 255 } },
+            GradientRecord { ratio: 255, color: Color { r: 0, g: 0, b: 255, a: 255 } },
+        ],
+    };
+    let shape = Tag::DefineShape(Shape {
+        version: 1,
+        id: 1,
+        shape_bounds: bounds(0.0, 0.0, 20.0, 20.0),
+        edge_bounds: bounds(0.0, 0.0, 20.0, 20.0),
+        flags: ShapeFlag::empty(),
+        styles: ShapeStyles { fill_styles: vec![FillStyle::LinearGradient(gradient)], line_styles: vec![] },
+        shape: rect_records(0.0, 0.0, 20.0, 20.0, Some(1)),
+    });
+    // Lame dégénérée (matrice de 1/65 536 sur un axe, nulle sur l'autre) : une seule couleur.
+    let mut flat = match &shape {
+        Tag::DefineShape(s) => s.clone(),
+        _ => unreachable!(),
+    };
+    flat.id = 3;
+    if let FillStyle::LinearGradient(g) = &mut flat.styles.fill_styles[0] {
+        g.matrix = Matrix::scale(Fixed16::from_f64(1.0 / 65536.0), Fixed16::ZERO);
+    }
+    let mut half = place(1, PlaceObjectAction::Place(1), None);
+    half.matrix = Some(Matrix::scale(Fixed16::from_f64(0.5), Fixed16::from_f64(0.5)));
+    let tags = vec![
+        shape,
+        sprite(2, vec![tag(half), Tag::ShowFrame]),
+        Tag::DefineShape(flat),
+        sprite(4, vec![tag(place(1, PlaceObjectAction::Place(3), None)), Tag::ShowFrame]),
+        Tag::ExportAssets(vec![
+            ExportedAsset { id: 2, name: SwfStr::from_utf8_str("degrade") },
+            ExportedAsset { id: 4, name: SwfStr::from_utf8_str("lame") },
+        ]),
+        Tag::ShowFrame,
+    ];
+    let header = Header { compression: Compression::None, version: 8, stage_size: bounds(0.0, 0.0, 550.0, 400.0), frame_rate: Fixed8::from_f32(12.0), num_frames: 1 };
+    let mut out = Vec::new();
+    write_swf(&header, &tags, &mut out).expect("écriture du SWF de test");
+    let swf = w.dir.join("degrade.swf");
+    std::fs::write(&swf, out).unwrap();
+    ok(&[&swf.to_string_lossy(), &w.out()]);
+    let svg = w.read("degrade.svg");
+    assert!(svg.contains("gradientTransform=\"matrix(0.015625 0 0 0.015625 0 0)\""), "dégradé recomposé avec le placement : {}", svg);
+    assert!(svg.contains("<g transform=\"matrix(0.5 0 0 0.5 0 0)\""), "placement de la forme absent : {}", svg);
+    assert_eq!(view_box(&svg), "0 0 10 10");
+    let flat = w.read("lame.svg");
+    assert!(!flat.contains("Gradient") && flat.contains("fill=\"#0000ff\""), "dégradé dégénéré non remplacé par une couleur : {}", flat);
+}
+
+/// Aplats magenta : omis seuls (emplacement recoloré par le client), gardés sous une
+/// transformation de couleur du SWF qui remplace la teinte (multiplicateurs RGB nuls, comme
+/// `Color.setRGB`) : c'est le cas du cœur des points de vie du bandeau.
+#[test]
+fn magenta_fills_are_kept_under_a_replacing_tint() {
+    let w = Work::new("tint");
+    let mut tinted = place(1, PlaceObjectAction::Place(1), Some((0.0, 0.0)));
+    tinted.color_transform = Some(ColorTransform {
+        r_multiply: Fixed8::ZERO,
+        g_multiply: Fixed8::ZERO,
+        b_multiply: Fixed8::ZERO,
+        a_multiply: Fixed8::ONE,
+        r_add: 0,
+        g_add: 128,
+        b_add: 0,
+        a_add: 0,
+    });
+    let tags = vec![
+        rect(1, 10.0, 10.0, 255, 0, 255),
+        sprite(2, vec![tag(tinted), Tag::ShowFrame]),
+        sprite(3, vec![tag(place(1, PlaceObjectAction::Place(1), Some((0.0, 0.0)))), Tag::ShowFrame]),
+        Tag::ExportAssets(vec![
+            ExportedAsset { id: 2, name: SwfStr::from_utf8_str("teinte") },
+            ExportedAsset { id: 3, name: SwfStr::from_utf8_str("emplacement") },
+        ]),
+        Tag::ShowFrame,
+    ];
+    let header = Header { compression: Compression::None, version: 8, stage_size: bounds(0.0, 0.0, 550.0, 400.0), frame_rate: Fixed8::from_f32(12.0), num_frames: 1 };
+    let mut out = Vec::new();
+    write_swf(&header, &tags, &mut out).expect("écriture du SWF de test");
+    let swf = w.dir.join("teinte.swf");
+    std::fs::write(&swf, out).unwrap();
+    ok(&[&swf.to_string_lossy(), &w.out()]);
+    let tinted = w.read("teinte.svg");
+    assert!(tinted.contains("#ff00ff") && tinted.contains("feColorMatrix"), "aplat teinté omis : {}", tinted);
+    assert!(!w.read("emplacement.svg").contains("#ff00ff"), "un emplacement magenta seul reste omis");
+}

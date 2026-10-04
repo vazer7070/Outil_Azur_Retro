@@ -44,7 +44,7 @@ python3 exporter_sprites.py <client>/clips/sprites ../../Outil_Azur_complet/Reso
 | `avm1dump` | Lit les tags DoAction / DoInitAction / DefineSprite / ExportAssets, désassemble chaque bloc en suivant les sauts (le code de remplissage entre deux `Jump` est ignoré), replie les prédicats opaques du client (`Push "x"; CharToAscii; If`, `GetTime; Increment; If`, `Push false; Not; If`), choisit le pool de constantes réel parmi les leurres et écrit les instructions dans l'ordre de visite avec des étiquettes `::@offset`. |
 | `as2lite.py` | Reconstruit des expressions (`this.aks.send("GA" + p1)`, `p4.split("|")`…) à partir de la sortie précédente. Les boucles ne sont pas restructurées : elles apparaissent sous forme de `goto`. Les paramètres obfusqués sont renommés `p1`, `p2`… |
 | `relever_protocole.py` | Suit les chaînes `if (r0 === "x") goto` des méthodes `onMessage` de `dofus.aks.*` pour recomposer les préfixes, relève les `aks.send(...)` et résume la lecture de chaque réponse (`split`, indices, `parseInt`). |
-| `swfsvg` | Exporte en SVG un symbole exporté (forme, clip, bouton à l'état relâché) ou la scène d'un SWF, à l'image voulue : dégradés, bitmaps JPEG/sans perte en base64, transformations de couleur, masques, formes morphées. Les aplats magenta `#FF00FF` sont des emplacements remplis à l'exécution : ils sont omis. Écrit aussi `index.tsv` (cadre de chaque rendu). Voir la section suivante. |
+| `swfsvg` | Exporte en SVG un symbole exporté (forme, clip, bouton à l'état relâché) ou la scène d'un SWF, à l'image voulue : dégradés, bitmaps JPEG/sans perte en base64, transformations de couleur, masques, formes morphées. Les aplats magenta `#FF00FF` sont des emplacements remplis à l'exécution : ils sont omis, sauf sous une transformation de couleur du SWF qui remplace la teinte (0.2.2). Écrit aussi `index.tsv` (cadre de chaque rendu). Voir la section suivante. |
 | `exporter_png.py` | Convertit les SVG en PNG avec cairosvg. |
 | `exporter_sprites.py` | Enchaîne `swfsvg --list`, `--frame` et `--scene` sur `clips/sprites/<gfx>.swf`, convertit avec cairosvg, rogne les marges transparentes, assemble les cycles en bandes et écrit `ancres.tsv`. Voir la section « Sprites d'acteurs ». |
 
@@ -102,12 +102,17 @@ Rendu : les masques (`clipDepth`) deviennent des `<clipPath>` et le cadre se lim
 visible ; les formes morphées sont interpolées au `ratio` de leur placement ; une forme vide ne
 compte pas dans le cadre. Les dégradés et les remplissages bitmap sont exprimés dans le repère de la
 forme, à l'intérieur du `<g transform>` de son placement (avant la version 0.2.1, la pose du clip leur
-était appliquée deux fois : motifs minuscules répétés, ombres en damier). Quelques symboles `static*` du client sont en réalité des animations
+était appliquée deux fois : motifs minuscules répétés, ombres en damier). Depuis la version 0.2.2, la partie
+linéaire des matrices de dégradé et de motif est écrite avec six décimales (les icônes d'objets ont des
+coefficients de l'ordre de 0,001 qu'un arrondi à trois décimales rendait singuliers : cairo refusait alors
+toute l'image), un dégradé dégénéré (aire de son carré de 1 638,4 px inférieure à 0,05 px²) est remplacé
+par la couleur de son milieu, et un aplat magenta sous une transformation de couleur qui remplace la teinte
+(multiplicateurs RGB nuls, comme `Color.setRGB` : le cœur des points de vie de `core.swf`) est gardé. Quelques symboles `static*` du client sont en réalité des animations
 (`sprites/1219.swf` : l'épouvantail sort du sol, caché par un masque à l'image 1) : `--list` en
 donne le nombre d'images et `--frame` permet de choisir une image représentative. Un SWF illisible
 arrête la commande avec un message et le code 1 (2 pour une option invalide), jamais une panique.
 
-Tests : `cargo test` dans `swfsvg/` (14 tests ; le SWF de test est fabriqué par les tests avec la
+Tests : `cargo test` dans `swfsvg/` (17 tests ; le SWF de test est fabriqué par les tests avec la
 crate `swf`, aucun fichier du client n'est nécessaire).
 
 Temps mesurés (conteneur 4 cœurs, un processus par SWF, binaire `--release`) :
