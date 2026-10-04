@@ -56,7 +56,7 @@ internal static class BotClientSkinSmoke
             // 2. Chargeur : cache, échelle des icônes, absence tolérée.
             var assets = typeof(LoginForm).Assembly.GetType("Outil_Azur_complet.Bot.ClientAssets");
             Check(assets != null, "ClientAssets type is missing");
-            var get = assets.GetMethod("Get", Any); var icon = assets.GetMethod("Icon", Any);
+            var get = assets.GetMethod("Get", Any, null, new[] { typeof(string) }, null); var icon = assets.GetMethod("Icon", Any);
             var logo = (Bitmap)get.Invoke(null, new object[] { "logo" });
             Check(logo != null && logo.Width > 300 && logo.Height > 300, "Logo not loaded from the shipped folder");
             Check(ReferenceEquals(logo, get.Invoke(null, new object[] { "logo" })), "Assets are reloaded instead of cached");
