@@ -134,10 +134,17 @@
     <Compile Include="Frames\Jeu\CharacterFrame.cs" />
     <Compile Include="Frames\Jeu\CombatFrame.cs" />
     <Compile Include="Frames\Jeu\ChatFrame.cs" />
+    <Compile Include="Frames\Jeu\EmoteFrame.cs" />
+    <Compile Include="Frames\Jeu\ExchangeFrame.cs" />
+    <Compile Include="Frames\Jeu\GuildFrame.cs" />
     <Compile Include="Frames\Jeu\InteractionFrame.cs" />
+    <Compile Include="Frames\Jeu\InventoryFrame.cs" />
+    <Compile Include="Frames\Jeu\JobsFrame.cs" />
     <Compile Include="Frames\Jeu\MapFrame.cs" />
     <Compile Include="Frames\Jeu\MiscFrame.cs" />
+    <Compile Include="Frames\Jeu\MountFrame.cs" />
     <Compile Include="Frames\Jeu\NoCheatFrame.cs" />
+    <Compile Include="Frames\Jeu\PartyFrame.cs" />
     <Compile Include="Frames\Jeu\ServerSelectionFrame.cs" />
     <Compile Include="Frames\Jeu\SpellFrame.cs" />
     <Compile Include="Frames\Messages\MessageAttribution.cs" />

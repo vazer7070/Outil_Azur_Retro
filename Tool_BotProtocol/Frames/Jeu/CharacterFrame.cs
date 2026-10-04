@@ -1,113 +1,22 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
-using System.Security.Principal;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
-using Tool_BotProtocol.Game.Groupes;
-using Tool_BotProtocol.Game.Jobs;
 using Tool_BotProtocol.Game.Perso;
 using Tool_BotProtocol.Network;
 
 namespace Tool_BotProtocol.Frames.Jeu
 {
-    class CharacterFrame : Frame
+    /// <summary>
+    /// Personnage : caractéristiques <c>As</c>, pods <c>Ow</c>, ping <c>pong</c>/<c>Bp</c>, régénération <c>ILS</c>/<c>ILF</c>.
+    /// Les autres domaines ont chacun leur fichier : groupe, guilde, monture, échange, inventaire, métiers, émotes, session.
+    /// </summary>
+    internal class CharacterFrame : Frame
     {
         [MessageAttribution("As")]
         public void ActualiseStats(TcpClient client, string message) => client.account.Game.character.RefreshCaracs(message);
 
-        [MessageAttribution("PIK")]
-        public Task GetGroup(TcpClient client, string message) => Task.Run(async () =>
-        {
-            if (client.account.UseMasterCommands == true)
-            {
-                if (client.account.HasGroup == true)
-                {
-                    await Task.Delay(1250);
-                    await client.SendPacket("PR");
-                    client.account.Logger.LogInfo("GROUPE", "Vous êtes déjà dans un groupe, rejet de l'invitation.");
-
-                }
-                else if (client.account.IsGroupLeader == false)
-                {
-                    string PlayerWhoInvite = message.Substring(3).Split('|')[0];
-                    Accounts Leader = client.account.Groupe.leader;
-                    string LeaderName = Leader?.Game?.character?.Name;
-                    if (string.IsNullOrEmpty(LeaderName)) { await client.SendPacket("PR"); return; }
-                    if (PlayerWhoInvite.ToLower() == LeaderName.ToLower())
-                    {
-
-                        await Task.Delay(550);
-                        await client.account.Connexion.SendPacket("PA");
-                        client.account.Logger.LogInfo("GROUPE", $"Je suis maintenant dans le groupe de {LeaderName}");
-                    }
-                    else
-                    {
-                        await client.SendPacket("PR");
-                        client.account.Logger.LogInfo("GROUPE", "Rejet de l'invitation.");
-                    }
-
-                }
-                else if (message.Substring(3).Split('|').Length == 1)
-                {
-                    await Task.Delay(1250);
-                    await client.SendPacket("PR");
-                    client.account.Logger.LogInfo("GROUPE", "Rejet de l'invitation.");
-                }
-            }
-            else
-            {
-                if (client.account.Game.character.InGroupe == true)
-                {
-                    await Task.Delay(1250);
-                    await client.SendPacket("PR");
-                    client.account.Logger.LogInfo("GROUPE", "Vous êtes déjà dans un groupe, rejet de l'invitation.");
-
-                }
-                else
-                {
-                    await client.account.Connexion.SendPacket("PA");
-                }
-            }
-        });
-        [MessageAttribution("PCK")]
-        public void AcceptGroupe(TcpClient client, string message) => client.account.Game.character.InGroupe = true;
-
-        [MessageAttribution("PM")]
-        public void InGroupParse(TcpClient client, string message)
-        {
-            CharacterClass character = client.account.Game.character;
-            foreach (string entry in message.Substring(2).TrimStart('|').Split('|'))
-            {
-                if (string.IsNullOrEmpty(entry)) continue;
-                if (entry[0] == '-')
-                {
-                    if (int.TryParse(entry.Substring(1), out int removedId)
-                        && character.GroupMembers.TryRemove(removedId, out string removedName))
-                        character.InEquip.TryRemove(removedName, out bool ignored);
-                    continue;
-                }
-                string[] parts = entry.TrimStart('+', '~').Split(';');
-                if (parts.Length < 2 || !int.TryParse(parts[0], out int memberId)) continue;
-                character.GroupMembers[memberId] = parts[1];
-                character.InEquip[parts[1]] = false;
-                character.InGroupe = true;
-            }
-        }
-        [MessageAttribution("PV")]
-        public void EjectGroup(TcpClient client, string message)
-        {
-            client.account.Game.character.InEquip.Clear();
-            client.account.Game.character.GroupMembers.Clear();
-            client.account.Game.character.InGroupe = false;
-            client.account.Logger.LogError("GROUPE", $"{client.account.Game.character.EquipLeader} vous a éjecté du groupe.");
-            client.account.Game.character.EquipLeader = "";
-        }
         [MessageAttribution("pong")]
         public void GetPingPong(TcpClient client, string message) => client.account.Logger.LogInfo("DOFUS", $"Ping: {client.GetPingAverage()} ms");
 
@@ -127,196 +36,6 @@ namespace Tool_BotProtocol.Frames.Jeu
             perso.Inventory.Pods_Max = Max_pods;
             client.account.Game.character.PodsRefreshEvent();
         }
-
-        [MessageAttribution("JS")]
-        public void GetJobsSkills(TcpClient client, string message)
-        {
-            string[] separador_skill;
-            CharacterClass perso = client.account.Game.character;
-            Jobs job;
-            JobSkills skilljobs = null;
-            short Id_jobs, Id_skills;
-            byte Min, Max;
-            float Time;
-
-            lock (perso.Jobs)
-            foreach(string data in message.Substring(3).Split('|'))
-            {
-                string[] jobParts = data.Split(';');
-                if (jobParts.Length < 2 || !short.TryParse(jobParts[0], out Id_jobs)) continue;
-                job = perso.Jobs.Find(x => x.ID == Id_jobs);
-
-                if (job == null)
-                {
-                    job = perso.Jobs.Find(x => x.ID == Id_jobs);
-                    job = new Jobs(Id_jobs);
-                    perso.Jobs.Add(job);
-                }
-
-
-                foreach (string skill in jobParts[1].Split(','))
-                {
-                    separador_skill = skill.Split('~');
-                    if (separador_skill.Length < 5 || !short.TryParse(separador_skill[0], out Id_skills)
-                        || !byte.TryParse(separador_skill[1], out Min) || !byte.TryParse(separador_skill[2], out Max)
-                        || !float.TryParse(separador_skill[4], NumberStyles.Float, CultureInfo.InvariantCulture, out Time)) continue;
-                    skilljobs = job.Skills.Find(x => x.Id == Id_skills);
-
-                    if (skilljobs != null)
-                        skilljobs.Actualise(Id_skills, Min, Max, Time);
-                    else
-                        job.Skills.Add(new JobSkills(Id_skills, Min, Max, Time));
-                }
-            }
-            perso.JobsRefreshEvent();
-        }
-        [MessageAttribution("JX")]
-        public void GetExpInJob(TcpClient client, string message)
-        {
-            string pre_cut = message.Substring(3);
-            string[] separate_jobs_Exp = pre_cut.Split('|');
-            CharacterClass perso = client.account.Game.character;
-            uint actualExp, baseExp, nextlevelExp;
-            short Id;
-            byte level;
-
-            lock (perso.Jobs)
-            foreach (string jobs in separate_jobs_Exp)
-            {
-                var payload = jobs.Split(';');
-                if (payload.Length < 4)
-                    continue;
-                if (!short.TryParse(payload[0], out Id) || !byte.TryParse(payload[1], out level)
-                    || !uint.TryParse(payload[2], out baseExp) || !uint.TryParse(payload[3], out actualExp)) continue;
-
-                if (level < 100 && payload.Length >= 5 && uint.TryParse(payload[4], out nextlevelExp)) { }
-                else
-                    nextlevelExp = 0;
-                Jobs job = perso.Jobs.Find(x => x.ID == Id);
-                if (job == null) { job = new Jobs(Id); perso.Jobs.Add(job); }
-                job.AcutalizeJob(level, baseExp, actualExp, nextlevelExp);
-            }
-            perso.JobsRefreshEvent();
-        }
-
-        [MessageAttribution("Re")]
-        public void GetInfoMonture(TcpClient client, string message) => client.account.CanUseMount = true;
-
-        /// <summary>
-        /// OAK : ajout d'objets selon <c>Items.onAdd</c> du client 1.34. Enregistrements séparés par « * »,
-        /// chacun préfixé par son type : « O » = fiches d'objets séparées par « ; », « G » = ignoré par le client.
-        /// StarLoco envoie <c>OAKO&lt;fiche&gt;;</c>, c'est-à-dire un seul enregistrement « O ».
-        /// </summary>
-        [MessageAttribution("OAK")]
-        public void GetObjects(TcpClient client, string message)
-        {
-            foreach (string record in message.Substring(3).Split('*'))
-            {
-                if (string.IsNullOrEmpty(record)) continue;
-                switch (record[0])
-                {
-                    case 'O': client.account.Game.character.Inventory.Add_Items(record.Substring(1)); break;
-                    case 'G': break;
-                    default: client.account.Logger.LogError("INVENTAIRE", "Type d'ajout d'objet inconnu : " + record[0]); break;
-                }
-            }
-        }
-
-        /// <summary>OAE : refus d'ajout ou d'équipement, mêmes codes que le client (A déjà équipé, L niveau, F inventaire plein).</summary>
-        [MessageAttribution("OAE")]
-        public void GetObjectsError(TcpClient client, string message)
-        {
-            string code = message.Length > 3 ? message.Substring(3, 1) : string.Empty;
-            string reason;
-            switch (code)
-            {
-                case "A": reason = "Cet objet est déjà équipé."; break;
-                case "L": reason = "Votre niveau est trop bas pour cet objet."; break;
-                case "F": reason = "Votre inventaire est plein."; break;
-                default: reason = "Le serveur a refusé l'opération sur l'objet (" + message + ")."; break;
-            }
-            client.account.Logger.LogError("INVENTAIRE", reason);
-            client.account.Game.character.Inventory.NotifyRefused(reason);
-        }
-
-        [MessageAttribution("OR")]
-        public void EliminateObject(TcpClient client, string message)
-        {
-            if (uint.TryParse(message.Substring(2), out uint inventoryId))
-                client.account.Game.character.Inventory.SuppItem(inventoryId, 0, false);
-        }
-
-        [MessageAttribution("OQ")]
-        public void ModifyQuantityItems(TcpClient client, string message) => client.account.Game.character.Inventory.Modify_Items(message.Substring(2));
-
-        /// <summary>OC : fiches mises à jour. Le client ignore le troisième caractère (StarLoco envoie <c>OC|…</c> ou <c>OCO…</c>), puis sépare par « * » et « ; ».</summary>
-        [MessageAttribution("OC")]
-        public void ChangeObjects(TcpClient client, string message)
-        {
-            if (message.Length <= 3) return;
-            foreach (string group in message.Substring(3).Split('*'))
-                foreach (string record in group.Split(';'))
-                    if (!string.IsNullOrWhiteSpace(record) && !client.account.Game.character.Inventory.Update_Item(record))
-                        client.account.Logger.LogError("INVENTAIRE", "Fiche d'objet modifiée illisible : " + record);
-        }
-
-        /// <summary>OM&lt;id&gt;|&lt;emplacement&gt; : objet déplacé ; un emplacement vide ou non numérique signifie le sac.</summary>
-        [MessageAttribution("OM")]
-        public void MoveObject(TcpClient client, string message)
-        {
-            string[] parts = message.Substring(2).Split('|');
-            if (!uint.TryParse(parts[0], out uint inventoryId)) return;
-            string position = parts.Length > 1 ? parts[1] : string.Empty;
-            if (client.account.Game.character.Inventory.Move_Item(inventoryId, position))
-                client.account.Logger.LogInfo("INVENTAIRE", "Objet " + inventoryId + (string.IsNullOrEmpty(position) ? " rangé dans le sac." : " équipé à l'emplacement " + position + "."));
-        }
-
-        /// <summary>OS+&lt;panoplie&gt;|&lt;objets&gt;|&lt;bonus&gt; ou OS-&lt;panoplie&gt; : panoplie portée.</summary>
-        [MessageAttribution("OS")]
-        public void ItemSet(TcpClient client, string message)
-        {
-            string payload = message.Substring(2);
-            if (client.account.Game.character.Inventory.Apply_ItemSet(payload))
-                client.account.Logger.LogInfo("INVENTAIRE", (payload[0] == '+' ? "Panoplie portée : " : "Panoplie retirée : ") + payload.Substring(1).Split('|')[0]);
-        }
-
-        /// <summary>OT&lt;métier&gt; : outil de métier équipé ; OT seul signifie aucun outil.</summary>
-        [MessageAttribution("OT")]
-        public void Tool(TcpClient client, string message)
-        {
-            CharacterClass character = client.account.Game.character;
-            character.CurrentJobTool = int.TryParse(message.Substring(2), out int job) ? job : (int?)null;
-            client.account.Logger.LogInfo("INVENTAIRE", character.CurrentJobTool.HasValue ? "Outil du métier " + character.CurrentJobTool + " équipé." : "Aucun outil de métier équipé.");
-        }
-
-        /// <summary>
-        /// OK : condition d'utilisation à confirmer (<c>OKU&lt;objet&gt;|&lt;cible&gt;|&lt;cellule&gt;|&lt;modèle&gt;</c> ou
-        /// <c>OKG…|&lt;kamas&gt;</c>). Le client affiche une confirmation ; le bot journalise sans répondre.
-        /// </summary>
-        [MessageAttribution("OK")]
-        public void ItemUseCondition(TcpClient client, string message)
-        {
-            string[] parts = message.Length > 3 ? message.Substring(3).Split('|') : new string[0];
-            string objectId = parts.Length > 0 ? parts[0] : "?";
-            string last = parts.Length > 3 ? parts[3] : "?";
-            char kind = message.Length > 2 ? message[2] : ' ';
-            string text = kind == 'G'
-                ? "Utiliser l'objet " + objectId + " coûte " + last + " kamas : confirmation attendue, aucune réponse automatique."
-                : "Le serveur demande confirmation pour utiliser l'objet " + objectId + " (modèle " + last + ") : aucune réponse automatique.";
-            client.account.Logger.LogDanger("INVENTAIRE", text);
-            client.account.Game.character.Inventory.NotifyRefused(text);
-        }
-
-        /// <summary>ECK&lt;type&gt;|&lt;identifiant&gt; : échange créé. Le type 0 ouvre la boutique PNJ ; les autres gardent l'état « stockage ».</summary>
-        [MessageAttribution("ECK")]
-        public void GoInStorage(TcpClient client, string message) => client.account.Game.Interactions.Shop.OnExchangeCreated(message.Substring(3));
-
-        [MessageAttribution("ERK")]
-        public Task AskExchange(TcpClient client, string message) => Task.Run(async () =>
-        {
-            client.account.Logger.LogInfo("DOFUS", "Quelqu'un demande un échange");
-            await client.SendPacket("EV", true);
-        });
 
         [MessageAttribution("ILS")]
         public void GetRegenTime(TcpClient client, string message)
@@ -346,35 +65,5 @@ namespace Tool_BotProtocol.Frames.Jeu
             perso.stats.VitalityActual += life;
             A.Logger.LogInfo("DOFUS", $"Vous avez récupéré {life} points de vie");
         }
-
-        [MessageAttribution("eUK")]
-        public void GetEmote(TcpClient client, string message)
-        {
-            string[] sep = message.Substring(3).Split('|');
-            int id = int.Parse(sep[0]);
-            int emote_id = int.Parse(sep[1]);
-            Accounts A = client.account;
-
-            if (A.Game.character.id != id)
-                return;
-
-            if (emote_id == 1 && A.AccountStates != AccountStates.REGENERATION)
-                A.AccountStates = AccountStates.REGENERATION;
-            else if (emote_id == 0 && A.AccountStates == AccountStates.REGENERATION)
-                A.AccountStates = AccountStates.CONNECTED_INACTIVE;
-        }
-
-        [MessageAttribution("gJR")]
-        public Task HandleGuild(TcpClient client, string message) => Task.Run(async () =>
-        {
-            if (client.account.Game.character.HasGuild == true)
-            {
-                await Task.Delay(100);
-                client.account.Logger.LogInfo("PERSO", "Invitation à la guilde refusée");
-                await client.SendPacket("gJE");
-            }
-        });
-
-
     }
 }
