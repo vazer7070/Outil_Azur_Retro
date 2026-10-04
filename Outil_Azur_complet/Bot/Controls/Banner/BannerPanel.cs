@@ -23,7 +23,8 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
         public const int Side = 26;
         public const int IconSize = 18;
         private readonly string upName, downName;
-        private Bitmap up, down;
+        private readonly int uiThread = System.Threading.Thread.CurrentThread.ManagedThreadId;
+        private Bitmap up, down, pendingIcon;
         private bool pressed, hovered, available = true;
 
         internal BannerButton(string name, string iconName, string upImage = "ButtonBannerRoundUp", string downImage = "ButtonBannerRoundDown", int side = Side)
@@ -32,7 +33,8 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
             Name = name; IconName = iconName; upName = upImage; downName = downImage;
             Size = new Size(side, side); FlatStyle = FlatStyle.Flat; FlatAppearance.BorderSize = 0; Margin = new Padding(0);
             Tag = "client-icon"; Text = string.Empty; TabStop = false; Cursor = Cursors.Hand; BackColor = BotUi.FrameLight;
-            if (iconName != null) Image = ClientAssets.Icon(iconName, IconSize);
+            // Icône lue hors du thread de l'interface ; posée dans Image sur ce thread seulement (voir ApplyIcon).
+            if (iconName != null) BannerArt.RequestIcon(this, iconName, IconSize, image => { pendingIcon = image; ApplyIcon(); Invalidate(); });
             if (upName != null) BannerArt.Request(this, upName, image => { up = image; Invalidate(); });
             if (downName != null) BannerArt.Request(this, downName, image => { down = image; Invalidate(); });
         }
@@ -44,6 +46,16 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
         public bool Available { get => available; set { if (available == value) return; available = value; Invalidate(); } }
         /// <summary>Image dessinée à la place du disque (œil des combats).</summary>
         internal Bitmap Picture { get; set; }
+
+        // Sans poignée de fenêtre, l'icône arrive sur le fil de lecture : elle attend la création de la poignée.
+        private void ApplyIcon()
+        {
+            Bitmap icon = pendingIcon;
+            if (icon == null || IsDisposed || System.Threading.Thread.CurrentThread.ManagedThreadId != uiThread) return;
+            pendingIcon = null; Image = icon;
+        }
+
+        protected override void OnHandleCreated(EventArgs e) { base.OnHandleCreated(e); ApplyIcon(); }
 
         protected override void OnMouseDown(MouseEventArgs mevent) { pressed = mevent.Button == MouseButtons.Left; Invalidate(); base.OnMouseDown(mevent); }
         protected override void OnMouseUp(MouseEventArgs mevent) { pressed = false; Invalidate(); base.OnMouseUp(mevent); }
@@ -76,7 +88,7 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
                         graphics.FillEllipse(fill, box); graphics.DrawEllipse(rule, box);
                     }
             }
-            Image icon = Image;
+            Image icon = Image ?? pendingIcon;
             if (icon != null)
             {
                 int width, height;
@@ -131,6 +143,7 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
         private CombatPhase lastPhase = CombatPhase.None;
         private ContextMenuStrip xtraMenu;
         private ShortcutTable shortcutTable;
+        private readonly int uiThread = System.Threading.Thread.CurrentThread.ManagedThreadId;
 
         public BannerPanel(Accounts account, PanelHost panels, BotOptions options)
         {
@@ -174,7 +187,15 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
             MapInfos = new MapInfosLabel();
 
             ticker.Tick += (s, e) => Tick();
-            HandleCreated += (s, e) => { if (!released) ticker.Start(); RequestRefresh(); };
+            HandleCreated += (s, e) =>
+            {
+                if (released) return;
+                ticker.Start();
+                // IC reçu avant la poignée, sur le fil réseau : la cible est relue dans le groupe.
+                Point? compass = account?.Game?.Interactions?.Party?.Compass;
+                if (compass != null) SetCompassTarget(compass);
+                RequestRefresh();
+            };
             Bind();
         }
 
@@ -254,7 +275,7 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
             if (target == null || !target.IsHandleCreated || target.IsDisposed)
             {
                 lock (ticker) refreshPending = false;
-                if (!InvokeRequired) RefreshAll();
+                if (OnCreatorThread) RefreshAll(); // sinon la création de la poignée rafraîchit tout
                 return;
             }
             try { target.BeginInvoke((Action)(() => { lock (ticker) refreshPending = false; if (!released && !IsDisposed) RefreshAll(); })); }
@@ -435,11 +456,14 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
 
         private void OnInventory(bool changed) => RequestRefresh();
 
+        /// <summary>Fil qui a créé le bandeau : sans poignée de fenêtre, seul lui peut toucher aux contrôles.</summary>
+        private bool OnCreatorThread => System.Threading.Thread.CurrentThread.ManagedThreadId == uiThread;
+
         /// <summary><c>IC</c> (fil réseau) : boussole vers la cible, ou portrait quand elle est effacée.</summary>
         private void OnCompass(Point? target)
         {
             Control marshal = IsHandleCreated ? (Control)this : FindForm();
-            if (marshal == null || !marshal.IsHandleCreated) { if (!InvokeRequired) SetCompassTarget(target); return; }
+            if (marshal == null || !marshal.IsHandleCreated) { if (OnCreatorThread) SetCompassTarget(target); return; }
             BotUi.OnUi(marshal, () => { if (!released && !IsDisposed) SetCompassTarget(target); });
         }
 

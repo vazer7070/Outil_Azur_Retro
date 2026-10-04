@@ -62,6 +62,7 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
         private Point dragOrigin;
         private SpellShortcutButton dragSource;
         private ContextMenuStrip lastMenu;
+        private readonly int uiThread = System.Threading.Thread.CurrentThread.ManagedThreadId;
 
         public ShortcutBar(Accounts account, BotOptions options)
         {
@@ -352,7 +353,8 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
         {
             if (IsDisposed) return;
             Control target = IsHandleCreated ? (Control)this : FindForm();
-            if (target == null || !target.IsHandleCreated) { if (!InvokeRequired) action(); return; }
+            // Sans poignée de fenêtre, seul le fil qui a créé la barre touche aux cases (le prochain rafraîchissement suit sinon).
+            if (target == null || !target.IsHandleCreated) { if (System.Threading.Thread.CurrentThread.ManagedThreadId == uiThread) action(); return; }
             BotUi.OnUi(target, () => { if (!IsDisposed) action(); });
         }
 
@@ -364,12 +366,15 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
                 if (icons.TryGetValue(key, out Bitmap image)) return image;
                 if (!requested.Add(key)) return null;
             }
+            // Image déjà en cache : rendue tout de suite, sans relancer RefreshContent depuis RefreshContent.
+            bool inline = true;
             BannerArt.Request(this, family, name, loaded =>
             {
                 lock (icons) icons[key] = loaded;
                 // Sans fenêtre, l'image attend le prochain rafraîchissement ; sinon on est sur le thread de l'interface.
-                if (loaded != null && IsHandleCreated && !InvokeRequired) RefreshContent();
+                if (!inline && loaded != null && IsHandleCreated && !InvokeRequired) RefreshContent();
             });
+            inline = false;
             lock (icons) return icons.TryGetValue(key, out Bitmap cached) ? cached : null;
         }
 

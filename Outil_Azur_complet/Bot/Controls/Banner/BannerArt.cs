@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -26,18 +27,38 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
         {
             if (owner == null || apply == null || owner.IsDisposed) return;
             if (ClientAssets.TryCached(family, name, out Bitmap cached)) { apply(cached); return; }
-            ClientAssets.GetAsync(family, name).ContinueWith(task =>
-            {
-                Bitmap image = task.Status == TaskStatus.RanToCompletion ? task.Result : null;
-                if (owner.IsDisposed) return;
-                Control target = owner.IsHandleCreated ? owner : owner.FindForm();
-                if (target != null && !target.IsDisposed && target.IsHandleCreated)
-                    BotUi.OnUi(target, () => { if (!owner.IsDisposed) apply(image); });
-                else apply(image);
-            }, TaskScheduler.Default);
+            ClientAssets.GetAsync(family, name).ContinueWith(task => Deliver(owner, task.Status == TaskStatus.RanToCompletion ? task.Result : null, apply), TaskScheduler.Default);
         }
 
         internal static void Request(Control owner, string name, Action<Bitmap> apply) => Request(owner, "Client", name, apply);
+
+        /// <summary>
+        /// Icône réduite de l'interface (<see cref="ClientAssets.Icon"/>, dossier <c>Resources/Bot/Client</c>) : lue et réduite
+        /// sur le pool de threads la première fois, puis gardée ; mêmes règles pour <paramref name="apply"/> que <see cref="Request(Control, string, string, Action{Bitmap})"/>.
+        /// </summary>
+        internal static void RequestIcon(Control owner, string name, int size, Action<Bitmap> apply)
+        {
+            if (owner == null || apply == null || owner.IsDisposed || string.IsNullOrEmpty(name)) return;
+            string key = name + "@" + size.ToString(CultureInfo.InvariantCulture);
+            if (Icons.TryGetValue(key, out Bitmap known)) { apply(known); return; }
+            Task.Run(() => ClientAssets.Icon(name, size)).ContinueWith(task =>
+            {
+                Bitmap image = task.Status == TaskStatus.RanToCompletion ? task.Result : null;
+                Icons[key] = image;
+                Deliver(owner, image, apply);
+            }, TaskScheduler.Default);
+        }
+
+        private static readonly ConcurrentDictionary<string, Bitmap> Icons = new ConcurrentDictionary<string, Bitmap>(StringComparer.Ordinal);
+
+        private static void Deliver(Control owner, Bitmap image, Action<Bitmap> apply)
+        {
+            if (owner.IsDisposed) return;
+            Control target = owner.IsHandleCreated ? owner : owner.FindForm();
+            if (target != null && !target.IsDisposed && target.IsHandleCreated)
+                BotUi.OnUi(target, () => { if (!owner.IsDisposed) apply(image); });
+            else apply(image);
+        }
 
         /// <summary>Dessine une image partagée (cache de <see cref="ClientAssets"/>) ; grisée et à demi transparente si <paramref name="grey"/>.</summary>
         internal static void Draw(Graphics graphics, Image image, RectangleF target, bool grey = false, float opacity = 1f)

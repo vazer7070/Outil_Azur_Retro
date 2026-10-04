@@ -67,7 +67,7 @@ namespace Outil_Azur_complet.Bot
         /// <summary>Fenêtre « Options » ouverte, ou <c>null</c>.</summary>
         public OptionsForm OptionsWindow => optionsWindow != null && !optionsWindow.IsDisposed ? optionsWindow : null;
         /// <summary>Menu du clic droit global (reconstruit à chaque ouverture).</summary>
-        public ContextMenuStrip GlobalMenu { get { FillGlobalMenu(); return globalMenu; } }
+        public ContextMenuStrip GlobalMenu { get { if (!uiReleased) FillGlobalMenu(); return globalMenu; } }
         /// <summary>Hauteur du bandeau bas quand le chat est réduit.</summary>
         public const int HudHeight = 112;
         /// <summary>Hauteur de la barre d'état en haut de la fenêtre.</summary>
@@ -97,7 +97,7 @@ namespace Outil_Azur_complet.Bot
             root.Resize += (s,e) => UpdateHudHeight();
             globalMenu.Renderer = new RetroMenuRenderer(); globalMenu.BackColor = BotUi.Paper; globalMenu.Font = BotFonts.Get(9);
             globalMenu.ShowItemToolTips = true; globalMenu.AccessibleName = "Menu du client"; globalMenu.Name = "global-menu";
-            globalMenu.Opening += (s,e) => FillGlobalMenu();
+            globalMenu.Opening += (s,e) => { if (uiReleased) e.Cancel = true; else FillGlobalMenu(); };
 
             root.Controls.Add(BuildTopBar(), 0, 0);
             mapArea = new Panel { Dock = DockStyle.Fill, BackColor = BotUi.Frame, Margin = new Padding(0) };
@@ -543,6 +543,7 @@ namespace Outil_Azur_complet.Bot
             if (uiReleased) return;
             uiReleased = true;
             refresh.Stop(); refresh.Dispose(); toolTips.Dispose();
+            globalMenu.Dispose(); // pas dans components : la barre et le bandeau ne font que le référencer
             options.OptionChanged -= OnOptionChanged;
             if (OptionsWindow != null) optionsWindow.Close();
             if (mapControl != null) { mapControl.DisplayStateChanged -= UpdateMapDisplay; mapControl.SpellSelectionChanged -= SpellSelectionChanged; mapControl.ActionFeedback -= ShowActionFeedback; mapControl.Router.Panels = null; }
