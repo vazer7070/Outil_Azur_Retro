@@ -83,6 +83,7 @@ namespace Outil_Azur_complet.Bot.Menus
                 case 3: return "Dopeul de temple";
                 case 4: return "Combat contre des monstres";
                 case 5: return "Attaque de percepteur";
+                case 6: return "Combat à enjeux";
                 default: return "Combat (type " + type + ")";
             }
         }

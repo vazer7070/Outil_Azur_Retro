@@ -333,15 +333,20 @@ namespace Tool_BotProtocol.Game.Actions
             return SendAsync("PI" + name, "Invitation de groupe envoyée à " + name + ".");
         }
 
-        /// <summary>« Échanger » : <c>ER1|&lt;id&gt;</c> (<c>GameManager.startExchange(1, id)</c>) ; la fenêtre d'échange lit la suite.</summary>
+        /// <summary>
+        /// « Échanger » : <c>ER1|&lt;id&gt;</c> (<c>GameManager.startExchange(1, id)</c>), envoyé par l'échange entre joueurs
+        /// (<see cref="Exchanges.PlayerExchange.RequestAsync"/>) qui lit la suite (<c>ERK</c>, <c>ECK1</c>…).
+        /// </summary>
         public Task<InteractionResult> RequestExchangeAsync(long playerId)
         {
             PlayerActor target = null;
             InteractionResult refused = CheckReady() ?? CheckPlayer(playerId, out target);
             if (refused != null) return Task.FromResult(refused);
-            if (Account.Is_In_Dialog()) return Task.FromResult(Refuse("Une fenêtre de dialogue, d'échange ou de zaap est déjà ouverte."));
             if (!CanExchangeWith(target)) return Task.FromResult(Refuse("Échange impossible avec " + target.DisplayName + " (restrictions du personnage)."));
-            return SendAsync("ER1|" + Id(playerId), "Échange proposé à " + target.DisplayName + ".");
+            Exchanges.PlayerExchange exchange = Account.Game.Interactions?.Exchange;
+            if (exchange == null) return Task.FromResult(Refuse("L'échange entre joueurs n'est pas disponible."));
+            if (playerId > int.MaxValue) return Task.FromResult(Refuse("Identifiant de joueur invalide."));
+            return exchange.RequestAsync((int)playerId);
         }
 
         /// <summary>Liste des combats de la carte : <c>fL</c> (<c>Fights.getList</c>, à l'ouverture du volet).</summary>
@@ -554,8 +559,9 @@ namespace Tool_BotProtocol.Game.Actions
         }
 
         /// <summary>
-        /// Joueur introuvable : <c>BWE&lt;nom&gt;</c> du client. StarLoco répond <c>PIEn&lt;nom&gt;</c>, préfixe du groupe :
-        /// son lecteur peut appeler cette méthode, qui ne signale rien si aucune demande « qui est » n'attend ce nom.
+        /// Joueur introuvable pour une demande « Informations » de ce service. StarLoco répond <c>PIEn&lt;nom&gt;</c>, préfixe
+        /// du groupe : son lecteur peut appeler cette méthode, qui ne signale rien si aucune demande « qui est » n'attend ce
+        /// nom (le même <c>PIEn</c> répond aussi à une invitation de groupe).
         /// </summary>
         public bool ReportWhoisNotFound(string name)
         {
@@ -565,11 +571,23 @@ namespace Tool_BotProtocol.Game.Actions
                 if (pendingWhois == null || (name.Length > 0 && !string.Equals(pendingWhois, name, StringComparison.OrdinalIgnoreCase))) return false;
                 pendingWhois = null;
             }
+            AnnounceWhoisNotFound(name);
+            return true;
+        }
+
+        /// <summary><c>BWE&lt;nom&gt;</c> : <c>Basics.onWhoIs(false, nom)</c> du client, affiché même pour un <c>/whois</c> de la console.</summary>
+        internal void OnWhoisError(string name)
+        {
+            lock (sync) pendingWhois = null;
+            AnnounceWhoisNotFound(name ?? string.Empty);
+        }
+
+        private void AnnounceWhoisNotFound(string name)
+        {
             string text = MapActionTexts.WhoisNotFound(name);
             LogError(text);
             Announce(MapActionNoticeKind.Error, text, log: false);
             Notify();
-            return true;
         }
 
         // ---- Outils -------------------------------------------------------------------------------------------

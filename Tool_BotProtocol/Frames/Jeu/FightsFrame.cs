@@ -28,7 +28,7 @@ namespace Tool_BotProtocol.Frames.Jeu
 
         /// <summary><c>BWE&lt;nom&gt;</c> : <c>onWhoIs(false, nom)</c> du client (StarLoco répond plutôt <c>PIEn&lt;nom&gt;</c>).</summary>
         [MessageAttribution("BWE")]
-        public void WhoisError(TcpClient client, string message) => Actions(client)?.ReportWhoisNotFound(message.Substring(3));
+        public void WhoisError(TcpClient client, string message) => Actions(client)?.OnWhoisError(message.Substring(3));
 
         /// <summary><c>GA;900;&lt;demandeur&gt;;&lt;cible&gt;</c>.</summary>
         [GameActionHandler(MapActions.ChallengeAction)]

@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using Outil_Azur_complet.Bot.Panels;
 using Tool_BotProtocol.Game.Actions;
 using Tool_BotProtocol.Game.Interactions;
@@ -82,7 +83,15 @@ namespace Outil_Azur_complet.Bot
         private void OnUi(Func<Task> action)
         {
             if (disposed || host.IsDisposed) return;
-            BotUi.OnUi(host, async () =>
+            // Tiroir jamais affiché : pas de poignée, l'action serait perdue (.NET) ou exécutée sur le fil réseau (Mono).
+            // Comme GamePanel.OnUi, on passe alors par la fenêtre de jeu.
+            Control target = host;
+            if (!target.IsHandleCreated)
+            {
+                Form form = host.FindForm();
+                if (form != null && !form.IsDisposed && form.IsHandleCreated) target = form;
+            }
+            BotUi.OnUi(target, async () =>
             {
                 if (disposed) return;
                 try { await action(); }

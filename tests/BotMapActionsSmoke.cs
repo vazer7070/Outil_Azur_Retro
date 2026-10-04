@@ -269,6 +269,8 @@ internal static class BotMapActionsSmoke
             Feed(account, "BWEInconnu");
             Check(actions.LastMessage == MapActionTexts.WhoisNotFound("Inconnu"), "BWE was not reported");
             Check(!actions.ReportWhoisNotFound("Inconnu"), "A whois error was reported twice");
+            Feed(account, "BWEAutre");
+            Check(actions.LastMessage == MapActionTexts.WhoisNotFound("Autre"), "BWE after a console /whois was not reported like the client");
             Check(!Complete(actions.WhoisAsync("bad|name")).Sent, "A name with '|' was sent");
             actions.WhoisReceived -= answers.Add;
             NoPacket(peer, "Fight list packets triggered other packets");
@@ -416,6 +418,17 @@ internal static class BotMapActionsSmoke
             Check(moves.Count == 2 && view.Router.LastMenu != null && view.Router.LastMenu != before
                 && Texts(view.Router.LastMenu).Contains(MapActionTexts.Attack), "A plain click on a group does not open its menu");
             NoPacket(peer, "Handled group moves sent packets");
+
+            // Sans abonné, l'action par défaut de la carte marche jusqu'au groupe (Mouvement.MoveToAsync) : GA001 vers sa cellule.
+            view.Router.MoveRequested -= move;
+            menu = view.Router.ShowActorMenu(new Entites[] { group }, 4, Keys.None, false);
+            Item(menu, MapActionTexts.Attack).PerformClick();
+            string walk = Read(peer);
+            Check(walk.StartsWith("GA001", StringComparison.Ordinal) && walk.EndsWith("ae", StringComparison.Ordinal),
+                "ATTACK did not walk to the group cell (cell 4 = « ae »): " + walk);
+            Feed(account, "GA;0");
+            PumpUntil(() => !account.Game.Manager.Mouvements.IsAwaitingServer);
+            NoPacket(peer, "The cancelled walk sent extra packets");
         }
         finally { view.Router.MoveRequested -= move; }
     }
