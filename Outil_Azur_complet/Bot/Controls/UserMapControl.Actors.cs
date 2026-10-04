@@ -620,7 +620,7 @@ namespace Outil_Azur_complet.Bot.Controls
                 if (showText)
                 {
                     Entites subject = actor.IsSelf && Account.Game.Map.Self is PlayerActor selfActor ? selfActor : actor.Entity;
-                    content = OverheadLayer.Describe(subject, inFight, running);
+                    content = OverheadLayer.Describe(subject, inFight, running, Account?.Game?.Map?.MapID ?? 0);
                 }
                 Size text = content == null ? Size.Empty : OverheadLayer.Measure(graphics, content);
                 int icons = (smiley.HasValue ? 1 : 0) + (emote > 0 ? 1 : 0);

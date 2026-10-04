@@ -41,8 +41,15 @@ namespace Outil_Azur_complet.Bot.Controls
         public string Emblem { get; set; }
         /// <summary>Valeur des étoiles d'un groupe (<c>bonusValue</c>), -1 sans étoiles.</summary>
         public int Stars { get; set; } = -1;
+        /// <summary>
+        /// Lignes du bot sous les membres d'un groupe (capture des âmes, lot F14) : le client n'en affiche pas. Dessinées en
+        /// petit, couleur <see cref="ExtraColor"/>.
+        /// </summary>
+        public List<string> ExtraLines { get; } = new List<string>();
+        public int ExtraColor { get; set; } = OverheadLayer.TextExtra;
 
-        public override string ToString() => Title == null ? Text : Title + " | " + Text;
+        public override string ToString() => (Title == null ? Text : Title + " | " + Text)
+            + (ExtraLines.Count == 0 ? string.Empty : " | " + string.Join(" | ", ExtraLines));
     }
 
     /// <summary>
@@ -59,6 +66,8 @@ namespace Outil_Azur_complet.Bot.Controls
         public const int TextOther = 0xFFFF99;
         /// <summary><c>OVERHEAD_TEXT_TITLE</c> : « Niveau N » des groupes.</summary>
         public const int TextTitle = 0xFFFFFF;
+        /// <summary>Lignes ajoutées par le bot (<see cref="OverheadContent.ExtraLines"/>) : filets de la palette Retro.</summary>
+        public const int TextExtra = 0xB4AC8D;
         /// <summary><c>NPC_ALIGNMENT_COLOR</c> : neutre, Bonta, Brâkmar.</summary>
         public static readonly int[] AlignmentColors = { 0x66FF99, 0x00FFFF, 0xFF6666 };
         /// <summary><c>STARS_COLORS</c> de <c>StarsDisplayer</c> (-1 : étoile vide).</summary>
@@ -111,7 +120,10 @@ namespace Outil_Azur_complet.Bot.Controls
         /// Contenu affiché au survol de <paramref name="entity"/> (null si le client n'affiche rien). <paramref name="inFight"/> :
         /// le personnage est en combat ; <paramref name="fightRunning"/> : le combat a commencé (après le placement).
         /// </summary>
-        public static OverheadContent Describe(Entites entity, bool inFight, bool fightRunning)
+        public static OverheadContent Describe(Entites entity, bool inFight, bool fightRunning) => Describe(entity, inFight, fightRunning, 0);
+
+        /// <summary>Comme <see cref="Describe(Entites, bool, bool)"/>, sur la carte <paramref name="mapId"/> (capture des groupes).</summary>
+        public static OverheadContent Describe(Entites entity, bool inFight, bool fightRunning, int mapId)
         {
             switch (entity)
             {
@@ -119,7 +131,7 @@ namespace Outil_Azur_complet.Bot.Controls
                 case PlayerActor player: return DescribePlayer(player, player.DisplayName, player.Level, player.Life, inFight, fightRunning);
                 case CharacterClass self:
                     return DescribePlayer(null, string.IsNullOrEmpty(self.Name) ? "Vous" : self.Name, self.Level, null, inFight, fightRunning);
-                case MonsterGroupActor group: return DescribeGroup(group);
+                case MonsterGroupActor group: return DescribeGroup(group, mapId);
                 case FightMonsterActor monster:
                     return new OverheadContent
                     {
@@ -179,7 +191,13 @@ namespace Outil_Azur_complet.Bot.Controls
         }
 
         /// <summary>« Nom (niveau) » par ligne, du plus haut niveau au plus bas ; titre « Niveau » + niveau total ; étoiles.</summary>
-        public static OverheadContent DescribeGroup(MonsterGroupActor group)
+        public static OverheadContent DescribeGroup(MonsterGroupActor group) => DescribeGroup(group, 0);
+
+        /// <summary>
+        /// Comme <see cref="DescribeGroup(MonsterGroupActor)"/>, plus la ligne de capture des âmes quand la base exportée la
+        /// connaît (<see cref="SoulStones.Evaluate"/> ; <paramref name="mapId"/> 0 = carte inconnue, test d'arène omis).
+        /// </summary>
+        public static OverheadContent DescribeGroup(MonsterGroupActor group, int mapId)
         {
             var members = (group.Members ?? new MonsterGroupMember[0]).Where(member => member != null)
                 .Select((member, index) => new { member, index }).OrderByDescending(item => item.member.Level).ThenBy(item => item.index)
@@ -188,11 +206,14 @@ namespace Outil_Azur_complet.Bot.Controls
                 : string.Join("\n", members.Select(member => member.Name + " (" + Int(member.Level) + ")"));
             int alignment = members.Count == 0 ? -1 : MonsterAlignment(members[0].TemplateId);
             string level = LangData.IsLoaded("lang") && LangData.Text.Has("LEVEL") ? LangData.Text.Get("LEVEL") : "Niveau";
-            return new OverheadContent
+            var content = new OverheadContent
             {
                 Layout = OverheadLayout.Group, Text = text, Color = alignment >= 0 ? AlignmentColor(alignment) : TextOther,
                 Title = level + " " + Int(group.TotalLevel), TitleColor = TextTitle, Stars = group.Stars
             };
+            string capture = SoulStones.Describe(SoulStones.Evaluate(group, mapId));
+            if (capture != null) content.ExtraLines.Add(capture);
+            return content;
         }
 
         private static OverheadContent DescribeParkMount(ParkMountActor mount)
@@ -263,10 +284,12 @@ namespace Outil_Azur_complet.Bot.Controls
                 case OverheadLayout.Group:
                     {
                         SizeF title = MeasureText(graphics, content.Title, TextFont);
+                        SizeF extra = MeasureText(graphics, ExtraText(content), TitleFont);
                         float stars = content.Stars > -1 ? StarsRowWidth : 0;
-                        int width = (int)Math.Ceiling(Math.Max(Math.Max(text.Width, title.Width), stars) + WidthSpacer * 2);
+                        int width = (int)Math.Ceiling(Math.Max(Math.Max(Math.Max(text.Width, title.Width), stars), extra.Width) + WidthSpacer * 2);
                         float height = HeightSpacer + title.Height + HeightSpacer + text.Height + HeightSpacer;
                         if (content.Stars > -1) height += StarsWidth + HeightSpacer;
+                        if (extra.Height > 0) height += extra.Height + HeightSpacer;
                         return new Size(width, (int)Math.Ceiling(height));
                     }
                 default:
@@ -378,7 +401,13 @@ namespace Outil_Azur_complet.Bot.Controls
                 y += StarsWidth + HeightSpacer;
             }
             DrawCentered(graphics, content.Text, TextFont, ink, box, y);
+            string extra = ExtraText(content);
+            if (extra != null)
+                DrawCentered(graphics, extra, TitleFont, Rgb(content.ExtraColor), box, y + MeasureText(graphics, content.Text, TextFont).Height + HeightSpacer);
         }
+
+        private static string ExtraText(OverheadContent content) =>
+            content == null || content.ExtraLines.Count == 0 ? null : string.Join("\n", content.ExtraLines);
 
         /// <summary>
         /// Rangée de 5 étoiles de 10 px (marge 2) à partir de <paramref name="origin"/> : contour toujours visible, intérieur

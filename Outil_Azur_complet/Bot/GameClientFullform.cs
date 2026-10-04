@@ -78,6 +78,7 @@ namespace Outil_Azur_complet.Bot
             characterMenu.DropDownItems.Add("Inventaire", null, (s,e) => ShowPanel<InventoryPanel>());
             characterMenu.DropDownItems.Add("Sorts", null, (s,e) => ShowPanel<SpellsPanel>());
             characterMenu.DropDownItems.Add("Métiers", null, (s,e) => ShowPanel<JobsPanel>());
+            characterMenu.DropDownItems.Add("Commandes du serveur", null, (s,e) => ShowPanel<CommandsHelpPanel>());
             var viewMenu = new ToolStripMenuItem("Affichage");
             var grid = new ToolStripMenuItem("Afficher la grille") { CheckOnClick = true };
             grid.CheckedChanged += (s,e) => { showGrid = grid.Checked; if (mapControl != null) mapControl.ShowGrid = showGrid; };
@@ -240,7 +241,7 @@ namespace Outil_Azur_complet.Bot
             drawer.Feedback += ShowActionFeedback;
             drawer.PanelShown += (s,e) => LayoutDrawer();
             foreach (IGamePanel panel in new IGamePanel[] { new StatsPanel(), new InventoryPanel(), new SpellsPanel(), new JobsPanel(),
-                new JournalPanel(), new DialoguePanel(), new ZaapsPanel(), new ShopPanel(), new ExchangePanel(), new StoragePanel(), new FightsListPanel(), new ZaapiPanel(), new KeyCodePanel(), new DocumentPanel(), new PartyPanel(), new FriendsPanel() })
+                new JournalPanel(), new DialoguePanel(), new ZaapsPanel(), new ShopPanel(), new ExchangePanel(), new StoragePanel(), new FightsListPanel(), new ZaapiPanel(), new KeyCodePanel(), new DocumentPanel(), new PartyPanel(), new FriendsPanel(), new CommandsHelpPanel() })
                 drawer.Register(panel);
             host.Controls.Add(drawer); drawer.BringToFront();
             host.Resize += (s,e) => LayoutDrawer(); LayoutDrawer();
