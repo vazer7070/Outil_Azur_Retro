@@ -85,20 +85,29 @@ namespace Tool_BotProtocol.Game.Interactions
         protected abstract void Reset();
     }
 
-    /// <summary>Fenêtres de jeu du personnage : dialogue PNJ, zaaps et boutique PNJ.</summary>
+    /// <summary>Fenêtres de jeu du personnage : dialogue PNJ, zaaps, boutique PNJ et échanges.</summary>
     public sealed class InteractionsClass
     {
         public NpcDialog Npc { get; private set; }
         public ZaapDialog Zaap { get; private set; }
         public NpcShop Shop { get; private set; }
+        /// <summary>Registre des échanges (<c>ECK</c> par type) ; les fenêtres d'échange y sont créées une fois par compte.</summary>
+        public Exchanges.ExchangeRegistry Exchanges { get; private set; }
+        /// <summary>Échange avec un joueur ou un PNJ (types 1 et 2), demandes <c>ERK</c> comprises (lot F4).</summary>
+        public Exchanges.PlayerExchange Exchange { get; private set; }
+        /// <summary>Coffre ou banque (type 5) (lot F4).</summary>
+        public Exchanges.StorageExchange Storage { get; private set; }
 
         internal InteractionsClass(Accounts.Accounts account)
         {
             Npc = new NpcDialog(account);
             Zaap = new ZaapDialog(account);
-            Shop = new NpcShop(account);
+            Exchanges = new Exchanges.ExchangeRegistry(account);
+            Shop = Exchanges.Get<NpcShop>();
+            Exchange = Exchanges.Get<Exchanges.PlayerExchange>();
+            Storage = Exchanges.Get<Exchanges.StorageExchange>();
         }
 
-        public void Clear() { Npc.Clear(); Zaap.Clear(); Shop.Clear(); }
+        public void Clear() { Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); }
     }
 }

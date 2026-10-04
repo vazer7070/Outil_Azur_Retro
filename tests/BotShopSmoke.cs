@@ -170,8 +170,9 @@ internal static class BotShopSmoke
                     Check(shop.IsOpen, "Shop closed locally before the server EV");
                     Feed(account, "EVa"); Check(!shop.IsOpen && shop.Articles.Count == 0 && account.AccountStates == AccountStates.CONNECTED_INACTIVE, "EVa did not close the shop");
                     Feed(account, "EL2001;;5|"); Check(shop.Articles.Count == 0, "EL outside a shop filled the article list");
-                    Feed(account, "ECK1|43"); Check(!shop.IsOpen && account.AccountStates == AccountStates.STORAGE, "Non-NPC exchange lost the storage state");
-                    Feed(account, "EV"); Check(account.AccountStates == AccountStates.CONNECTED_INACTIVE, "EV after a storage exchange kept the state");
+                    // Depuis le lot F4, ECK1 ouvre l'échange entre joueurs (registre des échanges) au lieu de l'ancien état « stockage ».
+                    Feed(account, "ECK1|43"); Check(!shop.IsOpen && account.Game.Interactions.Exchange.IsOpen && account.AccountStates == AccountStates.EXCHANGE, "ECK1 did not open the player exchange");
+                    Feed(account, "EV"); Check(!account.Game.Interactions.Exchange.IsOpen && account.AccountStates == AccountStates.CONNECTED_INACTIVE, "EV after a player exchange kept the state");
 
                     // Volets Inventaire et Boutique de la fenêtre de jeu.
                     using (var form = new GameClientFullform(account))

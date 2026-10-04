@@ -302,6 +302,11 @@
     <Compile Include="Bot\Panels\NpcPortraits.cs" />
     <Compile Include="Bot\Panels\ZaapsPanel.cs" />
     <Compile Include="Bot\Panels\ShopPanel.cs" />
+    <Compile Include="Bot\Panels\ExchangeItemGrid.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Panels\ExchangePanel.cs" />
+    <Compile Include="Bot\Panels\StoragePanel.cs" />
     <Compile Include="Bot\Panels\InventoryPanel.cs" />
     <Compile Include="Bot\Panels\StatsPanel.cs" />
     <Compile Include="Bot\Panels\SpellsPanel.cs" />
