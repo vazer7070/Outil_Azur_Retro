@@ -45,3 +45,5 @@ La suite complète compte **38 tests : 29 sans base et 9 d'intégration**. `Emul
 Le kit `F:\kit` fourni contient maintenant StarLoco Login/Game et Dofus 1.34. La suite automatisée ci-dessus ne lance pas ces serveurs ni ce client. Leur validation réseau et en jeu reste distincte des essais SQL des éditeurs sur les schémas kauth et StarLoco ; les bases de StarLoco sont décrites par son profil, pas par les correspondances JSON.
 
 Les nouveaux CRUD de dialogues, quêtes/étapes/objectifs, fins de combat, actions d'objets, donjons et cartes utilisent directement leurs CREATE TABLE du dump, adaptés uniquement au moteur InnoDB dans la base isolée. Le SQL généré pour la table maps, y compris sa colonne historique heigth et sa correspondance cartes, est appliqué et vérifié sur cette base de test.
+
+`BotDecorAnchorsSmoke` vérifie le décor exporté du client (`ancres.tsv`) sur des PNG et des cartes synthétiques : pixel témoin à « cellule + (xmin, ymin) », origine du fond, miroir, quart de tour déformé, image de pente, cellule inactive, ancre périmée, PNG absent sans exception, lecture hors du fil appelant, cache partagé ; il passe aussi sous Mono.
