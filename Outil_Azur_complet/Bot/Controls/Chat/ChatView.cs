@@ -370,6 +370,15 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
 
         public void ScrollToBottom() { firstRow = MaxFirstRow; Invalidate(); }
 
+        /// <summary>Fait défiler la vue pour montrer la première rangée de la ligne ; faux si elle n'est pas affichée.</summary>
+        public bool EnsureVisible(ChatLine line)
+        {
+            int start = rows.FindIndex(row => ReferenceEquals(row.Line, line));
+            if (start < 0) return false;
+            if (start < firstRow || start >= firstRow + VisibleRowCount) { firstRow = Math.Max(0, Math.Min(MaxFirstRow, start)); Invalidate(); }
+            return true;
+        }
+
         public void ScrollBy(int delta)
         {
             int target = Math.Max(0, Math.Min(MaxFirstRow, firstRow + delta));
