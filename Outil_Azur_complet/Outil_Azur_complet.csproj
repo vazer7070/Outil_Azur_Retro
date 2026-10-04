@@ -720,6 +720,13 @@
     </ItemGroup>
     <Copy SourceFiles="@(BotLangAsset)" DestinationFolder="$(OutDir)ressources\Bot\BotLang" SkipUnchangedFiles="true" />
   </Target>
+  <!-- Documents du client (livres, parchemins, pancartes) exportés par tools/client-analysis/docs2xml.py : lus par DocumentDialog. -->
+  <Target Name="CopyBotDocsAssets" AfterTargets="Build">
+    <ItemGroup>
+      <BotDocsAsset Include="$(ProjectDir)Resources\Bot\BotDocs\*.xml" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BotDocsAsset)" DestinationFolder="$(OutDir)ressources\Bot\BotDocs" SkipUnchangedFiles="true" />
+  </Target>
   <!-- Décor exporté du client par tools/client-analysis/exporter_decor.py (PNG et ancres.tsv, voir Resources\Bot\Decor\PROVENANCE.md). -->
   <Target Name="CopyBotDecorAssets" AfterTargets="Build">
     <ItemGroup>
