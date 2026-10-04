@@ -136,8 +136,12 @@ namespace Tool_BotProtocol.Game.Maps.Interactives
         public const short EnterHouseSkill = 84;
         /// <summary>« Ouvrir » un coffre.</summary>
         public const short OpenChestSkill = 104;
-        /// <summary>« Code » d'un coffre (changement du code).</summary>
+        /// <summary>« Verrouiller » un coffre (changement du code).</summary>
         public const short LockChestSkill = 105;
+        /// <summary>« Fouiller » la poubelle.</summary>
+        public const short SearchTrashSkill = 153;
+        /// <summary>« Accéder » à l'enclos.</summary>
+        public const short MountParkAccessSkill = 175;
         public const short Trash = 7352;
         public const short HouseDoorFirst = 6700;
         public const short HouseDoorLast = 6776;
@@ -151,7 +155,42 @@ namespace Tool_BotProtocol.Game.Maps.Interactives
         public static bool IsZaapi(int gfx) => Contains(Zaapis, gfx);
         public static bool IsChest(int gfx) => Contains(Chests, gfx);
         public static bool IsMountPark(int gfx) => Contains(MountParks, gfx);
-        public static bool IsHouseDoor(int gfx) => gfx >= HouseDoorFirst && gfx <= HouseDoorLast;
+        /// <summary>Porte de maison : gfx 6700 à 6776, hors gfx d'enclos (6763, 6766, 6767, 6772) compris dans cet intervalle.</summary>
+        public static bool IsHouseDoor(int gfx) => gfx >= HouseDoorFirst && gfx <= HouseDoorLast && !IsMountPark(gfx);
+        /// <summary>Vrai pour un gfx que <c>canDoAction</c> rattache à une compétence (zaap, zaapi, porte, coffre, poubelle, enclos).</summary>
+        public static bool IsKnown(int gfx) => FallbackType(gfx) != 0;
+
+        /// <summary>
+        /// Type du client (<c>IO.d[id].t</c>) déduit du gfx quand ni <c>BotInteractives</c> ni les textes du client ne le
+        /// donnent : 3 zaap, 10 zaapi, 5 porte, 6 coffre ou poubelle, 13 enclos ; 0 sinon.
+        /// </summary>
+        public static int FallbackType(int gfx)
+        {
+            if (IsZaap(gfx)) return 3;
+            if (IsZaapi(gfx)) return 10;
+            if (IsMountPark(gfx)) return 13;
+            if (IsHouseDoor(gfx)) return 5;
+            if (IsChest(gfx) || gfx == Trash) return 6;
+            return 0;
+        }
+
+        /// <summary>
+        /// Compétences de repli dans l'ordre du menu du client, limitées à celles que <c>canDoAction</c> accepte pour ce gfx :
+        /// zaap « Utiliser » (114) et « Sauvegarder » (44), zaapi 157, porte « Entrer » (84), coffre « Ouvrir » (104) et
+        /// « Verrouiller » (105), poubelle « Fouiller » (153), enclos « Accéder » (175) ; vide sinon.
+        /// </summary>
+        public static short[] FallbackSkills(int gfx)
+        {
+            switch (FallbackType(gfx))
+            {
+                case 3: return new[] { ZaapSkill, ZaapSaveSkill };
+                case 10: return new[] { ZaapiSkill };
+                case 5: return new[] { EnterHouseSkill };
+                case 6: return gfx == Trash ? new short[] { SearchTrashSkill } : new[] { OpenChestSkill, LockChestSkill };
+                case 13: return new short[] { MountParkAccessSkill };
+                default: return new short[0];
+            }
+        }
 
         private static bool Contains(short[] values, int gfx) => gfx > 0 && gfx <= short.MaxValue && Array.IndexOf(values, (short)gfx) >= 0;
     }

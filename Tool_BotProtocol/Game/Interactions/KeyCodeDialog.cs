@@ -10,8 +10,9 @@ namespace Tool_BotProtocol.Game.Interactions
     /// <summary>
     /// Saisie d'un code de coffre ou de maison, comme <c>dofus.aks.Key</c> et l'interface <c>KeyCode</c> du client 1.34.
     /// Le serveur l'ouvre par <c>KCK&lt;type&gt;|&lt;cases&gt;</c> (type 0 : déverrouiller, 1 : changer le code ; 8 cases chez
-    /// StarLoco) ; le bot envoie <c>KK&lt;type&gt;|&lt;code&gt;</c> où chaque case vide vaut « _ » et un code entièrement vide « - »,
-    /// ou <c>KV</c> pour fermer. Réponses : <c>KKE</c> (code erroné), <c>KK…</c> (code changé), <c>KV</c> (fermeture).
+    /// StarLoco) ; le bot envoie <c>KK&lt;type&gt;|&lt;code&gt;</c> comme <c>KeyCode.validate</c> (cases saisies jointes, sans
+    /// compléter les cases restantes ; « - » si rien n'est saisi), ou <c>KV</c> pour fermer. StarLoco compare le texte reçu au
+    /// code enregistré, tel que le client l'a envoyé. Réponses : <c>KKE</c> (code erroné), <c>KK…</c> (code changé), <c>KV</c>.
     /// </summary>
     public sealed class KeyCodeDialog : InteractionWindow
     {
@@ -32,17 +33,18 @@ namespace Tool_BotProtocol.Game.Interactions
         internal KeyCodeDialog(Accounts.Accounts account) : base(account) { }
 
         /// <summary>
-        /// Code tel que l'interface du client l'envoie : les chiffres saisis dans l'ordre des cases, « _ » pour une case vide
-        /// (un code plus court que les cases est complété par « _ ») ; « - » si aucune case n'est remplie. <c>null</c> si
-        /// le texte contient autre chose que des chiffres et des « _ » ou dépasse le nombre de cases.
+        /// Code tel que l'interface <c>KeyCode</c> du client l'envoie : <c>_aKeyCode.join("")</c>, soit les chiffres des cases
+        /// dans l'ordre jusqu'à la dernière case remplie (les cases vides de la fin ne sont pas envoyées, une case vidée au
+        /// milieu vaut « _ ») ; « - » si aucune case n'est remplie (<c>validate</c>). « 1234 » sur 8 cases donne donc « 1234 ».
+        /// <c>null</c> si le texte contient autre chose que des chiffres et des « _ » ou dépasse le nombre de cases.
         /// </summary>
         public static string BuildCode(string digits, int slotCount)
         {
             if (slotCount < 1 || slotCount > MaxSlots) return null;
             string code = digits ?? string.Empty;
             if (code.Length > slotCount || code.Any(c => c != EmptySlot && (c < '0' || c > '9'))) return null;
-            code = code.PadRight(slotCount, EmptySlot);
-            return code.All(c => c == EmptySlot) ? "-" : code;
+            code = code.TrimEnd(EmptySlot);
+            return code.Length == 0 ? "-" : code;
         }
 
         /// <summary>Envoie <c>KK&lt;type&gt;|&lt;code&gt;</c> (« Déverrouiller » ou « Changer »).</summary>

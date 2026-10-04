@@ -25,7 +25,8 @@ namespace Tool_BotProtocol.Game.Maps.Interactives
         public Cell Cell { get; set; }
         public InteractivesParent Interactive { get; set; }
         /// <summary>
-        /// Utilisable : vrai à l'arrivée sur la carte pour un objet connu, puis troisième champ de <c>GDF</c> quand il est
+        /// Utilisable : vrai à l'arrivée sur la carte pour un objet connu (définition du serveur, texte du client ou gfx de
+        /// <see cref="InteractiveGfx"/>), puis troisième champ de <c>GDF</c> quand il est
         /// présent (<c>setObject2Interactive</c> du client) ; un <c>GDF</c> sans ce champ (portes) ne le change pas.
         /// </summary>
         public bool IsUsable { get; set; }
@@ -41,7 +42,7 @@ namespace Tool_BotProtocol.Game.Maps.Interactives
             if (gfx_id <= 0) return;
             InteractivesParent M = InteractivesParent.ReturnByGFX(gfx_id);
             if (M != null) Interactive = M;
-            IsUsable = M != null || LangData.Interactive.IdFromGfx(gfx_id).HasValue;
+            IsUsable = M != null || LangData.Interactive.IdFromGfx(gfx_id).HasValue || InteractiveGfx.IsKnown(gfx_id);
         }
 
         /// <summary>Nom de l'objet : définition du serveur, sinon texte du client, sinon « Objet interactif &lt;gfx&gt; ».</summary>
@@ -56,7 +57,8 @@ namespace Tool_BotProtocol.Game.Maps.Interactives
 
         /// <summary>
         /// Type du client (<c>IO.d[id].t</c> : 1 ressource, 2 atelier, 3 zaap, 4 fontaine, 5 porte, 6 coffre, 7 marmite,
-        /// 10 zaapi, 12 liste des artisans, 13 enclos, 14 levier, 15 statue) ; type de la définition du serveur à défaut ; 0 inconnu.
+        /// 10 zaapi, 12 liste des artisans, 13 enclos, 14 levier, 15 statue) ; type de la définition du serveur à défaut, puis
+        /// type déduit du gfx (<see cref="InteractiveGfx.FallbackType"/>) ; 0 inconnu.
         /// </summary>
         public int ClientType
         {
@@ -64,7 +66,8 @@ namespace Tool_BotProtocol.Game.Maps.Interactives
             {
                 int? type = gfx > 0 ? LangData.Interactive.Type(gfx) : null;
                 if (type.HasValue) return type.Value;
-                return Interactive == null ? 0 : (int)Interactive.Type;
+                if (Interactive != null && Interactive.Type != InteractiveType.Other) return (int)Interactive.Type;
+                return InteractiveGfx.FallbackType(gfx);
             }
         }
 
@@ -81,14 +84,18 @@ namespace Tool_BotProtocol.Game.Maps.Interactives
             }
         }
 
-        /// <summary>Compétences du menu du client (<c>IO.d[id].sk</c>, dans l'ordre), sinon celles du serveur.</summary>
+        /// <summary>
+        /// Compétences du menu du client (<c>IO.d[id].sk</c>, dans l'ordre), sinon celles du serveur, sinon celles que
+        /// <c>canDoAction</c> rattache au gfx (<see cref="InteractiveGfx.FallbackSkills"/>).
+        /// </summary>
         public IReadOnlyList<short> ClientSkills
         {
             get
             {
                 int[] lang = gfx > 0 ? LangData.Interactive.Skills(gfx) : new int[0];
-                if (lang.Length == 0) return Interactive?.Capacities ?? NoSkills;
-                return lang.Where(skill => skill > 0 && skill <= short.MaxValue).Select(skill => (short)skill).Distinct().ToArray();
+                if (lang.Length > 0) return lang.Where(skill => skill > 0 && skill <= short.MaxValue).Select(skill => (short)skill).Distinct().ToArray();
+                if (Interactive != null && Interactive.Capacities.Length > 0) return Interactive.Capacities;
+                return gfx > 0 ? InteractiveGfx.FallbackSkills(gfx) : NoSkills;
             }
         }
 

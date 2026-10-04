@@ -390,6 +390,13 @@ namespace Tool_BotProtocol.Game.Interactions
                 Raise(ActionStarted, info);
                 return;
             }
+            if (!int.TryParse(info.GameActionId, NumberStyles.Integer, CultureInfo.InvariantCulture, out int gameActionId) || gameActionId < 0)
+            {
+                // Sans identifiant, aucun GKK ne peut terminer l'action : le bot ne se met pas en récolte.
+                LogError("Action 501 sans identifiant ignorée : " + Shorten(packet.Raw));
+                Notify();
+                return;
+            }
             CancellationTokenSource cancellation = new CancellationTokenSource(), previous;
             lock (sync)
             {
@@ -403,11 +410,6 @@ namespace Tool_BotProtocol.Game.Interactions
             Log("Action sur la cellule " + cellId + " pendant " + duration + " ms.");
             Notify();
             Raise(ActionStarted, info);
-            if (!int.TryParse(info.GameActionId, NumberStyles.Integer, CultureInfo.InvariantCulture, out int gameActionId) || gameActionId < 0)
-            {
-                LogError("Action 501 sans identifiant : aucun GKK ne peut l'acquitter.");
-                return;
-            }
             _ = AcknowledgeAsync(info, gameActionId, cancellation.Token, Account.Connexion);
         }
 
@@ -457,13 +459,17 @@ namespace Tool_BotProtocol.Game.Interactions
             catch (Exception error) { Account?.Logger?.LogException(Reference, error); }
         }
 
-        /// <summary><c>IO&lt;sprite&gt;|+&lt;objet&gt;</c> (réussite) ou <c>|-&lt;objet&gt;</c> (échec), affiché 2 s par le client.</summary>
+        /// <summary>
+        /// <c>IO&lt;sprite&gt;|+&lt;objet&gt;</c> (réussite) ou <c>|-[&lt;objet&gt;]</c> (échec), affiché 2 s par le client
+        /// (<c>Infos.onObject</c>) ; StarLoco envoie aussi <c>IO&lt;sprite&gt;|-</c> sans objet : le modèle vaut alors 0.
+        /// </summary>
         internal void OnObjectResult(string payload)
         {
             string[] fields = (payload ?? string.Empty).Split('|');
-            if (fields.Length < 2 || fields[1].Length < 2 || (fields[1][0] != '+' && fields[1][0] != '-')
+            int template = 0;
+            if (fields.Length < 2 || fields[1].Length < 1 || (fields[1][0] != '+' && fields[1][0] != '-')
                 || !long.TryParse(fields[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out long sprite)
-                || !int.TryParse(fields[1].Substring(1), NumberStyles.Integer, CultureInfo.InvariantCulture, out int template))
+                || (fields[1].Length > 1 && (!int.TryParse(fields[1].Substring(1), NumberStyles.Integer, CultureInfo.InvariantCulture, out template) || template < 0)))
             {
                 LogError("Résultat d'objet illisible : IO" + Shorten(payload));
                 Notify();
@@ -472,7 +478,7 @@ namespace Tool_BotProtocol.Game.Interactions
             bool success = fields[1][0] == '+';
             if (sprite == (Account?.Game?.character?.id ?? long.MinValue))
             {
-                Log((success ? "Réussite : " : "Échec : ") + LangData.Item.Name(template) + ".");
+                Log((success ? "Réussite" : "Échec") + (template > 0 ? " : " + LangData.Item.Name(template) : string.Empty) + ".");
                 Notify();
             }
             try { ObjectResultReceived?.Invoke(sprite, success, template); }
