@@ -31,6 +31,10 @@ cargo run --release --manifest-path swfsvg/Cargo.toml -- --list <client>/clips/s
 
 # 5. Conversion en PNG (échelle facultative)
 python3 exporter_png.py svg/ png/ 1
+
+# 6. Sprites d'acteurs du bot : images de repos, cycles de marche et de course, ancres
+python3 exporter_sprites.py <client>/clips/sprites ../../Outil_Azur_complet/Resources/Bot/sprites \
+    --swfsvg swfsvg/target/release/swfsvg --jobs 4
 ```
 
 ## Ce que fait chaque outil
@@ -42,6 +46,7 @@ python3 exporter_png.py svg/ png/ 1
 | `relever_protocole.py` | Suit les chaînes `if (r0 === "x") goto` des méthodes `onMessage` de `dofus.aks.*` pour recomposer les préfixes, relève les `aks.send(...)` et résume la lecture de chaque réponse (`split`, indices, `parseInt`). |
 | `swfsvg` | Exporte en SVG un symbole exporté (forme, clip, bouton à l'état relâché) ou la scène d'un SWF, à l'image voulue : dégradés, bitmaps JPEG/sans perte en base64, transformations de couleur, masques, formes morphées. Les aplats magenta `#FF00FF` sont des emplacements remplis à l'exécution : ils sont omis. Écrit aussi `index.tsv` (cadre de chaque rendu). Voir la section suivante. |
 | `exporter_png.py` | Convertit les SVG en PNG avec cairosvg. |
+| `exporter_sprites.py` | Enchaîne `swfsvg --list`, `--frame` et `--scene` sur `clips/sprites/<gfx>.swf`, convertit avec cairosvg, rogne les marges transparentes, assemble les cycles en bandes et écrit `ancres.tsv`. Voir la section « Sprites d'acteurs ». |
 
 ## `swfsvg` : symboles, scène, images et index
 
@@ -119,6 +124,40 @@ Temps mesurés (conteneur 4 cœurs, un processus par SWF, binaire `--release`) :
 
 Robustesse : `--list` et `--scene` sur les 7 735 SWF de `clips/` (195 s) puis `--frame all` sur tous
 les exports d'un sprite sur dix (93 SWF, 260 s) : aucun échec, aucune panique.
+
+## Sprites d'acteurs : `exporter_sprites.py`
+
+```text
+exporter_sprites.py <client>/clips/sprites <sortie> [--swfsvg CHEMIN] [--animes FICHIER]
+                    [--gfx 10,11,...] [--echelle 1] [--jobs N] [--sans-palette]
+```
+
+Requiert swfsvg 0.2.1 ou plus (`--swfsvg`, sinon `$SWFSVG`, le `PATH` ou `swfsvg/target/release`),
+cairosvg et Pillow. Pour chaque `<gfx>.swf` :
+
+- `<gfx>_static<O>.png` (`O` = `S`, `R`, `L`, `F`, `B`, casse du nom d'export ignorée) : la **dernière
+  image utile** du symbole (`--list`), celle où le client s'arrête après l'animation de repos ;
+- `<gfx>_scene.png` quand le SWF n'exporte aucun `static<O>` (épées de combat 0-5, tombes) : image 1
+  de la scène ;
+- pour les gfx du fichier `--animes` (par défaut `<sortie>/sprites_animes.txt`, un gfx par ligne) :
+  `<gfx>_walk<O>.png` et `<gfx>_run<O>.png`, bandes horizontales de toutes les images utiles rendues
+  dans un même cadre (`--frame all`) ;
+- `<sortie>/ancres.tsv` : `gfx anim xmin ymin largeur hauteur images` (en-tête compris), où le point
+  d'ancrage du client est le pixel (`-xmin`, `-ymin`) de chaque image.
+
+Les marges transparentes sont rognées (cadre commun pour une bande), le magenta est effacé comme dans
+`exporter_png.py`, la palette 8 bits n'est retenue que si elle ne change presque rien aux pixels
+visibles. `--gfx` remplace seulement les lignes et les PNG des gfx cités ; les autres fichiers du
+dossier (les anciens `<gfx><O>.png` du bot) ne sont jamais touchés. Un SWF illisible est signalé et
+la série continue. Le détail des conventions et la commande utilisée pour le dépôt sont dans
+`Outil_Azur_complet/Resources/Bot/sprites/PROVENANCE.md`.
+
+| Commande | Durée (4 cœurs) | Sortie |
+|---|---|---|
+| tous les sprites, `--jobs 4`, 24 gfx animés | 3 min 10 s | 2 556 PNG, 16,1 Mo, `ancres.tsv` de 2 556 lignes |
+
+Tests : `python3 tests/test_exporter_sprites.py` (faux `swfsvg` écrit en Python dans `tests/`, aucun
+fichier du client) : image de repos, casse, scène, bandes, magenta, rognage, échelle, `--gfx`.
 
 ## Limites connues
 
