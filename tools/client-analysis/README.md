@@ -8,7 +8,7 @@ références qui en découlent (`docs/PROTOCOLE_CLIENT_1_34.md`, `ressources/Bot
 ## Prérequis
 
 - Rust (cargo) pour `avm1dump` et `swfsvg` (dépendance : la crate `swf` de Ruffle).
-- Python 3 pour `as2lite.py` et `relever_protocole.py` ; `pip install cairosvg` pour `exporter_png.py`.
+- Python 3 pour `as2lite.py` et `relever_protocole.py` ; `pip install cairosvg` pour `exporter_png.py` ; `pip install cairosvg pillow` pour `exporter_sprites.py` et ses tests (sous Windows, cairosvg demande aussi la bibliothèque Cairo, `libcairo-2.dll`).
 
 ## Chaîne complète
 
