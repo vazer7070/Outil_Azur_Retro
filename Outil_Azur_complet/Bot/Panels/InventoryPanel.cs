@@ -90,11 +90,16 @@ namespace Outil_Azur_complet.Bot.Panels
             useItem.Enabled = ready && !item.IsEquipped();
             dropItem.Enabled = ready && !item.IsEquipped();
             if (item != null) inventoryQuantity.Maximum = Math.Max(1, item.Qua);
+            useItem.Text = SpecialItems.IsDocument(item) ? "Lire" : "Utiliser";
             if (dropArmed) return;
             dropItem.Text = "Jeter";
+            // Pierres d'âme et documents (lot F14) : règle du serveur rappelée sous l'objet.
+            string note = SpecialItems.Note(item, Game.Map?.MapID ?? 0);
             inventoryHelp.Text = item == null ? "Sélectionnez un objet. Le serveur confirme chaque action."
                 : item.Name + " · " + item.Qua + " · " + (item.IsEquipped() ? "équipé" : "dans le sac")
-                    + (item.HasMetadata ? string.Empty : " · fiche absente de BotObjets : type et niveau inconnus");
+                    + (item.HasMetadata ? string.Empty : " · fiche absente de BotObjets : type et niveau inconnus")
+                    + (note == null ? string.Empty : Environment.NewLine + note);
+            inventoryHelp.Height = note == null ? 46 : 80;
         }
 
         private void DisarmDrop() { dropArmed = false; if (dropItem != null) dropItem.Text = "Jeter"; }
@@ -119,8 +124,8 @@ namespace Outil_Azur_complet.Bot.Panels
             DisarmDrop();
             try
             {
-                bool sent = await Game.character.Inventory.Use_Item(item);
-                Feedback(sent ? "Utilisation demandée ; le serveur confirme." : "Demande refusée : voir le journal.");
+                ItemUseResult result = await SpecialItems.UseAsync(Game, item);
+                Feedback(result.Message);
             }
             catch (Exception error) { Feedback(error.Message); }
         }

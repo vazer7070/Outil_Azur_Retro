@@ -58,8 +58,9 @@ namespace Tool_BotProtocol.Game.Chat
     /// <summary>
     /// Commandes de la console du client 1.34 (<c>Console.process</c>) : changement de canal (<c>/s /t /g /p /a /r /b /i /q</c>),
     /// chuchotement, <c>/whois</c>, amis et ennemis, invitation, émotes, commandes locales. Les commandes du serveur StarLoco
-    /// (préfixe « . ») s'écrivent dans le canal général et partent telles quelles. <c>/away</c> et <c>/invisible</c> sont
-    /// refusées : <c>BYA</c>/<c>BYI</c> rendraient le personnage absent ou invisible (matrice §2 n° 35).
+    /// (préfixe « . ») s'écrivent dans le canal général et partent telles quelles (aide : <see cref="ServerCommands"/>).
+    /// <c>/away</c> et <c>/invisible</c> envoient <c>BYA</c>/<c>BYI</c> comme le client, seulement quand l'utilisateur les tape
+    /// (<see cref="PlayerPresence"/>) : jamais à l'entrée en jeu (matrice §2 n° 35).
     /// </summary>
     public static class ChatCommands
     {
@@ -105,10 +106,11 @@ namespace Tool_BotProtocol.Game.Chat
             Add(new[] { "LIST", "PLAYERS" }, "/list", "joueurs du combat", ListPlayers);
             Add(new[] { "KICK" }, "/kick <nom>", "exclure un joueur de son équipe pendant le placement (GQ<id>)", Kick);
             Add(new[] { "SPECTATOR", "SPEC" }, "/spec", "bloquer les spectateurs du combat (fS)", Spectators);
-            Add(new[] { "AWAY" }, "/away", "désactivé : BYA rendrait le personnage absent",
-                context => context.Error("/away est désactivé : StarLoco rendrait le personnage absent (BYA)."));
-            Add(new[] { "INVISIBLE" }, "/invisible", "désactivé : BYI rendrait le personnage invisible",
-                context => context.Error("/invisible est désactivé : StarLoco rendrait le personnage invisible (BYI)."));
+            // Lot F14 : bascules explicites de l'utilisateur, jamais envoyées seules (matrice §2 n° 35).
+            Add(new[] { "AWAY" }, "/away", "basculer l'état absent (BYA) : StarLoco refuse alors tous les messages privés",
+                context => Presence(context)?.ToggleAwayAsync() ?? context.Error("/away : session de jeu indisponible."));
+            Add(new[] { "INVISIBLE" }, "/invisible", "basculer l'état invisible (BYI) : seuls les amis peuvent alors chuchoter",
+                context => Presence(context)?.ToggleInvisibleAsync() ?? context.Error("/invisible : session de jeu indisponible."));
             Add(new[] { "THINK", "METHINK", "PENSE", "TH" }, "/think <texte>", "bulle de pensée dans le canal général",
                 context => Styled(context, "!THINK!" + context.Text, "/" + context.Name.ToLowerInvariant() + " <texte>"));
             Add(new[] { "ME", "EM", "MOI", "EMOTE" }, "/me <texte>", "action en italique dans le canal général",
@@ -169,6 +171,8 @@ namespace Tool_BotProtocol.Game.Chat
                 return context.Chat.SendAsync(channel.Code, context.Text);
             });
         }
+
+        private static PlayerPresence Presence(ChatCommandContext context) => context.Account?.Game?.Presence;
 
         private static Task<ChatResult> Whisper(ChatCommandContext context)
         {

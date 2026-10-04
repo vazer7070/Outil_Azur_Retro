@@ -167,6 +167,8 @@
     <Compile Include="Game\Chat\ChatCommands.cs" />
     <Compile Include="Game\Chat\ChatMessage.cs" />
     <Compile Include="Game\Chat\ChatService.cs" />
+    <Compile Include="Game\Chat\PlayerPresence.cs" />
+    <Compile Include="Game\Chat\ServerCommands.cs" />
     <Compile Include="Game\Combats\Fights.cs" />
     <Compile Include="Game\Data\LangData.cs" />
     <Compile Include="Game\Combats\FightTimeline.cs" />
@@ -227,6 +229,7 @@
     <Compile Include="Game\Maps\GmParser.cs" />
     <Compile Include="Game\Maps\Mouvements\PathfinderUtils.cs" />
     <Compile Include="Game\Monstres\Monstres.cs" />
+    <Compile Include="Game\Monstres\SoulStones.cs" />
     <Compile Include="Game\NPC\PNJ.cs" />
     <Compile Include="Game\Perso\CharacterClass.cs" />
     <Compile Include="Game\Perso\Inventory\Enums\InventoryObjectsTypes.cs" />
@@ -235,6 +238,7 @@
     <Compile Include="Game\Perso\Inventory\InventoryObjects.cs" />
     <Compile Include="Game\Perso\Inventory\InventoryUtilities.cs" />
     <Compile Include="Game\Perso\Inventory\ItemSets.cs" />
+    <Compile Include="Game\Perso\Inventory\SpecialItems.cs" />
     <Compile Include="Game\Perso\Personnages.cs" />
     <Compile Include="Game\Perso\PlayerRestrictions.cs" />
     <Compile Include="Game\Perso\Spells\Shaper.cs" />

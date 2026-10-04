@@ -256,8 +256,9 @@ internal static class BotChatProtocolSmoke
                     Refused(peer, Await(chat.ExecuteAsync("/m méta")), "/m (¤) was sent");
                     Refused(peer, Await(chat.ExecuteAsync("/s")), "An empty /s was sent");
                     Refused(peer, Await(chat.ExecuteAsync("/w Nom")), "/w without a message was sent");
-                    Refused(peer, Await(chat.ExecuteAsync("/away")), "/away sent BYA");
-                    Refused(peer, Await(chat.ExecuteAsync("/invisible")), "/invisible sent BYI");
+                    // Lot F14 : /away et /invisible tapés par l'utilisateur envoient la bascule du client, une seule fois.
+                    Expect(peer, Await(chat.ExecuteAsync("/away")), "BYA", "/away is not BYA");
+                    Expect(peer, Await(chat.ExecuteAsync("/invisible")), "BYI", "/invisible is not BYI");
                     Expect(peer, Await(chat.ExecuteAsync("/whois Nom")), "BWNom", "/whois is not BW<name>");
                     Expect(peer, Await(chat.ExecuteAsync("/whoami")), "BW", "/whoami is not BW");
                     Refused(peer, Await(chat.ExecuteAsync("/whois")), "/whois without a name was sent");

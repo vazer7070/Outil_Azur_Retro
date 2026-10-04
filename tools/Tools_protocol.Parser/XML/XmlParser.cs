@@ -430,6 +430,14 @@ namespace Tools_protocol.Parser.XML
                 case "Monstres":
                     id = row["id"];
                     record.Add(Element("ID", id), Element("NAME", row["name"]), Element("GFX", row["gfxID"]));
+                    // Colonne capturable (Kryone et StarLoco) : capture des âmes affichée au survol des groupes (lot F14).
+                    object capturable = Optional(row, "capturable", null);
+                    if (capturable != null)
+                    {
+                        // Comme MonsterData.java : capturable seulement si la colonne vaut 1.
+                        string flag = Text(capturable).Trim();
+                        record.Add(Element("CAPTURABLE", flag == "1" || flag.Equals("true", StringComparison.OrdinalIgnoreCase) ? 1 : 0));
+                    }
                     break;
                 case "Sorts":
                     id = row["id"];

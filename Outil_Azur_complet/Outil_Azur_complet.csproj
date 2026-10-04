@@ -316,6 +316,7 @@
     <Compile Include="Bot\Panels\PartyArtworks.cs" />
     <Compile Include="Bot\Panels\PartyPanel.cs" />
     <Compile Include="Bot\Panels\FriendsPanel.cs" />
+    <Compile Include="Bot\Panels\CommandsHelpPanel.cs" />
     <Compile Include="Bot\Panels\InventoryPanel.cs" />
     <Compile Include="Bot\Panels\StatsPanel.cs" />
     <Compile Include="Bot\Panels\SpellsPanel.cs" />
