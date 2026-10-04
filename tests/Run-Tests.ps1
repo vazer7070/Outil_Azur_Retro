@@ -2,6 +2,7 @@
 param(
     [switch]$Integration,
     [switch]$NoBuild,
+    [switch]$Outils,
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Debug',
     [ValidateRange(10, 600)]
@@ -108,6 +109,13 @@ try {
         }
     }
     finally { Pop-Location }
+    if ($Outils) {
+        # Outils d'analyse du client (Rust) : swfsvg se teste sur un SWF fabriqué par ses tests.
+        if (!(Get-Command cargo -ErrorAction SilentlyContinue)) { throw 'cargo est introuvable : installez Rust ou retirez -Outils.' }
+        & cargo test --release --quiet --manifest-path (Join-Path $azurRoot 'tools\client-analysis\swfsvg\Cargo.toml')
+        if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de swfsvg.' }
+        Write-Host 'Tests de swfsvg réussis.'
+    }
     Write-Host "$($azurTests.Count) tests réussis. Fichiers temporaires et journaux : $azurWork"
 }
 finally {
