@@ -77,14 +77,20 @@ def main():
     parser.add_argument("ressources")
     parser.add_argument("--swfsvg")
     parser.add_argument("--core", help="core.swf (par défaut <client>/modules/core.swf)")
-    parser.add_argument("--travail", help="dossier de travail (SVG intermédiaires), temporaire par défaut")
+    parser.add_argument("--travail", help="dossier de travail gardé (SVG intermédiaires) ; sinon temporaire, supprimé à la fin")
     args = parser.parse_args()
     swfsvg = trouver_swfsvg(args.swfsvg)
     core = args.core or os.path.join(args.client, "modules", "core.swf")
     if not os.path.isfile(core):
         sys.exit("core.swf introuvable : " + core + " (option --core)")
-    travail = args.travail or tempfile.mkdtemp(prefix="groupe-")
+    if args.travail:
+        exporter(args, swfsvg, core, args.travail)
+    else:
+        with tempfile.TemporaryDirectory(prefix="groupe-") as travail:
+            exporter(args, swfsvg, core, travail)
 
+
+def exporter(args, swfsvg, core, travail):
     # Petites illustrations : scène de chaque SWF, nommée par son numéro.
     mini_svg = os.path.join(travail, "mini-svg")
     os.makedirs(mini_svg, exist_ok=True)
@@ -115,7 +121,8 @@ def main():
     enregistrer(rogner(Image.open(os.path.join(ui_png, "UI_PartyItemInfo.png")).convert("RGBA")), os.path.join(groupe, "infos.png"))
     enregistrer(rogner(Image.open(os.path.join(ui_png, "UI_FightOptionBlockJoinerExceptPartyMemberUp.png")).convert("RGBA")),
                 os.path.join(groupe, "groupe.png"))
-    print(f"{len(sources)} illustrations, 4 éléments d'interface ; SVG intermédiaires dans {travail}")
+    garde = f" ; SVG intermédiaires dans {travail}" if args.travail else ""
+    print(f"{len(sources)} illustrations, 4 éléments d'interface{garde}")
 
 
 if __name__ == "__main__":

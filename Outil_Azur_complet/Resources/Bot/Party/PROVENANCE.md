@@ -20,8 +20,10 @@ python3 tools/client-analysis/exporter_groupe.py "$CLIENT" Outil_Azur_complet/Re
 
 Le script lance `swfsvg <CLIENT>/modules/core.swf <svg>/ UI_PartyItem UI_PartyItemInfo UI_FightOptionBlockJoinerExceptPartyMemberUp` (swfsvg 0.2.1), puis `exporter_png.py <svg> <png> 2` (cairosvg, échelle 2). `UI_PartyItem` ne rend que la couronne et la flèche (le fond et la jauge de vie du clip sont teintés par des transformations de couleur que cairosvg ignore) : le script le découpe à la bande transparente qui sépare ces deux blocs, puis retire les marges transparentes de chaque image (Pillow). 5 008 octets au total, RGBA 32 bits (trop petits pour gagner à la palette).
 
+Version de `swfsvg` : ces PNG viennent de la 0.2.1. Avec la 0.2.2 (aplats magenta gardés sous une transformation de couleur qui remplace la teinte), `infos.png` prend un liseré magenta, le contour que le client recolore à l'exécution : la version 0.2.1 est gardée ; `chef.png`, `suivi.png` et `groupe.png` ne changent que de quelques niveaux.
+
 Le fond de case et la jauge de vie verticale (rouge `#D80101`, transformation de couleur de `_mcHealth`) sont redessinés par le bot. Les images conservent les droits de leurs titulaires d'origine ; aucun SWF du client n'est versionné.
 
 ## Exécution
 
-`Outil_Azur_complet.csproj` copie ce dossier vers `ressources/Bot/Party` à côté de l'exécutable (cible `CopyBotPartyAssets`). Sans ces fichiers, le volet dessine une couronne et une flèche simplifiées.
+`Outil_Azur_complet.csproj` copie ce dossier vers `ressources/Bot/Party` à côté de l'exécutable (cible générique `CopyBotAssets`). Sans ces fichiers, le volet dessine une couronne et une flèche simplifiées.
