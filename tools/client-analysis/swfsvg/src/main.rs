@@ -748,11 +748,11 @@ impl<'a> Exporter<'a> {
                         swf::PlaceObjectAction::Place(cid) | swf::PlaceObjectAction::Replace(cid) => {
                             let prev = display.get(&p.depth).cloned();
                             // Remplacer un caractère par lui-même garde l'instance (et son âge).
-                            let kept = matches!(p.action, swf::PlaceObjectAction::Replace(_)) && prev.as_ref().map_or(false, |x| x.id == cid);
+                            let kept = matches!(p.action, swf::PlaceObjectAction::Replace(_)) && prev.as_ref().is_some_and(|x| x.id == cid);
                             let placed = Placed {
                                 id: cid,
                                 matrix: pm.or(prev.as_ref().map(|x| x.matrix)).unwrap_or(M::identity()),
-                                ct: p.color_transform.clone().or(prev.as_ref().and_then(|x| x.ct.clone())),
+                                ct: p.color_transform.or(prev.as_ref().and_then(|x| x.ct)),
                                 ratio: p.ratio.or(prev.as_ref().map(|x| x.ratio)).unwrap_or(0),
                                 clip_depth: p.clip_depth.or(prev.as_ref().and_then(|x| x.clip_depth)),
                                 born: if kept { prev.map_or(current_frame, |x| x.born) } else { current_frame },
@@ -764,8 +764,8 @@ impl<'a> Exporter<'a> {
                                 if let Some(mm) = pm {
                                     entry.matrix = mm;
                                 }
-                                if let Some(ct) = &p.color_transform {
-                                    entry.ct = Some(ct.clone());
+                                if let Some(ct) = p.color_transform {
+                                    entry.ct = Some(ct);
                                 }
                                 if let Some(r) = p.ratio {
                                     entry.ratio = r;
@@ -899,11 +899,7 @@ fn timeline_info(tags: &[Tag]) -> Timeline {
     for t in tags {
         match t {
             Tag::ShowFrame => frames += 1,
-            Tag::DoAction(code) => {
-                if stop.is_none() && has_stop(code) {
-                    stop = Some(frames);
-                }
-            }
+            Tag::DoAction(code) if stop.is_none() && has_stop(code) => stop = Some(frames),
             _ => {}
         }
     }
@@ -983,8 +979,7 @@ fn morph_frame(morph: &swf::DefineMorphShape, ratio: u16) -> swf::Shape {
             ShapeRecord::StyleChange(_) => (from, from, true),
         }
     };
-    loop {
-        let (Some(sr), Some(er)) = (start.peek().copied(), end.peek().copied()) else { break };
+    while let (Some(sr), Some(er)) = (start.peek().copied(), end.peek().copied()) {
         match (sr, er) {
             (ShapeRecord::StyleChange(sc), _) => {
                 start.next();
@@ -1196,7 +1191,7 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
     if o.scene && !o.names.is_empty() {
         return Err("--scene rend la timeline principale : aucun nom d'export n'est attendu".into());
     }
-    if o.scene_name.as_deref().map_or(false, |n| n.trim().is_empty()) || (o.scene_name.is_some() && !o.scene) {
+    if o.scene_name.as_deref().is_some_and(|n| n.trim().is_empty()) || (o.scene_name.is_some() && !o.scene) {
         return Err("--name nomme le rendu de --scene et ne peut pas être vide".into());
     }
     Ok(o)
