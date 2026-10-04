@@ -399,11 +399,21 @@ def appliquer_transformations(svg):
 
 def svg_en_png(chemin, echelle):
     with open(chemin, encoding="utf-8") as f:
-        svg = appliquer_transformations(f.read())
-    donnees = cairosvg.svg2png(bytestring=svg.encode("utf-8"), scale=echelle, background_color=None)
-    image = Image.open(io.BytesIO(donnees))
-    image.load()
-    return effacer_magenta(image.convert("RGBA"))
+        svg = appliquer_transformations(f.read()).encode("utf-8")
+    try:
+        image = Image.open(io.BytesIO(cairosvg.svg2png(bytestring=svg, scale=echelle, background_color=None)))
+        image.load()
+        image = image.convert("RGBA")
+    except MemoryError:
+        # cairo refuse (CAIRO_STATUS_NO_MEMORY) un dégradé devenu presque ponctuel une fois réduit
+        # (portrait 8033) : rendu à l'échelle 1, puis réduction par Pillow en alpha prémultiplié.
+        if echelle >= 1:
+            raise
+        grand = Image.open(io.BytesIO(cairosvg.svg2png(bytestring=svg, scale=1, background_color=None)))
+        grand.load()
+        taille = (max(1, int(round(grand.width * echelle))), max(1, int(round(grand.height * echelle))))
+        image = grand.convert("RGBA").convert("RGBa").resize(taille, Image.Resampling.LANCZOS).convert("RGBA")
+    return effacer_magenta(image)
 
 
 def echelle_pour(ligne, echelle, maximum):
