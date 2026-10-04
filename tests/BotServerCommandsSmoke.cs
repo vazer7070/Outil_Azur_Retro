@@ -472,6 +472,10 @@ internal static class BotServerCommandsSmoke
             "The invisible warning is not shown before sending");
         Click(panel.InvisibleButton);
         Check(Read(peer) == "BYI", "Confirming Invisible did not send BYI");
+        // Sans réponse du serveur, la bascule redevient possible après l'attente (5 s), sans nouvel envoi.
+        PumpUntil(() => !panel.InvisibleButton.Enabled);
+        PumpUntil(() => panel.InvisibleButton.Enabled && !presence.IsInvisiblePending, 9);
+        NoPacket(peer, "BYI was sent again after the wait");
         FeedFromNetwork(account, "Im050");
         PumpUntil(() => presence.IsInvisible && panel.PresenceText.Contains("invisible") && panel.InvisibleButton.Text == "Redevenir visible (BYI)");
         NoPacket(peer, "BYI was sent more than once");

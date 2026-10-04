@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Tool_BotProtocol.Game;
@@ -33,6 +34,8 @@ namespace Outil_Azur_complet.Bot.Panels
         private long replyUntil;
         private ChatService boundChat;
         private PlayerPresence boundPresence;
+        /// <summary>Réactive les bascules quand une réponse du serveur n'arrive pas (fin de l'attente de <see cref="PlayerPresence"/>).</summary>
+        private System.Windows.Forms.Timer pendingTimer;
 
         public override string Title => "Commandes du serveur";
         public override Image Icon => ClientAssets.Icon("UI_BannerChatCommandAll", 24);
@@ -103,6 +106,8 @@ namespace Outil_Azur_complet.Bot.Panels
             page.Controls.Add(family); page.Controls.Add(intro); page.Controls.Add(header);
             page.Controls.Add(details); page.Controls.Add(argumentRow); page.Controls.Add(actions); page.Controls.Add(status);
             page.Controls.Add(BuildPresence());
+            pendingTimer = new System.Windows.Forms.Timer { Interval = 500 };
+            pendingTimer.Tick += (s, e) => UpdatePresence();
             FillList();
             return page;
         }
@@ -150,6 +155,12 @@ namespace Outil_Azur_complet.Bot.Panels
             if (boundChat != null) boundChat.MessageReceived -= OnChatMessage;
             if (boundPresence != null) boundPresence.Changed -= OnPresenceChanged;
             boundChat = null; boundPresence = null; armed = Armed.None;
+            pendingTimer?.Stop();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) { pendingTimer?.Dispose(); pendingTimer = null; }
         }
 
         protected internal override bool OnUserClose() { Disarm(); return true; }
@@ -229,16 +240,23 @@ namespace Outil_Azur_complet.Bot.Panels
             ChatService chat = Game?.Chat;
             if (command == null || chat == null || !send.Enabled) return;
             string value = argument.Text;
-            ChatResult result = await ServerCommands.SendAsync(chat, command, value);
-            Report(result, command.BuildLine(value));
+            try { Report(await ServerCommands.SendAsync(chat, command, value), command.BuildLine(value)); }
+            catch (Exception error) { Fail(error); }
         }
 
         private async Task RequestServerHelp()
         {
             ChatService chat = Game?.Chat;
             if (chat == null || !serverHelp.Enabled) return;
-            ChatResult result = await ServerCommands.RequestServerHelpAsync(chat);
-            Report(result, "." + ServerCommands.ServerHelp);
+            try { Report(await ServerCommands.RequestServerHelpAsync(chat), "." + ServerCommands.ServerHelp); }
+            catch (Exception error) { Fail(error); }
+        }
+
+        /// <summary>Erreur inattendue d'un envoi lancé par un clic : journalisée et affichée, jamais propagée au gestionnaire.</summary>
+        private void Fail(Exception error)
+        {
+            Account?.Logger?.LogError("INTERFACE", "Commande du serveur : " + error.Message);
+            ShowError("Envoi impossible : " + error.Message);
         }
 
         private void Report(ChatResult result, string line)
@@ -246,23 +264,26 @@ namespace Outil_Azur_complet.Bot.Panels
             if (status == null || status.IsDisposed) return;
             if (result.Sent)
             {
-                replyUntil = Stopwatch.GetTimestamp() + ReplyWindowMilliseconds * Stopwatch.Frequency / 1000;
+                Interlocked.Exchange(ref replyUntil, Stopwatch.GetTimestamp() + ReplyWindowMilliseconds * Stopwatch.Frequency / 1000);
                 status.ForeColor = BotUi.Muted;
                 status.Text = "Envoyé : " + line + " — la réponse du serveur s'affiche dans le chat.";
                 Feedback("Commande envoyée : " + line);
             }
-            else
-            {
-                status.ForeColor = Color.FromArgb(150, 45, 30);
-                status.Text = result.Message;
-                Feedback(result.Message);
-            }
+            else ShowError(result.Message);
+        }
+
+        private void ShowError(string message)
+        {
+            if (status == null || status.IsDisposed) return;
+            status.ForeColor = Color.FromArgb(150, 45, 30);
+            status.Text = message;
+            Feedback(message);
         }
 
         /// <summary>Réponse <c>cs</c> reçue peu après un envoi (fil réseau) : recopiée sous la liste.</summary>
         private void OnChatMessage(ChatMessage message)
         {
-            if (message == null || message.Kind != ChatMessageKind.Server || Stopwatch.GetTimestamp() > replyUntil) return;
+            if (message == null || message.Kind != ChatMessageKind.Server || Stopwatch.GetTimestamp() > Interlocked.Read(ref replyUntil)) return;
             string text = message.Text.Replace("\r", " ").Replace("\n", " ");
             if (text.Length > 220) text = text.Substring(0, 219) + "…";
             OnUi(() => { if (status != null && !status.IsDisposed) { status.ForeColor = BotUi.Olive; status.Text = "Réponse du serveur : " + text; } });
@@ -287,8 +308,12 @@ namespace Outil_Azur_complet.Bot.Panels
             }
             armed = Armed.None;
             UpdatePresence();
-            ChatResult result = which == Armed.Away ? await presence.ToggleAwayAsync() : await presence.ToggleInvisibleAsync();
-            Report(result, which == Armed.Away ? PlayerPresence.AwayPacket : PlayerPresence.InvisiblePacket);
+            try
+            {
+                ChatResult result = which == Armed.Away ? await presence.ToggleAwayAsync() : await presence.ToggleInvisibleAsync();
+                Report(result, which == Armed.Away ? PlayerPresence.AwayPacket : PlayerPresence.InvisiblePacket);
+            }
+            catch (Exception error) { Fail(error); }
             UpdatePresence();
         }
 
@@ -316,6 +341,7 @@ namespace Outil_Azur_complet.Bot.Panels
                 : armed == Armed.Invisible ? PlayerPresence.InvisibleWarning + " Cliquez de nouveau pour envoyer BYI."
                 : "Jamais envoyé automatiquement : StarLoco remet les deux états à zéro à chaque connexion.";
             warningIcon.Visible = armed != Armed.None && warningIcon.Image != null;
+            if (pendingTimer != null) pendingTimer.Enabled = awayPending || invisiblePending;
         }
 
         private static string FamilyName(ServerCommandCategory category)
