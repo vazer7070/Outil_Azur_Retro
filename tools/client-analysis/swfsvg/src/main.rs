@@ -65,13 +65,23 @@ impl M {
     fn apply(&self, x: f64, y: f64) -> (f64, f64) {
         (self.a * x + self.c * y + self.tx, self.b * x + self.d * y + self.ty)
     }
+    /// Partie linéaire à six décimales : les dégradés ont des coefficients de l'ordre de 0,001
+    /// (repère de 1 638,4 pixels) qu'un arrondi à trois décimales rend singuliers, et cairo refuse
+    /// alors tout le dessin.
     fn svg(&self) -> String {
-        format!("matrix({} {} {} {} {} {})", fm(self.a), fm(self.b), fm(self.c), fm(self.d), fm(self.tx), fm(self.ty))
+        format!("matrix({} {} {} {} {} {})", fm_fine(self.a), fm_fine(self.b), fm_fine(self.c), fm_fine(self.d), fm(self.tx), fm(self.ty))
     }
 }
 
 fn fm(v: f64) -> String {
-    let s = format!("{:.3}", v);
+    trim_number(format!("{:.3}", v))
+}
+
+fn fm_fine(v: f64) -> String {
+    trim_number(format!("{:.6}", v))
+}
+
+fn trim_number(s: String) -> String {
     let s = s.trim_end_matches('0').trim_end_matches('.').to_string();
     if s == "-0" { "0".to_string() } else { s }
 }
@@ -153,6 +163,9 @@ struct Exporter<'a> {
     warnings: Vec<String>,
     /// Vrai pendant le rendu de la géométrie d'un masque (`<clipPath>`) : chemins seuls, sans style.
     clip_mode: bool,
+    /// Nombre de transformations de couleur englobantes qui remplacent la teinte (multiplicateurs
+    /// RGB nuls, comme `Color.setRGB`) : sous elles, les aplats magenta prennent cette teinte.
+    recolored: usize,
 }
 
 fn color_css(c: &swf::Color) -> (String, f64) {
@@ -275,6 +288,7 @@ impl<'a> Exporter<'a> {
             def_counter: 0,
             warnings: Vec::new(),
             clip_mode: false,
+            recolored: 0,
         }
     }
 
@@ -285,6 +299,7 @@ impl<'a> Exporter<'a> {
         self.def_counter = 0;
         self.warnings.clear();
         self.clip_mode = false;
+        self.recolored = 0;
     }
 
     fn warn(&mut self, message: String) {
@@ -484,8 +499,18 @@ impl<'a> Exporter<'a> {
                 (hex, if a < 1.0 { format!(" fill-opacity=\"{}\"", fm(a)) } else { String::new() })
             }
             FillStyle::LinearGradient(g) | FillStyle::RadialGradient(g) | FillStyle::FocalGradient { gradient: g, .. } => {
-                let id = self.next_id("g");
                 let gm = M::from_swf(&g.matrix);
+                // Dégradé dégénéré (matrice presque singulière : une lame de quelques millièmes de
+                // pixel, fréquente dans les petits éclats des icônes) : cairo refuse de le peindre et
+                // abandonne toute l'image. Le carré du dégradé (1 638,4 px de côté) couvre alors
+                // moins de 0,05 px² : une seule couleur, celle du milieu, suffit.
+                if (gm.a * gm.d - gm.b * gm.c).abs() * 1638.4 * 1638.4 < 0.05 {
+                    if let Some(r) = g.records.get(g.records.len() / 2) {
+                        let (hex, a) = color_css(&r.color);
+                        return (hex, if a < 1.0 { format!(" fill-opacity=\"{}\"", fm(a)) } else { String::new() });
+                    }
+                }
+                let id = self.next_id("g");
                 let linear = matches!(style, FillStyle::LinearGradient(_));
                 let spread = match g.spread {
                     swf::GradientSpread::Pad => "pad",
@@ -620,9 +645,10 @@ impl<'a> Exporter<'a> {
         for ((gen, idx), edges) in fill_edges {
             let style = gen_styles.get(gen).and_then(|g| g.0.get(idx - 1)).cloned();
             let Some(style) = style else { continue };
-            // Le magenta pur est la couleur technique des zones remplacées à l'exécution : on l'omet.
+            // Le magenta pur est la couleur technique des zones remplacées à l'exécution : on l'omet,
+            // sauf si une transformation de couleur du SWF lui donne déjà sa teinte.
             if let FillStyle::Color(c) = &style {
-                if c.r == 255 && c.g == 0 && c.b == 255 {
+                if c.r == 255 && c.g == 0 && c.b == 255 && self.recolored == 0 {
                     continue;
                 }
             }
@@ -677,6 +703,10 @@ impl<'a> Exporter<'a> {
             return;
         };
         let extra = if self.clip_mode { String::new() } else { self.color_transform_attr(ct) };
+        let replaces = ct.is_some_and(|c| c.r_multiply.to_f32() == 0.0 && c.g_multiply.to_f32() == 0.0 && c.b_multiply.to_f32() == 0.0);
+        if replaces {
+            self.recolored += 1;
+        }
         match tag {
             Tag::DefineShape(s) => self.render_shape(s, m, &extra),
             Tag::DefineSprite(sp) => {
@@ -720,6 +750,9 @@ impl<'a> Exporter<'a> {
                 self.render_shape(&shape, m, &extra);
             }
             _ => {}
+        }
+        if replaces {
+            self.recolored -= 1;
         }
     }
 
@@ -1342,6 +1375,15 @@ mod tests {
 
     fn args(v: &[&str]) -> Vec<String> {
         v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn small_gradient_matrices_stay_invertible() {
+        // Coefficients d'un dégradé du client (items/115) : arrondis à 0,001 ils devenaient nuls.
+        let m = M { a: -0.0021, b: 0.0019, c: 0.00042, d: 0.00038, tx: 288.1244, ty: -0.0004 };
+        assert_eq!(m.svg(), "matrix(-0.0021 0.0019 0.00042 0.00038 288.124 0)");
+        assert_eq!(fm(2.5), "2.5");
+        assert_eq!(fm_fine(-0.0000001), "0");
     }
 
     #[test]
