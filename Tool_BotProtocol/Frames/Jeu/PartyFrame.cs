@@ -3,70 +3,52 @@ using System.Threading.Tasks;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Game.Perso;
+using Tool_BotProtocol.Game.Session;
 using Tool_BotProtocol.Network;
 
 namespace Tool_BotProtocol.Frames.Jeu
 {
     /// <summary>
     /// Groupe : <c>PIK</c>, <c>PCK</c>, <c>PM</c>, <c>PV</c>.
-    /// Extrait de <c>CharacterFrame</c> sans changement de logique (lot S1) ; propriétaire : lot F1.
+    /// Extrait de <c>CharacterFrame</c> (lot S1) : seule l'invitation <c>PIK</c> change (plus d'acceptation automatique,
+    /// événement <c>GameSession.PartyInviteReceived</c> à brancher) ; propriétaire : lot F1.
     /// </summary>
     internal class PartyFrame : Frame
     {
+        /// <summary>
+        /// <c>PIK&lt;invitant&gt;|&lt;invité&gt;</c> : StarLoco l'envoie à l'invitant et à l'invité. Comme <c>Party.onInvite</c> du
+        /// client : noms manquants → refus <c>PR</c> ; invitant = soi → simple information ; invité = soi → l'invitation
+        /// est proposée à <c>GameSession.PartyInviteReceived</c>. Le bot n'accepte jamais seul : sans abonné qui s'en
+        /// charge, il refuse poliment (<c>PR</c>), sans délai qui bloquerait la file de réception.
+        /// </summary>
         [MessageAttribution("PIK")]
-        public Task GetGroup(TcpClient client, string message) => Task.Run(async () =>
+        public Task GetGroup(TcpClient client, string message)
         {
-            if (client.account.UseMasterCommands == true)
+            Accounts account = client.account;
+            if (account == null) return Task.CompletedTask;
+            string[] names = message.Substring(3).Split('|');
+            if (names.Length < 2)
             {
-                if (client.account.HasGroup == true)
-                {
-                    await Task.Delay(1250);
-                    await client.SendPacket("PR");
-                    client.account.Logger.LogInfo("GROUPE", "Vous êtes déjà dans un groupe, rejet de l'invitation.");
-
-                }
-                else if (client.account.IsGroupLeader == false)
-                {
-                    string PlayerWhoInvite = message.Substring(3).Split('|')[0];
-                    Accounts Leader = client.account.Groupe.leader;
-                    string LeaderName = Leader?.Game?.character?.Name;
-                    if (string.IsNullOrEmpty(LeaderName)) { await client.SendPacket("PR"); return; }
-                    if (PlayerWhoInvite.ToLower() == LeaderName.ToLower())
-                    {
-
-                        await Task.Delay(550);
-                        await client.account.Connexion.SendPacket("PA");
-                        client.account.Logger.LogInfo("GROUPE", $"Je suis maintenant dans le groupe de {LeaderName}");
-                    }
-                    else
-                    {
-                        await client.SendPacket("PR");
-                        client.account.Logger.LogInfo("GROUPE", "Rejet de l'invitation.");
-                    }
-
-                }
-                else if (message.Substring(3).Split('|').Length == 1)
-                {
-                    await Task.Delay(1250);
-                    await client.SendPacket("PR");
-                    client.account.Logger.LogInfo("GROUPE", "Rejet de l'invitation.");
-                }
+                account.Logger.LogDanger("GROUPE", "Invitation de groupe incomplète : refusée.");
+                return client.SendPacket("PR");
             }
-            else
+            string inviter = names[0], target = names[1], self = account.Game.character.Name;
+            if (string.IsNullOrEmpty(self)) return Task.CompletedTask;
+            if (string.Equals(inviter, self, StringComparison.Ordinal))
             {
-                if (client.account.Game.character.InGroupe == true)
-                {
-                    await Task.Delay(1250);
-                    await client.SendPacket("PR");
-                    client.account.Logger.LogInfo("GROUPE", "Vous êtes déjà dans un groupe, rejet de l'invitation.");
-
-                }
-                else
-                {
-                    await client.account.Connexion.SendPacket("PA");
-                }
+                account.Logger.LogInfo("GROUPE", "Invitation de groupe envoyée à " + target + " : en attente de sa réponse.");
+                return Task.CompletedTask;
             }
-        });
+            if (!string.Equals(target, self, StringComparison.Ordinal)) return Task.CompletedTask;
+            if (account.Game.Session.OnPartyInvite(new InvitationEventArgs(inviter, string.Empty, target, string.Empty)))
+            {
+                account.Logger.LogInfo("GROUPE", inviter + " vous invite dans son groupe.");
+                return Task.CompletedTask;
+            }
+            account.Logger.LogInfo("GROUPE", "Invitation de groupe de " + inviter + " refusée : le bot n'accepte pas d'invitation automatiquement.");
+            return client.SendPacket("PR");
+        }
+
         [MessageAttribution("PCK")]
         public void AcceptGroupe(TcpClient client, string message) => client.account.Game.character.InGroupe = true;
 

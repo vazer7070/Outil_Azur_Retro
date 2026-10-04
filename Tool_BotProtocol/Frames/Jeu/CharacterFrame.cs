@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Threading;
-using System.Threading.Tasks;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Game.Perso;
@@ -17,11 +16,26 @@ namespace Tool_BotProtocol.Frames.Jeu
         [MessageAttribution("As")]
         public void ActualiseStats(TcpClient client, string message) => client.account.Game.character.RefreshCaracs(message);
 
+        /// <summary>
+        /// <c>pong</c> : réponse de StarLoco à <c>ping</c> (le client 1.34 utilise <c>rping/qping</c>, que StarLoco ne connaît pas).
+        /// Mesure l'aller-retour du <c>ping</c> correspondant.
+        /// </summary>
         [MessageAttribution("pong")]
-        public void GetPingPong(TcpClient client, string message) => client.account.Logger.LogInfo("DOFUS", $"Ping: {client.GetPingAverage()} ms");
+        public void GetPingPong(TcpClient client, string message)
+        {
+            int roundTrip = client.NotifyPong();
+            if (roundTrip < 0)
+                client.account?.Logger.LogDebug("DOFUS", "pong reçu sans ping en attente.");
+            else
+                client.account?.Logger.LogInfo("DOFUS", $"Ping : {roundTrip} ms (moyenne {client.GetPingAverage()} ms sur {client.GetTotalPings()} mesure(s)).");
+        }
 
+        /// <summary>
+        /// <c>Bp</c> : le client 1.34 y répond par sa moyenne de ping. StarLoco ne l'envoie jamais et ignore la réponse
+        /// (matrice §2 n° 33) : le bot ne répond plus (il renvoyait des valeurs vides).
+        /// </summary>
         [MessageAttribution("Bp")]
-        public Task GetAllPing(TcpClient client, string message) => Task.Run(async () =>  await client.SendPacket($"Bp{client.GetPingAverage()}|{client.GetTotalPings()}|50"));
+        public void GetAllPing(TcpClient client, string message) => client.account?.Logger.LogDebug("DOFUS", "Bp reçu : aucune réponse, StarLoco l'ignore.");
 
         [MessageAttribution("Ow")]
 
@@ -40,9 +54,13 @@ namespace Tool_BotProtocol.Frames.Jeu
         [MessageAttribution("ILS")]
         public void GetRegenTime(TcpClient client, string message)
         {
-            string cut = message.Substring(3);
-            int time = int.Parse(cut);
             Accounts A = client.account;
+            if (A == null) return;
+            if (!int.TryParse(message.Substring(3), out int time) || time <= 0)
+            {
+                A.Logger.LogDebug("DOFUS", "Intervalle de régénération illisible ignoré : " + message);
+                return;
+            }
             CharacterClass perso = A.Game.character;
 
             if(perso.stats.VitalityActual < perso.stats.MaxVitality)
@@ -57,9 +75,13 @@ namespace Tool_BotProtocol.Frames.Jeu
         [MessageAttribution("ILF")]
         public void GetLifeRegen(TcpClient client, string message)
         {
-            string cut = message.Substring(3);
-            int life = int.Parse(cut);
             Accounts A = client.account;
+            if (A == null) return;
+            if (!int.TryParse(message.Substring(3), out int life))
+            {
+                A.Logger.LogDebug("DOFUS", "Points de vie regagnés illisibles ignorés : " + message);
+                return;
+            }
             CharacterClass perso = A.Game.character;
 
             perso.stats.VitalityActual += life;
