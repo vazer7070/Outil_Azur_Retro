@@ -88,6 +88,11 @@ def lister(binaire, swf):
     return images
 
 
+def numerique(nom):
+    """Nom d'export fait de chiffres ASCII (les noms techniques comme « Link_o1 » sont ignorés)."""
+    return nom.isascii() and nom.isdigit()
+
+
 def choisir(listes, gfx, images_max):
     """Objets à exporter : {gfx : (bibliothèque, dernière image)} pour les gfx interactifs de plus d'une image.
 
@@ -96,7 +101,7 @@ def choisir(listes, gfx, images_max):
     vus, retenus = set(), {}
     for bibliotheque, images in listes:
         for nom, total in images.items():
-            if not nom.isdigit() or int(nom) in vus:
+            if not numerique(nom) or int(nom) in vus:
                 continue
             identifiant = int(nom)
             vus.add(identifiant)
@@ -166,7 +171,7 @@ def main():
             else:
                 journal.append("bibliothèque absente : %s" % swf)
         retenus = choisir(listes, gfx, options.images_max)
-        absents = sorted(set(gfx) - {int(n) for _, images in listes for n in images if n.isdigit()})
+        absents = sorted(set(gfx) - {int(n) for _, images in listes for n in images if numerique(n)})
         if absents:
             journal.append("gfx interactifs absents des bibliothèques : %s" % " ".join(map(str, absents)))
         # 2. SVG de l'image n des symboles retenus.
@@ -202,7 +207,7 @@ def main():
         taches, cles = [], []
         for bibliotheque, image, dossier, index in lots:
             for symbole, x0, y0, largeur, hauteur, alerte in index:
-                if not symbole.isdigit() or (int(symbole), image) in cles:
+                if not numerique(symbole) or (int(symbole), image) in cles:
                     continue
                 if alerte:
                     avertissements.append("%s %s image %d : %s" % (bibliotheque, symbole, image, alerte))
@@ -211,7 +216,7 @@ def main():
                 if not os.path.exists(png):
                     journal.append("PNG absent : %s %s (image %d)" % (bibliotheque, symbole, image))
                     continue
-                destination = os.path.join(options.decor, "objets", "%s_%d.png" % (symbole, image))
+                destination = os.path.join(options.decor, "objets", "%d_%d.png" % (int(symbole), image))
                 taches.append((png, destination, x0, y0, not options.sans_palette, "objet"))
                 cles.append((int(symbole), image))
         objets = os.path.join(options.decor, "objets")
