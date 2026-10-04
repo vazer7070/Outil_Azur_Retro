@@ -286,6 +286,10 @@ internal static class BotChatUiSmoke
                         Check(playerMenu != null && playerMenu.Visible, "Clicking a name did not show a visible context menu");
                         Check(Find(playerMenu, "amis") != null && Find(playerMenu, "ennemis") != null && Find(playerMenu, "message privé") != null && Find(playerMenu, "Ignorer") != null,
                             "Player menu lacks the client entries: " + string.Join("|", playerMenu.Items.Cast<ToolStripItem>().Select(i => i.Text)));
+                        // Les fournisseurs de la carte (actions M4, amis F2) et le chat ne doivent pas doubler une entrée.
+                        foreach (string entry in new[] { "mes amis", "mes ennemis", "message privé", "groupe" })
+                            Check(playerMenu.Items.Cast<ToolStripItem>().Count(item => (item.Text ?? string.Empty).IndexOf(entry, StringComparison.OrdinalIgnoreCase) >= 0) == 1,
+                                "Player menu repeats « " + entry + " »: " + string.Join("|", playerMenu.Items.Cast<ToolStripItem>().Select(i => i.Text)));
                         Find(playerMenu, "amis").PerformClick();
                         Expect(peer, "FAAmicale", "« Ajouter à mes amis » is not FA<name>");
                         Find(OpenNameMenu(chat, "Amicale"), "ennemis").PerformClick();

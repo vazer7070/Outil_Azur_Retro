@@ -14,6 +14,7 @@ using Tool_BotProtocol.Game.Interactions;
 using Tool_BotProtocol.Game.Maps;
 using Tool_BotProtocol.Game.Maps.Entities;
 using Tool_BotProtocol.Game.Maps.Interfaces;
+using Tool_BotProtocol.Game.Social;
 
 namespace Outil_Azur_complet.Bot.Controls.Chat
 {
@@ -220,10 +221,10 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
                     () => SetIgnored(name, true)));
             items.Add(Item(MapActionTexts.Whois, "Demander au serveur où se trouve ce joueur (BW)",
                 () => _ = RunAsync(map => map.WhoisAsync(name))));
-            items.Add(Item(ChatUiText.Get("ADD_TO_FRIENDS", "Ajouter à mes amis"), "Ajouter ce joueur à la liste d'amis (FA)",
-                () => _ = SendAsync("FA" + name, "Ajout de " + name + " aux amis demandé.")));
-            items.Add(Item(ChatUiText.Get("ADD_TO_ENEMY", "Ajouter à mes ennemis"), "Ajouter ce joueur à la liste d'ennemis (iA)",
-                () => _ = SendAsync("iA" + name, "Ajout de " + name + " aux ennemis demandé.")));
+            items.Add(Item(FriendsTexts.Get("ADD_TO_FRIENDS", "Ajouter à mes amis"), "Ajouter ce joueur à la liste d'amis (FA)",
+                () => _ = RunFriendsAsync(friends => friends.AddFriendAsync(name))));
+            items.Add(Item(FriendsTexts.Get("ADD_TO_ENEMY", "Ajouter à mes ennemis"), "Ajouter ce joueur à la liste d'ennemis (iA)",
+                () => _ = RunFriendsAsync(friends => friends.AddEnemyAsync(name))));
             items.Add(Item(MapActionTexts.PrivateMessage, "Préparer « /w " + name + " » dans la saisie (Maj + clic)",
                 () => prefill("/w " + name + " ")));
             items.Add(Item(MapActionTexts.InviteToParty, "Inviter ce joueur dans votre groupe (PI)",
@@ -295,25 +296,19 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
             previous.Dispose();
         }
 
-        private async Task SendAsync(string packet, string done)
-        {
-            var connection = account()?.Connexion;
-            if (connection == null || !connection.IsConnected()) { feedback("Connectez le personnage avant d'utiliser ce menu."); return; }
-            try { await connection.SendPacketAsync(packet).ConfigureAwait(false); feedback(done); }
-            catch (Exception error)
-            {
-                account()?.Logger?.LogException("CHAT", error);
-                feedback("Envoi impossible : " + error.Message);
-            }
-        }
+        private Task RunAsync(Func<MapActions, Task<InteractionResult>> action) =>
+            RunAsync(account()?.Game?.Interactions?.MapActions, action, "Actions de carte indisponibles.");
 
-        private async Task RunAsync(Func<MapActions, Task<InteractionResult>> action)
+        /// <summary>Amis et ennemis : <c>FA&lt;nom&gt;</c> / <c>iA&lt;nom&gt;</c> par le service du lot F2.</summary>
+        private Task RunFriendsAsync(Func<FriendsActions, Task<InteractionResult>> action) =>
+            RunAsync(account()?.Game?.Interactions?.Friends, action, "Liste d'amis indisponible.");
+
+        private async Task RunAsync<T>(T service, Func<T, Task<InteractionResult>> action, string missing) where T : class
         {
-            MapActions actions = account()?.Game?.Interactions?.MapActions;
-            if (actions == null) { feedback("Actions de carte indisponibles."); return; }
+            if (service == null) { feedback(missing); return; }
             try
             {
-                InteractionResult result = await action(actions).ConfigureAwait(false);
+                InteractionResult result = await action(service).ConfigureAwait(false);
                 if (!string.IsNullOrEmpty(result?.Message)) feedback(result.Message);
             }
             catch (Exception error)
