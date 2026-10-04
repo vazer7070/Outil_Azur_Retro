@@ -9,9 +9,11 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Tool_BotProtocol.Game.Accounts;
+using Tool_BotProtocol.Game.Chat;
 using Tool_BotProtocol.Game.Interactions;
 using Tool_BotProtocol.Game.Managers.Mouvements;
 using Tool_BotProtocol.Game.Maps;
+using Tool_BotProtocol.Game.Maps.Entities;
 using Tool_BotProtocol.Game.Maps.Interfaces;
 using Tool_BotProtocol.Game.Maps.Mouvements;
 using Tool_BotProtocol.Game.Perso;
@@ -33,6 +35,14 @@ namespace Outil_Azur_complet.Bot.Interfaces
         public string ArtworkStatus => UserMap.ArtworkStatus;
         public bool ShowGrid { get => UserMap.ShowGrid; set => UserMap.ShowGrid = value; }
         public bool ShowCellIds { get => UserMap.ShowCellId; set => UserMap.ShowCellId = value; }
+        /// <summary>Option du client « voir tous les monstres du groupe » (vraie par défaut).</summary>
+        public bool ViewAllMonsterInGroup { get => UserMap.ViewAllMonsterInGroup; set => UserMap.ViewAllMonsterInGroup = value; }
+        /// <summary>Option du client « effets du chat » : bulles au-dessus des acteurs (vraie par défaut).</summary>
+        public bool ChatEffects { get => UserMap.ChatEffects; set => UserMap.ChatEffects = value; }
+        /// <summary>Surtête de tous les groupes de monstres (raccourci maintenu <c>SHOWMONSTERSTOOLTIP</c> du client).</summary>
+        public bool ShowMonstersTooltip { get => UserMap.ShowMonstersTooltip; set => UserMap.ShowMonstersTooltip = value; }
+        /// <summary>La souris entre sur un acteur de la carte (null quand elle le quitte).</summary>
+        public event Action<Entites> ActorHovered;
         public void ZoomIn() => UserMap.ZoomIn();
         public void ZoomOut() => UserMap.ZoomOut();
         public void Fit() => UserMap.Fit();
@@ -62,7 +72,17 @@ namespace Outil_Azur_complet.Bot.Interfaces
             if (!subscribed)
             {
                 UserMap.CellClicked += UserMapClic;
+                UserMap.ActorClicked += UserMapActorClic;
+                UserMap.ActorHovered += UserMapActorHovered;
+                UserMap.CellHovered += PreviewPathTo;
                 Account.Game.Map.RefreshMap += MapChange;
+                Account.Game.Map.ActorAdded += ActorChanged;
+                Account.Game.Map.ActorUpdated += ActorChanged;
+                Account.Game.Map.ActorRemoved += ActorRemoved;
+                Account.Game.Map.ActorsCleared += ActorsCleared;
+                Account.Game.Chat.MessageReceived += OnChatMessage;
+                Account.Game.Chat.SmileyReceived += OnSmiley;
+                Account.Game.Chat.EmoteReceived += OnEmote;
                 Account.Game.Map.RefreshEntities += RefreshEntities;
                 Account.Game.Map.EntityMovement += EntityMovement;
                 Account.Game.character.MoveMinimapPathfinding += GetPathfinding;
@@ -80,11 +100,20 @@ namespace Outil_Azur_complet.Bot.Interfaces
             if (!subscribed) return;
             subscribed = false;
             UserMap.CellClicked -= UserMapClic;
+            UserMap.ActorClicked -= UserMapActorClic;
+            UserMap.ActorHovered -= UserMapActorHovered;
+            UserMap.CellHovered -= PreviewPathTo;
             UserMap.SpellTargetReason = null;
             // La fenêtre libère le compte avant ses contrôles : la partie peut être déjà libérée (gestionnaires à null).
             var game = Account.Game;
             if (game == null) return;
-            if (game.Map != null) { game.Map.RefreshMap -= MapChange; game.Map.RefreshEntities -= RefreshEntities; game.Map.EntityMovement -= EntityMovement; }
+            if (game.Map != null)
+            {
+                game.Map.RefreshMap -= MapChange; game.Map.RefreshEntities -= RefreshEntities; game.Map.EntityMovement -= EntityMovement;
+                game.Map.ActorAdded -= ActorChanged; game.Map.ActorUpdated -= ActorChanged;
+                game.Map.ActorRemoved -= ActorRemoved; game.Map.ActorsCleared -= ActorsCleared;
+            }
+            if (game.Chat != null) { game.Chat.MessageReceived -= OnChatMessage; game.Chat.SmileyReceived -= OnSmiley; game.Chat.EmoteReceived -= OnEmote; }
             if (game.character != null) game.character.MoveMinimapPathfinding -= GetPathfinding;
             if (game.Manager?.Mouvements != null) game.Manager.Mouvements.FinalizeMove -= MovementFinished;
             if (game.Fight != null) game.Fight.CombatChanged -= CombatChanged;
@@ -145,8 +174,90 @@ namespace Outil_Azur_complet.Bot.Interfaces
         private async void UserMapClic(UserMapCell cell, MouseButtons buttons, bool dragged)
         {
             if (cell == null || dragged || Router == null) return;
-            // Le routeur ne lève jamais d'exception : clic gauche → cellule ou acteur, clic droit → menu de l'acteur.
-            await Router.RouteAsync(cell.id, buttons, ModifierKeys & (Keys.Shift | Keys.Control));
+            Keys modifiers = ModifierKeys & (Keys.Shift | Keys.Control);
+            // Le routeur ne lève jamais d'exception. Hors des sprites (test au pixel près de la vue), un clic gauche agit sur
+            // la cellule comme dans le client ; le clic droit garde le menu des acteurs de la cellule.
+            if (buttons == MouseButtons.Left) await Router.RequestMoveAsync(cell.id, modifiers);
+            else await Router.RouteAsync(cell.id, buttons, modifiers);
+        }
+
+        private async void UserMapActorClic(Entites actor, short cellId, MouseButtons buttons, Keys modifiers)
+        {
+            if (actor == null || Router == null) return;
+            await Router.RouteActorAsync(actor, cellId, buttons, modifiers);
+        }
+
+        private void UserMapActorHovered(Entites actor) => ActorHovered?.Invoke(actor);
+
+        // ------------------------------------------------------------ événements du réseau (fil réseau → fil de l'interface)
+
+        private void ActorChanged(MapActor actor) => UserMap.RequestRepaint();
+        private void ActorRemoved(MapActor actor)
+        {
+            if (actor == null) return;
+            long id = actor.Id;
+            if (actor is FightSwordsActor) { UserMap.RequestRepaint(); return; }
+            OnUi(() => UserMap.ForgetActor(id));
+        }
+        private void ActorsCleared() => OnUi(UserMap.ClearActorOverlays);
+
+        /// <summary>Bulle d'un message du canal par défaut, hors combat lancé (le client n'en montre pas pendant un combat).</summary>
+        private void OnChatMessage(ChatMessage message)
+        {
+            if (message == null || BubbleLayer.BubbleText(message, out BubbleKind ignored) == null) return;
+            OnUi(() =>
+            {
+                var fight = Account.Game?.Fight;
+                if (fight != null && fight.IsInFight && !fight.IsPlacement) return;
+                UserMap.ShowChatMessage(message);
+            });
+        }
+        private void OnSmiley(long actor, int smiley) => OnUi(() => UserMap.ShowSmiley(actor, smiley));
+        private void OnEmote(long actor, int emote) => OnUi(() => UserMap.ShowEmote(actor, emote));
+
+        // ------------------------------------------------------------ aperçu du chemin (A* sur le pool, dernier survol seulement)
+
+        private short? previewPending;
+        private bool previewRunning;
+
+        private void PreviewPathTo(UserMapCell cell)
+        {
+            Map map = Account.Game?.Map;
+            bool allowed = cell != null && map?.HasMapData == true && !SelectedSpellId.HasValue && Account.Game.Fight?.IsInFight != true
+                && Account.Game.character?.Cell != null && !Account.IsMoving();
+            if (!allowed) { previewPending = null; UserMap.SetPathPreview(null); return; }
+            previewPending = cell.id;
+            if (!previewRunning) StartPreview();
+        }
+
+        private void StartPreview()
+        {
+            if (!previewPending.HasValue) return;
+            short target = previewPending.Value;
+            Map map = Account.Game?.Map;
+            Cell destination = map?.GetCellFromId(target);
+            var mouvements = Account.Game?.Manager?.Mouvements;
+            if (destination == null || mouvements == null) { UserMap.SetPathPreview(null); return; }
+            previewRunning = true;
+            Task.Run(() =>
+            {
+                try { return mouvements.PreviewPath(destination); }
+                catch (Exception error) when (!(error is OutOfMemoryException))
+                {
+                    Account.Logger?.LogError("CARTE", "Aperçu du chemin impossible : " + error.Message);
+                    return null;
+                }
+            }).ContinueWith(task =>
+            {
+                List<Cell> path = task.Status == TaskStatus.RanToCompletion ? task.Result : null;
+                OnUi(() =>
+                {
+                    previewRunning = false;
+                    if (previewPending == target)
+                        UserMap.SetPathPreview(path == null || !ReferenceEquals(map, Account.Game?.Map) ? null : path.Skip(1).Select(cell => cell.CellID));
+                    else StartPreview();
+                });
+            }, TaskScheduler.Default);
         }
 
         /// <summary>Clic gauche sur une cellule, comme un clic de la souris (Maj et Ctrl facultatifs).</summary>
@@ -222,11 +333,16 @@ namespace Outil_Azur_complet.Bot.Interfaces
             Account.Logger.LogInfo("CARTE", message);
         }
 
+        /// <summary>
+        /// Chemin reçu du serveur (fil réseau) : minutage du client pour cet acteur (groupe toujours au pas, PNJ et
+        /// monstres en course au-delà de 6 cases…), calculé ici puis animé sur le fil de l'interface.
+        /// </summary>
         private void EntityMovement(int id, List<Cell> cells, int duration)
         {
             if (cells == null || cells.Count < 2) return;
             var snapshot = cells.ToList();
-            OnUi(() => UserMap.AddAnimations(id, snapshot, duration, id == Account.Game.character.id ? AnimationType.PERSONNAGE : AnimationType.ENTITES));
+            AnimDuration timing = AnimDuration.Compute(snapshot, UserMapControl.MovementProfile(Account, id));
+            OnUi(() => UserMap.AddAnimations(id, snapshot, timing, id == Account.Game.character.id ? AnimationType.PERSONNAGE : AnimationType.ENTITES));
         }
         private void MovementFinished(bool success)
         {
@@ -237,8 +353,9 @@ namespace Outil_Azur_complet.Bot.Interfaces
         {
             if (cells == null || cells.Count == 0) return;
             var snapshot = cells.ToList();
-            OnUi(() => UserMap.AddAnimations(Account.Game.character.id, snapshot,
-                PathfinderUtils.GetTimeOnMap(snapshot[0], snapshot), AnimationType.PERSONNAGE));
+            int id = Account.Game.character.id;
+            AnimDuration timing = AnimDuration.Compute(snapshot, UserMapControl.MovementProfile(Account, id));
+            OnUi(() => UserMap.AddAnimations(id, snapshot, timing, AnimationType.PERSONNAGE));
         }
     }
 }

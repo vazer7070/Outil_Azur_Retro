@@ -237,14 +237,15 @@
     </Compile>
     <Compile Include="Bot\Controls\Animations.cs" />
     <Compile Include="Bot\Controls\AnimationType.cs" />
+    <Compile Include="Bot\Controls\ActorSprites.cs" />
+    <Compile Include="Bot\Controls\BubbleLayer.cs" />
+    <Compile Include="Bot\Controls\OverheadImages.cs" />
+    <Compile Include="Bot\Controls\OverheadLayer.cs" />
     <Compile Include="Bot\Controls\buttons\RoundedButton.cs">
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Bot\Controls\CellState.cs" />
     <Compile Include="Bot\Controls\MapQuality.cs" />
-    <Compile Include="Bot\Controls\tooltip\CustomToolTip.cs">
-      <SubType>Component</SubType>
-    </Compile>
     <Compile Include="Bot\Controls\UserMapCell.cs" />
     <Compile Include="Bot\Controls\BotMapArtwork.cs" />
     <Compile Include="Bot\Controls\SpellShortcutButton.cs">
