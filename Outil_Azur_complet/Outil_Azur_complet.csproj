@@ -292,6 +292,12 @@
     </Compile>
     <Compile Include="Bot\BotUi.cs" />
     <Compile Include="Bot\ClientAssets.cs" />
+    <Compile Include="Bot\BotFonts.cs" />
+    <Compile Include="Bot\Panels\IGamePanel.cs" />
+    <Compile Include="Bot\Panels\GamePanel.cs" />
+    <Compile Include="Bot\Panels\PanelHost.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Bot\LoginForm.Designer.cs">
       <DependentUpon>LoginForm.cs</DependentUpon>
     </Compile>
