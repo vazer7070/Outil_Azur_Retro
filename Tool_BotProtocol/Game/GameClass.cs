@@ -27,6 +27,8 @@ namespace Tool_BotProtocol.Game
         public Interactions.InteractionsClass Interactions { get; private set; }
         /// <summary>État de session annoncé par le serveur (GCK, AR, Ac, BT, AN, Im) et invitations reçues.</summary>
         public Session.GameSession Session { get; private set; }
+        /// <summary>Chat : canaux, chuchotements, smileys, émotes et commandes de la console (lot C1).</summary>
+        public Chat.ChatService Chat { get; private set; }
         public ConcurrentDictionary<int, Dictionary<string, Cell>> PersoInWorld;
          internal GameClass(Accounts.Accounts A)
         {
@@ -37,6 +39,7 @@ namespace Tool_BotProtocol.Game
             Fight = new Fights(A);
             Interactions = new Interactions.InteractionsClass(A);
             Session = new Session.GameSession(A);
+            Chat = new Chat.ChatService(A);
             PersoInWorld = new ConcurrentDictionary<int, Dictionary<string, Cell>>();
         }
         public void Clear()
@@ -46,6 +49,7 @@ namespace Tool_BotProtocol.Game
                 if (disposed) return;
            Interactions.Clear();
            Session.Clear();
+           Chat.Clear();
            Manager.Clear();
            Fight.Clear(false);
            Map.Clear();

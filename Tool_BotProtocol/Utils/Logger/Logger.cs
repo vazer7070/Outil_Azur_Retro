@@ -44,13 +44,15 @@ namespace Tool_BotProtocol.Utils.Logger
         {
             if (color == LogTypes.DEBUG)
                 return;
-            log_Chats(reference, message, ((int)color).ToString("X"), ex);
+            log_Chats(reference, message, ((int)color).ToString("X6"), ex);
         }
+        /// <summary>Ligne du chat avec la couleur du client (<c>RRGGBB</c>, sans « # »), pour l'abonné <see cref="log_eventChat"/>.</summary>
+        public void LogChat(string reference, string message, string color) => log_Chats(reference, message, color);
         private void log_Final(string reference, string message, LogTypes color, Exception ex = null)
         {
             if (color == LogTypes.DEBUG)
                 return;
-            log_Final(reference, message, ((int)color).ToString("X"), ex);
+            log_Final(reference, message, ((int)color).ToString("X6"), ex);
         }
 
         public void LogError(string reference, string message) => log_Final(reference, message, LogTypes.ERROR);

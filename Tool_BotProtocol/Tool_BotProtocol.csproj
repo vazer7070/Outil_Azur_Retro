@@ -154,6 +154,10 @@
     <Compile Include="Game\Accounts\Accounts.cs" />
     <Compile Include="Game\Accounts\AccountStates.cs" />
     <Compile Include="Game\Actions\GameActionRouter.cs" />
+    <Compile Include="Game\Chat\ChatChannels.cs" />
+    <Compile Include="Game\Chat\ChatCommands.cs" />
+    <Compile Include="Game\Chat\ChatMessage.cs" />
+    <Compile Include="Game\Chat\ChatService.cs" />
     <Compile Include="Game\Combats\Fights.cs" />
     <Compile Include="Game\GameClass.cs" />
     <Compile Include="Game\Interactions\Interactions.cs" />
