@@ -144,6 +144,22 @@ namespace Tool_BotProtocol.Game.Actions
         public bool CanExchangeWith(PlayerActor target) =>
             target != null && !HasOwnRestriction(CantExchange) && (target.Restrictions & PlayerRestrictions.CannotExchange) == 0;
 
+        /// <summary>
+        /// « Attaquer » un percepteur : le client n'ouvre aucun menu si <c>cantInteractWithTaxCollector</c> (bit 128 de
+        /// <c>AR</c>) ; il grise l'entrée pour un percepteur de sa propre guilde, que le bot ne connaît pas encore (lot guilde).
+        /// </summary>
+        public bool CanAttackCollector(CollectorActor collector) => collector != null && !HasOwnRestriction(CantInteractWithTaxCollector);
+
+        /// <summary>
+        /// « Attaquer » un prisme : entrée active si le personnage est aligné et d'un autre camp que le prisme
+        /// (<c>!sameAlignment &amp;&amp; !neutral</c> du clic sur un prisme) ; StarLoco ignore aussi un personnage neutre.
+        /// </summary>
+        public bool CanAttackPrism(PrismActor prism)
+        {
+            int mine = OwnAlignment;
+            return prism != null && mine != 0 && mine != prism.AlignmentSide && !HasOwnRestriction(CantInteractWithPrism);
+        }
+
         /// <summary>Table <c>A.at</c> des textes du client ; sans elle, un personnage aligné peut tenter (le serveur tranche).</summary>
         public static bool CanAttackAlignment(int mine, int theirs) => AlignmentRule("A.at", mine, theirs) ?? mine > 0;
         /// <summary>Table <c>A.jo</c> des textes du client ; sans elle, seul le même camp peut rejoindre.</summary>
@@ -282,7 +298,7 @@ namespace Tool_BotProtocol.Game.Actions
             if (refused != null) return Task.FromResult(refused);
             var collector = Account.Game.Map.GetActor(collectorId) as CollectorActor;
             if (collector == null) return Task.FromResult(Refuse("Ce percepteur n'est plus sur la carte."));
-            if (HasOwnRestriction(CantInteractWithTaxCollector)) return Task.FromResult(Refuse("Votre personnage ne peut pas interagir avec les percepteurs."));
+            if (!CanAttackCollector(collector)) return Task.FromResult(Refuse("Votre personnage ne peut pas interagir avec les percepteurs."));
             return SendAsync("GA" + AttackCollectorAction + Id(collectorId), "Attaque de " + collector.DisplayName + " demandée.");
         }
 
@@ -294,6 +310,8 @@ namespace Tool_BotProtocol.Game.Actions
             var prism = Account.Game.Map.GetActor(prismId) as PrismActor;
             if (prism == null) return Task.FromResult(Refuse("Ce prisme n'est plus sur la carte."));
             if (HasOwnRestriction(CantInteractWithPrism)) return Task.FromResult(Refuse("Votre personnage ne peut pas interagir avec les prismes."));
+            if (!CanAttackPrism(prism))
+                return Task.FromResult(Refuse(OwnAlignment == 0 ? "Un personnage neutre ne peut pas attaquer un prisme." : "Ce prisme appartient à votre camp."));
             return SendAsync("GA" + AttackPrismAction + Id(prismId), "Attaque du prisme demandée.");
         }
 

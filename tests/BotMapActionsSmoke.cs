@@ -26,8 +26,8 @@ using Tool_BotProtocol.Game.Maps.Interfaces;
 
 // Actions sur les joueurs, groupes et combats de la carte (lot M4) : menus d'un joueur, d'un groupe de monstres et des
 // épées d'un combat, duels (GA900/901/902 et boîtes Oui/Non/Ignorer, Annuler), refus GA;903, agression GA;906,
-// combats de la carte (fC, fL, fD, volet), « qui est » (BW, BWK), paquets malformés. Données synthétiques, serveur
-// fictif local, fenêtre hors de l'écran, aucune capture d'écran.
+// percepteur et prismes (GA909, GA912, GA;909), combats de la carte (fC, fL, fD, volet), « qui est » (BW, BWK),
+// paquets malformés. Données synthétiques, serveur fictif local, fenêtre hors de l'écran, aucune capture d'écran.
 internal static class BotMapActionsSmoke
 {
     private const int MapId = 900094;
@@ -48,7 +48,7 @@ internal static class BotMapActionsSmoke
             Application.EnableVisualStyles();
             Run();
             Check(uiErrors.Count == 0, "Interface errors: " + string.Join(" / ", uiErrors.Select(e => e.GetType().Name + " " + e.Message)));
-            Console.WriteLine("OK: menus joueur/groupe/épées, duels GA900-902 et boîtes, GA;903, GA;906, fC/fL/fD et volet des combats, BW/BWK, textes du client");
+            Console.WriteLine("OK: menus joueur/groupe/épées, duels GA900-902 et boîtes, GA;903, GA;906, GA909/GA912, fC/fL/fD et volet des combats, BW/BWK, textes du client");
         }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
         finally { LangData.Clear(); }
@@ -135,6 +135,7 @@ internal static class BotMapActionsSmoke
                     ChallengeProtocol(account, peer, actions);
                     FightsProtocol(account, peer, actions);
                     Malformed(account, peer, actions);
+                    CollectorAndPrisms(account, peer, actions);
 
                     using (var form = new GameClientFullform(account))
                     {
@@ -287,6 +288,42 @@ internal static class BotMapActionsSmoke
             Feed(account, packet);
         Check(actions.FightCount == count && actions.PendingChallenge == null, "Malformed packets changed the state");
         NoPacket(peer, "Malformed packets triggered packets");
+    }
+
+    /// <summary>Percepteur et prismes : GA909/GA912 avec les règles du clic du client, refus locaux, annonce GA;909 du serveur.</summary>
+    private static void CollectorAndPrisms(Accounts account, Socket peer, MapActions actions)
+    {
+        Map map = account.Game.Map;
+        // Formats de Collector.parseGM et Prism.getGMPrisme : prisme de Brâkmar (2) et prisme de Bonta (1, le camp du personnage).
+        Feed(account, "GM|+12;1;0;70;a,b;-6;6000^100;3;Guilde fictive;1a,2b,3c,4d|+13;1;0;71;1112;-10;8101^100;4;2;2|+14;1;0;72;1111;-10;8100^100;4;2;1");
+        var collector = map.GetActor(70) as CollectorActor; var enemyPrism = map.GetActor(71) as PrismActor; var ownPrism = map.GetActor(72) as PrismActor;
+        Check(collector != null && enemyPrism != null && ownPrism != null && enemyPrism.AlignmentSide == 2 && ownPrism.AlignmentSide == 1,
+            "Synthetic collector or prisms are missing");
+        Check(actions.CanAttackCollector(collector) && actions.CanAttackPrism(enemyPrism) && !actions.CanAttackPrism(ownPrism),
+            "Collector or prism attack rules differ from the client");
+        InteractionResult result = Complete(actions.AttackCollectorAsync(70));
+        Check(result.Sent, "AttackCollector(70) refused: " + result.Message);
+        Expect(peer, "GA90970", "AttackCollector does not send GA909<id>");
+        result = Complete(actions.AttackPrismAsync(71));
+        Check(result.Sent, "AttackPrism(71) refused: " + result.Message);
+        Expect(peer, "GA91271", "AttackPrism does not send GA912<id>");
+        Check(!Complete(actions.AttackPrismAsync(72)).Sent, "A prism of the character's own side was attacked");
+        Check(!Complete(actions.AttackPrismAsync(70)).Sent && !Complete(actions.AttackCollectorAsync(71)).Sent && !Complete(actions.AttackCollectorAsync(999)).Sent,
+            "An attack on a wrong or missing actor was sent");
+        Feed(account, "AR3k"); // 128 en base 36 : cantInteractWithTaxCollector
+        Check(!actions.CanAttackCollector(collector) && !Complete(actions.AttackCollectorAsync(70)).Sent, "AR 128 does not forbid attacking a collector");
+        Feed(account, "AR0");
+        var notices = new List<MapActionNotice>(); actions.Notice += notices.Add;
+        try
+        {
+            Feed(account, "GA;909;42;70");
+            Check(notices.Count == 1 && notices[0].Kind == MapActionNoticeKind.Info && notices[0].Text == MapActionTexts.AAttacksB("Joueur fictif", collector.DisplayName),
+                "GA;909 is not announced like A_ATTACK_B");
+        }
+        finally { actions.Notice -= notices.Add; }
+        Feed(account, "GM|-70|-71|-72");
+        Check(map.GetActor(70) == null && map.GetActor(71) == null && map.GetActor(72) == null, "Synthetic collector or prisms stayed on the map");
+        NoPacket(peer, "Collector and prism checks sent extra packets");
     }
 
     /// <summary>Menu d'un autre joueur : entrées du client, droits de la carte et restrictions, envois.</summary>
