@@ -95,12 +95,14 @@ le client, on le dessine à `ancre + (⌊xmin⌋, ⌊ymin⌋) × échelle`.
 
 Rendu : les masques (`clipDepth`) deviennent des `<clipPath>` et le cadre se limite à la partie
 visible ; les formes morphées sont interpolées au `ratio` de leur placement ; une forme vide ne
-compte pas dans le cadre. Quelques symboles `static*` du client sont en réalité des animations
+compte pas dans le cadre. Les dégradés et les remplissages bitmap sont exprimés dans le repère de la
+forme, à l'intérieur du `<g transform>` de son placement (avant la version 0.2.1, la pose du clip leur
+était appliquée deux fois : motifs minuscules répétés, ombres en damier). Quelques symboles `static*` du client sont en réalité des animations
 (`sprites/1219.swf` : l'épouvantail sort du sol, caché par un masque à l'image 1) : `--list` en
 donne le nombre d'images et `--frame` permet de choisir une image représentative. Un SWF illisible
 arrête la commande avec un message et le code 1 (2 pour une option invalide), jamais une panique.
 
-Tests : `cargo test` dans `swfsvg/` (13 tests ; le SWF de test est fabriqué par les tests avec la
+Tests : `cargo test` dans `swfsvg/` (14 tests ; le SWF de test est fabriqué par les tests avec la
 crate `swf`, aucun fichier du client n'est nécessaire).
 
 Temps mesurés (conteneur 4 cœurs, un processus par SWF, binaire `--release`) :
