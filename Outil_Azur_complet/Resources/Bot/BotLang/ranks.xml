@@ -1,0 +1,39 @@
+<?xml version='1.0' encoding='utf-8'?>
+<BotLang famille="ranks" langue="fr" version="108" source="ranks_fr_108.swf">
+<entree table="R" id="0" i="0" n="A l'essai" o="999" />
+<entree table="R" id="1" i="1" n="Meneur" o="1" />
+<entree table="R" id="2" i="2" n="Bras Droit" o="2" />
+<entree table="R" id="3" i="3" n="Trésorier" o="3" />
+<entree table="R" id="4" i="4" n="Protecteur" o="4" />
+<entree table="R" id="5" i="5" n="Artisan" o="5" />
+<entree table="R" id="6" i="6" n="Réserviste" o="6" />
+<entree table="R" id="7" i="7" n="Larbin" o="200" />
+<entree table="R" id="8" i="8" n="Gardien" o="7" />
+<entree table="R" id="9" i="9" n="Eclaireur" o="8" />
+<entree table="R" id="10" i="10" n="Espion" o="9" />
+<entree table="R" id="11" i="11" n="Diplomate" o="10" />
+<entree table="R" id="12" i="12" n="Secrétaire" o="11" />
+<entree table="R" id="13" i="13" n="Pénitent" o="104" />
+<entree table="R" id="14" i="14" n="Boulet" o="150" />
+<entree table="R" id="15" i="15" n="Déserteur" o="110" />
+<entree table="R" id="16" i="16" n="Bourreau" o="100" />
+<entree table="R" id="17" i="17" n="Apprenti" o="98" />
+<entree table="R" id="18" i="18" n="Marchand" o="97" />
+<entree table="R" id="19" i="19" n="Eleveur" o="96" />
+<entree table="R" id="20" i="20" n="Recruteur" o="95" />
+<entree table="R" id="21" i="21" n="Guide" o="93" />
+<entree table="R" id="22" i="22" n="Mentor" o="94" />
+<entree table="R" id="23" i="23" n="Elu" o="92" />
+<entree table="R" id="24" i="24" n="Conseiller" o="91" />
+<entree table="R" id="25" i="25" n="Muse" o="90" />
+<entree table="R" id="26" i="26" n="Gouverneur" o="89" />
+<entree table="R" id="27" i="27" n="Assassin" o="88" />
+<entree table="R" id="28" i="28" n="Initié" o="87" />
+<entree table="R" id="29" i="29" n="Voleur" o="86" />
+<entree table="R" id="30" i="30" n="Chercheur de trésors" o="85" />
+<entree table="R" id="31" i="31" n="Braconnier" o="84" />
+<entree table="R" id="32" i="32" n="Traître" o="120" />
+<entree table="R" id="33" i="33" n="Tueur de familiers" o="82" />
+<entree table="R" id="34" i="34" n="Mascotte" o="103" />
+<entree table="R" id="35" i="35" n="Tueur de Percepteur" o="105" />
+</BotLang>

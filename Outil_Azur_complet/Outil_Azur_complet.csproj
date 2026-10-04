@@ -682,6 +682,13 @@
     <Copy SourceFiles="@(BotSpellIcon)" DestinationFiles="@(BotSpellIcon->'$(OutDir)ressources\Bot\sorts\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(BotSpriteAsset)" DestinationFiles="@(BotSpriteAsset->'$(OutDir)ressources\Bot\sprites\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
+  <!-- Textes des fichiers de langue du client (lang2xml.py) : lus par Tool_BotProtocol.Game.Data.LangData. -->
+  <Target Name="CopyBotLangAssets" AfterTargets="Build">
+    <ItemGroup>
+      <BotLangAsset Include="$(ProjectDir)Resources\Bot\BotLang\*.xml" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BotLangAsset)" DestinationFolder="$(OutDir)ressources\Bot\BotLang" SkipUnchangedFiles="true" />
+  </Target>
   <!-- The supplied image/sound libraries historically live under bin/Debug.
        Make other build configurations usable with the same runtime assets. -->
   <Target Name="CopyAzurRuntimeAssets" AfterTargets="Build" Condition="'$(Configuration)' != 'Debug' and Exists('$(ProjectDir)bin\Debug\ressources')">

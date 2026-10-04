@@ -1,0 +1,433 @@
+<?xml version='1.0' encoding='utf-8'?>
+<BotLang famille="itemsets" langue="fr" version="180" source="itemsets_fr_180.swf">
+<entree table="IS" id="1" i="2411,2414,2416,2419,2422,2425,2428" n="Panoplie du Bouftou" />
+<entree table="IS" id="2" i="2074,2409,2412,2415,2418,2421,2424,2427" n="Panoplie du Kwak de Flammes" />
+<entree table="IS" id="3" i="2410,2413,2417,2420,2423,2426,2429" n="Panoplie de l'Abraknyde" />
+<entree table="IS" id="4" i="2438,2440,2441,2442,2443,2444,2445" n="Panoplie du Bouftou Royal" />
+<entree table="IS" id="5" i="2473,2474,2475,2476,2477,2478" n="Panoplie du Jeune Aventurier" />
+<entree table="IS" id="6" i="2446,2447,2469,2470,2471,2472" n="Panoplie Gelax" />
+<entree table="IS" id="7" i="2640,2641" n="Panoplie de Toady" />
+<entree table="IS" id="8" i="2544,2545,2546,6449,7703" n="Panoplie du Corbac" />
+<entree table="IS" id="9" i="2530,2531,2532,7714" n="Panoplie Tortue" />
+<entree table="IS" id="10" i="2485,2489,2498" n="Panoplie Végétatif" />
+<entree table="IS" id="11" i="1748,6492,6493,6498,6499,6500,6501" n="Panoplie du Wabbit" />
+<entree table="IS" id="12" i="6719,6720,6721,6722,6723,6724,6725" n="Panoplie de l'Homme Ours" />
+<entree table="IS" id="13" i="2075,2534,2535,2537,6731,6732,6750,6753" n="Panoplie du Kwak de Glace" />
+<entree table="IS" id="14" i="2077,6746,6748,6751,6754,6756,6758,6760" n="Panoplie du Kwak de Terre" />
+<entree table="IS" id="15" i="2076,6747,6749,6752,6755,6757,6759,6761" n="Panoplie du Kwak du Vent" />
+<entree table="IS" id="16" i="6742,6743,6744,6745,6762,6763,6764" n="Panoplie Fourbasse" />
+<entree table="IS" id="17" i="6766,6767,6769,6774,6775,6776,6778" n="Panoplie de Farle Ingalsse" />
+<entree table="IS" id="18" i="6789,6791,6792,6794,6795,6796,6797" n="Panoplie Champêtre" />
+<entree table="IS" id="19" i="6799,6804,6805,6807,6811,6812,6813" n="Panoplie du Chef Bwork" />
+<entree table="IS" id="20" i="6817,6819,6821,6825,6830,6831,6834" n="Panoplie du Chef Crocodaille" />
+<entree table="IS" id="21" i="6908,6909,6910" n="Panoplie du Sanglier" />
+<entree table="IS" id="22" i="6911,6912,6913,6914" n="Panoplie Arakne" />
+<entree table="IS" id="23" i="6915,6916,6917,6918" n="Panoplie Moskito" />
+<entree table="IS" id="24" i="6919,6920,6921,6922" n="Panoplie Champ Champ" />
+<entree table="IS" id="25" i="6923,6924,6925,6961" n="Panoplie du Bandit" />
+<entree table="IS" id="26" i="6930,6931,6933,6934,6935,6957" n="Panoplie du Craqueleur" />
+<entree table="IS" id="27" i="6936,6940,6944,6948" n="Panoplie du Scarafeuille Vert" />
+<entree table="IS" id="28" i="6937,6942,6945,6950" n="Panoplie du Scarafeuille Rouge" />
+<entree table="IS" id="29" i="6938,6943,6946,6949" n="Panoplie du Scarafeuille Blanc" />
+<entree table="IS" id="30" i="6939,6941,6947,6951" n="Panoplie du Scarafeuille Bleu" />
+<entree table="IS" id="31" i="6926,6927,6928,6929" n="Panoplie du Prespic" />
+<entree table="IS" id="32" i="6952,6953,6954,6955,6956,8129,8130" n="Panoplie du Mulou" />
+<entree table="IS" id="33" i="7106,7107,7108,7109,7110" n="Panoplie Larvesque" />
+<entree table="IS" id="34" i="7226,7230,7238,7242,7246,7250,7254,9004" n="Panoplie Akwadala" />
+<entree table="IS" id="35" i="7229,7233,7241,7245,7249,7253,7256,9030" n="Panoplie Aerdala" />
+<entree table="IS" id="36" i="7227,7231,7239,7243,7247,7251,7255,9028" n="Panoplie Terrdala" />
+<entree table="IS" id="37" i="7228,7232,7240,7244,7248,7252,7257,9029" n="Panoplie Feudala" />
+<entree table="IS" id="38" i="204,706,7011,7012" n="Panoplie O'Boul" />
+<entree table="IS" id="39" i="1695,6494,6998,7003" n="Panoplie d'Elya Wood" />
+<entree table="IS" id="40" i="969,970,971" n="Panoplie du Wa" />
+<entree table="IS" id="41" i="7339,7340,7341,7342" n="Panoplie du Kitsou" />
+<entree table="IS" id="42" i="7552,7553,7554,7555" n="Panoplie Dindo" />
+<entree table="IS" id="43" i="7880,7881,7882,7883,7884,7885,7886" n="Panoplie du Boufcool" />
+<entree table="IS" id="44" i="7887,7888,7889,7890" n="Panoplie du Koulosse" />
+<entree table="IS" id="45" i="8067,8068,8069,8070,8071" n="Panoplie du Champion" />
+<entree table="IS" id="46" i="7911,8003,8004,8005,8006,8007,8008,8009" n="Panoplie du Koalak" />
+<entree table="IS" id="47" i="8123,8124,8125,8126,8127,8128,8131" n="Panoplie du Paysan" />
+<entree table="IS" id="49" i="8132,8133,8134,8136" n="Panoplie du Scarafeuille Noir" />
+<entree table="IS" id="50" i="8108,8109,8110,8111,8112,8113,8114" n="Panoplie du Tofu" />
+<entree table="IS" id="51" i="8116,8117,8118,8119,8120,8121,8122" n="Panoplie Scarabosse Doré " />
+<entree table="IS" id="52" i="8146,8147,8148,8149,8150,8152,8181" n="Panoplie du Craqueleur Légendaire" />
+<entree table="IS" id="53" i="8298,8299,8300,8301,8302,8303,8304" n="Panoplie de Shika Ingalsse" />
+<entree table="IS" id="54" i="707,8268,8269,8274,8276,8279,8282" n="Panoplie du Minotoror" />
+<entree table="IS" id="55" i="8262,8263,8264,8265,8266,8267" n="Panoplie du Meulou" />
+<entree table="IS" id="56" i="8286,8287,8288,8289,8290,8291" n="Panoplie du Dragoeuf" />
+<entree table="IS" id="57" i="8270,8272,8275,8277,8280,8283,8284" n="Panoplie du Minotot" />
+<entree table="IS" id="58" i="233,2808,8271,8273,8278,8281,8285" n="Panoplie du Dragon Cochon" />
+<entree table="IS" id="59" i="8325,8411,8412,8413,8415,8416,8418" n="Panoplie du Mominotor" />
+<entree table="IS" id="60" i="8213,8219,8225,8231,8237,8243" n="Panoplie du Piou Rouge" />
+<entree table="IS" id="61" i="8214,8220,8226,8232,8238,8244" n="Panoplie du Piou Bleu" />
+<entree table="IS" id="62" i="8215,8221,8227,8234,8239,8245" n="Panoplie du Piou Violet" />
+<entree table="IS" id="63" i="7077,8253,8254,8255,8256,8257,8258,8259" n="Panoplie en Mousse" />
+<entree table="IS" id="64" i="8457,8458,8459,8460,8461,8462" n="Panoplie Cérémoniale" />
+<entree table="IS" id="65" i="8463,8464,8465,8466,8467,8468" n="Panoplie Ancestrale" />
+<entree table="IS" id="66" i="8469,8470,8471,8472,8473,8474" n="Panoplie du Chêne Mou" />
+<entree table="IS" id="67" i="8450,8451,8452,8453,8454,8455,8456" n="Panoplie du Rat Blanc" />
+<entree table="IS" id="68" i="8442,8443,8444,8445,8446,8447,8448" n="Panoplie du Rat Noir" />
+<entree table="IS" id="69" i="8533,8534,8535,8536,8537,8538" n="Panoplie du Boune" />
+<entree table="IS" id="70" i="8218,8224,8230,8235,8242,8248" n="Panoplie du Piou Rose" />
+<entree table="IS" id="71" i="8216,8222,8228,8233,8240,8246" n="Panoplie du Piou Vert" />
+<entree table="IS" id="72" i="8217,8223,8229,8236,8241,8247" n="Panoplie du Piou Jaune" />
+<entree table="IS" id="74" i="7422,7999,8341" n="Panoplie Ananas" />
+<entree table="IS" id="75" i="2518,2520,2522,2524" n="Panoplie Vioutifoule" />
+<entree table="IS" id="76" i="2517,2519,2521,2523" n="Panoplie Mégaman" />
+<entree table="IS" id="77" i="8819,8845,8858,8874" n="Panoplie Vassale" />
+<entree table="IS" id="78" i="8818,8844,8859" n="Panoplie Souveraine" />
+<entree table="IS" id="79" i="8822,8835,8869,8871" n="Panoplie Claire" />
+<entree table="IS" id="80" i="8823,8834,8870" n="Panoplie Sombre" />
+<entree table="IS" id="81" i="8619,8639,8651,8663,8717" n="Panoplie Témeraire" />
+<entree table="IS" id="82" i="8636,8648,8660,8714,8728" n="Panoplie du Prince des voleurs" />
+<entree table="IS" id="83" i="8631,8643,8655,8667,8720" n="Panoplie Altruiste" />
+<entree table="IS" id="84" i="8634,8646,8658,8670,8716" n="Panoplie de l'Innombrable" />
+<entree table="IS" id="85" i="8638,8650,8662,8719,8726" n="Panoplie Vénérable" />
+<entree table="IS" id="86" i="8630,8642,8654,8666,8723" n="Panoplie Intemporelle" />
+<entree table="IS" id="87" i="8633,8645,8657,8669,8725" n="Panoplie Exsangue" />
+<entree table="IS" id="88" i="8628,8640,8652,8664,8715" n="Panoplie de Gouttière" />
+<entree table="IS" id="89" i="8629,8641,8653,8665,8722" n="Panoplie Criminelle" />
+<entree table="IS" id="90" i="8632,8644,8656,8668,8724" n="Panoplie Sauvage" />
+<entree table="IS" id="91" i="8637,8649,8661,8718,8727" n="Panoplie Indestructible" />
+<entree table="IS" id="92" i="8635,8647,8659,8713,8721" n="Panoplie Ethylique" />
+<entree table="IS" id="93" i="8826,8846" n="Panoplie du Zoth Zotheur" />
+<entree table="IS" id="94" i="8837,8848" n="Panoplie du Zothuliste" />
+<entree table="IS" id="95" i="8827,8847" n="Panoplie du Zothicien" />
+<entree table="IS" id="96" i="8824,8864,8865" n="Panoplie Baveuse" />
+<entree table="IS" id="97" i="8877,8991,9464" n="Panoplie Ventouse" />
+<entree table="IS" id="98" i="9122,9149,9158,9167" n="Panoplie Blop Griotte" />
+<entree table="IS" id="99" i="9123,9150,9159,9168" n="Panoplie Blop Reinette" />
+<entree table="IS" id="100" i="9124,9151,9160,9169" n="Panoplie Blop Coco" />
+<entree table="IS" id="101" i="9125,9152,9161,9170" n="Panoplie Blop Indigo" />
+<entree table="IS" id="102" i="9126,9153,9162,9171" n="Panoplie Blop Griotte Royale" />
+<entree table="IS" id="103" i="9127,9154,9163,9172" n="Panoplie Blop Reinette Royale" />
+<entree table="IS" id="104" i="9128,9155,9164,9173" n="Panoplie Blop Coco Royale" />
+<entree table="IS" id="105" i="9129,9156,9165,9174" n="Panoplie Blop Indigo Royale" />
+<entree table="IS" id="106" i="9148,9157,9166,9175" n="Panoplie Blop Multicolore Royale" />
+<entree table="IS" id="107" i="9133,9142,9143,9463" n="Panoplie Tue-Mouche" />
+<entree table="IS" id="108" i="9176,9177,9179,9180" n="Panoplie du Bworker Berserker" />
+<entree table="IS" id="109" i="9178,9181,9182,9183" n="Panoplie du Bworker Gladiateur" />
+<entree table="IS" id="110" i="9192,9193,9194,9195" n="Panoplie Gato" />
+<entree table="IS" id="111" i="9196,9197,9198,9199" n="Panoplie Paupayahn" />
+<entree table="IS" id="112" i="9402,9403,9404,9405" n="Panoplie Bzz" />
+<entree table="IS" id="113" i="9406,9407,9408,9409" n="Panoplie de Peggy la Porkass" />
+<entree table="IS" id="114" i="9410,9411,9412,9413" n="Panoplie du Bois de l'Est" />
+<entree table="IS" id="115" i="9414,9415,9416,9417" n="Citronoplie" />
+<entree table="IS" id="116" i="9937,9939,9943,9944" n="Panoplie de Charlie" />
+<entree table="IS" id="117" i="9936,9938,9942,9945" n="Panoplie de l'empire" />
+<entree table="IS" id="118" i="7680,9117,9130,9146" n="Panoplie Ougah" />
+<entree table="IS" id="119" i="9131,9137,9141,9147" n="Panoplignon" />
+<entree table="IS" id="120" i="9138,9139,9145" n="Panoplie des Sous-bois" />
+<entree table="IS" id="121" i="9132,9140,9144" n="Panoplycélium" />
+<entree table="IS" id="122" i="9482,9485,9486" n="Panoplie Cigale" />
+<entree table="IS" id="123" i="9479,9480,9481" n="Panoplie Posh" />
+<entree table="IS" id="124" i="9454,9455,9456,9457" n="Pompanoplie" />
+<entree table="IS" id="125" i="9418,9451,9452,9453" n="Panoplie Cristaline" />
+<entree table="IS" id="126" i="9540,9541,9542,9543,9549" n="Panoplie du Parrain" />
+<entree table="IS" id="127" i="9567,9569,9575,9576" n="Panoplie du Black Wab" />
+<entree table="IS" id="128" i="9660,9662,9663,9667" n="Panoplie de Slait" />
+<entree table="IS" id="129" i="9652,9654,9655,9658" n="Panoplie Papayou" />
+<entree table="IS" id="130" i="10054,10055,10056,10058,10061,10102" n="Panoplie du Vampyre maudit" />
+<entree table="IS" id="131" i="9928,9929,9930,9933" n="Panoplie Mystère" />
+<entree table="IS" id="132" i="9921,9922,9923,9931" n="Panoplie Tétounik" />
+<entree table="IS" id="133" i="10188,10189,10190,10191" n="Panoplie de la Denrée" />
+<entree table="IS" id="134" i="10155,10156,10157,10552" n="Panoplie Yug" />
+<entree table="IS" id="135" i="10184,10185,10186,10187" n="Panoplie de Noké " />
+<entree table="IS" id="136" i="10180,10181,10182,10183" n="Panoplie Solaire" />
+<entree table="IS" id="137" i="10172,10173,10174,10175" n="Panoplie Mace" />
+<entree table="IS" id="138" i="10168,10169,10170,10171" n="Panoplie Chisp" />
+<entree table="IS" id="139" i="9924,9925,9926,9927" n="Panoplie Goldobrak" />
+<entree table="IS" id="140" i="9653,9656,9657,9659" n="Panoplie Sleump" />
+<entree table="IS" id="141" i="10987,10988,10989,10990" n="Givranoplie" />
+<entree table="IS" id="142" i="10553,10555,10557,10559,10561" n="Panoplie Real Boitar" />
+<entree table="IS" id="143" i="10554,10556,10558,10560,10562" n="Panoplie des Bouftons Rouges" />
+<entree table="IS" id="144" i="10622,10623,10624,10625" n="Panoplie de Grüt" />
+<entree table="IS" id="145" i="10626,10627,10628,10629" n="Panoplie de Kocksis" />
+<entree table="IS" id="146" i="10630,10631,10632,10633" n="Panoplie de Gobeuf" />
+<entree table="IS" id="147" i="10634,10635,10636,10637" n="Panoplie de Laikteur" />
+<entree table="IS" id="148" i="10638,10639,10640,10641" n="Panoplie de Rekto Topi" />
+<entree table="IS" id="149" i="10642,10643,10644,10645" n="Panoplie de Grizou" />
+<entree table="IS" id="150" i="10784,10785,10794,10797,10798,10799,10800,10801" n="Panoplie du débutant" />
+<entree table="IS" id="151" i="10685,10686,10687,10688,10802" n="Panoplie du Roks Or" />
+<entree table="IS" id="152" i="10847,10849,10852,10856" n="Panoplie d'Hulkrap" />
+<entree table="IS" id="153" i="10848,10850,10854,10857" n="Panoplie de Klüme" />
+<entree table="IS" id="154" i="10851,10853,10855,10858" n="Panoplie de Kloug" />
+<entree table="IS" id="155" i="10955,10956,10957,10958,10959" n="Panoplie du Corbeau Noir" />
+<entree table="IS" id="156" i="10962,10963,10964,10965" n="Panoplie de Rapine" />
+<entree table="IS" id="157" i="10975,10976,10977,10978" n="Panoplie de Phong Huss" />
+<entree table="IS" id="158" i="10979,10980,10981,10982" n="Panoplie d'Hectaupe" />
+<entree table="IS" id="159" i="11041,11042,11043,11045" n="Paniop" />
+<entree table="IS" id="161" i="11049,11050,11051,11052" n="Panoplie Clémentine" />
+<entree table="IS" id="162" i="11055,11056,11057,11058" n="Panoplie Pomdeupin" />
+<entree table="IS" id="163" i="11077,11078,11079,11080" n="Panoplie de Lonne" />
+<entree table="IS" id="164" i="11088,11089,11091,11092" n="Panoplie Grilliane" />
+<entree table="IS" id="165" i="11084,11085,11086,11087" n="Panoplie de Gadjète" />
+<entree table="IS" id="166" i="11372,11373,11374,11375" n="Panoplapier" />
+<entree table="IS" id="167" i="11376,11377,11378,11379" n="Panoplume" />
+<entree table="IS" id="168" i="11382,11383,11384,11386" n="Panoploppinz" />
+<entree table="IS" id="169" i="11393,11394,11395,11396" n="Panoplisonnier" />
+<entree table="IS" id="170" i="11397,11398,11399,11400" n="Panoplie Chauffe-souris" />
+<entree table="IS" id="171" i="11401,11402,11416,11417" n="Panoplinokio" />
+<entree table="IS" id="172" i="11418,11419,11420,11421" n="Panoplie de Kabroule" />
+<entree table="IS" id="173" i="11468,11469,11473,11474" n="Frimanoplie" />
+<entree table="IS" id="174" i="11470,11471,11472,11514" n="Panoplie Grésil" />
+<entree table="IS" id="176" i="11571,11575,11582,11584" n="Panoplie du Royalmouth" />
+<entree table="IS" id="177" i="11572,11577,11580" n="Panoplie du Mansot Royal" />
+<entree table="IS" id="178" i="11573,11578,11585,11586" n="Panoplie de Ben le Ripate" />
+<entree table="IS" id="179" i="11574,11576,11579,11581,11583" n="Panoplie de l'Obsidiantre" />
+<entree table="IS" id="180" i="11354,11355,11356,11357" n="Panoplie de Grouillot" />
+<entree table="IS" id="181" i="11350,11351,11352,11353" n="Panoplie de Karotz" />
+<entree table="IS" id="182" i="11343,11344,11345,11366" n="Panoplie de Rapiat" />
+<entree table="IS" id="183" i="11358,11359,11360,11361" n="Panoplie de Kubitus" />
+<entree table="IS" id="184" i="11362,11363,11364,11365" n="Panoplie de Piggy Paupe" />
+<entree table="IS" id="185" i="11346,11347,11348,11349" n="Panoplie d'Ougicle" />
+<entree table="IS" id="186" i="11707,11708,11709,11710" n="Panoplie du Tengu Givrefoux" />
+<entree table="IS" id="187" i="11711,11712,11713,11714" n="Panoplie du Korriandre" />
+<entree table="IS" id="188" i="11715,11716,11717" n="Panoplie de Kolosso" />
+<entree table="IS" id="189" i="11718,11719,11720,11721,11722" n="Panoplie Glourséleste" />
+<entree table="IS" id="190" i="11808,11809,11810,11811,11812,11813,12009" n="Panoplatypus" />
+<entree table="IS" id="191" i="11816,11817,11818,12203" n="Panoplie de Percimol" />
+<entree table="IS" id="192" i="11854,11855,11856,13089" n="Panoplie Stroud" />
+<entree table="IS" id="193" i="11601,11635" n="Panoplie du Harpirate" />
+<entree table="IS" id="194" i="11977,11979,11982,11983" n="Panoplie du Kanniboul Ebil" />
+<entree table="IS" id="195" i="11976,11978,11980,11981" n="Panoplie du Boostache" />
+<entree table="IS" id="196" i="12018,12019,12020,12021" n="Panoplie du Kwakwa" />
+<entree table="IS" id="198" i="12022,12023,12024,12025" n="Panoplie de Traçon" />
+<entree table="IS" id="199" i="12026,12027,12028,12029" n="Panoplie de Mirh" />
+<entree table="IS" id="200" i="12030,12031,12032,12033" n="Panoplie de Logram" />
+<entree table="IS" id="201" i="12034,12035,12036,12037" n="Panoplie de Kalkanéus" />
+<entree table="IS" id="202" i="12038,12039,12040,12041" n="Panoplie d'Hichète" />
+<entree table="IS" id="203" i="12042,12043,12044,12045" n="Panoplie d'Haku" />
+<entree table="IS" id="204" i="12069,12070,12071,12072" n="Panoplie de Nelween" />
+<entree table="IS" id="205" i="12084,12085,12086,12087" n="Panoplie Moutheuze" />
+<entree table="IS" id="206" i="12088,12089,12090,12091,12092" n="Panoplie de Frigostine" />
+<entree table="IS" id="207" i="12093,12094,12095,12096" n="Panoplie de Cantile" />
+<entree table="IS" id="208" i="12097,12098,12099" n="Panoplie des Prophètes" />
+<entree table="IS" id="209" i="12100,12101,12102,12103" n="Panoplie de Guten Tak" />
+<entree table="IS" id="210" i="12104,12105,12106,12107" n="Panoplie de Boréale" />
+<entree table="IS" id="211" i="12108,12109,12110,12111,12112" n="Panoplie du Professeur Xa" />
+<entree table="IS" id="212" i="12113,12114,12115" n="Panoplie Gloursonne" />
+<entree table="IS" id="213" i="12117,12118,12119,12120" n="Panoplie de la Fuji Givrefoux" />
+<entree table="IS" id="214" i="8333,8334" n="Panoplie de Nowel" />
+<entree table="IS" id="215" i="12370,12371,12372,12373" n="Panoplie du Gorgouille" />
+<entree table="IS" id="216" i="12377,12378,12379,12380" n="Panoplilozité " />
+<entree table="IS" id="217" i="12385,12387,12389,12391,12393" n="Panoplie Explosive" />
+<entree table="IS" id="218" i="12386,12388,12390,12392,12394" n="Panoplie Lunatique" />
+<entree table="IS" id="219" i="12409,12410,12411,12414,12417" n="Panoplie du Vulkain" />
+<entree table="IS" id="220" i="12407,12413,12415" n="Panoplie du Krokilleur" />
+<entree table="IS" id="221" i="12408,12412,12416,12418" n="Panoplie de Grozilla" />
+<entree table="IS" id="222" i="12420,12421,12422,12423" n="Panoplie Tétriste" />
+<entree table="IS" id="223" i="12502,12503,12504,12505" n="Panoplie de Pandalida" />
+<entree table="IS" id="224" i="12463,12464,12465,12466" n="Panouzbeck" />
+<entree table="IS" id="225" i="12597,12598,12599,12600" n="Panoplie de l'Envahisseur" />
+<entree table="IS" id="226" i="12615,12616,12617" n="Panoplie HispaÑique" />
+<entree table="IS" id="227" i="12655,12656,12657,12658" n="Cosmoplie" />
+<entree table="IS" id="228" i="12670,12671,12672,12673" n="Panoplie de Danioule" />
+<entree table="IS" id="229" i="12674,12675,12676,12677" n="Panoplie de Daïgoro" />
+<entree table="IS" id="230" i="12751,12752,12753,12754" n="Panoplong" />
+<entree table="IS" id="231" i="12755,12756,12757,12758" n="Pacmanoplie" />
+<entree table="IS" id="232" i="12848,12849,12850,12851" n="Panoplie du Glutin" />
+<entree table="IS" id="233" i="12856,12857,12858,12859" n="Panoplie de Redolphe" />
+<entree table="IS" id="234" i="12852,12853,12854,12855" n="Panoplie du Nowel Cauchemardesque" />
+<entree table="IS" id="235" i="12881,12882,12883,12884" n="Poneyplie" />
+<entree table="IS" id="236" i="12885,12886,12887,12888" n="Gladianoplie" />
+<entree table="IS" id="237" i="13015,13016,13017,13018" n="Panoplie Duvet" />
+<entree table="IS" id="238" i="13019,13020,13021,13022" n="Panoplie de Féline" />
+<entree table="IS" id="239" i="13091,13092,13093,13094" n="Panoplie des Anciens Chafers" />
+<entree table="IS" id="240" i="13114,13115,13116" n="Panoplie de Brouce Boulgoure" />
+<entree table="IS" id="241" i="13117,13118,13119" n="Panoplie d'Otomaï " />
+<entree table="IS" id="242" i="13120,13121,13122" n="Panoplie de Danathor" />
+<entree table="IS" id="243" i="13123,13124,13125" n="Panoplie d'Allister" />
+<entree table="IS" id="244" i="13127,13128,13129" n="Panoplie de Léthaline" />
+<entree table="IS" id="245" i="13130,13131,13132" n="Panoplie d'Ogivol" />
+<entree table="IS" id="246" i="13136,13137,13138,13139" n="Panoplie Coffre" />
+<entree table="IS" id="250" i="13261,13262,13263,13264,13265" n="Panoplie Submersible" />
+<entree table="IS" id="251" i="13318,13319,13320,13321" n="Panokami" />
+<entree table="IS" id="252" i="13326,13327,13328,13329" n="Panoplitrouille" />
+<entree table="IS" id="253" i="13457,13458,13459,13460" n="Diplodoplie" />
+<entree table="IS" id="254" i="13483,13484,13485,13486" n="Krosmanoplie" />
+<entree table="IS" id="255" i="9366,13582" n="Panoplie Rose" />
+<entree table="IS" id="256" i="13629,13630,13631" n="Panoplie d'Henual" />
+<entree table="IS" id="257" i="13632,13633,13634" n="Panoplie d'Oshimo" />
+<entree table="IS" id="258" i="13635,13636,13637" n="Panoplie de Nevark" />
+<entree table="IS" id="259" i="13638,13639,13640" n="Panoplie de Théodoran Ax" />
+<entree table="IS" id="260" i="13641,13642,13643" n="Panoplie de Padgref" />
+<entree table="IS" id="261" i="13644,13645,13646" n="Panoplie d'Hel Munster" />
+<entree table="IS" id="262" i="13647,13648,13649" n="Panoplie d'Aermyne" />
+<entree table="IS" id="263" i="13710,13711,13712" n="Panoplie de Kéké " />
+<entree table="IS" id="264" i="13850,13851" n="Panoplie du Frelon Noir" />
+<entree table="IS" id="265" i="13890,13891,13892,13893" n="Panoplie Glagla" />
+<entree table="IS" id="266" i="11872,11971,14002,14006" n="Panoplie Infernale" />
+<entree table="IS" id="267" i="11873,11950,14003,14007" n="Panoplie Fluviale" />
+<entree table="IS" id="268" i="11874,11955,14004,14008" n="Panoplie Contrebandière" />
+<entree table="IS" id="269" i="11875,11966,14005,14009" n="Panoplie Meurtrière" />
+<entree table="IS" id="270" i="14076,14077,14078" n="Panoplie du Comte Harebourg" />
+<entree table="IS" id="271" i="14079,14080,14081" n="Panoplie Séculaire" />
+<entree table="IS" id="272" i="14088,14089,14090" n="Panoplie Cryochrone" />
+<entree table="IS" id="273" i="14091,14092,14093" n="Panoplie du Cycloïde" />
+<entree table="IS" id="274" i="14094,14095,14096" n="Panoplie du Strigide" />
+<entree table="IS" id="275" i="14085,14086,14087" n="Panoplie du Sinistrofu" />
+<entree table="IS" id="276" i="14082,14083,14084" n="Panoplie du Granduk" />
+<entree table="IS" id="277" i="14097,14098,14099" n="Panoplie du Nocturlabe" />
+<entree table="IS" id="278" i="14050,14051,14052" n="Panoplie de Klime" />
+<entree table="IS" id="279" i="14053,14054,14056" n="Panoplie Vicieuse" />
+<entree table="IS" id="280" i="14057,14058,14059" n="Panoplie Glaciale" />
+<entree table="IS" id="281" i="14060,14061,14062" n="Panoplie de Missiz Frizz" />
+<entree table="IS" id="282" i="14064,14065,14066" n="Panoplie de Nileza" />
+<entree table="IS" id="283" i="14067,14068,14069" n="Panoplie Instable" />
+<entree table="IS" id="284" i="14070,14071,14072" n="Panoplie de Sylargh" />
+<entree table="IS" id="285" i="14073,14074,14075" n="Panoplie du Kanimate" />
+<entree table="IS" id="286" i="7034,14277" n="Panoplie de Maître Nabur" />
+<entree table="IS" id="287" i="14281,14283,14285" n="Panoplie Magmatique" />
+<entree table="IS" id="288" i="14286,14287,14288" n="Panoplie Quartzésienne" />
+<entree table="IS" id="289" i="14298,14299,14300,14301" n="Panoplie Social Netbwork" />
+<entree table="IS" id="291" i="13849,14302,14303,14304" n="Panoplie Stroplante" />
+<entree table="IS" id="292" i="14308,14309,14310,14311" n="Justoplie" />
+<entree table="IS" id="293" i="6492,6498,6499" n="Panoplie du Wabbit" />
+<entree table="IS" id="294" i="14491,14492,14493" n="Panoplie du Wa Wobot" />
+<entree table="IS" id="295" i="14494,14495,14496" n="Panoplie du Blanc Pa Wabbit" />
+<entree table="IS" id="296" i="14497,14498,14499" n="Panoplie du Wabbit Céphale" />
+<entree table="IS" id="297" i="14500,14501,14502" n="Panoplie du Wabbit Garou" />
+<entree table="IS" id="298" i="14556,14557" n="Panoplie de Miss Triste" />
+<entree table="IS" id="299" i="14579,14580,14581" n="Panoplie Dramatik" />
+<entree table="IS" id="300" i="14582,14583,14584" n="Panoplie Talienne" />
+<entree table="IS" id="301" i="14587,14588,14589,14590" n="Panoplie Culottée" />
+<entree table="IS" id="302" i="14591,14592,14593,14594" n="Panoplie Nomen Tengu" />
+<entree table="IS" id="303" i="14595,14596,14597,14598" n="Panoplie Shincha" />
+<entree table="IS" id="304" i="14599,14600,14601,14602" n="Panoplie Kawaïï" />
+<entree table="IS" id="305" i="14603,14604,14605,14606" n="Panoplie Geisha" />
+<entree table="IS" id="306" i="14607,14608,14609,14610" n="Panoplie Kouin-Kouin Noir" />
+<entree table="IS" id="307" i="14611,14612,14613,14614" n="Panoplie Kouin-Kouin Jaune" />
+<entree table="IS" id="308" i="14615,14616,14617,14618" n="Panoplie du Ninja Blanc" />
+<entree table="IS" id="309" i="14619,14620,14621,14622" n="Panoplie du Ninja Noir" />
+<entree table="IS" id="310" i="14623,14624,14625,14626" n="Panoplie Ailée" />
+<entree table="IS" id="311" i="14627,14628,14629,14630" n="Makinoplie" />
+<entree table="IS" id="312" i="14631,14632,14633,14634" n="Dragounoplie Rose" />
+<entree table="IS" id="313" i="14637,14638,14639,14640" n="Panoplie Engloutie" />
+<entree table="IS" id="314" i="14641,14642,14643,14644" n="Soubrettoplie" />
+<entree table="IS" id="315" i="14796,14797,14798,14799" n="Panoplie Samouraï " />
+<entree table="IS" id="316" i="14800,14801,14802,14803" n="Panoplie No" />
+<entree table="IS" id="317" i="14804,14805,14806,14807" n="Panolita" />
+<entree table="IS" id="318" i="14880,14881,14882" n="Pikoplie" />
+<entree table="IS" id="319" i="14883,14884,14885" n="Panoplie du Cartographe" />
+<entree table="IS" id="320" i="14877,14878,14879" n="Panoplie des Abysses" />
+<entree table="IS" id="321" i="14929,14930,14931" n="Panoplie Obscure" />
+<entree table="IS" id="322" i="14932,14933,14934" n="Panoplie d'Ombre" />
+<entree table="IS" id="323" i="15009,15010,15011" n="Panoplie du Père Fwetar" />
+<entree table="IS" id="324" i="15012,15013,15014" n="Panoplie de Flèche Mauve" />
+<entree table="IS" id="325" i="15015,15016,15017" n="Panoplie d'Ambi Guman" />
+<entree table="IS" id="326" i="15059,15060,15061" n="Panoplie du Kaniblou" />
+<entree table="IS" id="327" i="15062,15063,15064" n="Panoplie de l'Orfélin" />
+<entree table="IS" id="328" i="15097,15098,15099,15100" n="Panoplie Karnaval" />
+<entree table="IS" id="329" i="15122,15123,15124,15125" n="Panoplie du Ballotin" />
+<entree table="IS" id="330" i="15183,15184,15185" n="Panoplie du Barbétoal" />
+<entree table="IS" id="331" i="15186,15187,15188" n="Panoplie de Nidas" />
+<entree table="IS" id="332" i="15189,15190,15191" n="Panoplie du Piloztère" />
+<entree table="IS" id="333" i="15192,15193,15194" n="Panoplie du Lévitrof" />
+<entree table="IS" id="334" i="15195,15196,15197" n="Panoplie du Kamasterisk" />
+<entree table="IS" id="335" i="15198,15199,15200" n="Panoplie Phossile" />
+<entree table="IS" id="336" i="15201,15202,15203" n="Panoplie du Père Phorreur" />
+<entree table="IS" id="337" i="15207,15208,15210" n="Panoplie Précieuse" />
+<entree table="IS" id="338" i="15212,15213,15215" n="Panoplie du Berserkoffre" />
+<entree table="IS" id="339" i="15238,15239,15240,15241" n="Kamaplie" />
+<entree table="IS" id="340" i="15356,15357,15358" n="Panoplie Truche" />
+<entree table="IS" id="341" i="15359,15360,15361" n="Gruchoplie" />
+<entree table="IS" id="342" i="15428,15429,15430" n="Panoplie de la Cour Sombre" />
+<entree table="IS" id="343" i="15431,15432,15433" n="Panoplie de Gein" />
+<entree table="IS" id="344" i="15434,15435,15436" n="Panoplie de la Reine des Voleurs" />
+<entree table="IS" id="345" i="15437,15438,15439" n="Panoplie des Malveilleurs" />
+<entree table="IS" id="346" i="15440,15441,15442" n="Panoplie du Katcheur" />
+<entree table="IS" id="347" i="15499,15500,15501" n="Panoplie Nécrotique" />
+<entree table="IS" id="348" i="15502,15503,15504" n="Panoplie de Dremoan" />
+<entree table="IS" id="350" i="15506,15507,15508" n="Panoplie du Capitaine Ekarlatte" />
+<entree table="IS" id="351" i="15514,15518,15523" n="Panoplie d'Ali Grothor" />
+<entree table="IS" id="352" i="15524,15525,15526" n="Panoplie de Frakacia Leukocytine" />
+<entree table="IS" id="353" i="15542,15547,15548,15549" n="Panoplie Verréhor" />
+<entree table="IS" id="354" i="15737,15738,15739" n="Panoplibou" />
+<entree table="IS" id="355" i="15740,15741,15742" n="Panoplie des égarés" />
+<entree table="IS" id="356" i="15743,15744,15745" n="Panoplie de Vortex" />
+<entree table="IS" id="357" i="15746,15747,15748" n="Harpinoplie" />
+<entree table="IS" id="358" i="15749,15750,15751" n="Panoplie Pnose" />
+<entree table="IS" id="359" i="15762,15764,15768" n="Panoplie de XLII" />
+<entree table="IS" id="360" i="15771,15773,15776" n="Panoplie de Soissanth" />
+<entree table="IS" id="361" i="15778,15780,15783" n="Panoplie de Fraktale" />
+<entree table="IS" id="362" i="15784,15789,15791" n="Panoplie Xélomorphe" />
+<entree table="IS" id="363" i="15794,15795,15796" n="Panoplie Fouduglen" />
+<entree table="IS" id="364" i="15992,15993,15994,15995" n="Microplie" />
+<entree table="IS" id="365" i="15996,15997,15998" n="Panoplie Palliative" />
+<entree table="IS" id="366" i="15999,16003,16004" n="Panoplie de la Voleuse" />
+<entree table="IS" id="367" i="16005,16006,16007" n="Panoplie des Fonds marins" />
+<entree table="IS" id="368" i="16015,16016,16017,16033" n="Panoplie d'Halouine" />
+<entree table="IS" id="369" i="16068,16069,16070,16071" n="Panoplie Pain d'Épice" />
+<entree table="IS" id="370" i="16140,16141,16142,16143,16144" n="Panoplie Transcendante" />
+<entree table="IS" id="371" i="16173,16174,16175" n="Panoplie de la Tisseuse" />
+<entree table="IS" id="372" i="16176,16177,16178" n="Panoplie de la Pondeuse" />
+<entree table="IS" id="373" i="16171,16172" n="Panoplie Invisible" />
+<entree table="IS" id="374" i="16237,16238,16239,16240" n="Panoplie Printanière" />
+<entree table="IS" id="375" i="16500,16501,16502" n="Panoplie de Kardorim" />
+<entree table="IS" id="376" i="16503,16504,16505" n="Panoplie des Âmes" />
+<entree table="IS" id="377" i="17011,17012,17013,17014" n="Panoplie Indigène" />
+<entree table="IS" id="378" i="17109,17110,17111" n="Panoplie du Capitaine Pirate" />
+<entree table="IS" id="379" i="17092,17093,17094" n="Panoplie de Moon" />
+<entree table="IS" id="380" i="17098,17099,17100" n="Panoplie de Zatoïshwan" />
+<entree table="IS" id="381" i="17095,17096,17097" n="Panoplie du Bretteur Céleste" />
+<entree table="IS" id="382" i="17119,17120,17121" n="Panoplie du K.O." />
+<entree table="IS" id="383" i="17103,17104,17105" n="Panoplie de Voldelor" />
+<entree table="IS" id="384" i="17106,17107,17108" n="Panoplie de Kongoku" />
+<entree table="IS" id="385" i="17211,17212,17213,17214,17493,17504" n="Panoplie des 1001 Griffes" />
+<entree table="IS" id="386" i="17284,17285,17286,17287" n="Panoplie de l'Agence Touriste" />
+<entree table="IS" id="387" i="17288,17292,17296,17300" n="Panoplie des Grocoricos" />
+<entree table="IS" id="388" i="17289,17293,17297,17301" n="Panoplie des Redroz" />
+<entree table="IS" id="389" i="17290,17294,17298,17302" n="Panoplie des Pamous" />
+<entree table="IS" id="390" i="17291,17295,17299,17303" n="Panoplie des Zoblaks" />
+<entree table="IS" id="391" i="6744,6763,6764" n="Panoplie du Chasseur Embusqué " />
+<entree table="IS" id="392" i="17448,17449,17450,17451,17452" n="Panoplie Quadramentale" />
+<entree table="IS" id="393" i="17454,17455,17456,17457" n="Panoplie Résineuse" />
+<entree table="IS" id="394" i="17489,17508" n="Panoplie de Lilotte" />
+<entree table="IS" id="395" i="17487,17502" n="Panoplie de Khan Karkass" />
+<entree table="IS" id="396" i="17490,17497" n="Panoplie de Bakara" />
+<entree table="IS" id="397" i="17491,17495" n="Panoplie de Marline" />
+<entree table="IS" id="398" i="17488,17492,17496,17499,17501,17503" n="Panoplie du Monarque" />
+<entree table="IS" id="399" i="17500,17509" n="Panoplie de Julith" />
+<entree table="IS" id="400" i="17494,17505,17506,17507" n="Panoplie du Garde Royal" />
+<entree table="IS" id="402" i="17572,17573,17574" n="Panoplie du Roi Joueur" />
+<entree table="IS" id="403" i="17575,17576,17577" n="Panoplie de la Dame du Hasard" />
+<entree table="IS" id="404" i="17578,17579,17580" n="Panoplie du Chalœil" />
+<entree table="IS" id="405" i="17581,17582,17583" n="Panoplie du Valet Veinard" />
+<entree table="IS" id="406" i="17584,17585,17586" n="Panoplie d'Atcham" />
+<entree table="IS" id="407" i="17587,17588,17589" n="Panoplie de Ush" />
+<entree table="IS" id="408" i="17590,17591,17592" n="Panoplie des Matougarous" />
+<entree table="IS" id="409" i="17593,17594,17595" n="Panoplie du Pounicheur" />
+<entree table="IS" id="410" i="17596,17597,17598" n="Panoplie des Ecaflipuces" />
+<entree table="IS" id="411" i="17731,17732,17733,17734" n="Panoplie Dragocourse" />
+<entree table="IS" id="412" i="17846,17847,17848,17849" n="Panoplie Balnéaire" />
+<entree table="IS" id="413" i="18019,18020,18021" n="Poulplie" />
+<entree table="IS" id="414" i="18029,18030,18031" n="Panoplie Trithon" />
+<entree table="IS" id="415" i="18022,18023,18024" n="Panoplie de Meno" />
+<entree table="IS" id="416" i="18025,18026,18028" n="Panoplie de l'Indicible" />
+<entree table="IS" id="417" i="18032,18033,18034" n="Panoplie Luminescente" />
+<entree table="IS" id="418" i="18035,18036,18037" n="Panoplie de R'lyugluglu" />
+<entree table="IS" id="419" i="18227,18228,18229,18230" n="Panoplie de Ronces" />
+<entree table="IS" id="420" i="18423,18424,18425" n="Panoplie Ouroboulos" />
+<entree table="IS" id="421" i="18426,18427,18428" n="Panoplie du Désert" />
+<entree table="IS" id="422" i="18431,18432,18433" n="Panoplie Cacterre" />
+<entree table="IS" id="423" i="18434,18435,18436" n="Panoplie d'El Piko" />
+<entree table="IS" id="424" i="18527,18528,18529,18530" n="Panoplie Laineuse" />
+<entree table="IS" id="426" i="18584,18585,18586" n="Vernoplie" />
+<entree table="IS" id="427" i="18587,18588,18589" n="Pernoplie" />
+<entree table="IS" id="428" i="18590,18591,18592" n="Panoplie de Tal Kasha" />
+<entree table="IS" id="429" i="18593,18594,18595" n="Panoplistik" />
+<entree table="IS" id="430" i="18615,18616,18617,18621,18622" n="Panoplie Enragée" />
+<entree table="IS" id="431" i="18637,18638,18639,18640" n="Panoplie du Molosse" />
+<entree table="IS" id="432" i="18774,18775,18776" n="Panoplie du Comte Razof" />
+<entree table="IS" id="433" i="18777,18778,18779" n="Panoplie des Chassouilleurs" />
+<entree table="IS" id="434" i="18805,18806,18807,18808" n="Panoplie du Magma" />
+<entree table="IS" id="435" i="19075,19076,19077" n="Panoplie d'Anerice" />
+<entree table="IS" id="436" i="19078,19079,19080" n="Panoplie de la goule" />
+<entree table="IS" id="437" i="19081,19082,19083" n="Panoplie du Scorbute" />
+<entree table="IS" id="438" i="19084,19085,19086" n="Panoplie de Choudini" />
+<entree table="IS" id="439" i="19087,19088,19089" n="Panoplie Riktus" />
+<entree table="IS" id="440" i="19090,19091,19092" n="Panoplie du Muloubar" />
+<entree table="IS" id="2017" i="11539,11542,11543,11545" n="Panoplie d'Ilyzaelle" />
+<entree table="IS" id="2018" i="11544,11546,11547,11548" n="Panoplie de Qu'Tan" />
+</BotLang>
