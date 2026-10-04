@@ -124,3 +124,21 @@ les exports d'un sprite sur dix (93 SWF, 260 s) : aucun échec, aucune panique.
 - Les écrans construits à l'exécution (bandeau, inventaire, sorts, options) n'ont que peu d'art statique : seul leur cadre est exporté.
 - `swfsvg` ne rend pas les filtres ni les modes de fusion (`PlaceObject3` : ombres, lueurs), ni le texte statique (seul son cadre compte), ni les champs de texte. Il n'exécute pas le code des images : un `stop()` est repéré même sous condition, les `gotoAndPlay`, la recoloration des personnages et les accessoires posés par le client ne sont pas reproduits.
 - La décompilation est une pseudo-décompilation : elle suffit à lire les formats de paquets, pas à recompiler le client.
+
+## Textes de langue → XML du bot (`lang2xml.py`)
+
+Les noms de PNJ, les dialogues, les noms de zones, les monstres, les objets, les sorts, les émotes et les messages `Im` ne sont dans aucune table de l'émulateur : le client les lit dans `lang/swf/<famille>_fr_<version>.swf` (un seul `DoAction` qui affecte des objets AS2 : `D.q[id] = "…"`, `N.d[id] = {n, a}`, `MA.m[id] = {x, y, sa…}`). `lang2xml.py` enchaîne `avm1dump`, `as2lite.py` et une lecture des affectations littérales (aucun code n'est exécuté ; une affectation répétée garde la dernière valeur), puis écrit un XML par famille pour `Tool_BotProtocol.Game.Data.LangData` :
+
+```sh
+# 13 familles lues par le bot (défaut) ou toutes les familles connues (28)
+python3 lang2xml.py "<pack Lang>/dofus/lang/swf" ../../Outil_Azur_complet/Resources/Bot/BotLang \
+    [--familles bot|toutes|dialog,npc…] [--avm1dump avm1dump/target/release/avm1dump] [--travail <dossier>]
+
+# conversion d'une pseudo-décompilation déjà produite
+python3 lang2xml.py --as npc_fr_508.as.txt --famille npc --version 508 --sortie npc.xml
+
+# tests (affectations écrites dans le test, aucun SWF)
+python3 test_lang2xml.py
+```
+
+La version de chaque famille est lue dans `lang/versions_fr.txt` quand le fichier existe, sinon la plus haute présente. Mesuré le 4 octobre 2026 : 28 familles en ≈ 20 s, 8,1 Mo de XML. Format, contenu et commande exacte : `Outil_Azur_complet/Resources/Bot/BotLang/PROVENANCE.md`.

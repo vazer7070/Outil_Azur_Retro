@@ -1,0 +1,42 @@
+<?xml version='1.0' encoding='utf-8'?>
+<BotLang famille="jobs" langue="fr" version="143" source="jobs_fr_143.swf">
+<metier id="1" nom="-Base-" specialisation="0" icone="-1" />
+<metier id="2" nom="Bûcheron" specialisation="0" icone="1" />
+<metier id="11" nom="Forgeur d'Epées" specialisation="0" icone="10" />
+<metier id="13" nom="Sculpteur d'Arcs" specialisation="0" icone="6" />
+<metier id="14" nom="Forgeur de Marteaux" specialisation="0" icone="11" />
+<metier id="15" nom="Cordonnier" specialisation="0" icone="5" />
+<metier id="16" nom="Bijoutier" specialisation="0" icone="15" />
+<metier id="17" nom="Forgeur de Dagues" specialisation="0" icone="9" />
+<metier id="18" nom="Sculpteur de Bâtons" specialisation="0" icone="8" />
+<metier id="19" nom="Sculpteur de Baguettes" specialisation="0" icone="7" />
+<metier id="20" nom="Forgeur de Pelles" specialisation="0" icone="12" />
+<metier id="24" nom="Mineur" specialisation="0" icone="13" />
+<metier id="25" nom="Boulanger" specialisation="0" icone="3" />
+<metier id="26" nom="Alchimiste" specialisation="0" icone="14" />
+<metier id="27" nom="Tailleur" specialisation="0" icone="20" />
+<metier id="28" nom="Paysan" specialisation="0" icone="18" />
+<metier id="31" nom="Forgeur de Haches" specialisation="0" icone="19" />
+<metier id="36" nom="Pêcheur" specialisation="0" icone="30" />
+<metier id="41" nom="Chasseur" specialisation="0" icone="32" />
+<metier id="43" nom="Forgemage de Dagues" specialisation="17" icone="21" />
+<metier id="44" nom="Forgemage d'Epées" specialisation="11" icone="24" />
+<metier id="45" nom="Forgemage de Marteaux" specialisation="14" icone="25" />
+<metier id="46" nom="Forgemage de Pelles" specialisation="20" icone="26" />
+<metier id="47" nom="Forgemage de Haches" specialisation="31" icone="23" />
+<metier id="48" nom="Sculptemage d'Arcs" specialisation="13" icone="28" />
+<metier id="49" nom="Sculptemage de Baguettes" specialisation="19" icone="29" />
+<metier id="50" nom="Sculptemage de Bâtons" specialisation="18" icone="22" />
+<metier id="56" nom="Boucher" specialisation="0" icone="33" />
+<metier id="58" nom="Poissonnier" specialisation="0" icone="31" />
+<metier id="60" nom="Forgeur de Boucliers" specialisation="0" icone="40" />
+<metier id="62" nom="Cordomage" specialisation="15" icone="36" />
+<metier id="63" nom="Joaillomage" specialisation="16" icone="37" />
+<metier id="64" nom="Costumage" specialisation="27" icone="35" />
+<metier id="65" nom="Bricoleur" specialisation="0" icone="34" />
+<metier id="66" nom="joaillier" specialisation="0" icone="0" />
+<metier id="67" nom="bijoutier" specialisation="0" icone="0" />
+<metier id="70" nom="paysan" specialisation="0" icone="0" />
+<metier id="71" nom="paysan" specialisation="0" icone="0" />
+<metier id="72" nom="Coupe" specialisation="0" icone="0" />
+</BotLang>
