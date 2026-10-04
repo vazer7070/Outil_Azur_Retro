@@ -146,3 +146,58 @@ Paquets traités par `MapFrame` hors combat :
 - `eD<acteur>|<direction>` (ignoré en combat), `Oa<acteur>|<accessoires>`, `Gc+<combat>;<type>|<équipe>;<cellule>;<type d’équipe>;<alignement>|…` et `Gc-<combat>`.
 
 `BotActorsModelSmoke` vérifie ces formats sur un serveur fictif local avec une carte synthétique. Ils proviennent des sources StarLoco du kit et du client 1.34 ; ils restent à rejouer sur un vrai StarLoco (marchands, percepteurs, prismes, montures d’enclos et portes `GDC` notamment). La recoloration des sprites, l’affichage des étoiles, des titres et des épées et les menus d’acteurs relèvent du rendu et de l’interface, pas de ce modèle.
+
+## Protocole de combat (lot F12a)
+
+`Fights` suit le combat d’après les paquets de StarLoco, lus comme le fait le client 1.34. Aucun paquet mal formé n’interrompt la lecture : il est journalisé (`COMBAT`) puis ignoré. Les événements (`CombatChanged`, `CombatResultReceived`, `FlagReceived`, `FightOptionChanged`, `JournalEntryAdded`) sont levés sur le fil réseau, après la mise à jour de l’état et hors du verrou.
+
+Tours :
+
+- `GTL|<id>|<id>…` donne l’ordre de jeu des combattants vivants (`TurnOrder`, `Timeline.Order`). La forme sans `|` initial (`GTL1|2|3`) est aussi lue. StarLoco le renvoie souvent dans `GA;999` après une invocation ou une mort.
+- En combat, `GTR<id>` reçoit la réponse `GT`, comme `Game.turnOk` du client ; StarLoco l’ignore (matrice §2 n° 39).
+- `GTS<id>|<durée ms>[|<tour>]` : StarLoco n’envoie que deux champs (matrice §2 n° 16). Le troisième champ, lu par le client, est facultatif (`Timeline.TableTurn`). `Timeline.RemainingMilliseconds` calcule le temps restant à partir de l’heure de réception.
+- `GTF<id>` termine le tour. Les effets du combattant qui vient de jouer perdent un tour au `GTS` suivant (`GameManager.cleanPlayer` du client).
+
+Effets, zones, options et drapeau :
+
+- `GIE<effet>;<cibles séparées par ,>;<p1>;<p2>;<p3>;<p4>;<tours>;<sort>[;<lanceur>]` crée un effet par cible (`Effects`, `GetEffects`). Un effet de même numéro et de même durée s’additionne au précédent. Posé sur le combattant dont c’est le tour, il gagne un tour, comme dans `Game.onEffect`. Une durée négative (`-1`) ne s’épuise pas : seuls `GA;132`, la mort ou la fin du combat le retirent. `GIe` retire tous les effets.
+- `GDZ+<cellule>;<taille>;<couleur>` dessine une zone de glyphe ou de piège et `GDZ-…` l’efface (`Zones`). Plusieurs entrées peuvent être séparées par `|`.
+- `Go<+|-><A|S|P|H><équipe>` met à jour les options d’une équipe identifiée par son initiateur (`TeamOptions`, `OwnTeamOptions`). Ce paquet est diffusé à toute la carte : il est aussi lu hors combat. Comme dans le client, seules les lettres majuscules sont reconnues. `ToggleOptionAsync` envoie `fN` (bloquer), `fS` (spectateurs), `fP` (groupe seulement) ou `fH` (aide). Après le placement, seule l’option spectateurs reste disponible. StarLoco n’accepte ces demandes que de l’initiateur et vérifie lui-même le groupe pour `fP`.
+- `SetFlagAsync` envoie `Gf<cellule>` ; un coéquipier signalé arrive sous la forme `Gf<combattant>|<cellule>` (`LastFlag`).
+- `GiveUpAsync` envoie `GQ`. En placement, le personnage quitte le combat. En combat actif, StarLoco le compte comme mort (matrice §2 n° 22). En spectateur, il cesse d’observer. La réponse attendue est `GV`. `KickAsync(id)` envoie `GQ<id>` pendant le placement pour un coéquipier connu ; le serveur refuse l’exclusion d’un initiateur. `GR1` / `GR0` restent envoyés par `SetReadyAsync`.
+
+Actions `GA` en combat : `MapFrame` transmet tout `GA` reçu en combat à `Fights`. Celui-ci traite `0` (refus) et `1` (déplacement), puis consulte `FightActionTable` et enfin `GameActionRouter` (défis, interactifs…). Une action sans gestionnaire est journalisée en débogage. Un acteur vide désigne le personnage du compte. Un module peut ajouter une action de combat avec `[FightActionHandler(id, …)]` sur une méthode statique `void|Task Nom(FightActionContext)` ou avec `FightActionTable.Register` ; un doublon lève une exception.
+
+| Action | Paramètres | Effet sur l’état |
+|---|---|---|
+| `4`, `5` | `<cible>,<cellule>` | téléportation, glissement ; le combattant porté suit son porteur |
+| `11` | `<cible>,<orientation>` | orientation |
+| `50` | `<porté>` | l’acteur porte la cible, qui prend sa cellule |
+| `51` | `<cellule>` | l’acteur lance le combattant porté : c’est le porté qui change de cellule. L’ancien code déplaçait le porteur. |
+| `52` | `<porté>,<cellule>` | le porté est déposé |
+| `100`, `108`, `110` | `<cible>,<variation>[,<élément>]` | PV |
+| `101`, `102`, `111`, `120`, `168` | `<cible>,<variation>[,<tours>]` | PA ; `102` = PA utilisés, `GA;102;id;id,-0` libère le sort en attente |
+| `78`, `127`, `128`, `129`, `169` | même format | PM ; `129` = PM utilisés |
+| `103` | `<mort>` | hors combat ; le combattant porté reste sur la cellule ; retrait des effets de la cible et de ceux qu’elle a lancés |
+| `132` | `<cible>` | retire tous les effets de la cible |
+| `112`, `114` à `119`, `122` à `126`, `138`, `142`, `145`, `152` à `157`, `160` à `163`, `182`, `606` à `611` | `<cible>,<valeur>,<tours>` | caractéristique temporaire (`Effects`, source `GameAction`) |
+| `149` | `<cible>,<apparence>,<nouvelle apparence>,<tours>` | changement d’apparence (effet) |
+| `150` | `<cible>,<tours>` | invisible si tours > 0 (`IsInvisible`) |
+| `950` | `<cible>,<état>,<1 ou 0>` | états (`GetStates`, `HasState`) ; un porté qui sort d’un état est déposé |
+| `147`, `180`, `181`, `185`, `780` | entrée `GM` sans son préfixe | réinjectée comme `GM` (invocation, retour au combat) |
+| `200` | `<cellule>,<image>` | image d’un objet interactif |
+| `300`, `302` | `<sort>,…` | sort lancé ou échec critique : confirmation, limites par tour et intervalle pour le personnage du compte |
+| `104` à `107`, `130`, `140`, `151`, `164`, `166`, `301`, `303` à `309` | selon l’action | journal seulement |
+| `165`, `208`, `228`, `501` | – | animations, rien à mémoriser |
+| `999` | paquet complet | exécuté comme un paquet du serveur (`GTL`, `GDZ`, `GDC`, `GIE`…) ; un `GA;999` imbriqué est refusé |
+
+Le journal (`Journal`, 200 lignes) reprend en français les messages de combat du client. Les noms viennent de la carte, les sorts de `BotSorts`, sinon « le sort n° id ». Les numéros d’état et d’effet sont affichés tels quels. Le journal et le résultat restent consultables après la fin du combat, jusqu’au combat suivant.
+
+Résultat : `GE<durée ms>[;<bonus d’étoiles>]|<initiateur>|<type>|<ligne>|<ligne>…` (matrice §2 n° 23, `Fight.getGE` de StarLoco) est lu dans `LastResult`, puis `CombatResultReceived` est levé avant `CombatFinished`. Le bonus d’étoiles n’existe qu’en combat contre des monstres. Chaque ligne commence par sa catégorie : `0` perdant, `2` gagnant, `5` percepteur, `6` butin commun.
+
+- Type `0` (défi, monstres, percepteur) : `<cat>;<id>;<nom ou modèle>;<niveau>;<mort>;<xp min>;<xp>;<xp max>;<xp gagnée>;<xp guilde>;<xp monture>;<objets>;<kamas>`.
+- Type `1` (agression, conquête) : `…;<mort>;<honneur min>;<honneur>;<honneur max>;<honneur gagné>;<grade>;<déshonneur>;<déshonneur gagné>;<objets>;<kamas>;<xp min>;<xp>;<xp max>;<xp gagnée>`.
+
+Les objets s’écrivent `<modèle>~<quantité>` séparés par `,`. Une ligne illisible est rangée dans `Rejected` sans bloquer les autres. Un `GE` dont la durée est illisible termine quand même le combat, sans résultat.
+
+Limites : ces formats proviennent des sources StarLoco du kit et du client 1.34. Ils ne sont vérifiés qu’avec des paquets fictifs (`BotFightProtocolSmoke`, `BotCombatSmoke`) et restent à rejouer sur un vrai StarLoco. Ne sont pas couverts : les challenges (`Gd…`), l’attaque à l’arme envoyée par le bot (`GA303<cellule>`), les actions `998` (jamais envoyée par StarLoco, format ambigu dans le client), `1039` et `1077` (envoyées par StarLoco, absentes du client, ignorées), `2`, `3`, `201` à `207`, `209` et `210` (absentes du client). Les caractéristiques temporaires ne modifient pas les statistiques affichées : seuls `GTM` et les actions de PA/PM le font. Le changement d’apparence n’est pas appliqué au sprite. Ce lot n’ajoute pas d’interface : options, drapeau, abandon et exclusion sont disponibles dans l’API de `Fights`.
