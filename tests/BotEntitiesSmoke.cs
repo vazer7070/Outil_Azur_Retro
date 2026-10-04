@@ -163,7 +163,7 @@ internal static class BotEntitiesSmoke
                         Until(() => view.GetActorVisualState(42).IsMoving, "visual movement start");
                         List<Cell> path = account.Game.Manager.Mouvements.ActualPath.ToList();
                         int duration = PathfinderUtils.GetTimeOnMap(path[0], path);
-                        PointF destination = new PointF((source.X + 26.5f), source.Y + 13.25f);
+                        PointF destination = new PointF(source.X + BotMapArtwork.CellWidth / 2, source.Y + BotMapArtwork.CellHeight / 2);
                         clock = duration / 2.0;
                         using (Bitmap middle = Render(view, "bot-acteurs-mouvement"))
                         {

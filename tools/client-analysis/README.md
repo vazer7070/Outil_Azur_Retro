@@ -142,3 +142,14 @@ python3 test_lang2xml.py
 ```
 
 La version de chaque famille est lue dans `lang/versions_fr.txt` quand le fichier existe, sinon la plus haute présente. Mesuré le 4 octobre 2026 : 28 familles en ≈ 20 s, 8,1 Mo de XML. Format, contenu et commande exacte : `Outil_Azur_complet/Resources/Bot/BotLang/PROVENANCE.md`.
+
+## Décor des cartes (`exporter_decor.py`)
+
+```sh
+# swfsvg compilé au préalable (étape 4) ; Pillow et cairosvg : pip install pillow cairosvg
+python3 exporter_decor.py <client> ../../Outil_Azur_complet/Resources/Bot/Decor
+```
+
+Le script exporte les symboles numérotés de `clips/gfx/g1.swf` et `g2.swf` (sols ; au-delà de 500 px, fonds désignés par `BACK`), `o1.swf` à `o11.swf` (objets) et `cell.swf` vers `sols/`, `backgrounds/`, `objets/` et `cellules/`, puis écrit `ancres.tsv` (`type id xmin ymin largeur hauteur image`, séparés par des tabulations) : coin haut gauche de chaque PNG par rapport au point d'enregistrement du symbole, c'est-à-dire la position de la cellule dans le client (l'origine de la carte pour un fond). `BotMapArtwork` dessine chaque PNG à « cellule + (xmin, ymin) ». Les marges transparentes sont découpées, les PNG passent en palette de 256 couleurs quand l'écart reste faible et un symbole vide devient un PNG transparent de 1 px. Le journal final énumère les identifiants présents dans deux bibliothèques (la première occurrence, dans l'ordre o1… o11, est gardée), les fonds de plus de 500 px, les SVG repris parce que cairosvg échoue sur des dégradés minuscules, les symboles vides et les avertissements de `swfsvg`. Une nouvelle exécution remplace les PNG numérotés écrits à la racine de chaque dossier ; une bibliothèque rangée en sous-dossiers reste intacte.
+
+Mesuré sur le client 1.34 fourni (4 cœurs) : 5 649 PNG et 63,3 Mo en un peu plus de 4 minutes (voir `Outil_Azur_complet/Resources/Bot/Decor/PROVENANCE.md`). Les images 2 à 15 des sols, affichées sur les cellules en pente, ne sont exportées que si `swfsvg` accepte `--frame N` (le script le détecte) ; les formes morphées et les textes statiques ne sont pas rendus.
