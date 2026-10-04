@@ -77,6 +77,35 @@ namespace Outil_Azur_complet.Bot.Panels
         /// <summary>Premier volet enregistré du type demandé.</summary>
         public T Get<T>() where T : class, IGamePanel => registered.OfType<T>().FirstOrDefault();
 
+        /// <summary>
+        /// Volet enregistré sous le nom d'un bouton du bandeau : type <c>&lt;nom&gt;Panel</c> (« Stats » → <c>StatsPanel</c>)
+        /// ou type du même nom ; <c>null</c> si aucun volet de ce nom n'est livré.
+        /// </summary>
+        public IGamePanel Find(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return null;
+            return registered.FirstOrDefault(panel => string.Equals(panel.GetType().Name, name + "Panel", StringComparison.Ordinal))
+                ?? registered.FirstOrDefault(panel => string.Equals(panel.GetType().Name, name, StringComparison.Ordinal));
+        }
+
+        /// <summary>Affiche le volet nommé (<see cref="Find"/>) ; <c>false</c> s'il n'existe pas.</summary>
+        public bool Open(string name)
+        {
+            IGamePanel panel = Find(name);
+            if (panel == null) return false;
+            Show(panel);
+            return true;
+        }
+
+        /// <summary>Bascule le volet nommé (<see cref="Find"/>) ; <c>false</c> s'il n'existe pas.</summary>
+        public bool Toggle(string name)
+        {
+            IGamePanel panel = Find(name);
+            if (panel == null) return false;
+            Toggle(panel);
+            return true;
+        }
+
         /// <summary>Insère le volet dans le tiroir sans l'afficher : il est associé à la session et reçoit ses événements.</summary>
         public void Register(IGamePanel panel)
         {
