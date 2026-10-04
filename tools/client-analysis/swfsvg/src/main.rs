@@ -1,11 +1,27 @@
 //! Exporte des symboles (formes, clips, boutons) d'un SWF en SVG.
-//! usage : swfsvg <fichier.swf> <dossier> [nomExport ...]   (sans nom : tous les exports)
+//!
+//! usage :
+//!   swfsvg [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier> [nomExport ...]
+//!   swfsvg --scene [--name NOM] [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier>
+//!   swfsvg --list <fichier.swf>
+//!
+//! Sans nom d'export, tous les symboles d'`ExportAssets` sont rendus. `--scene` rend la timeline
+//! principale (icônes d'objets, émotes, portraits : formes posées sur la scène, sans export).
+//! `--frame` choisit l'image de la timeline demandée, les clips imbriqués ayant joué depuis leur
+//! création comme à l'écran (cycles de marche) ; `--list` décrit les symboles sans rien rendre.
 use base64::Engine;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
 use std::fs::File;
 use std::io::{Read, Write};
 use swf::{FillStyle, Matrix, ShapeRecord, Tag};
+
+const USAGE: &str = "usage : swfsvg [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier> [nomExport ...]
+        swfsvg --scene [--name NOM] [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier>
+        swfsvg --list <fichier.swf>";
+
+/// Profondeur maximale d'imbrication suivie (clips dans des clips).
+const MAX_DEPTH: usize = 12;
 
 const ENC: &'static encoding_rs::Encoding = encoding_rs::UTF_8;
 
@@ -82,21 +98,61 @@ impl Bounds {
     }
 }
 
+impl Bounds {
+    fn union(&self, o: &Bounds) -> Bounds {
+        match (self.set, o.set) {
+            (false, _) => *o,
+            (_, false) => *self,
+            _ => Bounds { x0: self.x0.min(o.x0), y0: self.y0.min(o.y0), x1: self.x1.max(o.x1), y1: self.y1.max(o.y1), set: true },
+        }
+    }
+    fn intersection(&self, o: &Bounds) -> Bounds {
+        if !self.set || !o.set {
+            return Bounds::default();
+        }
+        let b = Bounds { x0: self.x0.max(o.x0), y0: self.y0.max(o.y0), x1: self.x1.min(o.x1), y1: self.y1.min(o.y1), set: true };
+        if b.x0 < b.x1 && b.y0 < b.y1 { b } else { Bounds::default() }
+    }
+}
+
 struct Bitmap {
     width: u32,
     height: u32,
     png_b64: String,
 }
 
+/// Ce qui règle la lecture d'une timeline : nombre d'images et premier `stop()` rencontré.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct Timeline {
+    frames: usize,
+    stop: Option<usize>,
+}
+
+/// Objet de la liste d'affichage d'une timeline, à une profondeur donnée.
+#[derive(Clone)]
+struct Placed {
+    id: u16,
+    matrix: M,
+    ct: Option<swf::ColorTransform>,
+    ratio: u16,
+    clip_depth: Option<u16>,
+    /// Image (base 0) de la timeline où cette instance a été créée.
+    born: usize,
+}
+
 struct Exporter<'a> {
     chars: HashMap<u16, &'a Tag<'a>>,
     jpeg_tables: Option<&'a [u8]>,
     bitmaps: HashMap<u16, Option<Bitmap>>,
+    timelines: HashMap<u16, Timeline>,
+    cycles: HashMap<u16, usize>,
     defs: String,
     body: String,
     bounds: Bounds,
     def_counter: usize,
     warnings: Vec<String>,
+    /// Vrai pendant le rendu de la géométrie d'un masque (`<clipPath>`) : chemins seuls, sans style.
+    clip_mode: bool,
 }
 
 fn color_css(c: &swf::Color) -> (String, f64) {
@@ -207,7 +263,19 @@ impl<'a> Exporter<'a> {
                 _ => {}
             }
         }
-        Exporter { chars, jpeg_tables, bitmaps: HashMap::new(), defs: String::new(), body: String::new(), bounds: Bounds::default(), def_counter: 0, warnings: Vec::new() }
+        Exporter {
+            chars,
+            jpeg_tables,
+            bitmaps: HashMap::new(),
+            timelines: HashMap::new(),
+            cycles: HashMap::new(),
+            defs: String::new(),
+            body: String::new(),
+            bounds: Bounds::default(),
+            def_counter: 0,
+            warnings: Vec::new(),
+            clip_mode: false,
+        }
     }
 
     fn reset(&mut self) {
@@ -216,6 +284,87 @@ impl<'a> Exporter<'a> {
         self.bounds = Bounds::default();
         self.def_counter = 0;
         self.warnings.clear();
+        self.clip_mode = false;
+    }
+
+    fn warn(&mut self, message: String) {
+        if !self.warnings.contains(&message) {
+            self.warnings.push(message);
+        }
+    }
+
+    /// Timeline d'un clip (`DefineSprite`), mise en cache.
+    fn sprite_timeline(&mut self, sprite: &swf::Sprite) -> Timeline {
+        *self.timelines.entry(sprite.id).or_insert_with(|| timeline_info(&sprite.tags))
+    }
+
+    /// Type affiché par `--list` pour un caractère.
+    fn kind(&self, id: u16) -> &'static str {
+        match self.chars.get(&id) {
+            Some(Tag::DefineShape(_)) => "forme",
+            Some(Tag::DefineSprite(_)) => "clip",
+            Some(Tag::DefineButton(_)) | Some(Tag::DefineButton2(_)) => "bouton",
+            Some(Tag::DefineMorphShape(_)) => "morph",
+            Some(Tag::DefineText(_)) | Some(Tag::DefineText2(_)) => "texte",
+            Some(Tag::DefineBits { .. }) | Some(Tag::DefineBitsJpeg2 { .. }) | Some(Tag::DefineBitsJpeg3(_)) | Some(Tag::DefineBitsLossless(_)) => "bitmap",
+            Some(_) => "autre",
+            None => "absent",
+        }
+    }
+
+    /// Nombre d'images utiles d'un caractère joué comme clip imbriqué : sa timeline jusqu'à son
+    /// `stop()` et celles des clips qu'il contient (un cycle de marche est souvent un clip
+    /// d'une image qui contient le vrai cycle).
+    fn cycle(&mut self, id: u16, depth: usize) -> usize {
+        if depth > MAX_DEPTH {
+            return 1;
+        }
+        if let Some(n) = self.cycles.get(&id) {
+            return *n;
+        }
+        // Valeur provisoire : un clip qui se contient lui-même (fichier corrompu) ne boucle pas.
+        self.cycles.insert(id, 1);
+        let n = match self.chars.get(&id).copied() {
+            Some(Tag::DefineSprite(sp)) => {
+                let info = self.sprite_timeline(sp);
+                self.cycle_of_timeline(&sp.tags, info, false, depth + 1)
+            }
+            Some(Tag::DefineButton(b)) | Some(Tag::DefineButton2(b)) => {
+                let ids: Vec<u16> = b.records.iter().filter(|r| r.states.contains(swf::ButtonState::UP)).map(|r| r.id).collect();
+                ids.into_iter().map(|c| self.cycle(c, depth + 1)).max().unwrap_or(1)
+            }
+            _ => 1,
+        };
+        self.cycles.insert(id, n);
+        n
+    }
+
+    /// Nombre d'images utiles d'une timeline. `root` : timeline demandée (toutes ses images
+    /// comptent, comme pour `gotoAndStop`) ; sinon elle s'arrête sur son premier `stop()`.
+    fn cycle_of_timeline(&mut self, tags: &[Tag], info: Timeline, root: bool, depth: usize) -> usize {
+        let own = if root { info.frames } else { info.stop.map(|s| s + 1).unwrap_or(info.frames) };
+        // Une timeline qui boucle recrée à chaque tour les clips posés après sa première image.
+        let looping = info.frames > 1 && (root || info.stop.is_none());
+        let mut best = own.max(1);
+        let mut frame = 0usize;
+        let mut children: Vec<(usize, u16)> = Vec::new();
+        for t in tags {
+            match t {
+                Tag::PlaceObject(p) => {
+                    if let swf::PlaceObjectAction::Place(cid) | swf::PlaceObjectAction::Replace(cid) = p.action {
+                        if frame < own && (!looping || frame == 0) {
+                            children.push((frame, cid));
+                        }
+                    }
+                }
+                Tag::ShowFrame => frame += 1,
+                _ => {}
+            }
+        }
+        for (born, cid) in children {
+            best = best.max(born + self.cycle(cid, depth + 1));
+        }
+        best
     }
 
     fn next_id(&mut self, prefix: &str) -> String {
@@ -447,10 +596,22 @@ impl<'a> Exporter<'a> {
                 }
             }
         }
+        if fill_edges.is_empty() && line_edges.is_empty() {
+            // Forme vide (souvent une forme morphée de remplacement) : rien à dessiner ni à cadrer.
+            return;
+        }
         let b = &shape.shape_bounds;
         for (px, py) in [(b.x_min, b.y_min), (b.x_max, b.y_min), (b.x_min, b.y_max), (b.x_max, b.y_max)] {
             let (tx, ty) = m.apply(px.get() as f64 / 20.0, py.get() as f64 / 20.0);
             self.bounds.add(tx, ty);
+        }
+        if self.clip_mode {
+            // Géométrie d'un masque : seules les surfaces remplies comptent, quelle que soit leur couleur.
+            for (_, edges) in fill_edges {
+                let paths = chain_edges(edges);
+                let _ = write!(self.body, "<path transform=\"{}\" d=\"{}\"/>", m.svg(), path_d(&paths, true));
+            }
+            return;
         }
         let _ = write!(self.body, "<g transform=\"{}\"{}>", m.svg(), extra);
         for ((gen, idx), edges) in fill_edges {
@@ -501,35 +662,41 @@ impl<'a> Exporter<'a> {
         format!(" filter=\"url(#{})\"", id)
     }
 
-    fn render_char(&mut self, id: u16, m: &M, ct: Option<&swf::ColorTransform>, depth: usize) {
-        if depth > 12 {
+    /// Rend un caractère. `age` : nombre d'images écoulées depuis la création de l'instance
+    /// (sert aux clips imbriqués) ; `ratio` : position d'une forme morphée (0 à 65535).
+    fn render_char(&mut self, id: u16, m: &M, ct: Option<&swf::ColorTransform>, depth: usize, age: usize, ratio: u16) {
+        if depth > MAX_DEPTH {
+            self.warn(format!("imbrication de plus de {} niveaux ignorée", MAX_DEPTH));
             return;
         }
         let Some(tag) = self.chars.get(&id).copied() else {
-            self.warnings.push(format!("caractère {} inconnu", id));
+            self.warn(format!("caractère {} inconnu", id));
             return;
         };
-        let extra = self.color_transform_attr(ct);
+        let extra = if self.clip_mode { String::new() } else { self.color_transform_attr(ct) };
         match tag {
             Tag::DefineShape(s) => self.render_shape(s, m, &extra),
             Tag::DefineSprite(sp) => {
-                let _ = write!(self.body, "<g{}>", extra);
-                self.render_timeline(&sp.tags, m, depth + 1, 0);
-                self.body.push_str("</g>");
+                let info = self.sprite_timeline(sp);
+                self.group(&extra, |e| e.render_timeline(&sp.tags, info, m, depth + 1, age, false));
             }
             Tag::DefineButton2(b) | Tag::DefineButton(b) => {
-                let _ = write!(self.body, "<g{}>", extra);
                 let mut recs: Vec<&swf::ButtonRecord> = b.records.iter().filter(|r| r.states.contains(swf::ButtonState::UP)).collect();
                 recs.sort_by_key(|r| r.depth);
-                for r in recs {
-                    let cm = m.mul(&M::from_swf(&r.matrix));
-                    self.render_char(r.id, &cm, Some(&r.color_transform), depth + 1);
-                }
-                self.body.push_str("</g>");
+                self.group(&extra, |e| {
+                    for r in recs {
+                        let cm = m.mul(&M::from_swf(&r.matrix));
+                        e.render_char(r.id, &cm, Some(&r.color_transform), depth + 1, age, 0);
+                    }
+                });
             }
             Tag::DefineBits { .. } | Tag::DefineBitsJpeg2 { .. } | Tag::DefineBitsJpeg3(_) | Tag::DefineBitsLossless(_) => {
                 if let Some((w, h, b64)) = self.bitmap(id) {
-                    let _ = write!(self.body, "<image transform=\"{}\" width=\"{}\" height=\"{}\"{} href=\"data:image/png;base64,{}\"/>", m.svg(), w, h, extra, b64);
+                    if self.clip_mode {
+                        let _ = write!(self.body, "<path transform=\"{}\" d=\"M0 0H{}V{}H0Z\"/>", m.svg(), w, h);
+                    } else {
+                        let _ = write!(self.body, "<image transform=\"{}\" width=\"{}\" height=\"{}\"{} href=\"data:image/png;base64,{}\"/>", m.svg(), w, h, extra, b64);
+                    }
                     for (px, py) in [(0.0, 0.0), (w as f64, 0.0), (0.0, h as f64), (w as f64, h as f64)] {
                         let (tx, ty) = m.apply(px, py);
                         self.bounds.add(tx, ty);
@@ -543,16 +710,35 @@ impl<'a> Exporter<'a> {
                     let (tx, ty) = m.apply(px.get() as f64 / 20.0, py.get() as f64 / 20.0);
                     self.bounds.add(tx, ty);
                 }
-                self.warnings.push(format!("texte statique {} non rendu", id));
+                self.warn(format!("texte statique {} non rendu", id));
             }
-            Tag::DefineMorphShape(_) => self.warnings.push(format!("forme morphée {} non rendue", id)),
+            Tag::DefineMorphShape(morph) => {
+                let shape = morph_frame(morph, ratio);
+                self.render_shape(&shape, m, &extra);
+            }
             _ => {}
         }
     }
 
-    /// Rend la première image (frame) d'une timeline, ou la frame `frame` si indiquée.
-    fn render_timeline(&mut self, tags: &[Tag], m: &M, depth: usize, frame: usize) {
-        let mut display: BTreeMap<u16, (u16, M, Option<swf::ColorTransform>)> = BTreeMap::new();
+    /// Entoure le rendu de `f` d'un groupe portant `extra` (transformation de couleur) ; dans un
+    /// masque, les groupes sont inutiles et omis.
+    fn group<F: FnOnce(&mut Self)>(&mut self, extra: &str, f: F) {
+        if self.clip_mode {
+            f(self);
+        } else {
+            let _ = write!(self.body, "<g{}>", extra);
+            f(self);
+            self.body.push_str("</g>");
+        }
+    }
+
+    /// Rend une timeline `age` images après sa création. Une timeline `root` (symbole demandé ou
+    /// scène) affiche directement son image `age` (modulo sa longueur), comme après un
+    /// `gotoAndStop` ; une timeline imbriquée joue comme à l'écran : elle boucle et s'arrête sur
+    /// son premier `stop()`. Les clips qu'elle contient vieillissent depuis leur création.
+    fn render_timeline(&mut self, tags: &[Tag], info: Timeline, m: &M, depth: usize, age: usize, root: bool) {
+        let (frame, persistent) = play_position(info, age, root);
+        let mut display: BTreeMap<u16, Placed> = BTreeMap::new();
         let mut current_frame = 0usize;
         for t in tags {
             match t {
@@ -561,17 +747,31 @@ impl<'a> Exporter<'a> {
                     match p.action {
                         swf::PlaceObjectAction::Place(cid) | swf::PlaceObjectAction::Replace(cid) => {
                             let prev = display.get(&p.depth).cloned();
-                            let mm = pm.or(prev.as_ref().map(|x| x.1)).unwrap_or(M::identity());
-                            let ct = p.color_transform.clone().or(prev.and_then(|x| x.2));
-                            display.insert(p.depth, (cid, mm, ct));
+                            // Remplacer un caractère par lui-même garde l'instance (et son âge).
+                            let kept = matches!(p.action, swf::PlaceObjectAction::Replace(_)) && prev.as_ref().is_some_and(|x| x.id == cid);
+                            let placed = Placed {
+                                id: cid,
+                                matrix: pm.or(prev.as_ref().map(|x| x.matrix)).unwrap_or(M::identity()),
+                                ct: p.color_transform.or(prev.as_ref().and_then(|x| x.ct)),
+                                ratio: p.ratio.or(prev.as_ref().map(|x| x.ratio)).unwrap_or(0),
+                                clip_depth: p.clip_depth.or(prev.as_ref().and_then(|x| x.clip_depth)),
+                                born: if kept { prev.map_or(current_frame, |x| x.born) } else { current_frame },
+                            };
+                            display.insert(p.depth, placed);
                         }
                         swf::PlaceObjectAction::Modify => {
                             if let Some(entry) = display.get_mut(&p.depth) {
                                 if let Some(mm) = pm {
-                                    entry.1 = mm;
+                                    entry.matrix = mm;
                                 }
-                                if let Some(ct) = &p.color_transform {
-                                    entry.2 = Some(ct.clone());
+                                if let Some(ct) = p.color_transform {
+                                    entry.ct = Some(ct);
+                                }
+                                if let Some(r) = p.ratio {
+                                    entry.ratio = r;
+                                }
+                                if let Some(c) = p.clip_depth {
+                                    entry.clip_depth = Some(c);
                                 }
                             }
                         }
@@ -589,18 +789,299 @@ impl<'a> Exporter<'a> {
                 _ => {}
             }
         }
-        let items: Vec<(u16, M, Option<swf::ColorTransform>)> = display.values().cloned().collect();
-        for (cid, cm, ct) in items {
-            let full = m.mul(&cm);
-            self.render_char(cid, &full, ct.as_ref(), depth);
+        let items: Vec<(u16, Placed, usize)> = display
+            .into_iter()
+            .map(|(d, p)| {
+                let child_age = child_age(age, frame, persistent, p.born);
+                (d, p, child_age)
+            })
+            .collect();
+        self.render_items(&items, m, depth);
+    }
+
+    /// Rend une liste d'affichage triée par profondeur ; un objet `clip_depth` masque les objets
+    /// suivants jusqu'à cette profondeur incluse.
+    fn render_items(&mut self, items: &[(u16, Placed, usize)], m: &M, depth: usize) {
+        let mut i = 0;
+        while i < items.len() {
+            let (_, p, age) = &items[i];
+            let full = m.mul(&p.matrix);
+            match p.clip_depth {
+                Some(limit) => {
+                    let mut j = i + 1;
+                    while j < items.len() && items[j].0 <= limit {
+                        j += 1;
+                    }
+                    if self.clip_mode {
+                        // Masque dans la géométrie d'un masque : seul le contenu visible compte.
+                        self.render_items(&items[i + 1..j], m, depth);
+                    } else {
+                        self.render_masked(p, &full, *age, &items[i + 1..j], m, depth);
+                    }
+                    i = j;
+                }
+                None => {
+                    self.render_char(p.id, &full, p.ct.as_ref(), depth, *age, p.ratio);
+                    i += 1;
+                }
+            }
         }
     }
 
-    fn svg(&self) -> String {
-        let b = self.bounds;
-        let (x0, y0, x1, y1) = if b.set { (b.x0.floor(), b.y0.floor(), b.x1.ceil(), b.y1.ceil()) } else { (0.0, 0.0, 1.0, 1.0) };
-        let (w, h) = ((x1 - x0).max(1.0), (y1 - y0).max(1.0));
-        format!("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"{} {} {} {}\"><defs>{}</defs>{}</svg>", fm(w), fm(h), fm(x0), fm(y0), fm(w), fm(h), self.defs, self.body)
+    /// Rend `items` découpés par la forme `mask` (`<clipPath>`) ; le cadre retenu est
+    /// l'intersection du cadre du masque et de celui du contenu.
+    fn render_masked(&mut self, mask: &Placed, mask_m: &M, mask_age: usize, items: &[(u16, Placed, usize)], m: &M, depth: usize) {
+        let outer_body = std::mem::take(&mut self.body);
+        let outer_bounds = std::mem::take(&mut self.bounds);
+        self.clip_mode = true;
+        self.render_char(mask.id, mask_m, None, depth, mask_age, mask.ratio);
+        self.clip_mode = false;
+        let clip_body = std::mem::take(&mut self.body);
+        let mask_bounds = std::mem::take(&mut self.bounds);
+        self.render_items(items, m, depth);
+        let content = std::mem::replace(&mut self.body, outer_body);
+        let content_bounds = std::mem::replace(&mut self.bounds, outer_bounds);
+        let visible = mask_bounds.intersection(&content_bounds);
+        if content.is_empty() || clip_body.is_empty() || !visible.set {
+            return; // un masque vide cache tout son contenu
+        }
+        let id = self.next_id("m");
+        let _ = write!(self.defs, "<clipPath id=\"{}\">{}</clipPath>", id, clip_body);
+        let _ = write!(self.body, "<g clip-path=\"url(#{})\">{}</g>", id, content);
+        self.bounds.add(visible.x0, visible.y0);
+        self.bounds.add(visible.x1, visible.y1);
+    }
+
+    /// Rend l'image `frame` (base 1) d'un symbole exporté, comme timeline demandée.
+    fn render_symbol(&mut self, id: u16, frame: usize) {
+        let age = frame.saturating_sub(1);
+        match self.chars.get(&id).copied() {
+            Some(Tag::DefineSprite(sp)) => {
+                let info = self.sprite_timeline(sp);
+                self.group("", |e| e.render_timeline(&sp.tags, info, &M::identity(), 1, age, true));
+            }
+            _ => self.render_char(id, &M::identity(), None, 0, age, 0),
+        }
+    }
+}
+
+/// Image affichée (base 0) d'une timeline `age` images après sa création, et si ses clips
+/// continuent de vieillir sans être recréés (timeline d'une seule image ou arrêtée).
+fn play_position(info: Timeline, age: usize, root: bool) -> (usize, bool) {
+    if !root {
+        if let Some(stop) = info.stop {
+            return if age >= stop { (stop, true) } else { (age, false) };
+        }
+    }
+    if info.frames <= 1 {
+        (0, true)
+    } else {
+        (age % info.frames, false)
+    }
+}
+
+/// Âge d'un clip créé à l'image `born` de sa timeline parente. Quand la parente boucle, les clips
+/// posés dès la première image sont conservés d'un tour à l'autre, les autres sont recréés.
+fn child_age(age: usize, frame: usize, persistent: bool, born: usize) -> usize {
+    if persistent {
+        age.saturating_sub(born)
+    } else if born == 0 {
+        age
+    } else {
+        frame.saturating_sub(born)
+    }
+}
+
+/// Lit une timeline : nombre d'images (`ShowFrame`) et première image contenant un `stop()`.
+fn timeline_info(tags: &[Tag]) -> Timeline {
+    let mut frames = 0usize;
+    let mut stop = None;
+    for t in tags {
+        match t {
+            Tag::ShowFrame => frames += 1,
+            Tag::DoAction(code) if stop.is_none() && has_stop(code) => stop = Some(frames),
+            _ => {}
+        }
+    }
+    let frames = frames.max(1);
+    Timeline { frames, stop: stop.filter(|s| *s < frames) }
+}
+
+/// Vrai si un bloc AVM1 contient l'action `Stop` (0x07) hors des corps de fonctions. Les
+/// conditions ne sont pas évaluées : un `stop()` conditionnel compte comme un arrêt.
+fn has_stop(code: &[u8]) -> bool {
+    let mut i = 0usize;
+    while i < code.len() {
+        let op = code[i];
+        match op {
+            0x00 => return false,
+            0x07 => return true,
+            _ if op >= 0x80 => {
+                if i + 2 >= code.len() {
+                    return false;
+                }
+                let len = u16::from_le_bytes([code[i + 1], code[i + 2]]) as usize;
+                let next = i + 3 + len;
+                // DefineFunction (0x9B) et DefineFunction2 (0x8E) : le corps suit l'en-tête et sa
+                // taille est le dernier mot de l'en-tête ; il ne s'exécute pas avec l'image.
+                let body = if (op == 0x9B || op == 0x8E) && len >= 2 && next <= code.len() { u16::from_le_bytes([code[next - 2], code[next - 1]]) as usize } else { 0 };
+                i = next + body;
+            }
+            _ => i += 1,
+        }
+    }
+    false
+}
+
+/// Document SVG d'un rendu : le cadre `bounds` est arrondi au pixel (le PNG commence au point
+/// (⌊xmin⌋, ⌊ymin⌋) du symbole).
+fn svg_document(defs: &str, body: &str, bounds: &Bounds) -> String {
+    let (x0, y0, x1, y1) = if bounds.set { (bounds.x0.floor(), bounds.y0.floor(), bounds.x1.ceil(), bounds.y1.ceil()) } else { (0.0, 0.0, 1.0, 1.0) };
+    let (w, h) = ((x1 - x0).max(1.0), (y1 - y0).max(1.0));
+    format!("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"{} {} {} {}\"><defs>{}</defs>{}</svg>", fm(w), fm(h), fm(x0), fm(y0), fm(w), fm(h), defs, body)
+}
+
+/// Forme intermédiaire d'une forme morphée (`DefineMorphShape`) à la position `ratio`
+/// (0 = forme de départ, 65535 = forme d'arrivée), comme le lecteur Flash : les arêtes de départ
+/// et d'arrivée se correspondent une à une, une droite face à une courbe devient une courbe.
+fn morph_frame(morph: &swf::DefineMorphShape, ratio: u16) -> swf::Shape {
+    use swf::{Point, PointDelta, Twips};
+    let t = ratio as f64 / 65535.0;
+    let lerp = |a: f64, b: f64| a + (b - a) * t;
+    let fill_styles = morph.start.fill_styles.iter().zip(morph.end.fill_styles.iter()).map(|(a, b)| lerp_fill(a, b, t)).collect();
+    let line_styles = morph
+        .start
+        .line_styles
+        .iter()
+        .zip(morph.end.line_styles.iter())
+        .map(|(a, b)| swf::LineStyle::new().with_width(Twips::new(lerp(a.width().get() as f64, b.width().get() as f64).round() as i32)).with_fill_style(lerp_fill(a.fill_style(), b.fill_style(), t)))
+        .collect();
+
+    // Positions absolues (twips) des deux plumes, et position émise (arrondie) de la forme produite.
+    let (mut s, mut e) = ((0.0f64, 0.0f64), (0.0f64, 0.0f64));
+    let mut out = (0i32, 0i32);
+    let mut records = Vec::new();
+    let mut start = morph.start.shape.iter().peekable();
+    let mut end = morph.end.shape.iter().peekable();
+    let point = |p: &Point<Twips>| (p.x.get() as f64, p.y.get() as f64);
+    let mid = |a: (f64, f64), b: (f64, f64)| ((lerp(a.0, b.0)).round() as i32, (lerp(a.1, b.1)).round() as i32);
+    // Arête en coordonnées absolues : (contrôle, ancre, droite ?) ; une droite a son contrôle au milieu.
+    let edge = |r: &ShapeRecord, from: (f64, f64)| -> ((f64, f64), (f64, f64), bool) {
+        match r {
+            ShapeRecord::StraightEdge { delta } => {
+                let to = (from.0 + delta.dx.get() as f64, from.1 + delta.dy.get() as f64);
+                (((from.0 + to.0) / 2.0, (from.1 + to.1) / 2.0), to, true)
+            }
+            ShapeRecord::CurvedEdge { control_delta, anchor_delta } => {
+                let c = (from.0 + control_delta.dx.get() as f64, from.1 + control_delta.dy.get() as f64);
+                ((c), (c.0 + anchor_delta.dx.get() as f64, c.1 + anchor_delta.dy.get() as f64), false)
+            }
+            ShapeRecord::StyleChange(_) => (from, from, true),
+        }
+    };
+    while let (Some(sr), Some(er)) = (start.peek().copied(), end.peek().copied()) {
+        match (sr, er) {
+            (ShapeRecord::StyleChange(sc), _) => {
+                start.next();
+                let mut moved = false;
+                if let Some(p) = &sc.move_to {
+                    s = point(p);
+                    moved = true;
+                }
+                // Le changement correspondant de la forme d'arrivée ne porte qu'un déplacement.
+                if let ShapeRecord::StyleChange(ec) = er {
+                    end.next();
+                    if let Some(p) = &ec.move_to {
+                        e = point(p);
+                        moved = true;
+                    }
+                }
+                let mut change = (**sc).clone();
+                change.new_styles = None;
+                change.move_to = None;
+                if moved {
+                    out = mid(s, e);
+                    change.move_to = Some(Point::new(Twips::new(out.0), Twips::new(out.1)));
+                }
+                records.push(ShapeRecord::StyleChange(Box::new(change)));
+            }
+            (_, ShapeRecord::StyleChange(ec)) => {
+                end.next();
+                if let Some(p) = &ec.move_to {
+                    e = point(p);
+                    out = mid(s, e);
+                    let change = swf::StyleChangeData { move_to: Some(Point::new(Twips::new(out.0), Twips::new(out.1))), fill_style_0: None, fill_style_1: None, line_style: None, new_styles: None };
+                    records.push(ShapeRecord::StyleChange(Box::new(change)));
+                }
+            }
+            (se, ee) => {
+                start.next();
+                end.next();
+                let (sc, sa, s_straight) = edge(se, s);
+                let (ec, ea, e_straight) = edge(ee, e);
+                let anchor = mid(sa, ea);
+                if s_straight && e_straight {
+                    records.push(ShapeRecord::StraightEdge { delta: PointDelta::new(Twips::new(anchor.0 - out.0), Twips::new(anchor.1 - out.1)) });
+                } else {
+                    let control = mid(sc, ec);
+                    records.push(ShapeRecord::CurvedEdge {
+                        control_delta: PointDelta::new(Twips::new(control.0 - out.0), Twips::new(control.1 - out.1)),
+                        anchor_delta: PointDelta::new(Twips::new(anchor.0 - control.0), Twips::new(anchor.1 - control.1)),
+                    });
+                }
+                out = anchor;
+                s = sa;
+                e = ea;
+            }
+        }
+    }
+    let rect = |a: &swf::Rectangle<Twips>, b: &swf::Rectangle<Twips>| {
+        let l = |x: Twips, y: Twips| Twips::new(lerp(x.get() as f64, y.get() as f64).round() as i32);
+        swf::Rectangle { x_min: l(a.x_min, b.x_min), x_max: l(a.x_max, b.x_max), y_min: l(a.y_min, b.y_min), y_max: l(a.y_max, b.y_max) }
+    };
+    swf::Shape {
+        version: 3,
+        id: morph.id,
+        shape_bounds: rect(&morph.start.shape_bounds, &morph.end.shape_bounds),
+        edge_bounds: rect(&morph.start.edge_bounds, &morph.end.edge_bounds),
+        flags: swf::ShapeFlag::empty(),
+        styles: swf::ShapeStyles { fill_styles, line_styles },
+        shape: records,
+    }
+}
+
+fn lerp_color(a: &swf::Color, b: &swf::Color, t: f64) -> swf::Color {
+    let l = |x: u8, y: u8| (x as f64 + (y as f64 - x as f64) * t).round().clamp(0.0, 255.0) as u8;
+    swf::Color { r: l(a.r, b.r), g: l(a.g, b.g), b: l(a.b, b.b), a: l(a.a, b.a) }
+}
+
+fn lerp_matrix(a: &Matrix, b: &Matrix, t: f64) -> Matrix {
+    let f = |x: swf::Fixed16, y: swf::Fixed16| swf::Fixed16::from_f64(x.to_f64() + (y.to_f64() - x.to_f64()) * t);
+    let w = |x: swf::Twips, y: swf::Twips| swf::Twips::new((x.get() as f64 + (y.get() as f64 - x.get() as f64) * t).round() as i32);
+    Matrix { a: f(a.a, b.a), b: f(a.b, b.b), c: f(a.c, b.c), d: f(a.d, b.d), tx: w(a.tx, b.tx), ty: w(a.ty, b.ty) }
+}
+
+fn lerp_gradient(a: &swf::Gradient, b: &swf::Gradient, t: f64) -> swf::Gradient {
+    let records = a
+        .records
+        .iter()
+        .zip(b.records.iter())
+        .map(|(x, y)| swf::GradientRecord { ratio: (x.ratio as f64 + (y.ratio as f64 - x.ratio as f64) * t).round().clamp(0.0, 255.0) as u8, color: lerp_color(&x.color, &y.color, t) })
+        .collect();
+    swf::Gradient { matrix: lerp_matrix(&a.matrix, &b.matrix, t), spread: a.spread, interpolation: a.interpolation, records }
+}
+
+/// Style de remplissage intermédiaire ; deux styles de natures différentes gardent celui de départ.
+fn lerp_fill(a: &FillStyle, b: &FillStyle, t: f64) -> FillStyle {
+    match (a, b) {
+        (FillStyle::Color(x), FillStyle::Color(y)) => FillStyle::Color(lerp_color(x, y, t)),
+        (FillStyle::LinearGradient(x), FillStyle::LinearGradient(y)) => FillStyle::LinearGradient(lerp_gradient(x, y, t)),
+        (FillStyle::RadialGradient(x), FillStyle::RadialGradient(y)) => FillStyle::RadialGradient(lerp_gradient(x, y, t)),
+        (FillStyle::FocalGradient { gradient: x, focal_point: fx }, FillStyle::FocalGradient { gradient: y, focal_point: fy }) => {
+            FillStyle::FocalGradient { gradient: lerp_gradient(x, y, t), focal_point: swf::Fixed8::from_f64(fx.to_f64() + (fy.to_f64() - fx.to_f64()) * t) }
+        }
+        (FillStyle::Bitmap { id, matrix: x, is_smoothed, is_repeating }, FillStyle::Bitmap { matrix: y, .. }) => FillStyle::Bitmap { id: *id, matrix: lerp_matrix(x, y, t), is_smoothed: *is_smoothed, is_repeating: *is_repeating },
+        _ => a.clone(),
     }
 }
 
@@ -625,17 +1106,115 @@ fn safe_name(n: &str) -> String {
     n.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' }).collect()
 }
 
-fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() < 3 {
-        eprintln!("usage : swfsvg <fichier.swf> <dossier> [nomExport ...]");
-        std::process::exit(2);
+/// Images demandées par `--frame`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Frames {
+    /// Une image : le fichier garde le nom du symbole (`walkR.svg`).
+    One(usize),
+    /// Plusieurs images : un fichier par image (`walkR_f001.svg`…), toutes dans le même cadre.
+    Range(usize, usize),
+    /// Toutes les images utiles du symbole (voir `--list`).
+    All,
+}
+
+#[derive(Debug, PartialEq)]
+struct Options {
+    scene: bool,
+    list: bool,
+    append_index: bool,
+    frames: Frames,
+    /// Nom du rendu de la scène (`--name`) ; par défaut, le nom du fichier SWF.
+    scene_name: Option<String>,
+    file: String,
+    dir: Option<String>,
+    names: Vec<String>,
+}
+
+fn parse_frames(v: &str) -> Result<Frames, String> {
+    let number = |s: &str| -> Result<usize, String> {
+        match s.trim().parse::<usize>() {
+            Ok(n) if n >= 1 => Ok(n),
+            _ => Err(format!("--frame attend un numéro d'image à partir de 1, « {} » reçu", v)),
+        }
+    };
+    if v == "all" {
+        return Ok(Frames::All);
     }
-    let file = File::open(&args[1]).expect("ouverture");
-    let buf = swf::decompress_swf(file).expect("décompression");
-    let movie = swf::parse_swf(&buf).expect("analyse");
-    std::fs::create_dir_all(&args[2]).expect("dossier");
-    let wanted: Vec<String> = args[3..].to_vec();
+    if let Some((a, b)) = v.split_once('-') {
+        let (a, b) = (number(a)?, number(b)?);
+        if a > b {
+            return Err(format!("--frame {} : la première image dépasse la dernière", v));
+        }
+        return Ok(if a == b { Frames::One(a) } else { Frames::Range(a, b) });
+    }
+    Ok(Frames::One(number(v)?))
+}
+
+fn parse_args(args: &[String]) -> Result<Options, String> {
+    let mut o = Options { scene: false, list: false, append_index: false, frames: Frames::One(1), scene_name: None, file: String::new(), dir: None, names: Vec::new() };
+    let mut positional = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        let a = &args[i];
+        match a.as_str() {
+            "--scene" => o.scene = true,
+            "--list" => o.list = true,
+            "--append-index" => o.append_index = true,
+            "--frame" => {
+                i += 1;
+                let v = args.get(i).ok_or("--frame attend une valeur (N, A-B ou all)")?;
+                o.frames = parse_frames(v)?;
+            }
+            "--name" => {
+                i += 1;
+                let v = args.get(i).ok_or("--name attend un nom")?;
+                o.scene_name = Some(v.clone());
+            }
+            "-h" | "--help" => return Err(String::new()),
+            _ if a.starts_with("--frame=") => o.frames = parse_frames(&a["--frame=".len()..])?,
+            _ if a.starts_with("--name=") => o.scene_name = Some(a["--name=".len()..].to_string()),
+            _ if a.starts_with("--") => return Err(format!("option inconnue : {}", a)),
+            _ => positional.push(a.clone()),
+        }
+        i += 1;
+    }
+    let mut positional = positional.into_iter();
+    o.file = positional.next().ok_or("fichier SWF manquant")?;
+    if o.list {
+        if positional.next().is_some() {
+            return Err("--list n'attend que le fichier SWF".into());
+        }
+        return Ok(o);
+    }
+    o.dir = Some(positional.next().ok_or("dossier de sortie manquant")?);
+    o.names = positional.collect();
+    if o.scene && !o.names.is_empty() {
+        return Err("--scene rend la timeline principale : aucun nom d'export n'est attendu".into());
+    }
+    if o.scene_name.as_deref().is_some_and(|n| n.trim().is_empty()) || (o.scene_name.is_some() && !o.scene) {
+        return Err("--name nomme le rendu de --scene et ne peut pas être vide".into());
+    }
+    Ok(o)
+}
+
+/// Ce que l'on rend : un symbole exporté, ou la scène (timeline principale).
+struct Target {
+    name: String,
+    id: Option<u16>,
+}
+
+fn file_stem(path: &str) -> String {
+    std::path::Path::new(path).file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "scene".to_string())
+}
+
+fn load(path: &str) -> Result<swf::SwfBuf, String> {
+    let file = File::open(path).map_err(|e| format!("{} : ouverture impossible ({})", path, e))?;
+    swf::decompress_swf(file).map_err(|e| format!("{} : SWF illisible ({})", path, e))
+}
+
+fn run(o: &Options) -> Result<String, String> {
+    let buf = load(&o.file)?;
+    let movie = swf::parse_swf(&buf).map_err(|e| format!("{} : SWF illisible ({})", o.file, e))?;
     let mut exports: Vec<(u16, String)> = Vec::new();
     for t in &movie.tags {
         if let Tag::ExportAssets(list) = t {
@@ -645,20 +1224,174 @@ fn main() {
         }
     }
     let mut exporter = Exporter::new(&movie.tags);
-    let mut index = String::new();
-    for (id, name) in &exports {
-        if !wanted.is_empty() && !wanted.iter().any(|w| w == name) {
-            continue;
+    let main_info = timeline_info(&movie.tags);
+
+    if o.list {
+        let mut out = String::from("nom\tid\ttype\timages\timages_timeline\n");
+        let scene_cycle = exporter.cycle_of_timeline(&movie.tags, main_info, true, 0);
+        let _ = writeln!(out, "scene\t0\tscene\t{}\t{}", scene_cycle, main_info.frames);
+        for (id, name) in &exports {
+            let (cycle, own) = match exporter.chars.get(id).copied() {
+                Some(Tag::DefineSprite(sp)) => {
+                    let info = exporter.sprite_timeline(sp);
+                    (exporter.cycle_of_timeline(&sp.tags, info, true, 0), info.frames)
+                }
+                _ => (exporter.cycle(*id, 0), 1),
+            };
+            let _ = writeln!(out, "{}\t{}\t{}\t{}\t{}", name, id, exporter.kind(*id), cycle, own);
         }
-        exporter.reset();
-        exporter.render_char(*id, &M::identity(), None, 0);
-        let svg = exporter.svg();
-        let b = exporter.bounds;
-        let path = format!("{}/{}.svg", args[2], safe_name(name));
-        let mut f = File::create(&path).expect("écriture");
-        f.write_all(svg.as_bytes()).expect("écriture");
-        let _ = writeln!(index, "{}\t{}\t{}\t{}\t{}\t{}\t{}", name, id, fm(b.x0), fm(b.y0), fm(b.x1 - b.x0), fm(b.y1 - b.y0), exporter.warnings.join("; "));
+        return Ok(out);
     }
-    let mut f = File::create(format!("{}/index.tsv", args[2])).expect("index");
-    f.write_all(index.as_bytes()).expect("index");
+
+    let dir = o.dir.as_deref().unwrap_or(".");
+    std::fs::create_dir_all(dir).map_err(|e| format!("{} : création du dossier impossible ({})", dir, e))?;
+    let targets: Vec<Target> = if o.scene {
+        vec![Target { name: o.scene_name.clone().unwrap_or_else(|| file_stem(&o.file)), id: None }]
+    } else {
+        exports.iter().filter(|(_, n)| o.names.is_empty() || o.names.iter().any(|w| w == n)).map(|(id, n)| Target { name: n.clone(), id: Some(*id) }).collect()
+    };
+    let mut messages = String::new();
+    let missing: Vec<&String> = o.names.iter().filter(|w| !exports.iter().any(|(_, n)| n == *w)).collect();
+    if !missing.is_empty() {
+        let _ = writeln!(messages, "symboles absents de {} : {}", o.file, missing.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(" "));
+    }
+
+    let mut index = String::new();
+    for target in &targets {
+        let total = match target.id {
+            None => exporter.cycle_of_timeline(&movie.tags, main_info, true, 0),
+            Some(id) => match exporter.chars.get(&id).copied() {
+                Some(Tag::DefineSprite(sp)) => {
+                    let info = exporter.sprite_timeline(sp);
+                    exporter.cycle_of_timeline(&sp.tags, info, true, 0)
+                }
+                _ => exporter.cycle(id, 0),
+            },
+        };
+        let (frames, several): (Vec<usize>, bool) = match o.frames {
+            Frames::One(n) => (vec![n], false),
+            Frames::Range(a, b) => ((a..=b).collect(), true),
+            Frames::All => ((1..=total).collect(), true),
+        };
+        // Rendu de chaque image ; plusieurs images partagent le même cadre (union) pour que les PNG
+        // aient la même taille et la même ancre.
+        let mut renders: Vec<(usize, String, String, Bounds, Vec<String>)> = Vec::new();
+        let mut union = Bounds::default();
+        for &n in &frames {
+            exporter.reset();
+            match target.id {
+                None => exporter.render_timeline(&movie.tags, main_info, &M::identity(), 0, n - 1, true),
+                Some(id) => exporter.render_symbol(id, n),
+            }
+            union = union.union(&exporter.bounds);
+            renders.push((n, std::mem::take(&mut exporter.defs), std::mem::take(&mut exporter.body), exporter.bounds, std::mem::take(&mut exporter.warnings)));
+        }
+        for (n, defs, body, bounds, warnings) in renders {
+            let b = if several { union } else { bounds };
+            let file = if several { format!("{}_f{:03}.svg", safe_name(&target.name), n) } else { format!("{}.svg", safe_name(&target.name)) };
+            let path = std::path::Path::new(dir).join(&file);
+            std::fs::write(&path, svg_document(&defs, &body, &b)).map_err(|e| format!("{} : écriture impossible ({})", path.display(), e))?;
+            let _ = writeln!(index, "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}", target.name, target.id.unwrap_or(0), fm(b.x0), fm(b.y0), fm(b.x1 - b.x0), fm(b.y1 - b.y0), warnings.join("; "), fm(b.x1), fm(b.y1), n, total, file);
+        }
+    }
+    let index_path = std::path::Path::new(dir).join("index.tsv");
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .append(o.append_index)
+        .truncate(!o.append_index)
+        .open(&index_path)
+        .map_err(|e| format!("{} : écriture impossible ({})", index_path.display(), e))?;
+    f.write_all(index.as_bytes()).map_err(|e| format!("{} : écriture impossible ({})", index_path.display(), e))?;
+    Ok(messages)
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let options = match parse_args(&args) {
+        Ok(o) => o,
+        Err(message) => {
+            if !message.is_empty() {
+                eprintln!("swfsvg : {}", message);
+            }
+            eprintln!("{}", USAGE);
+            std::process::exit(2);
+        }
+    };
+    match run(&options) {
+        Ok(out) => {
+            if options.list {
+                print!("{}", out);
+            } else if !out.is_empty() {
+                eprint!("{}", out);
+            }
+        }
+        Err(message) => {
+            eprintln!("swfsvg : {}", message);
+            std::process::exit(1);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn frames_are_parsed() {
+        assert_eq!(parse_frames("3"), Ok(Frames::One(3)));
+        assert_eq!(parse_frames("2-5"), Ok(Frames::Range(2, 5)));
+        assert_eq!(parse_frames("4-4"), Ok(Frames::One(4)));
+        assert_eq!(parse_frames("all"), Ok(Frames::All));
+        assert!(parse_frames("0").is_err());
+        assert!(parse_frames("5-2").is_err());
+        assert!(parse_frames("x").is_err());
+    }
+
+    #[test]
+    fn options_keep_the_historical_form() {
+        let o = parse_args(&args(&["a.swf", "out", "staticR", "staticL"])).unwrap();
+        assert_eq!((o.scene, o.list, o.frames), (false, false, Frames::One(1)));
+        assert_eq!(o.names, vec!["staticR", "staticL"]);
+        let o = parse_args(&args(&["--scene", "--frame=2", "a.swf", "out"])).unwrap();
+        assert!(o.scene && o.frames == Frames::One(2));
+        assert!(parse_args(&args(&["--scene", "a.swf", "out", "x"])).is_err());
+        assert!(parse_args(&args(&["--list", "a.swf", "out"])).is_err());
+        assert!(parse_args(&args(&["--bogus", "a.swf", "out"])).is_err());
+        assert!(parse_args(&args(&["a.swf"])).is_err());
+        let o = parse_args(&args(&["--scene", "--name", "16_1234", "a.swf", "out"])).unwrap();
+        assert_eq!(o.scene_name.as_deref(), Some("16_1234"));
+        assert!(parse_args(&args(&["--name", "x", "a.swf", "out"])).is_err());
+    }
+
+    #[test]
+    fn stop_is_found_outside_function_bodies() {
+        assert!(has_stop(&[0x07, 0x00]));
+        assert!(!has_stop(&[0x06, 0x00])); // Play
+        // Push "a" puis Stop
+        assert!(has_stop(&[0x96, 0x03, 0x00, 0x00, b'a', 0x00, 0x07, 0x00]));
+        // DefineFunction « f » sans paramètre, corps de 1 octet = Stop : ne compte pas.
+        assert!(!has_stop(&[0x9B, 0x06, 0x00, b'f', 0x00, 0x00, 0x00, 0x01, 0x00, 0x07, 0x00]));
+        // Bloc tronqué : pas de panique.
+        assert!(!has_stop(&[0x96, 0x10]));
+    }
+
+    #[test]
+    fn nested_clips_play_like_the_client() {
+        let looping = Timeline { frames: 26, stop: None };
+        assert_eq!(play_position(looping, 30, false), (4, false));
+        let stopped = Timeline { frames: 10, stop: Some(8) };
+        assert_eq!(play_position(stopped, 3, false), (3, false));
+        assert_eq!(play_position(stopped, 20, false), (8, true));
+        // La timeline demandée ignore ses stop() : son image est choisie directement.
+        assert_eq!(play_position(Timeline { frames: 3, stop: Some(0) }, 1, true), (1, false));
+        assert_eq!(play_position(Timeline { frames: 1, stop: None }, 7, true), (0, true));
+        assert_eq!(child_age(7, 0, true, 0), 7);
+        assert_eq!(child_age(30, 4, false, 0), 30);
+        assert_eq!(child_age(30, 4, false, 2), 2);
+    }
 }
