@@ -309,6 +309,9 @@
     </Compile>
     <Compile Include="Bot\Panels\ExchangePanel.cs" />
     <Compile Include="Bot\Panels\StoragePanel.cs" />
+    <Compile Include="Bot\Panels\ZaapiPanel.cs" />
+    <Compile Include="Bot\Panels\KeyCodePanel.cs" />
+    <Compile Include="Bot\Panels\DocumentPanel.cs" />
     <Compile Include="Bot\Panels\PartyArtworks.cs" />
     <Compile Include="Bot\Panels\PartyPanel.cs" />
     <Compile Include="Bot\Panels\InventoryPanel.cs" />
@@ -325,6 +328,7 @@
     <Compile Include="Bot\Menus\FightSwordsMenuProvider.cs" />
     <Compile Include="Bot\Menus\MonsterGroupMenuProvider.cs" />
     <Compile Include="Bot\Menus\NpcMenuProvider.cs" />
+    <Compile Include="Bot\Menus\InteractiveMenuProvider.cs" />
     <Compile Include="Bot\Menus\PartyMenuProvider.cs" />
     <Compile Include="Bot\Menus\PlayerMenuProvider.cs" />
     <Compile Include="Bot\LoginForm.Designer.cs">
@@ -719,10 +723,17 @@
     </ItemGroup>
     <Copy SourceFiles="@(BotLangAsset)" DestinationFolder="$(OutDir)ressources\Bot\BotLang" SkipUnchangedFiles="true" />
   </Target>
-  <!-- Décor exporté du client par tools/client-analysis/exporter_decor.py (PNG et ancres.tsv, voir Resources\Bot\Decor\PROVENANCE.md). -->
+  <!-- Documents du client (livres, parchemins, pancartes) exportés par tools/client-analysis/docs2xml.py : lus par DocumentDialog. -->
+  <Target Name="CopyBotDocsAssets" AfterTargets="Build">
+    <ItemGroup>
+      <BotDocsAsset Include="$(ProjectDir)Resources\Bot\BotDocs\*.xml" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BotDocsAsset)" DestinationFolder="$(OutDir)ressources\Bot\BotDocs" SkipUnchangedFiles="true" />
+  </Target>
+  <!-- Décor exporté du client par tools/client-analysis/exporter_decor.py (PNG et ancres.tsv) et exporter_etats_interactifs.py (ancres-etats.tsv), voir Resources\Bot\Decor\PROVENANCE.md. -->
   <Target Name="CopyBotDecorAssets" AfterTargets="Build">
     <ItemGroup>
-      <BotDecorAsset Include="$(ProjectDir)Resources\Bot\Decor\**\*.png;$(ProjectDir)Resources\Bot\Decor\ancres.tsv" />
+      <BotDecorAsset Include="$(ProjectDir)Resources\Bot\Decor\**\*.png;$(ProjectDir)Resources\Bot\Decor\ancres.tsv;$(ProjectDir)Resources\Bot\Decor\ancres-etats.tsv" />
     </ItemGroup>
     <Copy SourceFiles="@(BotDecorAsset)" DestinationFiles="@(BotDecorAsset->'$(OutDir)ressources\maps\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
