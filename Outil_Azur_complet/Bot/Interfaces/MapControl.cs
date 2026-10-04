@@ -65,6 +65,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
                 Account.Game.Map.RefreshMap += MapChange;
                 Account.Game.Map.RefreshEntities += RefreshEntities;
                 Account.Game.Map.EntityMovement += EntityMovement;
+                Account.Game.Map.ObjectStateChanged += ObjectStateChanged;
                 Account.Game.character.MoveMinimapPathfinding += GetPathfinding;
                 Account.Game.Manager.Mouvements.FinalizeMove += MovementFinished;
                 Account.Game.Fight.CombatChanged += CombatChanged;
@@ -84,7 +85,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
             // La fenêtre libère le compte avant ses contrôles : la partie peut être déjà libérée (gestionnaires à null).
             var game = Account.Game;
             if (game == null) return;
-            if (game.Map != null) { game.Map.RefreshMap -= MapChange; game.Map.RefreshEntities -= RefreshEntities; game.Map.EntityMovement -= EntityMovement; }
+            if (game.Map != null) { game.Map.RefreshMap -= MapChange; game.Map.RefreshEntities -= RefreshEntities; game.Map.EntityMovement -= EntityMovement; game.Map.ObjectStateChanged -= ObjectStateChanged; }
             if (game.character != null) game.character.MoveMinimapPathfinding -= GetPathfinding;
             if (game.Manager?.Mouvements != null) game.Manager.Mouvements.FinalizeMove -= MovementFinished;
             if (game.Fight != null) game.Fight.CombatChanged -= CombatChanged;
@@ -102,6 +103,8 @@ namespace Outil_Azur_complet.Bot.Interfaces
         }
 
         private void RefreshEntities() => OnUi(() => { RefreshSpellTargets(); UserMap.Invalidate(); });
+        // GDF : le décor dessine l'image de l'objet interactif reçue (BotMapArtwork lit Map.ObjectStates).
+        private void ObjectStateChanged(int cellId) => OnUi(UserMap.Invalidate);
         private void CombatChanged() => OnUi(RefreshSpellTargets);
 
         public void SelectSpell(short? id)

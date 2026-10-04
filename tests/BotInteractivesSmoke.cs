@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -217,6 +219,7 @@ internal static class BotInteractivesSmoke
                     Check(account.Game.character.Cell?.CellID == Self, "Self GM did not place the character");
 
                     Model(account);
+                    ArtworkFrames(account, folder);
                     Menus(account);
                     UseProtocol(account, peer, clock);
                     HarvestService(account, peer, clock);
@@ -277,6 +280,73 @@ internal static class BotInteractivesSmoke
         Feed(account, "GDF|" + Door + ";2");
         Check(map.Interactives[Door].State == InteractiveState.InUse && map.Interactives[Door].IsUsable, "A GDF without the interactive field changed IsUsable");
     }
+
+    /// <summary>Décor : image 2 de l'objet (objets/7500_2.png, ancres-etats.tsv) dessinée tant que GDF la demande, image 1 sinon.</summary>
+    private static void ArtworkFrames(Accounts account, string folder)
+    {
+        string decor = Path.Combine(folder, "decor");
+        Color full = Color.FromArgb(200, 30, 30), busy = Color.FromArgb(30, 30, 200);
+        Solid(Path.Combine(decor, "objets", "7500.png"), full);
+        Solid(Path.Combine(decor, "objets", "7500_2.png"), busy);
+        const string header = "# type\tid\txmin\tymin\tlargeur\thauteur\timage";
+        File.WriteAllLines(Path.Combine(decor, BotMapArtwork.AnchorFileName), new[] { header, "objet\t7500\t-2\t-4\t4\t4\t1" });
+        File.WriteAllLines(Path.Combine(decor, BotMapArtwork.StateAnchorFileName), new[] { header, "objet\t7500\t-2\t-4\t4\t4\t2", "objet\tx\t1\t2\t3\t4\t2" });
+        Map map = account.Game.Map;
+        var artwork = new BotMapArtwork(map, decor);
+        try
+        {
+            Check(artwork.WaitForAssets(10000), "Decor loading did not finish");
+            Check(artwork.LoadedAssetCount == 1 && artwork.LoadedStateAssetCount == 1 && artwork.AnchoredAssetCount == 1 && artwork.RejectedAnchorLines == 1,
+                "Frame 2 picture or ancres-etats.tsv not loaded (" + artwork.LoadedAssetCount + "/" + artwork.LoadedStateAssetCount + "/" + artwork.RejectedAnchorLines + ")");
+            Check(artwork.DrawnObjectFrame(Tree) == 1 && artwork.DrawnObjectFrame(FarTree) == 1 && artwork.DrawnObjectFrame(Self) == 0, "Initial object frames differ");
+            Check(Near(PixelOver(artwork, Tree), full), "Frame 1 of the tree is not drawn");
+            Feed(account, "GDF|" + Tree + ";2;0");
+            Check(artwork.DrawnObjectFrame(Tree) == 2 && artwork.DrawnObjectFrame(FarTree) == 1, "GDF frame 2 is not drawn on its cell only");
+            Check(Near(PixelOver(artwork, Tree), busy) && Near(PixelOver(artwork, FarTree), full), "Frame 2 picture is not drawn during the harvest");
+            Feed(account, "GDF|" + Tree + ";3;0");
+            Check(artwork.DrawnObjectFrame(Tree) == 1 && Near(PixelOver(artwork, Tree), full), "A frame without picture must draw frame 1");
+            Feed(account, "GDF|" + Tree + ";2;0");
+            map.MapID = OtherMapId;
+            bool otherMap = artwork.DrawnObjectFrame(Tree) == 1;
+            map.MapID = MapId;
+            Check(otherMap && artwork.DrawnObjectFrame(Tree) == 2, "States of another map were drawn");
+        }
+        finally { artwork.Dispose(); }
+        Check(artwork.DrawnObjectFrame(Tree) == 0 && artwork.LoadedStateAssetCount == 0, "A disposed artwork still has object frames");
+        Feed(account, "GDF|" + Tree + ";1;1");
+    }
+
+    private static void Solid(string path, Color color)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path));
+        using (var bitmap = new Bitmap(4, 4, PixelFormat.Format32bppArgb))
+        {
+            using (Graphics graphics = Graphics.FromImage(bitmap)) graphics.Clear(color);
+            bitmap.Save(path, ImageFormat.Png);
+        }
+    }
+
+    /// <summary>Pixel au-dessus du centre de la cellule (dans le PNG de 4 × 4 ancré en -2, -4), scène rendue hors écran.</summary>
+    private static Color PixelOver(BotMapArtwork artwork, int cell)
+    {
+        PointF center = artwork.Cells[cell].Center;
+        using (var bitmap = new Bitmap(420, 260, PixelFormat.Format32bppArgb))
+        {
+            using (Graphics graphics = Graphics.FromImage(bitmap))
+            {
+                graphics.Clear(Color.Transparent);
+                graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
+                graphics.PixelOffsetMode = PixelOffsetMode.Half;
+                graphics.TranslateTransform(40, 50);
+                artwork.DrawGround(graphics);
+                artwork.DrawDepthScene(graphics, null);
+            }
+            return bitmap.GetPixel((int)Math.Floor(center.X + 40), (int)Math.Floor(center.Y - 2 + 50));
+        }
+    }
+
+    private static bool Near(Color pixel, Color expected) => pixel.A > 200
+        && Math.Abs(pixel.R - expected.R) < 40 && Math.Abs(pixel.G - expected.G) < 40 && Math.Abs(pixel.B - expected.B) < 40;
 
     /// <summary>Menus des compétences : critère « J?V:- » (métier de l'outil équipé), zaap, porte, enclos (Rp).</summary>
     private static void Menus(Accounts account)

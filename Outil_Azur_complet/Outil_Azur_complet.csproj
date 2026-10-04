@@ -732,10 +732,10 @@
     </ItemGroup>
     <Copy SourceFiles="@(BotDocsAsset)" DestinationFolder="$(OutDir)ressources\Bot\BotDocs" SkipUnchangedFiles="true" />
   </Target>
-  <!-- Décor exporté du client par tools/client-analysis/exporter_decor.py (PNG et ancres.tsv, voir Resources\Bot\Decor\PROVENANCE.md). -->
+  <!-- Décor exporté du client par tools/client-analysis/exporter_decor.py (PNG et ancres.tsv) et exporter_etats_interactifs.py (ancres-etats.tsv), voir Resources\Bot\Decor\PROVENANCE.md. -->
   <Target Name="CopyBotDecorAssets" AfterTargets="Build">
     <ItemGroup>
-      <BotDecorAsset Include="$(ProjectDir)Resources\Bot\Decor\**\*.png;$(ProjectDir)Resources\Bot\Decor\ancres.tsv" />
+      <BotDecorAsset Include="$(ProjectDir)Resources\Bot\Decor\**\*.png;$(ProjectDir)Resources\Bot\Decor\ancres.tsv;$(ProjectDir)Resources\Bot\Decor\ancres-etats.tsv" />
     </ItemGroup>
     <Copy SourceFiles="@(BotDecorAsset)" DestinationFiles="@(BotDecorAsset->'$(OutDir)ressources\maps\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
