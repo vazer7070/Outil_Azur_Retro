@@ -115,7 +115,7 @@ internal static class BotUiSmoke
                     account.Game.Map.SetRefreshMap("7411|date|");account.Game.character.Cell=account.Game.Map.MapCells[282];
                     var mapView=(Outil_Azur_complet.Bot.Interfaces.MapControl)Get(dashboard,"mapControl");for(int wait=0;wait<200&&mapView.ArtworkStatus.StartsWith("Chargement du décor");wait++){Application.DoEvents();System.Threading.Thread.Sleep(50);}Check(mapView.ArtworkStatus.Contains("Décor chargé"),"Bundled map scenery is unavailable from the application directory");
                     Render(dashboard,"bot-astrub",true);mapView.ZoomIn();Render(dashboard,"bot-astrub-zoom",true);mapView.Fit();
-                    ((ComboBox)Get(dashboard,"channel")).SelectedIndex=5;((TextBox)Get(dashboard,"recipient")).Text="Destinataire fictif";Render(dashboard,"bot-discussion-privee",true);Check(((TextBox)Get(dashboard,"chatInput")).Width>=130,"Private recipient makes message entry unusable");dashboard.Close();
+                    var chat=(Outil_Azur_complet.Bot.Controls.Chat.ChatPanel)Get(dashboard,"chatPanel");chat.Prefill("/w Destinataire ");Render(dashboard,"bot-discussion-privee",true);Check(chat.Input.Width>=130&&chat.Input.Text=="/w Destinataire ","Private message entry is unusable");dashboard.Close();
                 }
             }
         }

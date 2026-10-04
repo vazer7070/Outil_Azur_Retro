@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Outil_Azur_complet.Bot.Interfaces;
 using Outil_Azur_complet.Bot.Controls;
+using Outil_Azur_complet.Bot.Controls.Chat;
 using Outil_Azur_complet.Bot.Panels;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Game.Perso.Spells;
@@ -15,7 +16,8 @@ namespace Outil_Azur_complet.Bot
 {
     /// <summary>
     /// Fenêtre de jeu : composition seulement. Barre de menus, carte (<see cref="MapControl"/> et son routeur de clics),
-    /// tiroir des volets (<see cref="Panels"/>) et bandeau bas (<see cref="HudPanel"/> : discussion, vie, raccourcis).
+    /// tiroir des volets (<see cref="Panels"/>) et bandeau bas (<see cref="HudPanel"/> : discussion <see cref="ChatPanel"/>,
+    /// vie, raccourcis).
     /// Chaque fonctionnalité vit dans son volet (<c>Bot/Panels</c>) ou son fournisseur de menu (<c>Bot/Menus</c>).
     /// </summary>
     public partial class GameClientFullform : Form
@@ -23,16 +25,11 @@ namespace Outil_Azur_complet.Bot
         public Accounts ActualCompte { get; set; }
         public Form FG;
         public List<string> DebugMessages = new List<string>();
-        public bool GeneralTchat=true, RecruitTchat, MarchandTchat, AlignTchat, GuildeTchat, GroupTchat, TeamTchat, AdminTchat, PMTchat;
-        public string WhoPM;
         private Panel mapArea;
         private Label summary, state, mapStatus;
-        private RichTextBox chat;
-        private TextBox chatInput, recipient;
-        private ComboBox channel;
-        private TableLayoutPanel composer;
-        private Panel privateRecipientBar;
-        private Control send;
+        private ChatPanel chatPanel;
+        private TableLayoutPanel root;
+        private Control lifeArea, shortcutsArea;
         private ProgressBar xp;
         private MapControl mapControl;
         private PanelHost drawer;
@@ -55,6 +52,12 @@ namespace Outil_Azur_complet.Bot
         public PanelHost Panels => drawer;
         /// <summary>Bandeau bas en trois emplacements (discussion, vie, raccourcis).</summary>
         public HudPanel Hud => hud;
+        /// <summary>Volet de discussion du bandeau.</summary>
+        public ChatPanel Chat => chatPanel;
+        /// <summary>Hauteur du bandeau bas quand le chat est réduit.</summary>
+        public const int HudHeight = 112;
+        /// <summary>Hauteur de carte gardée quand le chat est agrandi.</summary>
+        private const int MinimumMapHeight = 160;
 
         public GameClientFullform(Accounts account)
         {
@@ -64,12 +67,13 @@ namespace Outil_Azur_complet.Bot
         {
             BotUi.Prepare(this, "AzurClientRetro · " + ActualCompte.accountConfig.Account, new Size(1100, 760));
             KeyPreview = true;
-            var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
+            root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
                 Padding = new Padding(3), BackColor = BotUi.Frame, Margin = new Padding(0) };
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, HudHeight));
             Controls.Add(root);
+            root.Resize += (s,e) => UpdateHudHeight();
 
             var menu = new MenuStrip { Dock = DockStyle.Fill, BackColor = BotUi.FrameLight,
                 ForeColor = BotUi.PaperLight, Font = BotFonts.Get(9), GripStyle = ToolStripGripStyle.Hidden };
@@ -153,43 +157,35 @@ namespace Outil_Azur_complet.Bot
 
         private void BuildChat(HudPanel host)
         {
-            var chatArea = new ClientPanel { Dock = DockStyle.Fill, BackColor = BotUi.Paper, Padding = new Padding(5),
-                Margin = new Padding(0) };
-            chat = BotUi.Journal(); chat.Font = new Font("Tahoma", 8);
-            composer = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 29, ColumnCount = 4,
-                RowCount = 1, Margin = new Padding(0), Padding = new Padding(0, 3, 0, 0) };
-            composer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 92));
-            composer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
-            composer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            composer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 32));
-            channel = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList,
-                Font = new Font("Tahoma", 8), BackColor = BotUi.PaperLight, ForeColor = BotUi.Ink, Margin = new Padding(0,0,3,0) };
-            channel.Items.AddRange(new object[] { "Général", "Recrutement", "Commerce", "Guilde", "Groupe", "Privé" });
-            channel.SelectedIndex = 0;
-            recipient = BotUi.Input("Destinataire"); recipient.Dock = DockStyle.Fill; recipient.Font = channel.Font;
-            recipient.Margin = new Padding(0, 0, 3, 0);
-            privateRecipientBar = new Panel { Dock = DockStyle.Bottom, Height = 25, Padding = new Padding(0,1,0,1) };
-            var recipientLabel = BotUi.Label("À :", 8); recipientLabel.Dock = DockStyle.Left; recipientLabel.Width = 23;
-            privateRecipientBar.Controls.Add(recipient); privateRecipientBar.Controls.Add(recipientLabel);
-            chatInput = BotUi.Input("Message"); chatInput.Dock = DockStyle.Fill; chatInput.Font = channel.Font;
-            chatInput.Margin = new Padding(0, 0, 3, 0); chatInput.MaxLength = 250;
-            send = MiniButton("›", async (s,e) => await SpeakInTchat(), 32);
-            var sendImage = new System.ComponentModel.ComponentResourceManager(typeof(GameClientFullform)).GetObject("iTalk_Button_21.Image") as Image;
-            if (sendImage != null) { ((Button)send).Image = sendImage; send.Text = ""; }
-            send.Dock = DockStyle.Fill; send.Margin = new Padding(0); send.AccessibleName = "Envoyer le message";
-            toolTips.SetToolTip(send, "Envoyer (Entrée)"); toolTips.SetToolTip(recipient, "Nom du destinataire du message privé");
-            channel.SelectedIndexChanged += (s,e) => { ChangeChannel(); UpdateRecipientVisibility(); };
-            chatInput.KeyDown += async (s,e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; await SpeakInTchat(); } };
-            composer.Controls.Add(channel,0,0);
-            composer.Controls.Add(chatInput,2,0); composer.Controls.Add(send,3,0);
-            UpdateRecipientVisibility();
-            chatArea.Controls.Add(chat); chatArea.Controls.Add(privateRecipientBar); chatArea.Controls.Add(composer);
-            host.SetSlot(HudSlot.Left, chatArea);
+            chatPanel = new ChatPanel(ActualCompte, () => mapControl?.Router) { Dock = DockStyle.Fill };
+            chatPanel.SetSendImage(new System.ComponentModel.ComponentResourceManager(typeof(GameClientFullform)).GetObject("iTalk_Button_21.Image") as Image);
+            chatPanel.ExpandedChanged += OnChatExpanded;
+            chatPanel.CompassRequested += OnCompassRequested;
+            chatPanel.Feedback += ShowActionFeedback;
+            host.SetSlot(HudSlot.Left, chatPanel);
         }
+
+        /// <summary>Chat agrandi : le bandeau gagne jusqu'à 350 pixels (<c>OPEN_OFFSET</c>) pris sur la carte ; vie et raccourcis restent en bas.</summary>
+        private void OnChatExpanded(object sender, EventArgs e) => UpdateHudHeight();
+        private void UpdateHudHeight()
+        {
+            if (root == null || root.RowStyles.Count < 3 || chatPanel == null) return;
+            int extra = 0;
+            if (chatPanel.Expanded)
+                extra = Math.Max(0, Math.Min(ChatPanel.ExpandOffset, root.ClientSize.Height - root.Padding.Vertical - 28 - HudHeight - MinimumMapHeight));
+            if ((int)root.RowStyles[2].Height == HudHeight + extra) return;
+            foreach (Control part in new[] { lifeArea, shortcutsArea }) {
+                if (part == null) continue;
+                if (extra > 0 && part.Dock == DockStyle.Fill) { int height = part.Height; part.Dock = DockStyle.Bottom; part.Height = height; }
+                else if (extra == 0) part.Dock = DockStyle.Fill;
+            }
+            root.RowStyles[2].Height = HudHeight + extra;
+        }
+        private void OnCompassRequested(int x, int y) => ShowActionFeedback(ChatLinks.DescribeCompass(x, y, ActualCompte.Game?.Map));
 
         private void BuildLife(HudPanel host)
         {
-            var lifeArea = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0) };
+            lifeArea = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0) };
             life = new LifeOrb { Dock = DockStyle.Fill, Font = new Font("Tahoma", 8) };
             xp = new ProgressBar { Dock = DockStyle.Bottom, Height = 5, Maximum = 100, Style = ProgressBarStyle.Continuous };
             lifeArea.Controls.Add(life); lifeArea.Controls.Add(xp);
@@ -230,7 +226,7 @@ namespace Outil_Azur_complet.Bot
             nextSpellPage = MiniButton("›", (s,e) => ChangeSpellPage(1), 24); nextSpellPage.Height = 30;
             nextSpellPage.AccessibleName = "Page suivante de sorts"; slots.Controls.Add(nextSpellPage);
             shortcuts.Controls.Add(slots, 0, 2);
-            host.SetSlot(HudSlot.Right, shortcuts);
+            host.SetSlot(HudSlot.Right, shortcuts); shortcutsArea = shortcuts;
         }
 
         /// <summary>Tiroir des volets dans la zone de la carte ; les volets d'origine y sont enregistrés (masqués).</summary>
@@ -369,9 +365,8 @@ namespace Outil_Azur_complet.Bot
         }
         private void Subscribe()
         {
-            ActualCompte.Logger.log_eventChat+=ChatLog;ActualCompte.AccountStateEvent+=RefreshState;ActualCompte.AccountDisconnectEvent+=RefreshState;ActualCompte.Game.character.SeeLifeRegen+=displaylife;ActualCompte.Game.character.ChatPrivate+=AddPrivateToList;ActualCompte.Game.character.RefreshCaracteristiques+=RefreshState;ActualCompte.Game.character.Spells_Refresh+=RefreshState;ActualCompte.Game.Map.RefreshMap+=MapChanged;ActualCompte.Game.Fight.CombatChanged+=RefreshState;
+            ActualCompte.AccountStateEvent+=RefreshState;ActualCompte.AccountDisconnectEvent+=RefreshState;ActualCompte.Game.character.SeeLifeRegen+=displaylife;ActualCompte.Game.character.RefreshCaracteristiques+=RefreshState;ActualCompte.Game.character.Spells_Refresh+=RefreshState;ActualCompte.Game.Map.RefreshMap+=MapChanged;ActualCompte.Game.Fight.CombatChanged+=RefreshState;
         }
-        private void ChatLog(LogsMessages message,string color) { BotUi.OnUi(this,()=>BotUi.Append(chat,BotPacketRedactor.Redact(message.ToString(),ActualCompte),color)); }
         private void MapChanged() { BotUi.OnUi(this,()=> { InGameMap();RefreshState(); }); }
         public void InGameMap()
         {
@@ -394,13 +389,14 @@ namespace Outil_Azur_complet.Bot
                 summary.Text=(string.IsNullOrEmpty(c.Name)?"Personnage en cours de chargement":c.Name)+" · Niveau "+c.Level+" · Vie "+s.VitalityActual+"/"+s.MaxVitality+" · Kamas "+c.Kamas;
                 life.UpdateLife(s.VitalityActual, s.MaxVitality, c.Level);
                 toolTips.SetToolTip(life, "Vie : " + s.VitalityActual + "/" + s.MaxVitality + "\nNiveau : " + c.Level);
-                string activity=StateName(ActualCompte.AccountStates);state.Text=ActualCompte.ConnectionStatus==activity?activity:ActualCompte.ConnectionStatus+" · "+activity;send.Enabled=ActualCompte.Connexion!=null&&ActualCompte.Connexion.IsConnected();
+                string activity=StateName(ActualCompte.AccountStates);state.Text=ActualCompte.ConnectionStatus==activity?activity:ActualCompte.ConnectionStatus+" · "+activity;bool connected=ActualCompte.Connexion!=null&&ActualCompte.Connexion.IsConnected();
+                chatPanel?.RefreshState();
                 var fight = ActualCompte.Game.Fight;
                 combatTools.Visible = fight.IsInFight && !fight.IsSpectator; combatTools.Width = combatTools.Visible ? 135 : 0;
                 ready.Visible = fight.IsPlacement; ready.Text = fight.IsReady ? "Annuler" : "Prêt";
-                ready.Enabled = send.Enabled && fight.IsPlacement && !fight.IsActionPending;
+                ready.Enabled = connected && fight.IsPlacement && !fight.IsActionPending;
                 passTurn.Visible = fight.IsInFight && !fight.IsPlacement;
-                passTurn.Enabled = send.Enabled && fight.IsMyTurn && !fight.IsActionPending;
+                passTurn.Enabled = connected && fight.IsMyTurn && !fight.IsActionPending;
                 if (fight.IsInFight) summary.Text = fight.IsPlacement ? "Placement · choisissez votre cellule · F1 : prêt" :
                     (fight.IsMyTurn ? "Votre tour" : "Tour de " + fight.CurrentActorId) + " · " + fight.ActionPoints + " PA · " + fight.MovementPoints + " PM";
                 if (mapControl?.SelectedSpellId != null) {
@@ -418,31 +414,6 @@ namespace Outil_Azur_complet.Bot
         private static string StateName(AccountStates value)
         {
             switch(value) { case AccountStates.DISCONNECTED:return "Déconnecté";case AccountStates.CONNECTED:return "Connexion en cours";case AccountStates.CONNECTED_INACTIVE:return "Disponible";case AccountStates.MOVING:return "Déplacement";case AccountStates.FIGHTING:return "Combat";case AccountStates.GATHERING:return "Récolte";case AccountStates.DIALOG:return "Dialogue";case AccountStates.STORAGE:return "Stockage";case AccountStates.EXCHANGE:return "Échange";case AccountStates.BUYING:return "Achat";case AccountStates.SELLING:return "Vente";case AccountStates.REGENERATION:return "Régénération";case AccountStates.ZAAP:return "Zaap";default:return value.ToString(); }
-        }
-        public void AddPrivateToList(string who) { BotUi.OnUi(this,()=> { WhoPM=who;recipient.Text=who; }); }
-        private void ChangeChannel() { GeneralTchat=channel.SelectedIndex==0;RecruitTchat=channel.SelectedIndex==1;MarchandTchat=channel.SelectedIndex==2;GuildeTchat=channel.SelectedIndex==3;GroupTchat=channel.SelectedIndex==4;PMTchat=channel.SelectedIndex==5; }
-        private void UpdateRecipientVisibility() { privateRecipientBar.Visible=recipient.Enabled=recipient.Visible=channel.SelectedIndex==5; }
-        public async Task SpeakInTchat()
-        {
-            if(!send.Enabled||string.IsNullOrWhiteSpace(chatInput.Text))return;
-            string message=chatInput.Text;
-            if(message.IndexOfAny(new[] { '\r','\n','\0','|' })>=0) { BotUi.Append(chat,"Le message ne peut pas contenir de retour à la ligne ni de barre verticale.");return; }
-            try
-            {
-                if(message.Equals("/MAPID",StringComparison.OrdinalIgnoreCase))BotUi.Append(chat,"Carte : "+ActualCompte.Game.Map.MapID);
-                else if(message.Equals("/CELLID",StringComparison.OrdinalIgnoreCase))BotUi.Append(chat,"Cellule : "+ActualCompte.Game.character.Cell?.CellID);
-                else if(message.Equals("/PING",StringComparison.OrdinalIgnoreCase))await ActualCompte.Connexion.SendPacket("ping",true);
-                else
-                {
-                    if(channel.SelectedIndex==3&&!ActualCompte.Game.character.HasGuild) { BotUi.Append(chat,"Le personnage n’appartient pas à une guilde.");return; }
-                    if(channel.SelectedIndex==4&&!ActualCompte.Game.character.InGroupe) { BotUi.Append(chat,"Le personnage n’appartient pas à un groupe.");return; }
-                    string target=new[] { "*","?",":","%","$","" }[channel.SelectedIndex];
-                    if(PMTchat) { target=recipient.Text.Trim();if(string.IsNullOrEmpty(target)||target.IndexOfAny(new[] { '\r','\n','\0','|' })>=0) { BotUi.Append(chat,"Renseignez le nom du destinataire.");return; } }
-                    await ActualCompte.Connexion.SendPacket("BM"+target+"|"+message+"|",true);
-                }
-                chatInput.Clear();
-            }
-            catch(Exception ex) { BotUi.Append(chat,ex.Message); }
         }
         private void ShowPackets() { if(FG!=null&&!FG.IsDisposed) { FG.Activate();return; }FG=new FluxForm(ActualCompte);FG.Show(); }
         private void ChangeCharacter() { var config=ActualCompte.accountConfig;ActualCompte.Disconnect();new PersoSelection(config).Show();Close(); }
@@ -466,11 +437,11 @@ namespace Outil_Azur_complet.Bot
             if (mapControl != null) { mapControl.DisplayStateChanged -= UpdateMapDisplay; mapControl.SpellSelectionChanged -= SpellSelectionChanged; mapControl.ActionFeedback -= ShowActionFeedback; mapControl.Router.Panels = null; }
             foreach (var icon in spellIcons.Values) icon?.Dispose(); spellIcons.Clear();
             if (drawer != null) { drawer.Feedback -= ShowActionFeedback; drawer.ReleaseSession(); }
+            if (chatPanel != null) { chatPanel.ExpandedChanged -= OnChatExpanded; chatPanel.CompassRequested -= OnCompassRequested; chatPanel.Feedback -= ShowActionFeedback; chatPanel.ReleaseSession(); }
             if (ActualCompte == null) return;
-            if (ActualCompte.Logger != null) ActualCompte.Logger.log_eventChat-=ChatLog;
             ActualCompte.AccountStateEvent-=RefreshState;ActualCompte.AccountDisconnectEvent-=RefreshState;
             var game = ActualCompte.Game; if (game == null) return;
-            if (game.character != null) { game.character.SeeLifeRegen-=displaylife;game.character.ChatPrivate-=AddPrivateToList;game.character.RefreshCaracteristiques-=RefreshState;game.character.Spells_Refresh-=RefreshState; }
+            if (game.character != null) { game.character.SeeLifeRegen-=displaylife;game.character.RefreshCaracteristiques-=RefreshState;game.character.Spells_Refresh-=RefreshState; }
             if (game.Map != null) game.Map.RefreshMap-=MapChanged;
             if (game.Fight != null) game.Fight.CombatChanged-=RefreshState;
         }
