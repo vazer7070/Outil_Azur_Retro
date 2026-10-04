@@ -105,6 +105,8 @@ namespace Tool_BotProtocol.Game.Interactions
         public ZaapiDialog Zaapi { get; private set; }
         /// <summary>Groupe du personnage : invitations, membres, suivi, localisation (lot F1).</summary>
         public Groupes.PartyActions Party { get; private set; }
+        /// <summary>Amis, ennemis et conjoint : <c>F…</c> et <c>i…</c> (lot F2).</summary>
+        public Social.FriendsActions Friends { get; private set; }
 
         internal InteractionsClass(Accounts.Accounts account)
         {
@@ -118,8 +120,9 @@ namespace Tool_BotProtocol.Game.Interactions
             Storage = Exchanges.Get<Exchanges.StorageExchange>();
             Zaapi = new ZaapiDialog(account);
             Party = new Groupes.PartyActions(account);
+            Friends = new Social.FriendsActions(account);
         }
 
-        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); Party.Clear(); }
+        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); Party.Clear(); Friends.Clear(); }
     }
 }

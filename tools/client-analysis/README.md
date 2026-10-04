@@ -49,6 +49,7 @@ python3 exporter_sprites.py <client>/clips/sprites ../../Outil_Azur_complet/Reso
 | `exporter_sprites.py` | Enchaîne `swfsvg --list`, `--frame` et `--scene` sur `clips/sprites/<gfx>.swf`, convertit avec cairosvg, rogne les marges transparentes, assemble les cycles en bandes et écrit `ancres.tsv`. Voir la section « Sprites d'acteurs ». |
 | `exporter_icons.py` | Exporte les icônes et images que le client charge à l'exécution (objets, portraits, smileys, émotes, métiers, alignements, emblèmes, carte du monde, sorts manquants, symboles du bandeau et du chat de `core.swf`) vers `Outil_Azur_complet/Resources/Bot/<Famille>`, avec un `PROVENANCE.md` par famille. Voir la section « Icônes du client ». |
 | `exporter_groupe.py` | Exporte les petites illustrations `clips/artworks/mini` et les éléments du volet `Party` de `core.swf` (couronne, flèche du suivi, infobulle) vers `Outil_Azur_complet/Resources/Bot/{Artworks/Mini,Party}`. Voir la section « Volet Groupe ». |
+| `exporter_artworks.py` | Exporte les bustes des classes `clips/artworks/faces/<gfx>.swf` (scène principale, gfx = classe × 10 + sexe) vers `Outil_Azur_complet/Resources/Bot/Artworks/Faces` pour la fiche du conjoint du volet Amis ; commande et provenance dans son `PROVENANCE.md`, tests dans `tests/test_exporter_artworks.py`. |
 
 ## `swfsvg` : symboles, scène, images et index
 

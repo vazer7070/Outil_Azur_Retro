@@ -137,6 +137,7 @@
     <Compile Include="Frames\Jeu\EmoteFrame.cs" />
     <Compile Include="Frames\Jeu\ExchangeFrame.cs" />
     <Compile Include="Frames\Jeu\FightsFrame.cs" />
+    <Compile Include="Frames\Jeu\FriendsFrame.cs" />
     <Compile Include="Frames\Jeu\GuildFrame.cs" />
     <Compile Include="Frames\Jeu\InteractionFrame.cs" />
     <Compile Include="Frames\Jeu\InteractiveFrame.cs" />
@@ -248,6 +249,8 @@
     <Compile Include="Game\Perso\Stats\StatsEnum.cs" />
     <Compile Include="Game\Session\GameSession.cs" />
     <Compile Include="Game\Session\ServerMessage.cs" />
+    <Compile Include="Game\Social\Friends.cs" />
+    <Compile Include="Game\Social\FriendsActions.cs" />
     <Compile Include="Json\AccountsJson.cs" />
     <Compile Include="Json\Config.cs" />
     <Compile Include="Network\ByPass\ByPassLauncher.cs" />
