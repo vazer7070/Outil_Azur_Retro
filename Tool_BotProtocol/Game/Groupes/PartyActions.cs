@@ -279,7 +279,8 @@ namespace Tool_BotProtocol.Game.Groupes
                 Inform(PartyTexts.Get("YOU_INVITE_B_IN_PARTY", "Invitation envoyée à {0} : en attente de sa réponse.", target));
                 return Task.CompletedTask;
             }
-            if (!string.Equals(target, self, StringComparison.Ordinal)) return Task.CompletedTask;
+            // L'invité est le nom tapé par l'invitant (StarLoco le retrouve sans tenir compte de la casse) : même règle ici.
+            if (!string.Equals(target, self, StringComparison.OrdinalIgnoreCase)) return Task.CompletedTask;
             if (IsIgnored(inviter))
             {
                 account?.Logger?.LogInfo(Reference, "Invitation de groupe de " + inviter + " refusée : joueur ignoré pour la session.");

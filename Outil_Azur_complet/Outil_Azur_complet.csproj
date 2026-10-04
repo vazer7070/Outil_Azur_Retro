@@ -307,6 +307,8 @@
     </Compile>
     <Compile Include="Bot\Panels\ExchangePanel.cs" />
     <Compile Include="Bot\Panels\StoragePanel.cs" />
+    <Compile Include="Bot\Panels\PartyArtworks.cs" />
+    <Compile Include="Bot\Panels\PartyPanel.cs" />
     <Compile Include="Bot\Panels\InventoryPanel.cs" />
     <Compile Include="Bot\Panels\StatsPanel.cs" />
     <Compile Include="Bot\Panels\SpellsPanel.cs" />
@@ -319,6 +321,7 @@
     </Compile>
     <Compile Include="Bot\Interfaces\InteractionRouter.cs" />
     <Compile Include="Bot\Menus\NpcMenuProvider.cs" />
+    <Compile Include="Bot\Menus\PartyMenuProvider.cs" />
     <Compile Include="Bot\LoginForm.Designer.cs">
       <DependentUpon>LoginForm.cs</DependentUpon>
     </Compile>
