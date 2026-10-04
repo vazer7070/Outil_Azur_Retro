@@ -343,6 +343,29 @@
     <Compile Include="Bot\Menus\FriendsMenuProvider.cs" />
     <Compile Include="Bot\Menus\PlayerMenuProvider.cs" />
     <Compile Include="Bot\Shortcuts.cs" />
+    <Compile Include="Bot\Controls\Banner\BannerArt.cs" />
+    <Compile Include="Bot\Controls\Banner\LifeHeart.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Banner\PointsViewer.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Banner\CircleGauge.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Banner\XtraBox.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Banner\ShortcutBar.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Banner\CenterText.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Banner\MainMenuPopup.cs" />
+    <Compile Include="Bot\Controls\Banner\BannerPanel.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Bot\LoginForm.Designer.cs">
       <DependentUpon>LoginForm.cs</DependentUpon>
     </Compile>
