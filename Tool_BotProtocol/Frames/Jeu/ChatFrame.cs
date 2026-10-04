@@ -1,77 +1,43 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Tool_BotProtocol.Frames.Messages;
+﻿using Tool_BotProtocol.Frames.Messages;
+using Tool_BotProtocol.Game.Chat;
 using Tool_BotProtocol.Network;
 
 namespace Tool_BotProtocol.Frames.Jeu
 {
-    class ChatFrame : Frame
+    /// <summary>
+    /// Chat : <c>cMK</c>, <c>cME</c>, <c>cC±</c>, <c>cS</c>, <c>cs</c>, <c>M1</c>. Propriétaire : lot C1. La lecture et l'état sont dans
+    /// <see cref="ChatService"/> ; un paquet mal formé est journalisé en débogage et ignoré.
+    /// </summary>
+    internal class ChatFrame : Frame
     {
+        private static ChatService Chat(TcpClient client) => client?.account?.Game?.Chat;
+
+        /// <summary><c>cC+&lt;lettres&gt;</c> : écho d'un abonnement, ou liste des canaux à l'entrée en jeu.</summary>
         [MessageAttribution("cC+")]
-        public void AddCanal(TcpClient client, string message) => client.account.Game.character.AddCanalPlayer(message.Substring(3));
+        public void AddCanal(TcpClient client, string message) => Chat(client)?.OnSubscriptionPacket(message);
+
+        /// <summary><c>cC-&lt;lettres&gt;</c> : écho d'un désabonnement.</summary>
         [MessageAttribution("cC-")]
-        public void DeleteCanal(TcpClient client, string message) => client.account.Game.character.DeleteCanalPlayer(message.Substring(3));
+        public void DeleteCanal(TcpClient client, string message) => Chat(client)?.OnSubscriptionPacket(message);
+
+        /// <summary><c>cMK&lt;canal&gt;|&lt;id&gt;|&lt;nom&gt;|&lt;texte&gt;[|…]</c> : message d'un canal, chuchotement reçu (F) ou envoyé (T).</summary>
         [MessageAttribution("cMK")]
-        public void GetTchat(TcpClient client, string message)
-        {
-            string[] part = message.Substring(3).Split('|');
-            string canal = string.Empty;
-            switch (part[0])
-            {
-                case "?":
-                    canal = "RECRUTEMENT";
-                    client.account.Logger.LogRecruitTchat(canal, $"{part[2]}:{part[3]}");
-                    break;
+        public void GetTchat(TcpClient client, string message) => Chat(client)?.OnMessagePacket(message);
 
-                case ":":
-                    canal = "COMMERCE";
-                    client.account.Logger.LogCommerceTchat(canal, $"{part[2]}:{part[3]}");
-                    break;
+        /// <summary><c>cMEf&lt;nom&gt;</c> : destinataire d'un chuchotement absent.</summary>
+        [MessageAttribution("cME")]
+        public void ChatError(TcpClient client, string message) => Chat(client)?.OnErrorPacket(message);
 
-                case "^":
-                    canal = "INCARNAM";
-                    client.account.Logger.log_normal(canal, $"{part[2]}:{part[3]}");
-                    break;
+        /// <summary><c>cS&lt;acteur&gt;|&lt;smiley&gt;</c> : smiley au-dessus d'un acteur de la carte ou du combat.</summary>
+        [MessageAttribution("cS")]
+        public void Smiley(TcpClient client, string message) => Chat(client)?.OnSmileyPacket(message);
 
-                case "i":
-                    canal = "INFORMATION";
-                    client.account.Logger.log_normal(canal, $"{part[2]}:{part[3]}");
-                    break;
+        /// <summary><c>cs&lt;texte&gt;</c> : message du serveur dans le chat (message du jour, annonces, commandes « . »).</summary>
+        [MessageAttribution("cs")]
+        public void ServerNotice(TcpClient client, string message) => Chat(client)?.OnServerNoticePacket(message);
 
-                case "#":
-                    canal = "EQUIPE";
-                    client.account.Logger.LogTchatTeam(canal, $"{part[2]}:{part[3]}");
-                    break;
-
-                case "$":
-                    canal = "GROUPE";
-                    client.account.Logger.LogTchatGroupe(canal, $"{part[2]}:{part[3]}");
-                    break;
-
-                case "%":
-                    canal = "GUILDE";
-                    client.account.Logger.LogTchatGuild(canal, $"{part[2]}:{part[3]}");
-                    break;
-                case "@":
-                    canal = "ADMIN";
-                    client.account.Logger.LogAdminTchat(canal, $"{part[2]}:{part[3]}");
-                    break;
-                case "F":
-                    client.account.Logger.LogTchatPrivate("MP reçu", $"{part[2]}:{part[3]}");
-                    client.account.Game.character.CheckWhoSpeak(part[2]);
-                    // réponse auto en privé
-                    break;
-                case "T":
-                    client.account.Logger.LogTchatPrivate("MP envoyé", $"{part[2]}:{part[3]}");
-                    break;
-                    default:
-                    canal = "GÉNÉRAL";
-                    client.account.Logger.log_normal(canal, $"{part[2]}:{part[3]}");
-                    break;
-            }
-        }
+        /// <summary><c>M1&lt;id&gt;[|&lt;a;b&gt;[|&lt;nom&gt;]]</c> : message serveur en fenêtre ; <c>M10</c> = anti-flood du canal général.</summary>
+        [MessageAttribution("M1")]
+        public void ServerPopup(TcpClient client, string message) => Chat(client)?.OnServerPopupPacket(message);
     }
 }
