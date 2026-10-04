@@ -11,9 +11,10 @@ using Tool_BotProtocol.Game.Maps.Interfaces;
 namespace Outil_Azur_complet.Bot.Menus
 {
     /// <summary>
-    /// Entrées de groupe des menus de joueurs, comme <c>getPlayerPopupMenu</c> et <c>PartyItem.addPartyMenuItems</c> du client 1.34.
-    /// Sur un autre joueur de la carte : « Inviter dans mon groupe » (<c>PI&lt;nom&gt;</c>). Sur son propre personnage, quand un
-    /// groupe ou une invitation existe : « Afficher le groupe » (volet du tiroir, qui remplace le bandeau <c>Party</c> du client).
+    /// Entrées de groupe des menus de joueurs, comme <c>PartyItem.addPartyMenuItems</c> du client 1.34. « Inviter dans le groupe »
+    /// (<c>PI&lt;nom&gt;</c>) sur un autre joueur de la carte est déjà fourni par <c>PlayerMenuProvider</c> (lot des actions de la
+    /// carte) : ce fournisseur ne le répète pas. Sur son propre personnage, quand un groupe ou une invitation envoyée existe :
+    /// « Groupe… » (volet du tiroir, qui remplace le bandeau <c>Party</c> toujours visible du client).
     /// Le menu d'un membre (<see cref="MemberEntries"/>) est ouvert depuis le volet Groupe : localiser (<c>PW</c>), quitter
     /// (<c>PV</c>), suivre (<c>PF±&lt;id&gt;</c>), faire suivre par tout le groupe (<c>PG±&lt;id&gt;</c>) et exclure (<c>PV&lt;id&gt;</c>).
     /// </summary>
@@ -25,20 +26,10 @@ namespace Outil_Azur_complet.Bot.Menus
         public IEnumerable<MenuEntry> Entries(Entites a, GameClass g)
         {
             PartyActions party = g?.Interactions?.Party;
-            if (a == null || party == null) yield break;
-            if (ActorClassifier.IsSelf(a, g))
-            {
-                if (!party.Group.IsActive && party.OutgoingInvitee == null) yield break;
-                yield return new MenuEntry(PartyTexts.Get("PARTY", "Groupe") + "…", ShowPanel)
-                { Infobulle = "Affiche le volet Groupe : membres, suivi, localisation" };
-                yield break;
-            }
-            string name = ActorClassifier.DisplayName(a);
-            var invite = new MenuEntry(PartyTexts.Get("ADD_TO_PARTY", "Inviter dans le groupe"), context => Run(() => party.InviteAsync(name)))
-            { Infobulle = "Envoie PI" + name };
-            if (party.Group.Contains(name)) { invite.Activé = false; invite.Infobulle = name + " fait déjà partie du groupe."; }
-            else if (party.Group.IsActive && party.Group.IsFull) { invite.Activé = false; invite.Infobulle = "Le groupe compte déjà " + Groupe.MaxMembers + " membres."; }
-            yield return invite;
+            if (a == null || party == null || !ActorClassifier.IsSelf(a, g)) yield break;
+            if (!party.Group.IsActive && party.OutgoingInvitee == null) yield break;
+            yield return new MenuEntry(PartyTexts.Get("PARTY", "Groupe") + "…", ShowPanel)
+            { Infobulle = "Affiche le volet Groupe : membres, suivi, localisation" };
         }
 
         /// <summary>
