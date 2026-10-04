@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Tool_BotProtocol.Frames.Messages;
@@ -24,7 +25,7 @@ namespace Outil_Azur_complet.Bot
         {
             var root=BotUi.Window(this,"Bot · Préparation","Chargement des ressources locales avant la connexion.");
             var card=BotUi.Card("Ressources du bot","L’absence d’une ressource est indiquée ci-dessous. La connexion reste disponible pour le diagnostic.");
-            journal=BotUi.Journal();status=BotUi.Status("Préparation…");progress=new ProgressBar { Dock=DockStyle.Bottom,Height=18,Maximum=8 };
+            journal=BotUi.Journal();status=BotUi.Status("Préparation…");progress=new ProgressBar { Dock=DockStyle.Bottom,Height=18,Maximum=12 };
             retry=BotUi.Button("Retenter",async(s,e)=>await LoadDataAsync(),false,120);proceed=BotUi.Button("Ouvrir la connexion",(s,e)=>OpenLoginForm(),true,190);proceed.Enabled=false;
             BotUi.Body(card).Controls.Add(journal);BotUi.Body(card).Controls.Add(status);BotUi.Body(card).Controls.Add(progress);BotUi.Body(card).Controls.Add(BotUi.Actions(proceed,retry,BotUi.Button("Fermer",(s,e)=>Close(),false,100)));root.Controls.Add(card,0,1);
             Load+=async(s,e)=>await LoadDataAsync();
@@ -37,8 +38,10 @@ namespace Outil_Azur_complet.Bot
                 foreach(var folder in new[] { "BotMaps","BotObjets","BotJobs","AccountSingle","BotZaaps","BotNPCs","BotMonsters","BotSorts" })Directory.CreateDirectory(Path.Combine(".","ressources","Bot",folder));
                 MessagesReception.Init();
                 await LoadStep("Métiers",Jobs.LoadAllJobsAsync,()=>Jobs.AllJobs.Count);await LoadStep("Cartes",Map.LoadAllMapsAsync,()=>Map.AllBotMaps.Count);await LoadStep("Monstres",Monstres.LoadAllMonstersAsync,()=>Monstres.AllMonstersTemplate.Count);await LoadStep("Personnages non joueurs",PNJ.LoadAllNPCAsync,()=>PNJ.AllPNJ.Count);await LoadStep("Zaaps",Zaaps.LoadZaapsAsync,()=>Zaaps.Z.Count);await LoadStep("Objets",InventoryClass.LoadAllObjectsAsync,()=>InventoryObjects.FullInventory.Count);await LoadStep("Sorts",()=>Task.Run((Action)Spell.LoadAllSpells),()=>Spell.AllSpells.Count);
+                await LoadStep("Objets interactifs",InteractivesParent.LoadAllInteractivesAsync,()=>InteractivesParent.Count);await LoadStep("Cellules déclencheurs",Triggers.LoadAllTriggersAsync,()=>Triggers.Count);await LoadStep("Zaapis",Zaaps.LoadZaapisAsync,()=>Zaaps.Zaapis.Count);await LoadStep("Panoplies",ItemSets.LoadAllItemSetsAsync,()=>ItemSets.Count);
                 if (IsDisposed || Disposing) return;
                 foreach(var warning in Map.LoadWarnings) { failures++;BotUi.Append(journal,"Carte ignorée : "+warning); }
+                foreach(var warning in InteractivesParent.LoadWarnings.Concat(Triggers.LoadWarnings).Concat(Zaaps.LoadWarnings).Concat(ItemSets.LoadWarnings).Take(20))BotUi.Append(journal,"Ressource du serveur : "+warning);
                 status.Text="Indexation des décors PNG…";
                 await Outil_Azur_complet.Bot.Controls.BotMapArtwork.WarmupAsync();
                 if (IsDisposed || Disposing) return;
