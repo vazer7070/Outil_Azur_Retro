@@ -65,6 +65,7 @@ try {
     $azurTests += 'BotExchangeSmoke'
     $azurTests += 'BotMapActionsSmoke'
     $azurTests += 'BotClientIconsSmoke'
+    $azurTests += 'BotInteractivesSmoke'
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'
@@ -136,6 +137,10 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de exporter_sprites.py.' }
         & $azurPython.Source (Join-Path $azurRoot 'tools\client-analysis\tests\test_exporter_icons.py')
         if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de exporter_icons.py.' }
+        & $azurPython.Source (Join-Path $azurRoot 'tools\client-analysis\test_docs2xml.py')
+        if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de docs2xml.py.' }
+        & $azurPython.Source (Join-Path $azurRoot 'tools\client-analysis\tests\test_exporter_etats_interactifs.py')
+        if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de exporter_etats_interactifs.py.' }
     }
     Write-Host "$($azurTests.Count) tests réussis. Fichiers temporaires et journaux : $azurWork"
 }

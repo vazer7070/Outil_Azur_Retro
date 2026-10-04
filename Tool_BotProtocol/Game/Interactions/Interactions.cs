@@ -85,7 +85,7 @@ namespace Tool_BotProtocol.Game.Interactions
         protected abstract void Reset();
     }
 
-    /// <summary>Fenêtres de jeu du personnage : dialogue PNJ, zaaps, boutique PNJ et échanges.</summary>
+    /// <summary>Fenêtres de jeu du personnage : dialogue PNJ, zaaps, boutique PNJ, échanges, objets interactifs et zaapis.</summary>
     public sealed class InteractionsClass
     {
         /// <summary>Défis, agressions, combats de la carte et « qui est » (lot M4).</summary>
@@ -97,8 +97,12 @@ namespace Tool_BotProtocol.Game.Interactions
         public Exchanges.ExchangeRegistry Exchanges { get; private set; }
         /// <summary>Échange avec un joueur ou un PNJ (types 1 et 2), demandes <c>ERK</c> comprises (lot F4).</summary>
         public Exchanges.PlayerExchange Exchange { get; private set; }
+        /// <summary>Objets interactifs : <c>GA500</c>, action 501, codes <c>K</c>, documents <c>d</c> (lot M3).</summary>
+        public InteractiveActions Interactive { get; private set; }
         /// <summary>Coffre ou banque (type 5) (lot F4).</summary>
         public Exchanges.StorageExchange Storage { get; private set; }
+        /// <summary>Zaapis : <c>Wc</c>, <c>Wu</c>, <c>Wv</c> (lot M3).</summary>
+        public ZaapiDialog Zaapi { get; private set; }
 
         internal InteractionsClass(Accounts.Accounts account)
         {
@@ -108,9 +112,11 @@ namespace Tool_BotProtocol.Game.Interactions
             Exchanges = new Exchanges.ExchangeRegistry(account);
             Shop = Exchanges.Get<NpcShop>();
             Exchange = Exchanges.Get<Exchanges.PlayerExchange>();
+            Interactive = new InteractiveActions(account);
             Storage = Exchanges.Get<Exchanges.StorageExchange>();
+            Zaapi = new ZaapiDialog(account);
         }
 
-        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); }
+        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); }
     }
 }
