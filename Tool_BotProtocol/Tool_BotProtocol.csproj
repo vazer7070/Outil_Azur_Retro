@@ -146,6 +146,7 @@
     <Compile Include="Frames\Jeu\NoCheatFrame.cs" />
     <Compile Include="Frames\Jeu\PartyFrame.cs" />
     <Compile Include="Frames\Jeu\ServerSelectionFrame.cs" />
+    <Compile Include="Frames\Jeu\SessionFrame.cs" />
     <Compile Include="Frames\Jeu\SpellFrame.cs" />
     <Compile Include="Frames\Messages\MessageAttribution.cs" />
     <Compile Include="Frames\Messages\MessagesData.cs" />
@@ -194,6 +195,7 @@
     <Compile Include="Game\Perso\Inventory\InventoryObjects.cs" />
     <Compile Include="Game\Perso\Inventory\InventoryUtilities.cs" />
     <Compile Include="Game\Perso\Personnages.cs" />
+    <Compile Include="Game\Perso\PlayerRestrictions.cs" />
     <Compile Include="Game\Perso\Spells\Shaper.cs" />
     <Compile Include="Game\Perso\Spells\Spell.cs" />
     <Compile Include="Game\Perso\Spells\SpellActionZone.cs" />
@@ -204,6 +206,8 @@
     <Compile Include="Game\Perso\Stats\CharacterStats.cs" />
     <Compile Include="Game\Perso\Stats\StatsBase.cs" />
     <Compile Include="Game\Perso\Stats\StatsEnum.cs" />
+    <Compile Include="Game\Session\GameSession.cs" />
+    <Compile Include="Game\Session\ServerMessage.cs" />
     <Compile Include="Json\AccountsJson.cs" />
     <Compile Include="Json\Config.cs" />
     <Compile Include="Network\ByPass\ByPassLauncher.cs" />

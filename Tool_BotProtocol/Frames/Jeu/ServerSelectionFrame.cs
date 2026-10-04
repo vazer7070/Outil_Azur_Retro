@@ -74,8 +74,8 @@ namespace Tool_BotProtocol.Frames.Jeu
             if (account.Game.Server.ExitCreationMenu && createdId > 0)
             {
                 account.Game.Server.ExitCreationMenu = false;
+                // AS seul : « AF » est la recherche d'ami du client (AF<nom>) et StarLoco l'ignore sur le serveur de jeu.
                 await client.SendPacket("AS" + createdId).ConfigureAwait(false);
-                await client.SendPacket("AF").ConfigureAwait(false);
             }
             else
             {
@@ -83,11 +83,6 @@ namespace Tool_BotProtocol.Frames.Jeu
                 account.SetConnectionStatus("Choisissez un personnage");
                 account.Game.Server.AddCharacterMenu();
             }
-        }
-        [MessageAttribution("BT")]
-        public void GetServerTime(TcpClient client, string message)
-        {
-            // GI is sent once when GDM delivers the map; BT is only the server clock.
         }
         [MessageAttribution("ASK")]
         public async Task HaveSelectedPerso(TcpClient client, string message)
@@ -122,7 +117,8 @@ namespace Tool_BotProtocol.Frames.Jeu
             account.Game.character.AFK_Timer.Change(1200000, 1200000);
             account.SetConnectionStatus("Chargement de la carte…");
             account.AccountStates = AccountStates.CONNECTED_INACTIVE;
-            await client.SendPacket("BYA").ConfigureAwait(false);
+            // Comme le client 1.34 : GC1 seul. « BYA » est la bascule « absent » (Basics.away) : StarLoco marquerait
+            // le personnage absent et répondrait Im037 (matrice §2 n° 35).
             await client.SendPacket("GC1").ConfigureAwait(false);
         }
     }

@@ -25,6 +25,8 @@ namespace Tool_BotProtocol.Game
         public Manager Manager { get; private set; }
         /// <summary>Fenêtres ouvertes par le serveur : dialogue PNJ, zaaps, boutique PNJ.</summary>
         public Interactions.InteractionsClass Interactions { get; private set; }
+        /// <summary>État de session annoncé par le serveur (GCK, AR, Ac, BT, AN, Im) et invitations reçues.</summary>
+        public Session.GameSession Session { get; private set; }
         public ConcurrentDictionary<int, Dictionary<string, Cell>> PersoInWorld;
          internal GameClass(Accounts.Accounts A)
         {
@@ -34,6 +36,7 @@ namespace Tool_BotProtocol.Game
             Manager = new Manager(A, Map, character);
             Fight = new Fights(A);
             Interactions = new Interactions.InteractionsClass(A);
+            Session = new Session.GameSession(A);
             PersoInWorld = new ConcurrentDictionary<int, Dictionary<string, Cell>>();
         }
         public void Clear()
@@ -42,6 +45,7 @@ namespace Tool_BotProtocol.Game
             {
                 if (disposed) return;
            Interactions.Clear();
+           Session.Clear();
            Manager.Clear();
            Fight.Clear(false);
            Map.Clear();

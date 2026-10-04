@@ -20,6 +20,8 @@ namespace Tool_BotProtocol.Game.Perso
         public int GraphicsScaleX { get; set; } = 100;
         public int GraphicsScaleY { get; set; } = 100;
         public string Name { get; set; }
+        /// <summary>Restrictions du joueur (masques <c>AR</c> du client, voir <see cref="PlayerRestrictions"/>) ; aucune par défaut.</summary>
+        public PlayerRestrictions Restrictions { get; set; }
 
         private bool disposed;
         public Personnages(int Id, string N, byte S, Cell C)

@@ -212,7 +212,7 @@ internal static class BotHandshakeSmoke
                         await account.Connexion.SendPacket("AS8");
                         await Expect(gamePeer, "AS8");
                         Send(gamePeer, "ASK|8|Second|120|2|1|20|0|0|0|\0");
-                        await Expect(gamePeer, "BYA");
+                        // Like the 1.34 client: GC1 only (BYA would mark the character away on StarLoco).
                         await Expect(gamePeer, "GC1");
                         Check(account.Game.character.id == 8 && account.Game.character.Name == "Second" && account.Game.character.Level == 120 && account.Game.character.Sex == 1,
                             "ASK did not apply the selected character");
