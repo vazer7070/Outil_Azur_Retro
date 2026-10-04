@@ -136,6 +136,7 @@
     <Compile Include="Frames\Jeu\ChatFrame.cs" />
     <Compile Include="Frames\Jeu\EmoteFrame.cs" />
     <Compile Include="Frames\Jeu\ExchangeFrame.cs" />
+    <Compile Include="Frames\Jeu\FightsFrame.cs" />
     <Compile Include="Frames\Jeu\GuildFrame.cs" />
     <Compile Include="Frames\Jeu\InteractionFrame.cs" />
     <Compile Include="Frames\Jeu\InteractiveFrame.cs" />
@@ -155,6 +156,9 @@
     <Compile Include="Game\Accounts\Accounts.cs" />
     <Compile Include="Game\Accounts\AccountStates.cs" />
     <Compile Include="Game\Actions\GameActionRouter.cs" />
+    <Compile Include="Game\Actions\MapActions.cs" />
+    <Compile Include="Game\Actions\MapActionTexts.cs" />
+    <Compile Include="Game\Actions\MapFights.cs" />
     <Compile Include="Game\Combats\FightActions.cs" />
     <Compile Include="Game\Combats\FightEffects.cs" />
     <Compile Include="Game\Combats\FightResult.cs" />
@@ -217,6 +221,7 @@
     <Compile Include="Game\Maps\Interfaces\Entites.cs" />
     <Compile Include="Game\Maps\Map.cs" />
     <Compile Include="Game\Maps\Map.Actors.cs" />
+    <Compile Include="Game\Maps\Map.Capabilities.cs" />
     <Compile Include="Game\Maps\GmParser.cs" />
     <Compile Include="Game\Maps\Mouvements\PathfinderUtils.cs" />
     <Compile Include="Game\Monstres\Monstres.cs" />

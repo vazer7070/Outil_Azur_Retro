@@ -88,6 +88,8 @@ namespace Tool_BotProtocol.Game.Interactions
     /// <summary>Fenêtres de jeu du personnage : dialogue PNJ, zaaps, boutique PNJ, échanges, objets interactifs et zaapis.</summary>
     public sealed class InteractionsClass
     {
+        /// <summary>Défis, agressions, combats de la carte et « qui est » (lot M4).</summary>
+        public Actions.MapActions MapActions { get; private set; }
         public NpcDialog Npc { get; private set; }
         public ZaapDialog Zaap { get; private set; }
         public NpcShop Shop { get; private set; }
@@ -104,6 +106,7 @@ namespace Tool_BotProtocol.Game.Interactions
 
         internal InteractionsClass(Accounts.Accounts account)
         {
+            MapActions = new Actions.MapActions(account);
             Npc = new NpcDialog(account);
             Zaap = new ZaapDialog(account);
             Exchanges = new Exchanges.ExchangeRegistry(account);
@@ -114,6 +117,6 @@ namespace Tool_BotProtocol.Game.Interactions
             Zaapi = new ZaapiDialog(account);
         }
 
-        public void Clear() { Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); }
+        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); }
     }
 }

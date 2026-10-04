@@ -293,6 +293,7 @@
     <Compile Include="Bot\BotDialogs.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="Bot\MapActionPrompts.cs" />
     <Compile Include="Bot\Panels\IGamePanel.cs" />
     <Compile Include="Bot\Panels\GamePanel.cs" />
     <Compile Include="Bot\Panels\PanelHost.cs">
@@ -300,6 +301,7 @@
     </Compile>
     <Compile Include="Bot\Panels\DialoguePanel.cs" />
     <Compile Include="Bot\Panels\NpcPortraits.cs" />
+    <Compile Include="Bot\Panels\FightsListPanel.cs" />
     <Compile Include="Bot\Panels\ZaapsPanel.cs" />
     <Compile Include="Bot\Panels\ShopPanel.cs" />
     <Compile Include="Bot\Panels\ExchangeItemGrid.cs">
@@ -321,8 +323,11 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Bot\Interfaces\InteractionRouter.cs" />
+    <Compile Include="Bot\Menus\FightSwordsMenuProvider.cs" />
+    <Compile Include="Bot\Menus\MonsterGroupMenuProvider.cs" />
     <Compile Include="Bot\Menus\NpcMenuProvider.cs" />
     <Compile Include="Bot\Menus\InteractiveMenuProvider.cs" />
+    <Compile Include="Bot\Menus\PlayerMenuProvider.cs" />
     <Compile Include="Bot\LoginForm.Designer.cs">
       <DependentUpon>LoginForm.cs</DependentUpon>
     </Compile>

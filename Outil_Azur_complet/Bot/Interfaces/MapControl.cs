@@ -165,6 +165,8 @@ namespace Outil_Azur_complet.Bot.Interfaces
             if (entities != null)
                 actors.AddRange(entities.Values.Where(entity => entity?.Cell != null && entity.Cell.CellID == cellId)
                     .OrderBy(ActorOrder).ThenBy(entity => entity.id));
+            // Épées des combats (Gc+) : une par équipe, sur la cellule de chaque équipe.
+            actors.AddRange(game?.Map?.FightSwords.Values.Where(swords => swords.Teams.Any(team => team.CellId == cellId)) ?? Enumerable.Empty<Entites>());
             CharacterClass self = game?.character;
             if (self?.Cell != null && self.Cell.CellID == cellId && !actors.Any(entity => entity.id == self.id)) actors.Add(self);
             return actors;
