@@ -138,6 +138,7 @@
     <Compile Include="Frames\Jeu\ExchangeFrame.cs" />
     <Compile Include="Frames\Jeu\GuildFrame.cs" />
     <Compile Include="Frames\Jeu\InteractionFrame.cs" />
+    <Compile Include="Frames\Jeu\InteractiveFrame.cs" />
     <Compile Include="Frames\Jeu\InventoryFrame.cs" />
     <Compile Include="Frames\Jeu\JobsFrame.cs" />
     <Compile Include="Frames\Jeu\MapFrame.cs" />
@@ -165,14 +166,18 @@
     <Compile Include="Game\Data\LangData.cs" />
     <Compile Include="Game\Combats\FightTimeline.cs" />
     <Compile Include="Game\GameClass.cs" />
+    <Compile Include="Game\Interactions\DocumentDialog.cs" />
     <Compile Include="Game\Interactions\Interactions.cs" />
     <Compile Include="Game\Exchanges\ExchangeRegistry.cs" />
     <Compile Include="Game\Exchanges\IExchange.cs" />
     <Compile Include="Game\Exchanges\PlayerExchange.cs" />
     <Compile Include="Game\Exchanges\StorageExchange.cs" />
+    <Compile Include="Game\Interactions\InteractiveActions.cs" />
+    <Compile Include="Game\Interactions\KeyCodeDialog.cs" />
     <Compile Include="Game\Interactions\NpcDialog.cs" />
     <Compile Include="Game\Interactions\NpcShop.cs" />
     <Compile Include="Game\Interactions\ZaapDialog.cs" />
+    <Compile Include="Game\Interactions\ZaapiDialog.cs" />
     <Compile Include="Game\Groupes\Groupe.cs" />
     <Compile Include="Game\Groupes\Regroupement.cs" />
     <Compile Include="Game\Jobs\Jobs.cs" />
@@ -181,8 +186,6 @@
     <Compile Include="Game\Managers\Mouvements\AnimType.cs" />
     <Compile Include="Game\Managers\recoltes\RecolteEnum.cs" />
     <Compile Include="Game\Managers\recoltes\RecoltesClass.cs" />
-    <Compile Include="Game\Managers\Teleport\Teleport.cs" />
-    <Compile Include="Game\Managers\Teleport\TeleportType.cs" />
     <Compile Include="Game\Maps\Combats\FightMoveNode.cs" />
     <Compile Include="Game\Maps\Combats\FightMoveStructs.cs" />
     <Compile Include="Game\Maps\Entities\ActorKind.cs" />

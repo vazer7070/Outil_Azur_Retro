@@ -119,4 +119,40 @@ namespace Tool_BotProtocol.Game.Maps.Interactives
         INTERACTIVE_MORTIER_ET_PILON = 69,
         INTERACTIVE_PHOENIX = 200,
     }
+
+    /// <summary>
+    /// Gfx (couche objet 2) et compétences que StarLoco associe dans <c>GameCase.canDoAction</c> : le serveur refuse une
+    /// compétence sur un autre gfx. Sert de repli quand <c>BotInteractives</c> ou les textes du client manquent.
+    /// </summary>
+    public static class InteractiveGfx
+    {
+        /// <summary>« Utiliser » le zaap (fenêtre <c>WC</c>).</summary>
+        public const short ZaapSkill = 114;
+        /// <summary>« Sauvegarder » sa position au zaap.</summary>
+        public const short ZaapSaveSkill = 44;
+        /// <summary>« Se faire transporter » par le zaapi (fenêtre <c>Wc</c>).</summary>
+        public const short ZaapiSkill = 157;
+        /// <summary>« Entrer » dans une maison (porte).</summary>
+        public const short EnterHouseSkill = 84;
+        /// <summary>« Ouvrir » un coffre.</summary>
+        public const short OpenChestSkill = 104;
+        /// <summary>« Code » d'un coffre (changement du code).</summary>
+        public const short LockChestSkill = 105;
+        public const short Trash = 7352;
+        public const short HouseDoorFirst = 6700;
+        public const short HouseDoorLast = 6776;
+
+        private static readonly short[] Zaaps = { 7000, 7026, 7029, 4287 };
+        private static readonly short[] Zaapis = { 7030, 7031 };
+        private static readonly short[] Chests = { 7350, 7351, 7353 };
+        private static readonly short[] MountParks = { 6763, 6766, 6767, 6772 };
+
+        public static bool IsZaap(int gfx) => Contains(Zaaps, gfx);
+        public static bool IsZaapi(int gfx) => Contains(Zaapis, gfx);
+        public static bool IsChest(int gfx) => Contains(Chests, gfx);
+        public static bool IsMountPark(int gfx) => Contains(MountParks, gfx);
+        public static bool IsHouseDoor(int gfx) => gfx >= HouseDoorFirst && gfx <= HouseDoorLast;
+
+        private static bool Contains(short[] values, int gfx) => gfx > 0 && gfx <= short.MaxValue && Array.IndexOf(values, (short)gfx) >= 0;
+    }
 }

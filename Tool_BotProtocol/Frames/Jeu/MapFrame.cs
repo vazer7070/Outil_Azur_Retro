@@ -206,18 +206,9 @@ namespace Tool_BotProtocol.Frames.Jeu
         {
             Accounts account = client.account;
             Map map = account.Game.Map;
+            // Map.ObjectStateChanged : le service de récolte (M3) met à jour Interactives (image, utilisable).
             foreach (InteractiveObjectState state in GmParser.ParseObjectStates(message.Substring(3)))
-            {
                 map.SetObjectState(state);
-                if (!map.Interactives.TryGetValue(state.CellId, out var value)) continue;
-                value.IsUsable = state.State == 1;
-                if (state.State == 3 && value.Interactive?.Capacities != null)
-                {
-                    if (value.Interactive.Capacities.Contains((short)157)) account.Game.Manager.Teleport.InitTeleport();
-                    else account.Game.Manager.Recolte.EventEndRecolte(account.IsGathering()
-                        ? Game.Managers.recoltes.RecolteEnum.RECOLTÉ : Game.Managers.recoltes.RecolteEnum.VOLÉ, (short)state.CellId);
-                }
-            }
             map.GetEntitiesRefreshEvent();
         }
 
