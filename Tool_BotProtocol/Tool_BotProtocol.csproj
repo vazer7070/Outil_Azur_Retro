@@ -183,6 +183,7 @@
     <Compile Include="Game\Interactions\ZaapDialog.cs" />
     <Compile Include="Game\Interactions\ZaapiDialog.cs" />
     <Compile Include="Game\Groupes\Groupe.cs" />
+    <Compile Include="Game\Groupes\PartyActions.cs" />
     <Compile Include="Game\Groupes\Regroupement.cs" />
     <Compile Include="Game\Jobs\Jobs.cs" />
     <Compile Include="Game\Jobs\JobSkills.cs" />

@@ -312,6 +312,8 @@
     <Compile Include="Bot\Panels\ZaapiPanel.cs" />
     <Compile Include="Bot\Panels\KeyCodePanel.cs" />
     <Compile Include="Bot\Panels\DocumentPanel.cs" />
+    <Compile Include="Bot\Panels\PartyArtworks.cs" />
+    <Compile Include="Bot\Panels\PartyPanel.cs" />
     <Compile Include="Bot\Panels\InventoryPanel.cs" />
     <Compile Include="Bot\Panels\StatsPanel.cs" />
     <Compile Include="Bot\Panels\SpellsPanel.cs" />
@@ -327,6 +329,7 @@
     <Compile Include="Bot\Menus\MonsterGroupMenuProvider.cs" />
     <Compile Include="Bot\Menus\NpcMenuProvider.cs" />
     <Compile Include="Bot\Menus\InteractiveMenuProvider.cs" />
+    <Compile Include="Bot\Menus\PartyMenuProvider.cs" />
     <Compile Include="Bot\Menus\PlayerMenuProvider.cs" />
     <Compile Include="Bot\LoginForm.Designer.cs">
       <DependentUpon>LoginForm.cs</DependentUpon>

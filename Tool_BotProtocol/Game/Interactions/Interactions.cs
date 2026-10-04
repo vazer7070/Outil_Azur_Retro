@@ -103,6 +103,8 @@ namespace Tool_BotProtocol.Game.Interactions
         public Exchanges.StorageExchange Storage { get; private set; }
         /// <summary>Zaapis : <c>Wc</c>, <c>Wu</c>, <c>Wv</c> (lot M3).</summary>
         public ZaapiDialog Zaapi { get; private set; }
+        /// <summary>Groupe du personnage : invitations, membres, suivi, localisation (lot F1).</summary>
+        public Groupes.PartyActions Party { get; private set; }
 
         internal InteractionsClass(Accounts.Accounts account)
         {
@@ -115,8 +117,9 @@ namespace Tool_BotProtocol.Game.Interactions
             Interactive = new InteractiveActions(account);
             Storage = Exchanges.Get<Exchanges.StorageExchange>();
             Zaapi = new ZaapiDialog(account);
+            Party = new Groupes.PartyActions(account);
         }
 
-        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); }
+        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); Party.Clear(); }
     }
 }

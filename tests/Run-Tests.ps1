@@ -66,6 +66,7 @@ try {
     $azurTests += 'BotMapActionsSmoke'
     $azurTests += 'BotClientIconsSmoke'
     $azurTests += 'BotInteractivesSmoke'
+    $azurTests += 'BotPartySmoke'
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'
