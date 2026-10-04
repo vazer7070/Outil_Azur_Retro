@@ -332,7 +332,8 @@ internal static class BotMapActionsSmoke
         Map map = account.Game.Map;
         ContextMenuStrip menu = view.Router.ShowActorMenu(new Entites[] { player }, 5, Keys.None, false);
         string[] expected = { MapActionTexts.Whois, MapActionTexts.PrivateMessage, MapActionTexts.InviteToParty, MapActionTexts.Exchange, MapActionTexts.Challenge, MapActionTexts.Assault };
-        Check(Texts(menu).SequenceEqual(expected), "Player menu differs: " + string.Join("|", Texts(menu)));
+        // Seul le premier groupe est celui des actions de la carte : les fournisseurs suivants (amis, lot F2) ajoutent le leur après un séparateur.
+        Check(Texts(menu).TakeWhile(text => text != "-").SequenceEqual(expected), "Player menu differs: " + string.Join("|", Texts(menu)));
         Check(Item(menu, MapActionTexts.Challenge).Enabled && Item(menu, MapActionTexts.Assault).Enabled, "Challenge or assault disabled on an open map");
         NoPacket(peer, "Opening the player menu sent a packet");
 
@@ -346,7 +347,7 @@ internal static class BotMapActionsSmoke
         map.Capabilities = null;
 
         menu = view.Router.ShowActorMenu(new Entites[] { guarded }, 6, Keys.None, false);
-        Check(Texts(menu).SequenceEqual(new[] { MapActionTexts.Whois, MapActionTexts.PrivateMessage, MapActionTexts.InviteToParty, MapActionTexts.Assault }),
+        Check(Texts(menu).TakeWhile(text => text != "-").SequenceEqual(new[] { MapActionTexts.Whois, MapActionTexts.PrivateMessage, MapActionTexts.InviteToParty, MapActionTexts.Assault }),
             "Restricted player menu differs: " + string.Join("|", Texts(menu)));
         Feed(account, "AR1");
         menu = view.Router.ShowActorMenu(new Entites[] { player }, 5, Keys.None, false);

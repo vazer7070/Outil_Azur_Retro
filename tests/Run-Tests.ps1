@@ -68,6 +68,7 @@ try {
     $azurTests += 'BotInteractivesSmoke'
     $azurTests += 'BotPartySmoke'
     $azurTests += 'BotActorRenderSmoke'
+    $azurTests += 'BotFriendsSmoke'
     $azurTests += 'BotChatUiSmoke'
 
     if ($Integration) {
@@ -144,6 +145,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de docs2xml.py.' }
         & $azurPython.Source (Join-Path $azurRoot 'tools\client-analysis\tests\test_exporter_etats_interactifs.py')
         if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de exporter_etats_interactifs.py.' }
+        & $azurPython.Source (Join-Path $azurRoot 'tools\client-analysis\tests\test_exporter_artworks.py')
+        if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de exporter_artworks.py.' }
     }
     Write-Host "$($azurTests.Count) tests réussis. Fichiers temporaires et journaux : $azurWork"
 }
