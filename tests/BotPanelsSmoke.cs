@@ -228,7 +228,8 @@ internal static class BotPanelsSmoke
                         view.Router.MoveRequested -= move; view.Router.ActorClicked -= click;
 
                         // Bandeau bas en trois emplacements.
-                        Check(form.Hud.LeftSlot.Controls.Count == 1 && All(form.Hud.LeftSlot).OfType<RichTextBox>().Any(), "Chat is not in the left HUD slot");
+                        // Le volet de discussion (lot C2) remplace l'ancien journal RichTextBox.
+                        Check(form.Hud.LeftSlot.Controls.Count == 1 && ReferenceEquals(form.Hud.LeftSlot.Controls[0], form.Chat), "Chat is not in the left HUD slot");
                         Check(form.Hud[HudSlot.Center].Controls.Count == 1 && All(form.Hud.CenterSlot).OfType<ProgressBar>().Any(), "Life and XP are not in the centre HUD slot");
                         Check(All(form.Hud.RightSlot).Count(c => (c.Tag as string) == "client-icon" && c.Width == 33) == 9, "Banner icons are not in the right HUD slot");
                         using (var hud = new HudPanel())

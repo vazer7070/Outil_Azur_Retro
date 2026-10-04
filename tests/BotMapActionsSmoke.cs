@@ -360,7 +360,10 @@ internal static class BotMapActionsSmoke
         Item(menu, MapActionTexts.InviteToParty).PerformClick(); Expect(peer, "PIJoueur fictif", "ADD_TO_PARTY does not send PI<name>");
         menu = view.Router.ShowActorMenu(new Entites[] { player }, 5, Keys.None, false);
         Item(menu, MapActionTexts.Exchange).PerformClick(); Expect(peer, "ER1|42", "EXCHANGE does not send ER1|<id>");
-        Check(!actions.RequestPrivateMessage("Joueur fictif").Sent, "Private message reported success without a chat console");
+        // La fenêtre de jeu relie désormais sa console de discussion (lot C2) : « Message privé » remplit la saisie du chat.
+        var chatInput = ((GameClientFullform)view.FindForm()).Chat.Input;
+        Check(actions.RequestPrivateMessage("Joueur fictif").Sent && chatInput.Text == "/w Joueur fictif ", "Private message did not reach the chat console of the game window");
+        chatInput.Clear();
         var console = new List<string>(); Action<string> chat = console.Add;
         actions.ChatInputRequested += chat;
         menu = view.Router.ShowActorMenu(new Entites[] { player }, 5, Keys.None, false);

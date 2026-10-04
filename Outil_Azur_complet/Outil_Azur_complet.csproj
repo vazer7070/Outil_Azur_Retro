@@ -326,6 +326,14 @@
     <Compile Include="Bot\Controls\HudPanel.cs">
       <SubType>Component</SubType>
     </Compile>
+    <Compile Include="Bot\Controls\Chat\ChatLangBridge.cs" />
+    <Compile Include="Bot\Controls\Chat\ChatLinks.cs" />
+    <Compile Include="Bot\Controls\Chat\ChatView.cs" />
+    <Compile Include="Bot\Controls\Chat\ChatFilterBar.cs" />
+    <Compile Include="Bot\Controls\Chat\ChatInput.cs" />
+    <Compile Include="Bot\Controls\Chat\ChannelMenu.cs" />
+    <Compile Include="Bot\Controls\Chat\SmileyPicker.cs" />
+    <Compile Include="Bot\Controls\Chat\ChatPanel.cs" />
     <Compile Include="Bot\Interfaces\InteractionRouter.cs" />
     <Compile Include="Bot\Menus\FightSwordsMenuProvider.cs" />
     <Compile Include="Bot\Menus\MonsterGroupMenuProvider.cs" />
