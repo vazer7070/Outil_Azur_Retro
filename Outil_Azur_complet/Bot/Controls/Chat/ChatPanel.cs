@@ -47,24 +47,27 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
             ui = SynchronizationContext.Current as WindowsFormsSynchronizationContext ?? new WindowsFormsSynchronizationContext();
             uiThread = Thread.CurrentThread.ManagedThreadId;
             ChatLangBridge.Install();
-            DoubleBuffered = true; BackColor = BotUi.Paper; Padding = new Padding(5); Margin = new Padding(0);
+            DoubleBuffered = true; BackColor = BotUi.Paper; Padding = new Padding(4); Margin = new Padding(0);
             Name = "chatPanel"; AccessibleName = "Discussion";
 
             View = new ChatView { Dock = DockStyle.Fill, Name = "chatView" };
-            Toolbar = new ChatFilterBar { Dock = DockStyle.Top, Name = "chatFilters" };
+            // Bandeau bas de 112 pixels : filtres en grille le long du texte, boutons dans la ligne de saisie.
+            Toolbar = new ChatFilterBar { Dock = DockStyle.Left, Width = ChatFilterBar.VerticalWidth, Vertical = true, ShowButtons = false, Name = "chatFilters" };
+            Buttons = new ChatFilterBar { ShowFilters = false, Size = new Size(ChatFilterBar.ButtonsWidth, 24), Margin = new Padding(0, 0, 3, 0), Name = "chatButtons" };
             Channels = new ChannelMenu(() => this.account);
             Input = new ChatInput { Dock = DockStyle.Fill, Margin = new Padding(0, 1, 3, 0), Name = "chatInput" };
             send = new ClientButton { Text = "›", Size = new Size(30, 24), Margin = new Padding(0), Tag = "client-icon", Name = "chatSend",
                 Font = BotFonts.Get(10f, FontStyle.Bold), AccessibleName = "Envoyer le message" };
             Channels.Button.Margin = new Padding(0, 0, 3, 0);
 
-            var row = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 27, ColumnCount = 3, RowCount = 1, Margin = new Padding(0),
-                Padding = new Padding(0, 3, 0, 0), BackColor = BotUi.Paper };
+            var row = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 27, ColumnCount = 4, RowCount = 1, Margin = new Padding(0),
+                Padding = new Padding(0, 3, 0, 0), BackColor = BotUi.Paper, Name = "chatInputRow" };
             row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 33));
             row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, ChatFilterBar.ButtonsWidth + 3));
             row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 30));
             row.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            row.Controls.Add(Channels.Button, 0, 0); row.Controls.Add(Input, 1, 0); row.Controls.Add(send, 2, 0);
+            row.Controls.Add(Channels.Button, 0, 0); row.Controls.Add(Input, 1, 0); row.Controls.Add(Buttons, 2, 0); row.Controls.Add(send, 3, 0);
             Controls.Add(View); Controls.Add(Toolbar); Controls.Add(row);
 
             Smileys = new SmileyPicker();
@@ -73,14 +76,14 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
                 Name = "chatSmileys", AccessibleName = ChatUiText.Get("CHAT_SHOW_SMILEYS", "Smileys et attitudes") };
             smileyDrop.Items.Add(smileyHost);
             smileyDrop.Closing += OnSmileysClosing;
-            smileyDrop.Closed += (s, e) => Toolbar.SmileysOpen = false;
+            smileyDrop.Closed += (s, e) => Buttons.SmileysOpen = false;
 
             Links = new ChatLinks(() => this.account, router, Prefill, ReportFeedback) { IsIgnored = IsIgnored, SetIgnored = SetIgnoredName };
 
             Toolbar.FilterClicked += OnFilterClicked;
-            Toolbar.SmileysClicked += (s, e) => ShowSmileys(!SmileysOpen);
-            Toolbar.SitClicked += (s, e) => _ = RunAsync(() => chat.SitAsync());
-            Toolbar.OpenCloseClicked += (s, e) => Expanded = !Expanded;
+            Buttons.SmileysClicked += (s, e) => ShowSmileys(!SmileysOpen);
+            Buttons.SitClicked += (s, e) => { if (chat != null) _ = RunAsync(() => chat.SitAsync()); };
+            Buttons.OpenCloseClicked += (s, e) => Expanded = !Expanded;
             Channels.PrefixChanged += prefix => { Input.Prefix = prefix; if (Input.CanFocus) Input.Focus(); };
             Channels.HelpRequested += (s, e) => _ = RunAsync(() => chat.ExecuteAsync("/help"));
             Input.Submitted += (s, e) => Submit(e.Mode);
@@ -112,7 +115,10 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
         }
 
         public ChatView View { get; }
+        /// <summary>Filtres d'affichage (grille verticale le long du texte).</summary>
         public ChatFilterBar Toolbar { get; }
+        /// <summary>Boutons smileys, s'asseoir et agrandir/réduire de la ligne de saisie.</summary>
+        public ChatFilterBar Buttons { get; }
         public ChatInput Input { get; }
         public ChannelMenu Channels { get; }
         public Button SendButton => send;
@@ -128,7 +134,7 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
             set
             {
                 if (expanded == value || released) return;
-                expanded = value; Toolbar.Expanded = value;
+                expanded = value; Buttons.Expanded = value;
                 try { ExpandedChanged?.Invoke(this, EventArgs.Empty); }
                 catch (Exception error) when (!(error is OutOfMemoryException)) { account.Logger?.LogException("CHAT", error); }
                 View.ScrollToBottom();
@@ -153,15 +159,15 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
         public void ShowSmileys(bool open)
         {
             if (released) return;
-            if (!open) { if (smileyDrop.Visible) smileyDrop.Close(ToolStripDropDownCloseReason.CloseCalled); Toolbar.SmileysOpen = false; return; }
+            if (!open) { if (smileyDrop.Visible) smileyDrop.Close(ToolStripDropDownCloseReason.CloseCalled); Buttons.SmileysOpen = false; return; }
             if (smileyDrop.Visible) return;
             Smileys.SetEmotes(EmoteIds());
             smileyHost.Size = Smileys.Size;
-            Rectangle anchor = Toolbar.ButtonBounds(ChatBarButton.Smileys);
+            Rectangle anchor = Buttons.ButtonBounds(ChatBarButton.Smileys);
             try
             {
-                smileyDrop.Show(Toolbar, new Point(anchor.Right, 0), ToolStripDropDownDirection.AboveLeft);
-                Toolbar.SmileysOpen = true;
+                smileyDrop.Show(Buttons, new Point(anchor.Left, 0), ToolStripDropDownDirection.AboveRight);
+                Buttons.SmileysOpen = true;
             }
             catch (Exception error) when (error is InvalidOperationException || error is ArgumentException || error is NotImplementedException)
             { account.Logger?.LogException("CHAT", error); }
@@ -202,7 +208,7 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
             ChatLangBridge.Install();
             bool connected = account.Connexion != null && account.Connexion.IsConnected();
             send.Enabled = connected;
-            Toolbar.SitVisible = !(account.Game?.Fight?.IsInFight ?? false);
+            Buttons.SitVisible = !(account.Game?.Fight?.IsInFight ?? false);
         }
 
         /// <summary>Détache le volet de la session (abonnements, menus) ; appelée avant la libération du compte. Idempotente.</summary>
@@ -369,9 +375,9 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
         private void OnSmileysClosing(object sender, ToolStripDropDownClosingEventArgs e)
         {
             // Un clic sur le bouton des smileys referme le volet par ce bouton (sinon il se rouvrirait aussitôt).
-            if (e.CloseReason != ToolStripDropDownCloseReason.AppClicked || Toolbar.IsDisposed || !Toolbar.IsHandleCreated) return;
-            Point cursor = Toolbar.PointToClient(Cursor.Position);
-            if (Toolbar.ButtonBounds(ChatBarButton.Smileys).Contains(cursor)) e.Cancel = true;
+            if (e.CloseReason != ToolStripDropDownCloseReason.AppClicked || Buttons.IsDisposed || !Buttons.IsHandleCreated) return;
+            Point cursor = Buttons.PointToClient(Cursor.Position);
+            if (Buttons.ButtonBounds(ChatBarButton.Smileys).Contains(cursor)) e.Cancel = true;
         }
 
         private async Task RunAsync(Func<Task<ChatResult>> action)

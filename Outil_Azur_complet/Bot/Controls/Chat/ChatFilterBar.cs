@@ -21,8 +21,10 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
     }
 
     /// <summary>
-    /// Barre du chat du client : les neuf boutons de filtre (<c>_btnFilter0..8</c>, infobulles <c>CHAT_TYPE0..8</c>) puis,
-    /// à droite, smileys, s'asseoir et agrandir/réduire, dessinés avec les symboles de <c>core.swf</c> exportés par le lot D3.
+    /// Barre du chat du client : les neuf boutons de filtre (<c>_btnFilter0..8</c>, infobulles <c>CHAT_TYPE0..8</c>) et les
+    /// boutons smileys, s'asseoir et agrandir/réduire, dessinés avec les symboles de <c>core.swf</c> exportés par le lot D3.
+    /// Trois dispositions : tout sur une ligne, filtres seuls en grille verticale (<see cref="Vertical"/>), boutons seuls
+    /// (<see cref="ShowFilters"/> faux) ; le volet de discussion utilise les deux dernières dans le bandeau bas.
     /// Les icônes <c>FilterIcon0..7</c> de cet export sont celles des catégories d'objets (épée, bottes…), pas celles des
     /// filtres : chaque filtre est une pastille à la couleur de son canal, pleine quand il est actif. Un clic bascule la
     /// pastille et lève <see cref="FilterClicked"/> ; l'état réel suit ensuite les échos <c>cC±</c> du serveur.
@@ -51,7 +53,7 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
         private readonly ToolTip tips = new ToolTip { InitialDelay = 400, ReshowDelay = 100, AutoPopDelay = 12000 };
         private int hover = -2;
         private int pressed = -2;
-        private bool expanded, sitVisible = true, smileysOpen;
+        private bool expanded, sitVisible = true, smileysOpen, vertical, showFilters = true, showButtons = true;
         private string tipShown;
 
         public ChatFilterBar()
@@ -81,11 +83,43 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
         public bool SitVisible { get { return sitVisible; } set { if (sitVisible == value) return; sitVisible = value; Invalidate(); } }
         public bool SmileysOpen { get { return smileysOpen; } set { if (smileysOpen == value) return; smileysOpen = value; Invalidate(); } }
 
-        public Rectangle FilterBounds(int filter) =>
-            filter < 0 || filter >= FilterCount ? Rectangle.Empty : new Rectangle(1 + filter * CellSize, 1, CellSize, CellSize);
+        /// <summary>Filtres en grille de deux colonnes le long du texte (bandeau étroit) plutôt qu'en ligne.</summary>
+        public bool Vertical { get { return vertical; } set { if (vertical == value) return; vertical = value; Invalidate(); } }
+        /// <summary>Faux : la barre ne montre que les boutons (smileys, s'asseoir, agrandir), alignés à gauche.</summary>
+        public bool ShowFilters { get { return showFilters; } set { if (showFilters == value) return; showFilters = value; Invalidate(); } }
+        /// <summary>Faux : la barre ne montre que les filtres.</summary>
+        public bool ShowButtons { get { return showButtons; } set { if (showButtons == value) return; showButtons = value; Invalidate(); } }
+
+        /// <summary>Largeur d'une barre de filtres verticale.</summary>
+        public const int VerticalWidth = 2 * VerticalCell + 3;
+        /// <summary>Largeur d'une barre de boutons seule.</summary>
+        public const int ButtonsWidth = 3 * (ButtonWidth + 1);
+        private const int VerticalCell = 16;
+
+        public Rectangle FilterBounds(int filter)
+        {
+            if (!showFilters || filter < 0 || filter >= FilterCount) return Rectangle.Empty;
+            if (!vertical) return new Rectangle(1 + filter * CellSize, 1, CellSize, CellSize);
+            int rowsCount = (FilterCount + 1) / 2;
+            int height = Math.Max(9, Math.Min(CellSize, (ClientSize.Height - 2) / rowsCount));
+            return new Rectangle(1 + filter % 2 * VerticalCell, 1 + filter / 2 * height, VerticalCell, height);
+        }
 
         public Rectangle ButtonBounds(ChatBarButton button)
         {
+            if (!showButtons) return Rectangle.Empty;
+            if (!showFilters)
+            {
+                int height = Math.Max(10, Math.Min(24, ClientSize.Height - 2)), top = Math.Max(0, (ClientSize.Height - height) / 2), x = 0;
+                foreach (ChatBarButton candidate in new[] { ChatBarButton.Smileys, ChatBarButton.Sit, ChatBarButton.OpenClose })
+                {
+                    if (candidate == ChatBarButton.Sit && !sitVisible) { if (button == candidate) return Rectangle.Empty; continue; }
+                    if (candidate == button) return new Rectangle(x, top, ButtonWidth, height);
+                    x += ButtonWidth + 1;
+                }
+                return Rectangle.Empty;
+            }
+            if (vertical) return Rectangle.Empty; // grille verticale : les boutons vont dans une barre à part
             int right = ClientSize.Width - 1;
             switch (button)
             {
@@ -144,23 +178,28 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
             Graphics graphics = e.Graphics;
             graphics.Clear(BackColor);
             graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            for (int filter = 0; filter < FilterCount; filter++) PaintFilter(graphics, filter);
-            if (ButtonBounds(ChatBarButton.Smileys).Right > FilterBounds(FilterCount - 1).Right + 2)
+            if (showFilters) for (int filter = 0; filter < FilterCount; filter++) PaintFilter(graphics, filter);
+            Rectangle smileys = ButtonBounds(ChatBarButton.Smileys);
+            if (showButtons && (!showFilters || vertical || smileys.X > FilterBounds(FilterCount - 1).Right + 2))
             {
                 PaintButton(graphics, ChatBarButton.Smileys, smileysOpen ? "ButtonEmoteDown" : "ButtonEmoteUp", "☺", -10, smileysOpen);
                 if (sitVisible) PaintButton(graphics, ChatBarButton.Sit, "ButtonSitUp", "S", -11, false);
                 PaintButton(graphics, ChatBarButton.OpenClose, expanded ? "ButtonChatDown" : "ButtonChatUp", expanded ? "−" : "+", -12, false);
             }
-            using (var line = new Pen(BotUi.Gold)) graphics.DrawLine(line, 0, ClientSize.Height - 1, ClientSize.Width, ClientSize.Height - 1);
+            if (showFilters)
+                using (var line = new Pen(BotUi.Gold))
+                    if (vertical) graphics.DrawLine(line, ClientSize.Width - 1, 0, ClientSize.Width - 1, ClientSize.Height);
+                    else graphics.DrawLine(line, 0, ClientSize.Height - 1, ClientSize.Width, ClientSize.Height - 1);
         }
 
         private void PaintFilter(Graphics graphics, int filter)
         {
             Rectangle cell = FilterBounds(filter);
             Color color = ChatLineBuilder.ParseColor(FilterColors[filter], BotUi.Ink);
+            int size = Math.Max(5, Math.Min(cell.Width, cell.Height) - (vertical ? 4 : 10));
+            var dot = new Rectangle(cell.X + (cell.Width - size) / 2, cell.Y + (cell.Height - size) / 2, size, size);
             if (hover == filter)
-                using (var glow = new SolidBrush(Color.FromArgb(70, BotUi.Gold))) graphics.FillEllipse(glow, Rectangle.Inflate(cell, -1, -1));
-            var dot = Rectangle.Inflate(cell, -5, -5);
+                using (var glow = new SolidBrush(Color.FromArgb(70, BotUi.Gold))) graphics.FillEllipse(glow, Rectangle.Inflate(dot, 2, 2));
             if (pressed == filter) dot.Offset(0, 1);
             if (filters[filter])
             {
