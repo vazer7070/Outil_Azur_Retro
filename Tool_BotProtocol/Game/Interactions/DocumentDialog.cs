@@ -190,7 +190,9 @@ namespace Tool_BotProtocol.Game.Interactions
     public sealed class DocumentDialog : InteractionWindow
     {
         private const long MaxDocumentBytes = 1024 * 1024;
-        private static readonly Regex KeyFormat = new Regex("^([0-9]{1,9})_([0-9]{1,14})$", RegexOptions.CultureInvariant);
+        /// <summary>Clé reçue : « &lt;id&gt;_&lt;date&gt; » chez StarLoco ; « &lt;id&gt; » seul est toléré (dernière version exportée).</summary>
+        private static readonly Regex KeyFormat = new Regex("^([0-9]{1,9})(?:_([0-9]{1,14}))?$", RegexOptions.CultureInvariant);
+        private static readonly Regex FileFormat = new Regex("^([0-9]{1,9})_([0-9]{1,14})$", RegexOptions.CultureInvariant);
 
         public static string DefaultPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ressources", "Bot", "BotDocs");
         /// <summary>Dossier des documents exportés (un test y met ses propres fichiers).</summary>
@@ -213,8 +215,9 @@ namespace Tool_BotProtocol.Game.Interactions
         }
 
         /// <summary>
-        /// Cherche <c>&lt;id&gt;_&lt;date&gt;.xml</c>, sinon la version la plus récente du même numéro. La clé reçue du serveur
-        /// n'est jamais utilisée comme chemin sans être validée (chiffres et « _ » seulement).
+        /// Cherche <c>&lt;id&gt;_&lt;date&gt;.xml</c>, sinon la version la plus récente du même numéro (tri sur la date
+        /// <c>aammjjhhmm</c> du nom). La clé reçue du serveur n'est jamais utilisée comme chemin sans être validée
+        /// (chiffres et « _ » seulement).
         /// </summary>
         public static BotDocument Load(string folder, string key, out string message)
         {
@@ -228,10 +231,10 @@ namespace Tool_BotProtocol.Game.Interactions
                 if (!File.Exists(file))
                 {
                     file = Directory.EnumerateFiles(folder, parts.Groups[1].Value + "_*.xml")
-                        .Where(path => KeyFormat.IsMatch(Path.GetFileNameWithoutExtension(path)))
+                        .Where(path => FileFormat.IsMatch(Path.GetFileNameWithoutExtension(path)))
                         .OrderByDescending(path => Path.GetFileNameWithoutExtension(path), StringComparer.Ordinal).FirstOrDefault();
                     if (file == null) { message = "Document " + key + " absent des ressources du bot."; return null; }
-                    message = "Version " + Path.GetFileNameWithoutExtension(file) + " affichée à la place de " + key + ".";
+                    if (parts.Groups[2].Success) message = "Version " + Path.GetFileNameWithoutExtension(file) + " affichée à la place de " + key + ".";
                 }
                 if (new FileInfo(file).Length > MaxDocumentBytes) { message = "Document " + key + " trop volumineux."; return null; }
                 var settings = new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null };

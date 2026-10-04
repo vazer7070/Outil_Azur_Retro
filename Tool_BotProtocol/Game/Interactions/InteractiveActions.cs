@@ -217,13 +217,20 @@ namespace Tool_BotProtocol.Game.Interactions
 
         /// <summary>
         /// Utilise la compétence sur l'objet de la cellule. À portée, <c>GA500&lt;cellule&gt;;&lt;compétence&gt;</c> part tout de
-        /// suite ; sinon le personnage marche (chemin calculé hors du thread appelant) et l'action part à l'arrivée.
+        /// suite ; sinon le personnage marche (chemin calculé hors du thread appelant) et l'action part à l'arrivée. Pendant
+        /// une marche déjà en cours, la demande est mise en file et rejouée à la fin de cette marche (le serveur met lui aussi
+        /// en file un <c>GA500</c> reçu pendant une marche) ; une nouvelle marche ou une marche interrompue l'annule.
         /// </summary>
-        public async Task<InteractionResult> UseAsync(short cellId, short skillId)
+        public Task<InteractionResult> UseAsync(short cellId, short skillId) => UseCoreAsync(cellId, skillId, null);
+
+        private async Task<InteractionResult> UseCoreAsync(short cellId, short skillId, PendingUse replay)
         {
-            DropStalePending();
+            if (replay == null) DropStalePending();
             InteractionResult refused = CheckCanOpen();
-            if (refused != null) return refused;
+            // Seule une marche en cours (et rien d'autre) permet de mettre la demande en file.
+            bool afterWalk = refused != null && replay == null && Account?.Connexion != null && Account.Connexion.IsConnected()
+                && Account.IsMoving() && !IsOpen;
+            if (refused != null && !afterWalk) return refused;
             GameClass game = Account.Game;
             Map map = game?.Map;
             CharacterClass character = game?.character;
@@ -232,23 +239,31 @@ namespace Tool_BotProtocol.Game.Interactions
                 return Refuse("Aucun objet interactif sur la cellule " + cellId + ".");
             if (!target.HasSkill(skillId)) return Refuse("« " + LangData.Skill.Name(skillId) + " » n'est pas une compétence de " + target.Name + ".");
             if (!target.IsUsable) return Refuse(target.Name + " n'est pas utilisable pour l'instant.");
-            lock (sync)
+            Mouvement movement = game.Manager?.Mouvements;
+            if (replay == null)
             {
-                long now = clock.NowMs;
-                if (lastUseAt.HasValue && now - lastUseAt.Value < ClickMinDelayMs)
-                    return Refuse(LangData.Text.Has("SRV_MSG_0") ? LangData.Text.Get("SRV_MSG_0").Trim() : "Trop de clics : attendez avant de réessayer.");
-                if (pending != null) return Refuse("Une utilisation attend déjà la fin du déplacement.");
-                lastUseAt = now;
+                lock (sync)
+                {
+                    long now = clock.NowMs;
+                    if (lastUseAt.HasValue && now - lastUseAt.Value < ClickMinDelayMs)
+                        return Refuse(LangData.Text.Has("SRV_MSG_0") ? LangData.Text.Get("SRV_MSG_0").Trim() : "Trop de clics : attendez avant de réessayer.");
+                    if (pending != null) return Refuse("Une utilisation attend déjà la fin du déplacement.");
+                    lastUseAt = now;
+                }
+            }
+            if (afterWalk)
+            {
+                if (movement == null) return Refuse("Déplacement indisponible.");
+                Watch(new PendingUse(cellId, skillId, map.MapID, walkedToTarget: false), movement);
+                return new InteractionResult(true, "« " + LangData.Skill.Name(skillId) + " » sera demandé sur " + target.Name + " à la fin du déplacement.");
             }
             int reach = Reach(character, skillId);
             if (character.Cell.GetDistanceBetweenCells(target.Cell) <= reach) return await SendUseAsync(target, skillId).ConfigureAwait(false);
+            if (replay != null && replay.WalkedToTarget) return Refuse(target.Name + " est encore hors de portée à l'arrivée.");
 
-            Mouvement movement = game.Manager?.Mouvements;
             if (movement == null) return Refuse("Déplacement indisponible.");
-            var use = new PendingUse(cellId, skillId, map.MapID);
-            use.Handler = ok => OnMoveFinished(use, movement, ok);
-            lock (sync) pending = use;
-            movement.FinalizeMove += use.Handler;
+            var use = new PendingUse(cellId, skillId, map.MapID, walkedToTarget: true);
+            Watch(use, movement);
             MoveResults result;
             try
             {
@@ -271,6 +286,14 @@ namespace Tool_BotProtocol.Game.Interactions
                     Abandon(use, movement);
                     return Refuse("Aucun chemin vers " + target.Name + " (" + result + ").");
             }
+        }
+
+        /// <summary>Retient l'utilisation jusqu'à la fin de la marche (<see cref="Mouvement.FinalizeMove"/>).</summary>
+        private void Watch(PendingUse use, Mouvement movement)
+        {
+            use.Handler = ok => OnMoveFinished(use, movement, ok);
+            lock (sync) pending = use;
+            movement.FinalizeMove += use.Handler;
         }
 
         /// <summary>Transmis par le lot des montures à la réception de <c>Rp</c> (le menu de l'enclos s'en sert).</summary>
@@ -303,15 +326,16 @@ namespace Tool_BotProtocol.Game.Interactions
                 Notify();
                 return;
             }
-            _ = SendAfterMoveAsync(target, use.Skill);
+            _ = ReplayAsync(use);
         }
 
-        private async Task SendAfterMoveAsync(Interactives target, short skill)
+        /// <summary>Fin de la marche : la demande est rejouée (portée vérifiée de nouveau, sans anti-spam).</summary>
+        private async Task ReplayAsync(PendingUse use)
         {
             try
             {
-                InteractionResult result = await SendUseAsync(target, skill).ConfigureAwait(false);
-                if (!result.Sent) { LogError(result.Message); UseAbandoned?.Invoke(target.Cell.CellID); }
+                InteractionResult result = await UseCoreAsync(use.Cell, use.Skill, use).ConfigureAwait(false);
+                if (!result.Sent) { LogError(result.Message); UseAbandoned?.Invoke(use.Cell); }
                 else Log(result.Message);
             }
             catch (Exception error) { Account?.Logger?.LogException(Reference, error); }
@@ -484,10 +508,15 @@ namespace Tool_BotProtocol.Game.Interactions
 
         private sealed class PendingUse
         {
-            public PendingUse(short cell, short skill, int mapId) { Cell = cell; Skill = skill; MapId = mapId; }
+            public PendingUse(short cell, short skill, int mapId, bool walkedToTarget)
+            {
+                Cell = cell; Skill = skill; MapId = mapId; WalkedToTarget = walkedToTarget;
+            }
             public short Cell { get; }
             public short Skill { get; }
             public int MapId { get; }
+            /// <summary>Vrai si la marche menait à l'objet ; faux pour une demande mise en file pendant une autre marche.</summary>
+            public bool WalkedToTarget { get; }
             public Action<bool> Handler { get; set; }
         }
     }
