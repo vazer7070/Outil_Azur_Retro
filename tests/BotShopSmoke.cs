@@ -198,8 +198,12 @@ internal static class BotShopSmoke
                         ((Button)equip).PerformClick(); Check(Read(peer) == "OM1001|1|1", "Equip button does not send OM with the slot");
                         Feed(account, "OM1001|1"); Application.DoEvents();
                         var view = (MapControl)Get(form, "mapControl"); Check(view != null, "Map view missing for a loaded map");
-                        Complete(view.HandleNpcTradeAsync(9)); NoPacket(peer, "Right-click on an empty cell sent a packet");
-                        Complete(view.HandleNpcTradeAsync(5)); Check(Read(peer) == "ER0|-8", "Right-click on an NPC cell does not send ER0|<npc>");
+                        Complete(view.Router.RouteAsync(9, MouseButtons.Right)); NoPacket(peer, "Right-click on an empty cell sent a packet");
+                        Check(view.Router.LastMenu == null, "Right-click on an empty cell opened an actor menu");
+                        Complete(view.Router.RouteAsync(5, MouseButtons.Right)); NoPacket(peer, "Right-click on an NPC sent a packet before a menu choice");
+                        var trade = view.Router.LastMenu?.Items.OfType<ToolStripMenuItem>().FirstOrDefault(item => item.Text == "Acheter/Vendre");
+                        Check(trade != null && trade.Enabled, "NPC context menu lacks Acheter/Vendre");
+                        trade.PerformClick(); Check(Read(peer) == "ER0|-8", "Acheter/Vendre does not send ER0|<npc>");
                         Check(!shop.IsOpen && panels.SelectedIndex != GameClientFullform.ShopPanel, "Shop panel opened before the server ECK");
                         Feed(account, "ECK0|-8"); Feed(account, "EL2001;;50|2004;;|"); Application.DoEvents();
                         Check(drawer.Visible && panels.SelectedIndex == GameClientFullform.ShopPanel, "Shop panel did not open on ECK0/EL");

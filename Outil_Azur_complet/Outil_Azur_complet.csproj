@@ -298,6 +298,10 @@
     <Compile Include="Bot\Panels\PanelHost.cs">
       <SubType>Component</SubType>
     </Compile>
+    <Compile Include="Bot\Controls\ActorMenuRegistry.cs" />
+    <Compile Include="Bot\Controls\ActorContextMenu.cs" />
+    <Compile Include="Bot\Interfaces\InteractionRouter.cs" />
+    <Compile Include="Bot\Menus\NpcBasicMenuProvider.cs" />
     <Compile Include="Bot\LoginForm.Designer.cs">
       <DependentUpon>LoginForm.cs</DependentUpon>
     </Compile>
