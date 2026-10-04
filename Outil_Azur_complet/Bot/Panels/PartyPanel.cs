@@ -31,6 +31,7 @@ namespace Outil_Azur_complet.Bot.Panels
         private Control cancelInvitation, inviteButton, locate, leave;
         private TextBox inviteName;
         private PartyMemberList members;
+        private PartyCompass compass;
         private ListView locations;
         private Panel invitationBar, infoBar;
         private PartyActions bound;
@@ -78,13 +79,16 @@ namespace Outil_Azur_complet.Bot.Panels
             members = new PartyMemberList { Dock = DockStyle.Top, Name = "party-members", AccessibleName = "Membres du groupe" };
             members.MemberClicked += (s, e) => ShowMemberMenu(e.Member.Id, e.Location);
 
-            var inviteBar = new TableLayoutPanel { Dock = DockStyle.Top, Height = 36, ColumnCount = 2, RowCount = 1, Margin = new Padding(0),
-                Padding = new Padding(0, 6, 0, 2) };
-            inviteBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); inviteBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 128));
+            var inviteTitle = MakeLabel(PartyTexts.Get("ADD_TO_PARTY", "Inviter dans mon groupe"), 9, true); inviteTitle.Dock = DockStyle.Top;
+            inviteTitle.Height = 22; inviteTitle.TextAlign = ContentAlignment.BottomLeft;
+            var inviteBar = new TableLayoutPanel { Dock = DockStyle.Top, Height = 34, ColumnCount = 2, RowCount = 1, Margin = new Padding(0),
+                Padding = new Padding(0, 3, 0, 2) };
+            inviteBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); inviteBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96));
             inviteName = new TextBox { Dock = DockStyle.Fill, Font = BotFonts.Get(9), BackColor = BotUi.PaperLight, ForeColor = BotUi.Ink,
                 BorderStyle = BorderStyle.FixedSingle, MaxLength = 40, Name = "party-invite-name", AccessibleName = "Nom du personnage à inviter" };
             inviteName.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Enter) { e.Handled = e.SuppressKeyPress = true; await Invite(); } };
-            inviteButton = MakeButton(PartyTexts.Get("ADD_TO_PARTY", "Inviter dans le groupe"), async (s, e) => await Invite(), true, 124);
+            // Libellé court : la case étroite du tiroir ne loge pas « Inviter dans mon groupe » (titre de la ligne).
+            inviteButton = MakeButton("Inviter", async (s, e) => await Invite(), true, 92);
             inviteBar.Controls.Add(inviteName, 0, 0); inviteBar.Controls.Add(inviteButton, 1, 0);
 
             locate = MakeButton(PartyTexts.Get("PARTY_WHERE", "Localiser le groupe"), async (s, e) => await Run(party => party.LocateAsync()), false, 160);
@@ -93,15 +97,20 @@ namespace Outil_Azur_complet.Bot.Panels
 
             var placesArea = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0), Padding = new Padding(0, 4, 0, 0) };
             var placesTitle = MakeLabel("Positions des membres (PW)", 9, true); placesTitle.Dock = DockStyle.Top; placesTitle.Height = 20;
-            compassLabel = MakeLabel(string.Empty, 8.25f); compassLabel.Dock = DockStyle.Top; compassLabel.Height = 18; compassLabel.ForeColor = BotUi.Muted;
+            // Boussole du bandeau du client (ank.gapi.controls.Compass) : flèche vers la cible de IC depuis la carte actuelle.
+            var compassRow = new Panel { Dock = DockStyle.Top, Height = PartyCompass.Side + 4, BackColor = BotUi.Paper, Padding = new Padding(0, 2, 0, 2) };
+            compass = new PartyCompass { Dock = DockStyle.Left, Name = "party-compass-dial" };
+            compassLabel = MakeLabel(string.Empty, 8.25f); compassLabel.Dock = DockStyle.Fill; compassLabel.ForeColor = BotUi.Muted;
+            compassLabel.TextAlign = ContentAlignment.MiddleLeft; compassLabel.AutoEllipsis = true; compassLabel.Padding = new Padding(6, 0, 0, 0);
             compassLabel.Name = "party-compass";
+            compassRow.Controls.Add(compassLabel); compassRow.Controls.Add(compass);
             locations = MakeList(8.25f, "Membre", "Position", "Carte");
             locations.Columns[0].Width = 150; locations.Columns[1].Width = 80; locations.Columns[2].Width = 70; locations.Name = "party-locations";
-            placesArea.Controls.Add(locations); placesArea.Controls.Add(compassLabel); placesArea.Controls.Add(placesTitle);
+            placesArea.Controls.Add(locations); placesArea.Controls.Add(compassRow); placesArea.Controls.Add(placesTitle);
 
             status = MakeStatus(string.Empty); status.Name = "party-status";
             // Ordre d'ancrage : le dernier ajouté prend le bord en premier.
-            page.Controls.Add(placesArea); page.Controls.Add(actions); page.Controls.Add(inviteBar); page.Controls.Add(members);
+            page.Controls.Add(placesArea); page.Controls.Add(actions); page.Controls.Add(inviteBar); page.Controls.Add(inviteTitle); page.Controls.Add(members);
             page.Controls.Add(invitationBar); page.Controls.Add(infoBar); page.Controls.Add(heading); page.Controls.Add(status);
             return page;
         }
@@ -244,9 +253,12 @@ namespace Outil_Azur_complet.Bot.Panels
 
             members.SetMembers(list, group.LeaderId, group.FollowedId, self);
 
-            Point? compass = party.Compass;
-            compassLabel.Text = compass.HasValue
-                ? "Boussole : [" + compass.Value.X.ToString(CultureInfo.InvariantCulture) + "," + compass.Value.Y.ToString(CultureInfo.InvariantCulture) + "]"
+            Point? target = party.Compass;
+            var map = Game.Map;
+            compass.SetCoordinates(target, map == null ? Point.Empty : new Point(map.X, map.Y));
+            compassLabel.Text = target.HasValue
+                ? "Boussole : [" + target.Value.X.ToString(CultureInfo.InvariantCulture) + "," + target.Value.Y.ToString(CultureInfo.InvariantCulture) + "]"
+                    + (compass.Angle.HasValue ? string.Empty : " (carte actuelle)")
                     + (group.FollowedId.HasValue ? " · suivi de " + (group.Find(group.FollowedId.Value)?.Name ?? "?") : string.Empty)
                 : "Boussole : aucune cible.";
             locations.BeginUpdate(); locations.Items.Clear();
@@ -346,6 +358,110 @@ namespace Outil_Azur_complet.Bot.Panels
             if (!disposing) return;
             CloseInviteDialog();
             LastMenu = null;
+        }
+    }
+
+    /// <summary>
+    /// Boussole du volet, comme <c>ank.gapi.controls.Compass</c> du bandeau du client : fond <c>UI_BannerCompassBack</c>, flèche
+    /// <c>UI_BannerCompassArrow</c> tournée de <c>atan2(Δy, Δx)</c> degrés de la carte actuelle vers la cible de <c>IC</c>,
+    /// <c>UI_BannerCompassNoArrow</c> sur la carte cible, rien sans cible. Les PNG (lot des icônes, <see cref="ClientAssets"/>)
+    /// sont lus en tâche de fond ; sans eux, un disque brun et une aiguille olive les remplacent.
+    /// </summary>
+    public sealed class PartyCompass : Control
+    {
+        public const int Side = 40;
+        private const string Back = "UI_BannerCompassBack", Arrow = "UI_BannerCompassArrow", NoArrow = "UI_BannerCompassNoArrow";
+        private Point? target;
+        private Point current;
+
+        public PartyCompass()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer
+                | ControlStyles.ResizeRedraw | ControlStyles.SupportsTransparentBackColor, true);
+            BackColor = Color.Transparent; Width = Side; Height = Side;
+            AccessibleName = "Boussole";
+            foreach (string name in new[] { Back, Arrow, NoArrow })
+            {
+                Task<Bitmap> load = ClientAssets.GetAsync("Client", name);
+                if (!load.IsCompleted) load.ContinueWith(_ => RedrawLater(), TaskScheduler.Default);
+            }
+        }
+
+        /// <summary>Cible de la boussole (<c>IC</c>), ou <c>null</c>.</summary>
+        public Point? Target => target;
+        /// <summary>Coordonnées de la carte actuelle.</summary>
+        public Point Current => current;
+        /// <summary>Rotation de la flèche en degrés (sens horaire, 0 = est), <c>null</c> sans cible ou sur la carte cible.</summary>
+        public float? Angle => ArrowAngle(current, target);
+
+        /// <summary>Angle du client : <c>atan2(cible.y − y, cible.x − x)</c> en degrés ; <c>null</c> sans cible ou à la même position.</summary>
+        public static float? ArrowAngle(Point from, Point? to)
+        {
+            if (!to.HasValue) return null;
+            int dx = to.Value.X - from.X, dy = to.Value.Y - from.Y;
+            if (dx == 0 && dy == 0) return null;
+            return (float)(Math.Atan2(dy, dx) * 180 / Math.PI);
+        }
+
+        /// <summary>Met à jour la cible et la position (fil de l'interface).</summary>
+        public void SetCoordinates(Point? targetCoordinates, Point currentCoordinates)
+        {
+            if (target == targetCoordinates && current == currentCoordinates) return;
+            target = targetCoordinates; current = currentCoordinates;
+            AccessibleDescription = target.HasValue
+                ? "[" + target.Value.X.ToString(CultureInfo.InvariantCulture) + "," + target.Value.Y.ToString(CultureInfo.InvariantCulture) + "]"
+                : "aucune cible";
+            Invalidate();
+        }
+
+        private void RedrawLater()
+        {
+            try { if (!IsDisposed && IsHandleCreated) BeginInvoke((Action)Invalidate); }
+            catch (Exception error) when (error is InvalidOperationException || error is ObjectDisposedException) { }
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            Graphics graphics = e.Graphics;
+            int side = Math.Min(Width, Height) - 2;
+            if (side <= 4) return;
+            var dial = new RectangleF((Width - side) / 2f, (Height - side) / 2f, side, side);
+            SmoothingMode previousMode = graphics.SmoothingMode;
+            InterpolationMode previousInterpolation = graphics.InterpolationMode;
+            graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            try
+            {
+                // Lecture du cache seulement : aucun PNG n'est lu pendant le dessin.
+                ClientAssets.TryCached("Client", Back, out Bitmap back);
+                if (back != null) graphics.DrawImage(back, dial);
+                else
+                {
+                    using (var fill = new SolidBrush(BotUi.Frame)) graphics.FillEllipse(fill, dial);
+                    using (var edge = new Pen(BotUi.Gold)) graphics.DrawEllipse(edge, dial);
+                }
+                if (!target.HasValue) return;
+                float? angle = Angle;
+                ClientAssets.TryCached("Client", angle.HasValue ? Arrow : NoArrow, out Bitmap needle);
+                GraphicsState state = graphics.Save();
+                graphics.TranslateTransform(dial.X + dial.Width / 2, dial.Y + dial.Height / 2);
+                if (angle.HasValue) graphics.RotateTransform(angle.Value);
+                var box = new RectangleF(-dial.Width / 2, -dial.Height / 2, dial.Width, dial.Height);
+                if (needle != null) graphics.DrawImage(needle, box);
+                else if (angle.HasValue)
+                {
+                    PointF[] arrow = { new PointF(box.Right - 3, 0), new PointF(-3, -box.Height / 6), new PointF(0, 0), new PointF(-3, box.Height / 6) };
+                    using (var olive = new SolidBrush(BotUi.Olive)) graphics.FillPolygon(olive, arrow);
+                }
+                else using (var olive = new SolidBrush(BotUi.Olive)) graphics.FillEllipse(olive, -3, -3, 6, 6);
+                graphics.Restore(state);
+            }
+            finally
+            {
+                graphics.SmoothingMode = previousMode;
+                graphics.InterpolationMode = previousInterpolation;
+            }
         }
     }
 

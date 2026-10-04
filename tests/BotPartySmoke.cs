@@ -333,6 +333,13 @@ internal static class BotPartySmoke
                         menu.Close(); Application.DoEvents();
                         FeedFromNetwork(account, "IC7|-2"); FeedFromNetwork(account, "PF+77");
                         PumpUntil(() => ((Label)Get(panel, "compassLabel")).Text.Contains("[7,-2]") && list.FollowedId == 77);
+                        // Boussole du volet : flèche à atan2(Δy, Δx) depuis la carte actuelle [0,0], comme ank.gapi.controls.Compass.
+                        var dial = (PartyCompass)Get(panel, "compass");
+                        Check(dial.Target == new Point(7, -2) && dial.Current == Point.Empty && dial.Angle.HasValue
+                            && Math.Abs(dial.Angle.Value - (float)(Math.Atan2(-2, 7) * 180 / Math.PI)) < 0.01f, "Compass dial does not point to the IC target");
+                        Check(PartyCompass.ArrowAngle(new Point(3, 3), new Point(3, 3)) == null && PartyCompass.ArrowAngle(Point.Empty, null) == null
+                            && PartyCompass.ArrowAngle(Point.Empty, new Point(0, 5)) == 90f, "Compass angle rule differs from the client");
+                        using (var image = new Bitmap(PartyCompass.Side, PartyCompass.Side)) dial.DrawToBitmap(image, new Rectangle(0, 0, PartyCompass.Side, PartyCompass.Side));
                         menu = panel.ShowMemberMenu(77);
                         Check(Texts(menu.Items).Any(text => text == "Arrêter de suivre") && !Texts(menu.Items).Contains("Suivre (test)"), "Followed member menu does not offer to stop");
                         menu.Close(); Application.DoEvents();

@@ -21,17 +21,26 @@ namespace Outil_Azur_complet.Bot.Panels
         public const string Leader = "chef", Follow = "suivi", Info = "infos", Party = "groupe";
 
         private static readonly ConcurrentDictionary<string, Task<Bitmap>> loads = new ConcurrentDictionary<string, Task<Bitmap>>(StringComparer.OrdinalIgnoreCase);
-        private static string root = AppDomain.CurrentDomain.BaseDirectory;
+        private static string root = DefaultRoot();
 
-        /// <summary>Dossier de base (celui de l'exécutable) ; un test le remplace par un dossier temporaire, ce qui vide le cache.</summary>
+        /// <summary>
+        /// Dossier de base, par défaut celui de l'exécutable (comme <see cref="ClientAssets"/>) ; un test le remplace par un dossier
+        /// temporaire, ce qui vide le cache.
+        /// </summary>
         public static string Root
         {
             get => root;
             set
             {
-                root = string.IsNullOrEmpty(value) ? AppDomain.CurrentDomain.BaseDirectory : value;
+                root = string.IsNullOrEmpty(value) ? DefaultRoot() : value;
                 loads.Clear();
             }
+        }
+
+        private static string DefaultRoot()
+        {
+            string folder = Path.GetDirectoryName(typeof(PartyArtworks).Assembly.Location);
+            return string.IsNullOrEmpty(folder) ? AppDomain.CurrentDomain.BaseDirectory : folder;
         }
 
         /// <summary>Chemin du PNG (<c>ressources/Bot/&lt;famille&gt;/&lt;nom&gt;.png</c>, puis <c>Resources/Bot/…</c>), ou <c>null</c>.</summary>
