@@ -101,6 +101,38 @@ namespace Outil_Azur_complet.Bot.Interfaces
             }
         }
 
+        /// <summary>
+        /// Clic sur le sprite de <paramref name="actor"/> (lot M1, test au pixel près) : même traitement que
+        /// <see cref="RouteAsync"/>, l'acteur cliqué passant en tête des acteurs de sa cellule.
+        /// </summary>
+        public async Task RouteActorAsync(Entites actor, short cellId, MouseButtons button, Keys modifiers = Keys.None)
+        {
+            if (disposed) return;
+            if (actor == null) { await RouteAsync(cellId, button, modifiers); return; }
+            try
+            {
+                var actors = new List<Entites> { actor };
+                foreach (Entites other in actorsAt(cellId) ?? new Entites[0])
+                    if (other != null && !ReferenceEquals(other, actor)) actors.Add(other);
+                if (button == MouseButtons.Left)
+                {
+                    if (cellActionFirst()) { await RequestMoveAsync(cellId, modifiers); return; }
+                    await ActorLeftClickAsync(cellId, actors, modifiers);
+                }
+                else if (button == MouseButtons.Right)
+                {
+                    var args = new MapClickEventArgs(cellId, button, modifiers, actor, actors);
+                    if (await RaiseAsync(ActorMenuRequested, args)) return;
+                    ShowActorMenu(actors, cellId, modifiers, (modifiers & Keys.Control) == Keys.Control);
+                }
+            }
+            catch (Exception error)
+            {
+                Report("Action impossible : " + error.Message);
+                Account?.Logger?.LogException("CARTE", error);
+            }
+        }
+
         /// <summary>Demande le traitement d'un clic gauche sur la cellule (déplacement, sort, placement, zaap).</summary>
         public async Task RequestMoveAsync(short cellId, Keys modifiers = Keys.None)
         {
