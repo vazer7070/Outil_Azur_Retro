@@ -8,7 +8,7 @@ using System.Windows.Forms;
 namespace Outil_Azur_complet.Bot
 {
     /// <summary>Réponse d'une boîte de dialogue du bot ; <see cref="None"/> quand elle est fermée sans réponse.</summary>
-    public enum BotDialogResult { None, Yes, No, Ignore, Ok }
+    public enum BotDialogResult { None, Yes, No, Ignore, Ok, Cancel }
 
     /// <summary>
     /// Boîtes de dialogue au style du client Retro (cadre brun, parchemin, filets dorés, boutons du client), à la place
@@ -31,6 +31,29 @@ namespace Outil_Azur_complet.Bot
         public static Task<BotDialogResult> InfoAsync(Control owner, string title, string message) =>
             ShowAsync(owner, title, message, BotDialogResult.Ok, BotDialogResult.Ok);
 
+        // Duels (lot M4) : boîtes nommées, refermées par Dismiss quand le serveur clôt le duel (GA;901, GA;902).
+        /// <summary>Oui / Non / Ignorer d'un duel reçu (<c>CAUTION_YESNOIGNORE</c> du client), retrouvable par son nom.</summary>
+        public static Task<BotDialogResult> AskYesNoIgnoreAsync(Control owner, string title, string message, string name) =>
+            ShowAsync(owner, title, message, name, BotDialogResult.No, BotDialogResult.Yes, BotDialogResult.No, BotDialogResult.Ignore);
+        /// <summary>Information avec un seul bouton « Annuler » (<c>INFO_CANCEL</c> du client, duel proposé en attente).</summary>
+        public static Task<BotDialogResult> CancelAsync(Control owner, string title, string message, string name) =>
+            ShowAsync(owner, title, message, name, BotDialogResult.Cancel, BotDialogResult.Cancel);
+
+        /// <summary>Referme sans réponse (<see cref="BotDialogResult.None"/>) les boîtes portant ce nom ; renvoie leur nombre.</summary>
+        public static int Dismiss(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return 0;
+            int count = 0;
+            foreach (Form dialog in OpenDialogs.Where(form => string.Equals(form.Name, name, StringComparison.Ordinal)))
+            {
+                count++;
+                Action close = () => { if (!dialog.IsDisposed && !dialog.Modal) dialog.Close(); };
+                try { if (dialog.InvokeRequired) dialog.BeginInvoke(close); else close(); }
+                catch (InvalidOperationException) { }
+            }
+            return count;
+        }
+
         /// <summary>Variante modale : bloque jusqu'à la réponse (à réserver aux écrans sans réseau actif).</summary>
         public static BotDialogResult AskYesNo(IWin32Window owner, string title, string message) =>
             ShowModal(owner, title, message, BotDialogResult.No, BotDialogResult.Yes, BotDialogResult.No);
@@ -39,7 +62,10 @@ namespace Outil_Azur_complet.Bot
         public static void Info(IWin32Window owner, string title, string message) =>
             ShowModal(owner, title, message, BotDialogResult.Ok, BotDialogResult.Ok);
 
-        private static Task<BotDialogResult> ShowAsync(Control owner, string title, string message, BotDialogResult cancel, params BotDialogResult[] choices)
+        private static Task<BotDialogResult> ShowAsync(Control owner, string title, string message, BotDialogResult cancel, params BotDialogResult[] choices) =>
+            ShowAsync(owner, title, message, null, cancel, choices);
+
+        private static Task<BotDialogResult> ShowAsync(Control owner, string title, string message, string name, BotDialogResult cancel, params BotDialogResult[] choices)
         {
             var completion = new TaskCompletionSource<BotDialogResult>();
             Action show = () =>
@@ -47,7 +73,7 @@ namespace Outil_Azur_complet.Bot
                 try
                 {
                     Form parent = owner == null || owner.IsDisposed ? null : owner.FindForm();
-                    var dialog = new BotDialogForm(title, message, cancel, choices);
+                    var dialog = new BotDialogForm(title, message, cancel, choices) { Name = name ?? string.Empty };
                     dialog.FormClosed += (s, e) => { Forget(dialog); completion.TrySetResult(dialog.Result); dialog.BeginDispose(); };
                     Remember(dialog);
                     dialog.PlaceOver(parent);
@@ -85,6 +111,7 @@ namespace Outil_Azur_complet.Bot
                 case BotDialogResult.Yes: return "Oui";
                 case BotDialogResult.No: return "Non";
                 case BotDialogResult.Ignore: return "Ignorer";
+                case BotDialogResult.Cancel: return "Annuler";
                 default: return "OK";
             }
         }
