@@ -74,6 +74,8 @@ class Swf(unittest.TestCase):
                 E.lire_swf(invalide)
         with self.assertRaises(E.SwfInvalide):  # balise annoncée plus longue que le fichier
             E.lire_balises(struct.pack("<H", (2 << 6) | 10) + b"abc", 0, 5)
+        with self.assertRaises(E.SwfInvalide):  # ExportAssets qui annonce deux noms et n'en contient qu'un
+            E.exports(swf([[E.EXPORT_ASSETS, struct.pack("<HH", 2, 3) + b"x\0"]]))
 
     def test_calques_dans_un_sprite(self):
         seul = E.variante_calque(self.donnees, {"back"}, True, sprite=5)
@@ -166,9 +168,11 @@ class Export(unittest.TestCase):
         self.faux("clips/smileys/lisezmoi.swf", {"scene": True})
         self.faux("clips/items/9/12.swf", {"scene": True})
         self.faux("clips/items/9/3.swf", {"scene": True})
-        os.makedirs(os.path.join(self.client, "clips", "artworks", "big"))
-        with open(os.path.join(self.client, "clips", "artworks", "big", "7.swf"), "w") as f:
-            f.write("pas un SWF")
+        for chemin in ("clips/artworks/big/7.swf", "clips/maps/0.swf", "clips/maps/hints.swf"):
+            chemin = os.path.join(self.client, *chemin.split("/"))
+            os.makedirs(os.path.dirname(chemin), exist_ok=True)
+            with open(chemin, "w") as f:
+                f.write("pas un SWF")
 
     def tearDown(self):
         shutil.rmtree(self.dossier, ignore_errors=True)
@@ -185,7 +189,7 @@ class Export(unittest.TestCase):
 
     def test_familles_scene(self):
         r = subprocess.run([sys.executable, EXPORTEUR, "--client", self.client, "--sortie", self.sortie, "--swfsvg", FAUX,
-                            "--familles", "Smileys,Items,Portraits,Emotes", "--processus", "2", "--travail", self.dossier],
+                            "--familles", "Smileys,Items,Portraits,Emotes,WorldMap", "--processus", "2", "--travail", self.dossier],
                            capture_output=True, encoding="utf-8")
         self.assertEqual(r.returncode, 0, r.stderr)
         # Cadre 20 x 32 à l'échelle 2, limité à 48 px : échelle 1,5.
@@ -200,6 +204,8 @@ class Export(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.sortie, "Smileys", "lisezmoi.png")), "seuls les <n>.swf sont lus")
         self.assertFalse(os.path.exists(os.path.join(self.sortie, "Portraits", "7.png")))
         self.assertIn("clips/artworks/big/7.swf", r.stdout, "un SWF illisible est signalé sans arrêter la série")
+        self.assertIn("illisible : ", r.stdout, "carte du monde illisible : signalée, la série continue")
+        self.assertIn("0 PNG", self.lire("WorldMap", "PROVENANCE.md"))
         # Provenance : source, outil, commande de la famille, fichiers non exportés.
         smileys = self.lire("Smileys", "PROVENANCE.md")
         self.assertIn("`clips/smileys/<n>.swf`", smileys)

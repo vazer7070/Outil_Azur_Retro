@@ -233,13 +233,26 @@ def exports(donnees):
     for code, octets in balises:
         if code != EXPORT_ASSETS or len(octets) < 2:
             continue
-        nombre, p = struct.unpack_from("<H", octets, 0)[0], 2
-        for _ in range(nombre):
-            ident = struct.unpack_from("<H", octets, p)[0]
-            fin = octets.index(0, p + 2)
-            resultat[octets[p + 2:fin].decode("latin-1")] = ident
-            p = fin + 1
+        try:
+            nombre, p = struct.unpack_from("<H", octets, 0)[0], 2
+            for _ in range(nombre):
+                ident = struct.unpack_from("<H", octets, p)[0]
+                fin = octets.index(0, p + 2)
+                resultat[octets[p + 2:fin].decode("latin-1")] = ident
+                p = fin + 1
+        except (struct.error, ValueError):
+            raise SwfInvalide("ExportAssets tronqué")
     return resultat
+
+
+def exports_ou_rien(chemin):
+    """Exports d'un SWF du client, ou {} (avec un message) s'il est illisible : la série continue."""
+    try:
+        with open(chemin, "rb") as f:
+            return exports(f.read())
+    except (OSError, SwfInvalide) as error:
+        print("illisible : %s (%s)" % (chemin, error), flush=True)
+        return {}
 
 
 # ---------------------------------------------------------------------------------------------
@@ -593,8 +606,7 @@ def lister_taches(client, familles, sortie_racine, remplacer):
     if "WorldMap" in familles:
         for chemin in fichiers(os.path.join(clips, "maps")):
             zone = os.path.splitext(os.path.basename(chemin))[0]
-            with open(chemin, "rb") as f:
-                noms = exports(f.read())
+            noms = exports_ou_rien(chemin)
             for nom in sorted(n for n in noms if re.match(r"^-?\d+_-?\d+$", n)):
                 taches.append({"famille": "WorldMap", "type": "symbole", "swf": chemin, "symbole": nom,
                                "sortie": "WorldMap/%s/%s" % (zone, nom), "echelle": 1, "tuile": (zone, "tuiles.tsv")})
@@ -605,10 +617,9 @@ def lister_taches(client, familles, sortie_racine, remplacer):
                                "sortie": "WorldMap/%s/sous-zones/%s" % (zone, nom[8:]), "echelle": 1, "tuile": (zone, "sous-zones.tsv")})
         indices = os.path.join(clips, "maps", "hints.swf")
         if os.path.exists(indices):
-            with open(indices, "rb") as f:
-                for nom in sorted(exports(f.read()), key=lambda n: (len(n), n)):
-                    taches.append({"famille": "WorldMap", "type": "symbole", "swf": indices, "symbole": nom,
-                                   "sortie": "WorldMap/hints/" + nom, "echelle": 2, "max": 48})
+            for nom in sorted(exports_ou_rien(indices), key=lambda n: (len(n), n)):
+                taches.append({"famille": "WorldMap", "type": "symbole", "swf": indices, "symbole": nom,
+                               "sortie": "WorldMap/hints/" + nom, "echelle": 2, "max": 48})
         donjon = os.path.join(clips, "maps", "dungeon.swf")
         if os.path.exists(donjon):
             taches.append({"famille": "WorldMap", "type": "scene", "swf": donjon, "sortie": "WorldMap/dungeon", "echelle": 1})
