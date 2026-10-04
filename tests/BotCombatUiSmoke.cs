@@ -83,7 +83,7 @@ internal static class BotCombatUiSmoke
         var listener=new TcpListener(IPAddress.Loopback,0);listener.Start();
         try {
             MessagesReception.Init(); Spell.AllSpells.Clear();
-            for(short i=10;i<23;i++) { var spell=new Spell(i,"Sort test "+i);spell.GetSpellsStats(1,new SpellStats {PA=3,Min_portee=1,Max_portee=6}); }
+            for(short i=10;i<26;i++) { var spell=new Spell(i,"Sort test "+i);spell.GetSpellsStats(1,new SpellStats {PA=3,Min_portee=1,Max_portee=6}); }
             Map.AllBotMaps[900091]=new Map {MapID=900091,MapWidth=3,MapHeight=4,MapData=string.Concat(Enumerable.Repeat("HhGaeaaaaa",18))};
             using(var account=new Accounts(new AccountConfig("synthetic-combat-ui","synthetic","loopback"))) {
                 Task<Socket> accept=listener.AcceptSocketAsync();
@@ -91,15 +91,15 @@ internal static class BotCombatUiSmoke
                 using(Socket peer=accept.Result) {
                     peer.ReceiveTimeout=6000; account.Game.character.SetPerso_Data(42,"Personnage de test",25,0,8);
                     account.Game.Map.SetRefreshMap("900091|date|");account.Game.character.Cell=account.Game.Map.MapCells[0];
-                    for(short i=10;i<23;i++)account.Game.character.Spells[i]=Spell.ForCharacter(i,1);
+                    for(short i=10;i<26;i++)account.Game.character.Spells[i]=Spell.ForCharacter(i,1);
                     using(var form=new GameClientFullform(account)) {
                         form.ShowInTaskbar=false;form.Opacity=0;form.Show();Application.DoEvents();
                         var slots=(List<Button>)Get(form,"quickSpells");var ids=(Dictionary<Button,short>)Get(form,"quickSpellIds");
                         var view=(MapControl)Get(form,"mapControl");var map=(UserMapControl)Get(view,"UserMap");
-                        Check(slots.Count==10&&slots.All(slot=>slot.Width==30&&slot.Height==30),"Spell icons stretch with the HUD");
-                        var icon=slots[0].GetType().GetProperty("Icon").GetValue(slots[0],null) as Image;
+                        Check(slots.Count==14&&slots.All(slot=>slot.Width==25&&slot.Height==25),"Spell icons stretch with the HUD");
+                        PumpUntil(()=>slots[0].GetType().GetProperty("Icon").GetValue(slots[0],null)!=null);var icon=slots[0].GetType().GetProperty("Icon").GetValue(slots[0],null) as Image;
                         Check(icon!=null&&icon.Width>30,"A real spell icon was not loaded");
-                        ((Button)Get(form,"nextSpellPage")).PerformClick();Check(ids[slots[0]]==20,"Second page does not reach all learned spells");
+                        ((Button)Get(form,"nextSpellPage")).PerformClick();Check(ids[slots[0]]==24,"Second page does not reach all learned spells");
                         ((Button)Get(form,"previousSpellPage")).PerformClick();Check(ids[slots[0]]==10,"First page lost its order");
                         slots[0].PerformClick();Check(view.SelectedSpellId==null&&peer.Available==0,"Spell cast outside combat or opened target mode");
                         Feed(account,"GJK2|1|1|0|30000|0");Feed(account,"GP"+Hash.Get_Cell_Char(0)+Hash.Get_Cell_Char(3)+"|"+Hash.Get_Cell_Char(9)+"|0");

@@ -171,8 +171,8 @@ internal static class BotServerCommandsSmoke
                         PanelHost drawer = form.Panels;
                         var panel = drawer.Get<CommandsHelpPanel>();
                         Check(panel != null && panel.Title == "Commandes du serveur", "Server commands panel is not registered");
-                        ToolStripItem menu = All(form).OfType<MenuStrip>().SelectMany(strip => Items(strip.Items)).FirstOrDefault(item => item.Text == "Commandes du serveur");
-                        Check(menu != null, "The character menu has no « Commandes du serveur » entry");
+                        ToolStripItem menu = Items(form.GlobalMenu.Items).FirstOrDefault(item => item.Text == "Commandes du serveur");
+                        Check(menu != null, "The global menu has no « Commandes du serveur » entry");
                         menu.PerformClick(); PumpUntil(() => drawer.Current == panel);
                         NoPacket(peer, "Opening the panel sent a packet");
                         CommandsPanel(account, peer, panel);

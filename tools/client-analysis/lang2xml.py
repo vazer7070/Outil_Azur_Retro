@@ -335,6 +335,9 @@ FAMILLES = {
     "pvp": ["PP"],
     "servers": ["SR", "SRC", "SRP", "SRPW", "SRVT", "SRVC"],
     "dungeons": ["DU"],
+    # Raccourcis clavier (`shortcuts_fr`) : jeux de touches `SST`, catégories `SSC`, raccourcis `SH`,
+    # touches `SSK["<jeu>|<NOM>"]` (`k` code de touche, `c` modificateurs 0/1 Ctrl/2 Maj/3 Ctrl+Maj, `s` libellé).
+    "shortcuts": ["SST", "SSC", "SH", "SSK"],
 }
 
 # Familles lues par LangData (le lot D4) : celles du tableau de la fiche, plus `lang`.

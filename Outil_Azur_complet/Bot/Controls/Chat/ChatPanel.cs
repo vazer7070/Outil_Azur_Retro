@@ -148,6 +148,8 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
         public event Action<int, int> CompassRequested;
         /// <summary>Message court pour le bandeau (résultat d'une entrée de menu), sur le thread de l'interface.</summary>
         public event Action<string> Feedback;
+        /// <summary>Filtre des mots appliqué aux messages reçus (option <c>CensorshipFilter</c>, fournie par la fenêtre de jeu) ; <c>null</c> = aucun.</summary>
+        public Func<string, string> Censor { get; set; }
 
         public bool SmileysOpen => smileyDrop.Visible;
 
@@ -263,7 +265,7 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
         {
             if (message == null) return;
             if ((message.Kind == ChatMessageKind.Channel || message.Kind == ChatMessageKind.WhisperReceived) && IsIgnored(message.Author)) return;
-            View.Append(ChatLineBuilder.FromMessage(message, account.Game?.Fight?.IsSpectator ?? false));
+            View.Append(ChatLineBuilder.FromMessage(message, account.Game?.Fight?.IsSpectator ?? false, Censor));
         }
 
         /// <summary>Écho <c>cC±</c> : les filtres suivent les lettres ajoutées et retirées (<c>onSubscribeChannel</c>).</summary>

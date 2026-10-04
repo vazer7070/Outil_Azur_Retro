@@ -127,6 +127,8 @@
   <ItemGroup>
     <Compile Include="Config\AccountConfig.cs" />
     <Compile Include="Config\GlobalConfig.cs" />
+    <Compile Include="Config\BotOptions.cs" />
+    <Compile Include="Config\ChatCensorship.cs" />
     <Compile Include="Frames\Auth\AccountLoginFrame.cs" />
     <Compile Include="Frames\Auth\AuthFrame.cs" />
     <Compile Include="Frames\Frame.cs" />
