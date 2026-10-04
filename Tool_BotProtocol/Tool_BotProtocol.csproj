@@ -165,6 +165,7 @@
     <Compile Include="Game\Maps\Combats\FightMoveStructs.cs" />
     <Compile Include="Game\Maps\Interactives\InteractivesobjectsIdEmu.cs" />
     <Compile Include="Game\Maps\Interactives\Zaaps.cs" />
+    <Compile Include="Game\Maps\Triggers.cs" />
     <Compile Include="Game\Maps\Mouvements\AnimDuration.cs" />
     <Compile Include="Game\Managers\Mouvements\Mouvement.cs" />
     <Compile Include="Game\Managers\Mouvements\MoveResults.cs" />
@@ -186,6 +187,7 @@
     <Compile Include="Game\Perso\Inventory\InventoryClass.cs" />
     <Compile Include="Game\Perso\Inventory\InventoryObjects.cs" />
     <Compile Include="Game\Perso\Inventory\InventoryUtilities.cs" />
+    <Compile Include="Game\Perso\Inventory\ItemSets.cs" />
     <Compile Include="Game\Perso\Personnages.cs" />
     <Compile Include="Game\Perso\Spells\Shaper.cs" />
     <Compile Include="Game\Perso\Spells\Spell.cs" />

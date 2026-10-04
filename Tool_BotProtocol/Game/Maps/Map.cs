@@ -35,6 +35,8 @@ namespace Tool_BotProtocol.Game.Maps
         public Dictionary<TeleportCellsEnum, List<short>> TeleportCells;
         public ConcurrentDictionary<int, Entites> Entites;
         public ConcurrentDictionary<int, Interactives.Interactives> Interactives;
+        /// <summary>Cellules déclencheurs de la carte (<c>BotTriggers</c>) : cellule → action du serveur, dont la téléportation.</summary>
+        public IReadOnlyDictionary<int, Trigger> Triggers { get; private set; } = global::Tool_BotProtocol.Game.Maps.Triggers.None;
         public static ConcurrentDictionary<int, Map> AllBotMaps = new ConcurrentDictionary<int, Map>();
         public event Action RefreshMap;
         public event Action RefreshEntities;
@@ -98,6 +100,7 @@ namespace Tool_BotProtocol.Game.Maps
             if (!int.TryParse(P[0], out int id)) throw new FormatException("Identifiant de carte invalide.");
             Clear();
             MapID = id;
+            Triggers = global::Tool_BotProtocol.Game.Maps.Triggers.ForMap(MapID);
             Map info = ReturnMapInfo(MapID);
             if (info == null)
             {
@@ -317,6 +320,7 @@ namespace Tool_BotProtocol.Game.Maps
             Y = 0;
             Entites.Clear();
             Interactives.Clear();
+            Triggers = global::Tool_BotProtocol.Game.Maps.Triggers.None;
             TeleportCells.Clear();
             MapCells = null;
             MapWidth = MapHeight = 0;
