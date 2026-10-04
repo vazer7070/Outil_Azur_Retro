@@ -682,6 +682,13 @@
     <Copy SourceFiles="@(BotSpellIcon)" DestinationFiles="@(BotSpellIcon->'$(OutDir)ressources\Bot\sorts\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(BotSpriteAsset)" DestinationFiles="@(BotSpriteAsset->'$(OutDir)ressources\Bot\sprites\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
+  <!-- Décor exporté du client par tools/client-analysis/exporter_decor.py (PNG et ancres.tsv, voir Resources\Bot\Decor\PROVENANCE.md). -->
+  <Target Name="CopyBotDecorAssets" AfterTargets="Build">
+    <ItemGroup>
+      <BotDecorAsset Include="$(ProjectDir)Resources\Bot\Decor\**\*.png;$(ProjectDir)Resources\Bot\Decor\ancres.tsv" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BotDecorAsset)" DestinationFiles="@(BotDecorAsset->'$(OutDir)ressources\maps\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
   <!-- The supplied image/sound libraries historically live under bin/Debug.
        Make other build configurations usable with the same runtime assets. -->
   <Target Name="CopyAzurRuntimeAssets" AfterTargets="Build" Condition="'$(Configuration)' != 'Debug' and Exists('$(ProjectDir)bin\Debug\ressources')">
