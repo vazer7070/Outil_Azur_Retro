@@ -152,7 +152,11 @@ internal static class BotDialogsSmoke
                         var drawer = form.Panels; var dialog = drawer.Get<DialoguePanel>(); var zaapPanel = drawer.Get<ZaapsPanel>();
                         Check(dialog?.Title == "Dialogue" && zaapPanel?.Title == "Zaaps"
                             && drawer.Get<ShopPanel>()?.Title == "Boutique", "Interaction panels are missing from the drawer");
-                        Complete(view.HandleCellActionAsync(5)); Check(Read(peer) == "DC-8", "Clicking an NPC cell does not send DC");
+                        // Clic gauche sur un PNJ : menu de ses actions comme le client (repli Parler / Acheter/Vendre sans textes) ; Maj + clic parle.
+                        Complete(view.HandleCellActionAsync(5)); NoPacket(peer, "Clicking an NPC sent a packet instead of opening its menu");
+                        Check(view.Router.LastMenu != null && view.Router.LastMenu.Items.OfType<ToolStripMenuItem>().Select(item => item.Text).SequenceEqual(new[] { "Parler", "Acheter/Vendre" }),
+                            "Clicking an NPC does not open its action menu");
+                        Complete(view.HandleCellActionAsync(5, Keys.Shift)); Check(Read(peer) == "DC-8", "Shift + click on an NPC does not send DC");
                         Check(!drawer.Visible, "Dialog panel opened before the server answer");
                         Feed(account, "DCK-8"); Feed(account, "DQ300;x|7;8"); Application.DoEvents();
                         Check(drawer.Visible && drawer.Current == dialog, "Dialog panel did not open on DCK/DQ");

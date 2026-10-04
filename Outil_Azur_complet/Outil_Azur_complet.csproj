@@ -299,6 +299,7 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Bot\Panels\DialoguePanel.cs" />
+    <Compile Include="Bot\Panels\NpcPortraits.cs" />
     <Compile Include="Bot\Panels\ZaapsPanel.cs" />
     <Compile Include="Bot\Panels\ShopPanel.cs" />
     <Compile Include="Bot\Panels\InventoryPanel.cs" />
@@ -312,7 +313,7 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Bot\Interfaces\InteractionRouter.cs" />
-    <Compile Include="Bot\Menus\NpcBasicMenuProvider.cs" />
+    <Compile Include="Bot\Menus\NpcMenuProvider.cs" />
     <Compile Include="Bot\LoginForm.Designer.cs">
       <DependentUpon>LoginForm.cs</DependentUpon>
     </Compile>

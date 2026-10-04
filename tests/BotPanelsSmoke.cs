@@ -139,7 +139,7 @@ internal static class BotPanelsSmoke
                     registry.Add(new BrokenProvider());
                     Check(registry.EntriesFor(npc, account.Game, (p, e) => errors.Add(e.Message)).Count(e => !e.EstSéparateur) == 3 && errors.SequenceEqual(new[] { "fournisseur cassé" }),
                         "A failing provider broke the menu or was not reported");
-                    Check(ActorMenuRegistry.Default.Providers.OfType<NpcBasicMenuProvider>().Count() == 1, "Application providers are not discovered");
+                    Check(ActorMenuRegistry.Default.Providers.OfType<NpcMenuProvider>().Count() == 1, "Application providers are not discovered");
 
                     using (var form = new GameClientFullform(account))
                     {
@@ -199,13 +199,13 @@ internal static class BotPanelsSmoke
                         Check(view.Router.LastMenu == perActor, "Right-click on an empty cell built a menu");
                         NoPacket(peer, "Right-click on an empty cell sent a packet");
 
-                        // Menu provisoire des PNJ : Parler (DC, clic gauche) et Acheter/Vendre (ER0).
+                        // Menu des PNJ sans textes du client (repli) : Parler (DC, Maj + clic) et Acheter/Vendre (ER0).
                         view.Router.Registry = ActorMenuRegistry.Default;
                         Complete(view.Router.RouteAsync(5, MouseButtons.Right));
                         menu = view.Router.LastMenu;
                         Check(string.Join("|", Texts(menu.Items)) == "Aubergiste fictif|Parler|Acheter/Vendre", "NPC menu differs: " + string.Join("|", Texts(menu.Items)));
                         var talk = (ToolStripMenuItem)menu.Items[1];
-                        Check(talk.Font.Bold && talk.ShortcutKeyDisplayString == "Clic gauche" && perActor.IsDisposed, "Default NPC entry is not marked or the previous menu leaked");
+                        Check(talk.Font.Bold && talk.ShortcutKeyDisplayString == "Maj + clic" && perActor.IsDisposed, "Default NPC entry is not marked or the previous menu leaked");
                         talk.PerformClick(); Check(Read(peer) == "DC-8", "Parler does not send DC<npc>");
 
                         // Volet de fenêtre serveur : CloseAll le garde, × envoie DV et le volet attend la réponse du serveur.
