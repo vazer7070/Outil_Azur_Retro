@@ -108,3 +108,37 @@ Les dialogues PNJ, les zaaps, la boutique PNJ et les actions d’inventaire ne s
 Il reste à connecter le bot à une copie isolée du vrai StarLoco, avec comptes et personnages de test, puis vérifier cartes, déplacements, créations/suppressions de personnages et réponse secrète, discussions, métiers, augmentations de caractéristiques et de sorts, interactions et combats. Les corrections d’Azur ne modifient pas les sources du kit ni les bases utilisateur. Les défauts internes de l’émulateur relevés dans [l’analyse des sources](STARLOCO_SOURCES_ANALYSE.md) restent distincts du client bot.
 
 Pour la reprise de développement, consulter [le brief de refonte de l’interface](BRIEF_REDESIGN_UI_BOT.md). Il précise les références, les limites du rendu actuel et les vérifications visuelles à effectuer avant de considérer la refonte terminée. Les résultats automatisés et les livrables du 2 octobre 2026 sont consignés dans ce brief ; ils ne remplacent pas le parcours en jeu réel.
+
+## Modèle d’acteurs de la carte (`GM`, `GA` hors combat)
+
+Les entités d’une carte sont des `MapActor` (`Tool_BotProtocol/Game/Maps/Entities`), qui implémentent toujours l’interface historique `Entites`. `Map.Actors` (alias `Map.Entites`, clé `long`) contient les autres acteurs ; le personnage du compte est rangé à part dans `Map.Self`. Les épées de combat (`Map.FightSwords`, par identifiant de combat), les objets au sol (`Map.GroundObjects`) et les états d’objets interactifs (`Map.ObjectStates`) sont tenus séparément. Les événements `ActorAdded`, `ActorRemoved`, `ActorUpdated`, `ActorsCleared`, `CellUpdated`, `GroundObjectChanged`, `ObjectStateChanged` et `MapChanging` sont levés sur le fil réseau, après la mise à jour de l’état. Les vues `NPC_List`, `MonsterList`, `PersoList` et `CellsOccuped` restent disponibles : elles ne listent que les acteurs dont la cellule existe sur la carte chargée.
+
+`GmParser` découpe les `GM` concaténés par NUL, puis les entrées `+` (ajout), `~` (remplacement) et `-` (retrait). Le champ type choisit la classe, comme `Game.onMovement` du client 1.34 :
+
+| Type | Acteur | Champs conservés |
+|---|---|---|
+| ≥ 0 (classe) | `PlayerActor` | titre après la virgule du type, sexe, alignement (`côté,valeur,grade,niveau+id[,déchu]`), couleurs, `Stuff` et accessoires, aura, émote, guilde et emblème, restrictions, monture ; en combat : niveau, PV/PA/PM, résistances, équipe |
+| `-1` / `-2` | `FightMonsterActor` | modèle, grade (index 7, pas le niveau), couleurs, accessoires, PV/PA/PM, résistances et équipe |
+| `-3` | `MonsterGroupActor` | `Stars` = champ [2] brut (bonus du groupe ; son affichage en étoiles est laissé au rendu), `Members` (modèle, niveau, sprite, couleurs, accessoires), `Leader` |
+| `-4` | `NpcActor` | modèle (l’identifiant de sprite, négatif chez StarLoco, n’est jamais pris pour le modèle), sexe, couleurs, accessoires, `ExtraClip`, `Artwork` |
+| `-5` | `MerchantActor` | nom, couleurs (dès l’index 7), `Stuff`, guilde, type hors ligne |
+| `-6` | `CollectorActor` | prénom et nom en base 36, niveau, guilde : « Percepteur de &lt;guilde&gt; » (le préfixe doublé `GM|GM|+…` de StarLoco est accepté) |
+| `-9` | `ParkMountActor` | nom, propriétaire, niveau, modèle |
+| `-10` | `PrismActor` | niveau, valeur et côté de l’alignement |
+| autre | `UnknownActor` | champs bruts |
+
+Le champ graphique accepte `gfx^taille`, `gfx^largeurxhauteur`, les marqueurs `*` (pas de miroir, pas de mode fantôme) et les sprites liés séparés par `,` ou `:`. Le nom d’un PNJ ou d’un monstre vient de `PNJ.ClientNameResolver` / `Monstres.ClientNameResolver` lorsque les textes du client y sont branchés, sinon de `BotNPCs` / `BotMonsters`, sinon « PNJ #modèle » / « Monstre #modèle ». Une entrée illisible est journalisée (`CARTE`) et ignorée sans arrêter les suivantes.
+
+Paquets traités par `MapFrame` hors combat :
+
+- `GA;0` : déplacement en cours annulé et refus journalisé.
+- `GA<id>;1;<acteur>;a<cellule de départ><chemin>` : le chemin est décodé depuis la cellule de départ (`ServerMovePath.Path` le donne sans ce préfixe). StarLoco n’envoie pas de `GAF` hors combat : pour le personnage du compte, le bot envoie un seul `GKK<id>` après la durée calculée localement (le gestionnaire attend encore cette durée) ; un autre acteur prend la cellule d’arrivée et l’orientation du dernier pas.
+- `GA;2;<acteur>;[cinématique]` : l’acteur quitte la carte. Pour le personnage du compte, la carte est vidée et `MapChanging` est levé avant le `GDM` suivant.
+- Les autres actions passent par `GameActionRouter` : chaque fonction ajoute ses gestionnaires dans son propre fichier (`[GameActionHandler(id)]` sur une méthode statique de `Tool_BotProtocol`, ou `GameActionRouter.Register`). Une action n’a qu’un gestionnaire ; un doublon lève une exception. `GA;4` (repositionnement `<acteur>,<cellule>`) y est enregistré.
+- `GDM|<carte>|<date>|<clé>` envoie toujours `GI`, même lorsque la carte manque dans `BotMaps` ou que son identifiant est illisible (carte vide et message dans le journal).
+- `GDF|<cellule>;<état>[;<1|0>]|…` : tous les triplets sont gardés dans `Map.ObjectStates` (1 plein, 2 en cours, 3 vide ou porte ouverte, 4, 5) ; l’indicateur historique `IsUsable` vaut toujours « état 1 ».
+- `GDO+<cellule>;<modèle>;<type>[;<durabilité>;<max>]` et `GDO-<cellule>` : objets au sol.
+- `GDC<cellule>;<10 caractères><masque hexadécimal>;<permanent>` modifie la cellule (portes, labyrinthes) ; `GDC<cellule>` seul la restaure. Le bot applique la ligne de vue (bit 4096) et le type de déplacement (bit 2048) ; les bits graphiques et le bit « active » (8192) ne sont pas appliqués.
+- `eD<acteur>|<direction>` (ignoré en combat), `Oa<acteur>|<accessoires>`, `Gc+<combat>;<type>|<équipe>;<cellule>;<type d’équipe>;<alignement>|…` et `Gc-<combat>`.
+
+`BotActorsModelSmoke` vérifie ces formats sur un serveur fictif local avec une carte synthétique. Ils proviennent des sources StarLoco du kit et du client 1.34 ; ils restent à rejouer sur un vrai StarLoco (marchands, percepteurs, prismes, montures d’enclos et portes `GDC` notamment). La recoloration des sprites, l’affichage des étoiles, des titres et des épées et les menus d’acteurs relèvent du rendu et de l’interface, pas de ce modèle.
