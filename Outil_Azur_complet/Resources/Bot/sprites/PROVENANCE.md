@@ -1,7 +1,7 @@
 # Sprites d'acteurs du client fourni
 
-Ce dossier est copié à côté de l'exécutable dans `ressources/Bot/sprites` (cibles `CopyBotSpellAssets`
-pour les PNG et `CopyBotSpriteAnchors` pour `ancres.tsv` dans `Outil_Azur_complet.csproj`).
+Ce dossier est copié à côté de l'exécutable dans `ressources/Bot/sprites` (cible `CopyBotAssets`
+de `Outil_Azur_complet.csproj`, pour les PNG et `ancres.tsv`).
 
 ## Deux générations de fichiers
 

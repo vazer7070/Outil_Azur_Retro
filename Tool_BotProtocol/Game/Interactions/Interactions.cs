@@ -85,9 +85,11 @@ namespace Tool_BotProtocol.Game.Interactions
         protected abstract void Reset();
     }
 
-    /// <summary>Fenêtres de jeu du personnage : dialogue PNJ, zaaps, boutique PNJ et échanges.</summary>
+    /// <summary>Fenêtres de jeu du personnage : dialogue PNJ, zaaps, boutique PNJ, échanges, objets interactifs et zaapis.</summary>
     public sealed class InteractionsClass
     {
+        /// <summary>Défis, agressions, combats de la carte et « qui est » (lot M4).</summary>
+        public Actions.MapActions MapActions { get; private set; }
         public NpcDialog Npc { get; private set; }
         public ZaapDialog Zaap { get; private set; }
         public NpcShop Shop { get; private set; }
@@ -95,19 +97,32 @@ namespace Tool_BotProtocol.Game.Interactions
         public Exchanges.ExchangeRegistry Exchanges { get; private set; }
         /// <summary>Échange avec un joueur ou un PNJ (types 1 et 2), demandes <c>ERK</c> comprises (lot F4).</summary>
         public Exchanges.PlayerExchange Exchange { get; private set; }
+        /// <summary>Objets interactifs : <c>GA500</c>, action 501, codes <c>K</c>, documents <c>d</c> (lot M3).</summary>
+        public InteractiveActions Interactive { get; private set; }
         /// <summary>Coffre ou banque (type 5) (lot F4).</summary>
         public Exchanges.StorageExchange Storage { get; private set; }
+        /// <summary>Zaapis : <c>Wc</c>, <c>Wu</c>, <c>Wv</c> (lot M3).</summary>
+        public ZaapiDialog Zaapi { get; private set; }
+        /// <summary>Groupe du personnage : invitations, membres, suivi, localisation (lot F1).</summary>
+        public Groupes.PartyActions Party { get; private set; }
+        /// <summary>Amis, ennemis et conjoint : <c>F…</c> et <c>i…</c> (lot F2).</summary>
+        public Social.FriendsActions Friends { get; private set; }
 
         internal InteractionsClass(Accounts.Accounts account)
         {
+            MapActions = new Actions.MapActions(account);
             Npc = new NpcDialog(account);
             Zaap = new ZaapDialog(account);
             Exchanges = new Exchanges.ExchangeRegistry(account);
             Shop = Exchanges.Get<NpcShop>();
             Exchange = Exchanges.Get<Exchanges.PlayerExchange>();
+            Interactive = new InteractiveActions(account);
             Storage = Exchanges.Get<Exchanges.StorageExchange>();
+            Zaapi = new ZaapiDialog(account);
+            Party = new Groupes.PartyActions(account);
+            Friends = new Social.FriendsActions(account);
         }
 
-        public void Clear() { Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); }
+        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); Party.Clear(); Friends.Clear(); }
     }
 }

@@ -39,4 +39,20 @@ Outils : `swfsvg` du dépôt (état du commit 8b428d5), `exporter_png.py` inchan
 - Aucune image de sol en pente : le `swfsvg` actuel n'exporte que l'image 1. Le script détecte une option `--frame N` et produira `sols/<id>_<n>.png` lorsqu'elle existera ; en attendant, le bot dessine l'image 1 sur les cellules en pente.
 - Les formes morphées et les textes statiques ne sont pas rendus par `swfsvg` : 31 symboles d'objets ont des zones vides (pancartes, inscriptions), signalées par l'export.
 
+## Images d'état des objets interactifs
+
+`objets/<id>_2.png` (80 PNG, 381 Kio, 70 en palette) et `ancres-etats.tsv` (même format qu'`ancres.tsv`, colonne `image` = 2) viennent des mêmes bibliothèques `o1.swf` à `o11.swf`, produits par `tools/client-analysis/exporter_etats_interactifs.py` avec les mêmes outils (swfsvg au commit 7696904, `exporter_png.py`, cairosvg 2.9.1, Pillow 12.3.0, Python 3.11) et les mêmes traitements (découpe, palette des objets). Depuis la racine du dépôt, après `exporter_decor.py` (qui efface les `objets/<id>_<n>.png`) :
+
+```sh
+python3 tools/client-analysis/exporter_etats_interactifs.py "<kit>/04 - Dofus 1.34 - Qu'Tan et Ilyzaelle" \
+    Outil_Azur_complet/Resources/Bot/Decor --swfsvg <cible>/release/swfsvg
+```
+
+Les gfx retenus sont ceux que `BotLang/interactiveobjects.xml` rattache à un objet interactif et dont la timeline compte plusieurs images (80 sur 189 ; ressources, ateliers, portes). L'image 2 est celle que le client affiche pendant une récolte ou un atelier (`GDF|cellule;2`) ; `Bot/Controls/BotMapArtwork.cs` la dessine tant que `Map.ObjectStates` la demande et revient à l'image 1 sinon.
+
+Limites :
+
+- Les images 3 à 5 ne sont pas exportées (option `--images-max`, défaut 2). `swfsvg` rend une image comme si ses clips imbriqués venaient d'être créés, sans `onClipEvent(load)` ni la fin de leurs animations ; or le client y joue une animation qui s'achève sur une autre image (arbre : image 3 = chute puis image 4, souche ; image 5 = repousse puis image 1). Le bot garde donc l'image 1 pour ces états.
+- Dans les arbres (gfx 7500 à 7509) et les minerais, les parties de l'objet choisissent leur variante par script (`gotoAndStop(_parent._parent.n_arbre + 1)` ou `n + 1`, la variable valant 1 dès l'image 1) ; `swfsvg` ne l'exécute pas, si bien que `objets/<id>.png` (image 1, export d'`exporter_decor.py`) montre l'image de repli des parties (aplat vert) que le client ne dessine jamais, alors que `objets/<id>_2.png`, rendu un tour plus tard, montre la bonne variante.
+
 Les illustrations conservent les droits de leurs titulaires d'origine, comme celles de `../Selection` et `../Client`.

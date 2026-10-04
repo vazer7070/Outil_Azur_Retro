@@ -30,11 +30,15 @@ namespace Outil_Azur_complet.Bot.Controls
         public const float CellHeight = 27f;
         public const float LevelHeight = 20f;
         public const string AnchorFileName = "ancres.tsv";
+        /// <summary>Anchors of the object frames 2 and up (exporter_etats_interactifs.py), same format as ancres.tsv.</summary>
+        public const string StateAnchorFileName = "ancres-etats.tsv";
         /// <summary>World position of the client's map origin (cell 0 at level 7), where the client attaches backgroundNum.</summary>
         public static readonly PointF ClientOrigin = new PointF(CellWidth / 2, CellHeight / 2);
         // MapHandler.build: a quarter-turned ground or object1 is rescaled so its diamond still covers the cell.
         private const float QuarterTurnScaleX = .5185f, QuarterTurnScaleY = 1.9286f;
         private const int MaxSlopeFrame = 15;
+        // GDF frames of an object2 drawn from objets/<id>_<n>.png when that file exists (the client accepts any frame ≥ 1).
+        private const int MaxObjectFrame = 15;
 
         private static readonly ConcurrentDictionary<string, Lazy<AssetLibrary>> libraries =
             new ConcurrentDictionary<string, Lazy<AssetLibrary>>(StringComparer.OrdinalIgnoreCase);
@@ -42,11 +46,16 @@ namespace Outil_Azur_complet.Bot.Controls
         private readonly SynchronizationContext context;
         private readonly int ownerThreadId;
         private readonly int backgroundId;
+        private readonly int mapId;
+        // Map whose GDF frames (ObjectStates) choose the object2 pictures; null once disposed.
+        private volatile Map stateSource;
         private readonly ManualResetEventSlim publishedSignal = new ManualResetEventSlim(false);
         private readonly List<PictureCache.Entry> acquired = new List<PictureCache.Entry>();
         private readonly HashSet<string> missing = new HashSet<string>();
         private readonly Task loader;
         private Request[] requests = new Request[0];
+        // Object2 pictures of frames 2 and up, loaded with the others but not counted as map visuals.
+        private Request[] stateRequests = new Request[0];
         private Request background;
         private RectangleF gridBounds;
         private LoadResult result;
@@ -95,6 +104,8 @@ namespace Outil_Azur_complet.Bot.Controls
             public PointF Center;
             public PointF[] Polygon;
             internal Request Ground, Object1, Object2;
+            // Index n: object2 picture of GDF frame n when objets/<id>_<n>.png exists; null otherwise (frame 1 is drawn).
+            internal Request[] Object2States;
         }
 
         public sealed class DepthLayer
@@ -152,6 +163,7 @@ namespace Outil_Azur_complet.Bot.Controls
                 Directory = directory;
                 Index(DecorKind.Ground); Index(DecorKind.Object); Index(DecorKind.Background);
                 ReadAnchors(System.IO.Path.Combine(directory, AnchorFileName));
+                ReadAnchors(System.IO.Path.Combine(directory, StateAnchorFileName));
             }
 
             private void Index(DecorKind kind)
@@ -351,6 +363,8 @@ namespace Outil_Azur_complet.Bot.Controls
             context = SynchronizationContext.Current;
             ownerThreadId = Thread.CurrentThread.ManagedThreadId;
             backgroundId = map.Back_ID;
+            mapId = map.MapID;
+            stateSource = map;
             if (map.MapWidth >= 2 && !string.IsNullOrEmpty(map.MapData) && map.MapData.Length % 10 == 0)
                 DecodeCells(map);
             Lazy<AssetLibrary> library = LibraryEntry(resourceDirectory);
@@ -402,18 +416,21 @@ namespace Outil_Azur_complet.Bot.Controls
             var layers = new List<DepthLayer>();
             foreach (ArtworkCell cell in cells)
                 if (cell.Active && cell.Object2Id != 0)
-                    layers.Add(new DepthLayer { Depth = cell.Center.Y, Order = 2, Draw = graphics => DrawPicture(graphics, cell.Object2?.Picture, cell.Center) });
+                    layers.Add(new DepthLayer { Depth = cell.Id * 100f, Order = 2, Draw = graphics => DrawPicture(graphics, Object2Picture(cell), cell.Center) }); // profondeur du client : cellule × 100
             depthLayers = layers.OrderBy(layer => layer.Depth).ThenBy(layer => layer.Order).ToArray();
         }
 
         /// <summary>Builds the picture requests of every cell with the client's rules (MapHandler.build):
         /// inactive cells show nothing; a sloped ground shows frame <c>groundSlope</c> and never turns;
-        /// ground and object1 turn by quarters only on flat cells; object2 is only mirrored.</summary>
+        /// ground and object1 turn by quarters only on flat cells; object2 is only mirrored. An object2 also gets
+        /// the pictures of its frames 2 and up that were exported (objets/&lt;id&gt;_&lt;n&gt;.png), drawn while
+        /// <c>GDF</c> holds it on that frame (MapHandler.setObject2Frame).</summary>
         private void Resolve(AssetLibrary library)
         {
             var unique = new Dictionary<string, Request>(StringComparer.Ordinal);
+            var states = new Dictionary<string, Request>(StringComparer.Ordinal);
             var absent = new List<string>();
-            Request Make(DecorKind kind, int id, int frame, bool flip, int rotation)
+            Request Make(DecorKind kind, int id, int frame, bool flip, int rotation, Dictionary<string, Request> into = null)
             {
                 if (id <= 0) return null;
                 if (!library.TryResolve(kind, id, frame, out long fileKey))
@@ -421,17 +438,18 @@ namespace Outil_Azur_complet.Bot.Controls
                     absent.Add(Label(kind) + " " + id);
                     return null;
                 }
+                into = into ?? unique;
                 string path = library.Files[fileKey];
                 bool anchored = library.Generated.Contains(fileKey) && library.Anchors.ContainsKey(fileKey);
                 string cacheKey = path + "|" + (flip ? 1 : 0) + "|" + rotation;
-                if (unique.TryGetValue(cacheKey, out Request existing)) return existing;
+                if (into.TryGetValue(cacheKey, out Request existing)) return existing;
                 var request = new Request
                 {
-                    Kind = KindOf(fileKey), Label = Label(kind) + " " + id, Path = path, CacheKey = cacheKey,
-                    Flip = flip, Rotation = rotation, Anchored = anchored,
+                    Kind = KindOf(fileKey), Label = Label(kind) + " " + id + (frame > 1 && kind == DecorKind.Object ? " image " + frame : ""),
+                    Path = path, CacheKey = cacheKey, Flip = flip, Rotation = rotation, Anchored = anchored,
                     Anchor = anchored ? library.Anchors[fileKey] : RectangleF.Empty
                 };
-                unique[cacheKey] = request;
+                into[cacheKey] = request;
                 return request;
             }
             foreach (ArtworkCell cell in Cells)
@@ -442,12 +460,20 @@ namespace Outil_Azur_complet.Bot.Controls
                 cell.Ground = Make(DecorKind.Ground, cell.GroundId, groundFrame, cell.GroundFlip, flat ? cell.GroundRotation : 0);
                 cell.Object1 = Make(DecorKind.Object, cell.Object1Id, 1, cell.Object1Flip, flat ? cell.Object1Rotation : 0);
                 cell.Object2 = Make(DecorKind.Object, cell.Object2Id, 1, cell.Object2Flip, 0);
+                cell.Object2States = null;
+                for (int frame = 2; frame <= MaxObjectFrame && cell.Object2Id > 0; frame++)
+                {
+                    if (!library.Files.ContainsKey(Key(DecorKind.Object, cell.Object2Id, frame))) continue;
+                    if (cell.Object2States == null) cell.Object2States = new Request[MaxObjectFrame + 1];
+                    cell.Object2States[frame] = Make(DecorKind.Object, cell.Object2Id, frame, cell.Object2Flip, 0, states);
+                }
             }
             Request backgroundRequest = backgroundId > 0 ? Make(DecorKind.Background, backgroundId, 1, false, 0) : null;
             lock (gate)
             {
                 rejectedAnchorLines = library.RejectedAnchorLines;
                 requests = unique.Values.ToArray();
+                stateRequests = states.Values.ToArray();
                 background = backgroundRequest;
                 foreach (string label in absent) missing.Add(label);
             }
@@ -464,7 +490,7 @@ namespace Outil_Azur_complet.Bot.Controls
                 AssetLibrary library = libraryEntry.Value;
                 lock (gate) owner = library;
                 if (!resolved && !disposed) Resolve(library);
-                foreach (Request request in requests)
+                foreach (Request request in requests.Concat(stateRequests))
                 {
                     if (disposed) break;
                     string cacheKey = request.CacheKey + "|" + Stamp(request.Path);
@@ -665,7 +691,7 @@ namespace Outil_Azur_complet.Bot.Controls
             foreach (ArtworkCell cell in cells)
             {
                 bounds = RectangleF.Union(bounds, Bounds(cell.Polygon));
-                foreach (Request request in new[] { cell.Ground, cell.Object1, cell.Object2 })
+                foreach (Request request in new[] { cell.Ground, cell.Object1, cell.Object2 }.Concat(cell.Object2States ?? new Request[0]))
                 {
                     if (request == null) continue;
                     RectangleF? visible = request.Picture != null ? request.Picture.Visible : request.Anchored ? AnchoredVisible(request) : (RectangleF?)null;
@@ -706,7 +732,7 @@ namespace Outil_Azur_complet.Bot.Controls
             foreach (ArtworkCell cell in Cells)
             {
                 drawEntity?.Invoke(cell);
-                DrawPicture(graphics, cell.Object2?.Picture, cell.Center);
+                DrawPicture(graphics, Object2Picture(cell), cell.Center);
             }
         }
 
@@ -731,6 +757,38 @@ namespace Outil_Azur_complet.Bot.Controls
             if (picture.VisibleAt(position).IntersectsWith(graphics.ClipBounds)) graphics.DrawImage(image, picture.At(position));
         }
 
+        /// <summary>
+        /// Object2 picture as the client shows it: the frame that <c>GDF</c> set on the cell (<see cref="Map.ObjectStates"/>)
+        /// when that frame was exported and loaded, else frame 1. States received for another map are ignored.
+        /// </summary>
+        private TilePicture Object2Picture(ArtworkCell cell)
+        {
+            int frame = ObjectFrame(cell);
+            TilePicture state = frame > 1 ? cell.Object2States?[frame]?.Picture : null;
+            return state ?? cell.Object2?.Picture;
+        }
+
+        private int ObjectFrame(ArtworkCell cell)
+        {
+            Request[] states = cell?.Object2States;
+            Map source = stateSource;
+            if (states == null || source == null || source.MapID != mapId) return 1;
+            if (!source.ObjectStates.TryGetValue(cell.Id, out InteractiveObjectState state) || state == null) return 1;
+            int frame = state.State;
+            return frame > 1 && frame < states.Length && states[frame]?.Picture != null ? frame : 1;
+        }
+
+        /// <summary>Frame of the object2 picture drawn on a cell: the <c>GDF</c> frame when its picture is loaded, else 1 (0 without object2).</summary>
+        public int DrawnObjectFrame(int cellId)
+        {
+            ArtworkCell[] cells = Cells;
+            if (cellId < 0 || cellId >= cells.Length || cells[cellId].Object2Id == 0) return 0;
+            return ObjectFrame(cells[cellId]);
+        }
+
+        /// <summary>Loaded object2 pictures of frames 2 and up (not counted in <see cref="LoadedAssetCount"/>).</summary>
+        public int LoadedStateAssetCount => ready ? stateRequests.Count(request => request.Picture != null) : 0;
+
         public bool HasGroundArtwork(int id) => id >= 0 && id < Cells.Length
             && (Cells[id].Ground?.Picture != null || Cells[id].Object1?.Picture != null || background?.Picture != null);
 
@@ -744,7 +802,8 @@ namespace Outil_Azur_complet.Bot.Controls
                 disposed = true;
                 release = acquired.ToArray();
                 acquired.Clear();
-                foreach (Request request in requests) request.Picture = null;
+                foreach (Request request in requests.Concat(stateRequests)) request.Picture = null;
+                stateSource = null;
                 Cells = new ArtworkCell[0]; depthLayers = new DepthLayer[0];
                 library = owner;
             }
