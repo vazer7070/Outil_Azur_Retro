@@ -14,10 +14,10 @@ références qui en découlent (`docs/PROTOCOLE_CLIENT_1_34.md`, `ressources/Bot
 
 ```sh
 # 1. Désassemblage AVM1 en suivant le flux (prédicats opaques repliés, pools de constantes réels)
-cargo run --release --manifest-path avm1dump/Cargo.toml -- <client>/modules/loader.swf > loader.avm1.txt
+cargo run --release --manifest-path avm1dump/Cargo.toml -- <client>/modules/loader.swf loader.avm1.txt
 
 # 2. Pseudo-décompilation par simulation de pile
-python3 as2lite.py loader.avm1.txt > loader.as.txt
+python3 as2lite.py loader.avm1.txt loader.as.txt
 
 # 3. Référence du protocole (routes serveur → client, envois, lecture des réponses)
 python3 relever_protocole.py loader.as.txt ../../docs/PROTOCOLE_CLIENT_1_34.md tables/
@@ -44,3 +44,21 @@ python3 exporter_png.py svg/ png/ 1
 - Les JPEG Flash (segment de tables puis image, `FF D9 FF D8` au milieu des données, `JPEGTables` partagé) sont recollés avant décodage ; un bitmap encore illisible est signalé dans `index.tsv` et sa zone reste vide.
 - Les écrans construits à l'exécution (bandeau, inventaire, sorts, options) n'ont que peu d'art statique : seul leur cadre est exporté.
 - La décompilation est une pseudo-décompilation : elle suffit à lire les formats de paquets, pas à recompiler le client.
+
+## Textes de langue → XML du bot (`lang2xml.py`)
+
+Les noms de PNJ, les dialogues, les noms de zones, les monstres, les objets, les sorts, les émotes et les messages `Im` ne sont dans aucune table de l'émulateur : le client les lit dans `lang/swf/<famille>_fr_<version>.swf` (un seul `DoAction` qui affecte des objets AS2 : `D.q[id] = "…"`, `N.d[id] = {n, a}`, `MA.m[id] = {x, y, sa…}`). `lang2xml.py` enchaîne `avm1dump`, `as2lite.py` et une lecture des affectations littérales (aucun code n'est exécuté ; une affectation répétée garde la dernière valeur), puis écrit un XML par famille pour `Tool_BotProtocol.Game.Data.LangData` :
+
+```sh
+# 13 familles lues par le bot (défaut) ou toutes les familles connues (28)
+python3 lang2xml.py "<pack Lang>/dofus/lang/swf" ../../Outil_Azur_complet/Resources/Bot/BotLang \
+    [--familles bot|toutes|dialog,npc…] [--avm1dump avm1dump/target/release/avm1dump] [--travail <dossier>]
+
+# conversion d'une pseudo-décompilation déjà produite
+python3 lang2xml.py --as npc_fr_508.as.txt --famille npc --version 508 --sortie npc.xml
+
+# tests (affectations écrites dans le test, aucun SWF)
+python3 test_lang2xml.py
+```
+
+La version de chaque famille est lue dans `lang/versions_fr.txt` quand le fichier existe, sinon la plus haute présente. Mesuré le 4 octobre 2026 : 28 familles en ≈ 20 s, 8,1 Mo de XML. Format, contenu et commande exacte : `Outil_Azur_complet/Resources/Bot/BotLang/PROVENANCE.md`.
