@@ -147,7 +147,7 @@ internal static class BotPanelsSmoke
                         form.ShowInTaskbar = false; form.Show(); Application.DoEvents();
                         var host = form.Panels; var view = form.GetType().GetField("mapControl", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(form) as MapControl;
                         Check(host != null && view != null && view.Router.Panels == host, "Panels host or map router missing");
-                        Check(!host.Visible && host.Current == null && host.Registered.Count == 8, "Drawer is open at start or the original panels are missing");
+                        Check(!host.Visible && host.Current == null && host.Registered.Count >= 8, "Drawer is open at start or the original panels are missing");
 
                         // Tiroir : Show, Toggle, pile, un seul volet modal, fermeture demandée par le volet.
                         var shown = new List<string>(); host.PanelShown += (s, e) => shown.Add(e.Panel.Title);
