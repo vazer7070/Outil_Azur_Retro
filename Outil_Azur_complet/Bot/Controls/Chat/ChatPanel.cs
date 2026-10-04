@@ -27,6 +27,7 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
     {
         /// <summary>Hauteur ajoutée quand le chat est agrandi (<c>Chat.OPEN_OFFSET</c>).</summary>
         public const int ExpandOffset = 350;
+        private const int SendWidth = 32;
 
         private readonly Accounts account;
         private readonly SynchronizationContext ui;
@@ -40,6 +41,7 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
         private readonly MapActions actions;
         private string letters = string.Empty;
         private bool expanded, released;
+        private Image sendImage;
 
         public ChatPanel(Accounts account, Func<InteractionRouter> router)
         {
@@ -56,7 +58,7 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
             Buttons = new ChatFilterBar { ShowFilters = false, Size = new Size(ChatFilterBar.ButtonsWidth, 24), Margin = new Padding(0, 0, 3, 0), Name = "chatButtons" };
             Channels = new ChannelMenu(() => this.account);
             Input = new ChatInput { Dock = DockStyle.Fill, Margin = new Padding(0, 1, 3, 0), Name = "chatInput" };
-            send = new ClientButton { Text = "›", Size = new Size(30, 24), Margin = new Padding(0), Tag = "client-icon", Name = "chatSend",
+            send = new ClientButton { Text = "›", Size = new Size(SendWidth, 24), Margin = new Padding(0), Tag = "client-icon", Name = "chatSend",
                 Font = BotFonts.Get(10f, FontStyle.Bold), AccessibleName = "Envoyer le message" };
             Channels.Button.Margin = new Padding(0, 0, 3, 0);
 
@@ -65,7 +67,7 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
             row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 33));
             row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, ChatFilterBar.ButtonsWidth + 3));
-            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 30));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, SendWidth));
             row.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             row.Controls.Add(Channels.Button, 0, 0); row.Controls.Add(Input, 1, 0); row.Controls.Add(Buttons, 2, 0); row.Controls.Add(send, 3, 0);
             Controls.Add(View); Controls.Add(Toolbar); Controls.Add(row);
@@ -85,7 +87,7 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
             Buttons.SitClicked += (s, e) => { if (chat != null) _ = RunAsync(() => chat.SitAsync()); };
             Buttons.OpenCloseClicked += (s, e) => Expanded = !Expanded;
             Channels.PrefixChanged += prefix => { Input.Prefix = prefix; if (Input.CanFocus) Input.Focus(); };
-            Channels.HelpRequested += (s, e) => _ = RunAsync(() => chat.ExecuteAsync("/help"));
+            Channels.HelpRequested += (s, e) => { if (chat != null) _ = RunAsync(() => chat.ExecuteAsync("/help")); };
             Input.Submitted += (s, e) => Submit(e.Mode);
             Input.Notice += (text, error) => View.Append(ChatLineBuilder.Local(error ? ChatFilter.Errors : ChatFilter.Infos, error ? ChatColors.Error : ChatColors.Info, text));
             Input.Names = PresentNames;
@@ -171,6 +173,19 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
             }
             catch (Exception error) when (error is InvalidOperationException || error is ArgumentException || error is NotImplementedException)
             { account.Logger?.LogException("CHAT", error); }
+        }
+
+        /// <summary>
+        /// Image du bouton d'envoi (celle de l'ancienne fenêtre de jeu) ; le volet la garde et la libère à sa fermeture.
+        /// Null : bouton « › ».
+        /// </summary>
+        public void SetSendImage(Image image)
+        {
+            if (ReferenceEquals(image, sendImage)) return;
+            Image previous = sendImage;
+            sendImage = image;
+            send.Image = image; send.Text = image == null ? "›" : string.Empty;
+            previous?.Dispose();
         }
 
         /// <summary>Place un texte dans la saisie (« /w nom » d'un menu) et lui donne le focus.</summary>
@@ -428,6 +443,7 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
                 Channels.Dispose();
             }
             base.Dispose(disposing);
+            if (disposing) { sendImage?.Dispose(); sendImage = null; }
         }
     }
 }

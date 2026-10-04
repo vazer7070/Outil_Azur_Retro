@@ -157,6 +157,7 @@ namespace Outil_Azur_complet.Bot
         private void BuildChat(HudPanel host)
         {
             chatPanel = new ChatPanel(ActualCompte, () => mapControl?.Router) { Dock = DockStyle.Fill };
+            chatPanel.SetSendImage(new System.ComponentModel.ComponentResourceManager(typeof(GameClientFullform)).GetObject("iTalk_Button_21.Image") as Image);
             chatPanel.ExpandedChanged += OnChatExpanded;
             chatPanel.CompassRequested += OnCompassRequested;
             chatPanel.Feedback += ShowActionFeedback;
