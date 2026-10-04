@@ -269,9 +269,6 @@
     <Compile Include="Bot\GameClientFullform.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="Bot\GameClientFullform.Interactions.cs">
-      <SubType>Form</SubType>
-    </Compile>
     <Compile Include="Bot\GameClientFullform.Designer.cs">
       <DependentUpon>GameClientFullform.cs</DependentUpon>
     </Compile>
@@ -292,6 +289,30 @@
     </Compile>
     <Compile Include="Bot\BotUi.cs" />
     <Compile Include="Bot\ClientAssets.cs" />
+    <Compile Include="Bot\BotFonts.cs" />
+    <Compile Include="Bot\BotDialogs.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Bot\Panels\IGamePanel.cs" />
+    <Compile Include="Bot\Panels\GamePanel.cs" />
+    <Compile Include="Bot\Panels\PanelHost.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Panels\DialoguePanel.cs" />
+    <Compile Include="Bot\Panels\ZaapsPanel.cs" />
+    <Compile Include="Bot\Panels\ShopPanel.cs" />
+    <Compile Include="Bot\Panels\InventoryPanel.cs" />
+    <Compile Include="Bot\Panels\StatsPanel.cs" />
+    <Compile Include="Bot\Panels\SpellsPanel.cs" />
+    <Compile Include="Bot\Panels\JobsPanel.cs" />
+    <Compile Include="Bot\Panels\JournalPanel.cs" />
+    <Compile Include="Bot\Controls\ActorMenuRegistry.cs" />
+    <Compile Include="Bot\Controls\ActorContextMenu.cs" />
+    <Compile Include="Bot\Controls\HudPanel.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Interfaces\InteractionRouter.cs" />
+    <Compile Include="Bot\Menus\NpcBasicMenuProvider.cs" />
     <Compile Include="Bot\LoginForm.Designer.cs">
       <DependentUpon>LoginForm.cs</DependentUpon>
     </Compile>

@@ -12,8 +12,9 @@ using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Game.Interactions;
 using Tool_BotProtocol.Game.Managers.Mouvements;
 using Tool_BotProtocol.Game.Maps;
+using Tool_BotProtocol.Game.Maps.Interfaces;
 using Tool_BotProtocol.Game.Maps.Mouvements;
-using Tool_BotProtocol.Game.NPC;
+using Tool_BotProtocol.Game.Perso;
 
 namespace Outil_Azur_complet.Bot.Interfaces
 {
@@ -25,6 +26,8 @@ namespace Outil_Azur_complet.Bot.Interfaces
         public event Action<short?> SpellSelectionChanged;
         public event Action<string> ActionFeedback;
         public short? SelectedSpellId { get; private set; }
+        /// <summary>Routeur des clics de la carte (cellules, acteurs, menu contextuel).</summary>
+        public InteractionRouter Router { get; }
         public int ZoomPercent => UserMap.ZoomPercent;
         public int MissingAssetCount => UserMap.MissingAssetCount;
         public string ArtworkStatus => UserMap.ArtworkStatus;
@@ -42,6 +45,9 @@ namespace Outil_Azur_complet.Bot.Interfaces
             UserMap.BackColor = BackColor;
             UserMap.Dock = DockStyle.Fill;
             UserMap.DisplayStateChanged += NotifyDisplayState;
+            Router = new InteractionRouter(UserMap, () => Account, ActorsAt,
+                () => SelectedSpellId.HasValue || Account.Game?.Fight?.IsInFight == true, DefaultCellActionAsync);
+            Router.Feedback += message => ActionFeedback?.Invoke(message);
             iTalk_Label1.Visible = iTalk_Label2.Visible = false;
             // The owner thread creates handles before any network event can update the view.
             IntPtr ownerHandle = Handle;
@@ -69,18 +75,19 @@ namespace Outil_Azur_complet.Bot.Interfaces
 
         private void Unsubscribe()
         {
+            Router?.Dispose();
             UserMap.DisplayStateChanged -= NotifyDisplayState;
             if (!subscribed) return;
             subscribed = false;
             UserMap.CellClicked -= UserMapClic;
-            if (Account.Game == null) return;
-            Account.Game.Map.RefreshMap -= MapChange;
-            Account.Game.Map.RefreshEntities -= RefreshEntities;
-            Account.Game.Map.EntityMovement -= EntityMovement;
-            Account.Game.character.MoveMinimapPathfinding -= GetPathfinding;
-            Account.Game.Manager.Mouvements.FinalizeMove -= MovementFinished;
-            Account.Game.Fight.CombatChanged -= CombatChanged;
             UserMap.SpellTargetReason = null;
+            // La fenêtre libère le compte avant ses contrôles : la partie peut être déjà libérée (gestionnaires à null).
+            var game = Account.Game;
+            if (game == null) return;
+            if (game.Map != null) { game.Map.RefreshMap -= MapChange; game.Map.RefreshEntities -= RefreshEntities; game.Map.EntityMovement -= EntityMovement; }
+            if (game.character != null) game.character.MoveMinimapPathfinding -= GetPathfinding;
+            if (game.Manager?.Mouvements != null) game.Manager.Mouvements.FinalizeMove -= MovementFinished;
+            if (game.Fight != null) game.Fight.CombatChanged -= CombatChanged;
         }
 
         private void OnUi(Action action)
@@ -137,31 +144,48 @@ namespace Outil_Azur_complet.Bot.Interfaces
 
         private async void UserMapClic(UserMapCell cell, MouseButtons buttons, bool dragged)
         {
-            if (cell == null || dragged) return;
-            try
+            if (cell == null || dragged || Router == null) return;
+            // Le routeur ne lève jamais d'exception : clic gauche → cellule ou acteur, clic droit → menu de l'acteur.
+            await Router.RouteAsync(cell.id, buttons, ModifierKeys & (Keys.Shift | Keys.Control));
+        }
+
+        /// <summary>Clic gauche sur une cellule, comme un clic de la souris (Maj et Ctrl facultatifs).</summary>
+        public Task HandleCellActionAsync(short cellId, Keys modifiers = Keys.None) =>
+            Router.RouteAsync(cellId, MouseButtons.Left, modifiers);
+
+        /// <summary>
+        /// Acteurs de la cellule dans l'ordre des menus : PNJ, groupes de monstres, joueurs, autres, puis le personnage
+        /// du compte. Instantané : la carte peut changer sur le thread réseau pendant la lecture.
+        /// </summary>
+        public IReadOnlyList<Entites> ActorsAt(short cellId)
+        {
+            var game = Account.Game;
+            var entities = game?.Map?.Entites;
+            var actors = new List<Entites>();
+            if (entities != null)
+                actors.AddRange(entities.Values.Where(entity => entity?.Cell != null && entity.Cell.CellID == cellId)
+                    .OrderBy(ActorOrder).ThenBy(entity => entity.id));
+            CharacterClass self = game?.character;
+            if (self?.Cell != null && self.Cell.CellID == cellId && !actors.Any(entity => entity.id == self.id)) actors.Add(self);
+            return actors;
+        }
+
+        private static int ActorOrder(Entites entity)
+        {
+            switch (ActorClassifier.Of(entity))
             {
-                if (buttons == MouseButtons.Left) await HandleCellActionAsync(cell.id);
-                else if (buttons == MouseButtons.Right) await HandleNpcTradeAsync(cell.id);
+                case MenuActorKind.Npc: return 0;
+                case MenuActorKind.MonsterGroup: return 1;
+                case MenuActorKind.Player: return 2;
+                default: return 3;
             }
-            catch (Exception ex) { ActionFeedback?.Invoke("Action impossible : " + ex.Message); }
         }
 
         /// <summary>
-        /// Clic droit sur un PNJ : l'entrée « Échanger » du menu du client, soit <c>ER0|&lt;pnj&gt;</c>.
-        /// StarLoco n'ouvre la boutique d'un PNJ que sur ce paquet (<c>ECK0|&lt;pnj&gt;</c> puis <c>EL</c>), jamais depuis une réponse de dialogue.
+        /// Clic gauche sur une cellule : sort sélectionné, placement ou déplacement en combat, zaap
+        /// (<c>GA500&lt;cellule&gt;;114</c> comme le client), sinon déplacement. Les PNJ passent par leur menu.
         /// </summary>
-        public async Task HandleNpcTradeAsync(short cellId)
-        {
-            Map map = Account.Game?.Map;
-            if (map == null || Account.Game.character.Cell == null) { ActionFeedback?.Invoke("Cette cellule n’est pas disponible."); return; }
-            if (Account.Connexion == null || !Account.Connexion.IsConnected()) { ActionFeedback?.Invoke("Connectez le personnage pour agir sur la carte."); return; }
-            PNJ npc = map.NPC_List().FirstOrDefault(entity => entity.Cell != null && entity.Cell.CellID == cellId);
-            if (npc == null) { ActionFeedback?.Invoke("Clic droit : visez un personnage non joueur pour ouvrir sa boutique."); return; }
-            InteractionResult trade = await Account.Game.Interactions.Shop.OpenAsync(npc.id);
-            ActionFeedback?.Invoke(trade.Message); Account.Logger.LogInfo("CARTE", trade.Message);
-        }
-
-        public async Task HandleCellActionAsync(short cellId)
+        private async Task DefaultCellActionAsync(short cellId)
         {
             Map map = Account.Game?.Map;
             Cell destination = map?.GetCellFromId(cellId);
@@ -177,13 +201,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
                 var combat = fight.IsPlacement ? await fight.PlaceAsync(cellId) : await fight.MoveAsync(cellId);
                 ActionFeedback?.Invoke(combat.Message); return;
             }
-            // Comme le client : un clic sur un PNJ envoie DC<pnj>, un clic sur le zaap envoie GA500<cellule>;114.
             InteractionsClass interactions = Account.Game.Interactions;
-            PNJ npc = map.NPC_List().FirstOrDefault(entity => entity.Cell != null && entity.Cell.CellID == cellId);
-            if (npc != null) {
-                InteractionResult talk = await interactions.Npc.OpenAsync(npc.id);
-                ActionFeedback?.Invoke(talk.Message); Account.Logger.LogInfo("CARTE", talk.Message); return;
-            }
             if (interactions.Zaap.IsZaapCell(cellId)) {
                 InteractionResult zaap = await interactions.Zaap.OpenAsync(cellId);
                 ActionFeedback?.Invoke(zaap.Message); Account.Logger.LogInfo("CARTE", zaap.Message); return;

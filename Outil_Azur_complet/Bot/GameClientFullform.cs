@@ -7,12 +7,17 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Outil_Azur_complet.Bot.Interfaces;
 using Outil_Azur_complet.Bot.Controls;
+using Outil_Azur_complet.Bot.Panels;
 using Tool_BotProtocol.Game.Accounts;
-using Tool_BotProtocol.Game.Perso.Stats;
 using Tool_BotProtocol.Game.Perso.Spells;
 using Tool_BotProtocol.Utils.Logger;
 namespace Outil_Azur_complet.Bot
 {
+    /// <summary>
+    /// Fenêtre de jeu : composition seulement. Barre de menus, carte (<see cref="MapControl"/> et son routeur de clics),
+    /// tiroir des volets (<see cref="Panels"/>) et bandeau bas (<see cref="HudPanel"/> : discussion, vie, raccourcis).
+    /// Chaque fonctionnalité vit dans son volet (<c>Bot/Panels</c>) ou son fournisseur de menu (<c>Bot/Menus</c>).
+    /// </summary>
     public partial class GameClientFullform : Form
     {
         public Accounts ActualCompte { get; set; }
@@ -22,27 +27,19 @@ namespace Outil_Azur_complet.Bot
         public string WhoPM;
         private Panel mapArea;
         private Label summary, state, mapStatus;
-        private RichTextBox chat, journal;
+        private RichTextBox chat;
         private TextBox chatInput, recipient;
         private ComboBox channel;
         private TableLayoutPanel composer;
         private Panel privateRecipientBar;
         private Control send;
         private ProgressBar xp;
-        private ListView stats, inventory, jobs, spells;
-        private ComboBox boostStat;
-        private Label boostHelp;
-        private Control boost;
-        private bool boosting;
-        private Control upgradeSpell;
-        private Label spellHelp;
-        private bool upgradingSpell;
         private MapControl mapControl;
-        private ClientPanel drawer;
-        private TabControl panels;
+        private PanelHost drawer;
+        private HudPanel hud;
         private Label zoomText, emptyMap;
         private LifeOrb life;
-        private bool showGrid, showCellIds;
+        private bool showGrid, showCellIds, uiReleased;
         private readonly ToolTip toolTips = new ToolTip();
         private readonly List<Button> quickSpells = new List<Button>();
         private readonly Dictionary<Button, short> quickSpellIds = new Dictionary<Button, short>();
@@ -53,6 +50,12 @@ namespace Outil_Azur_complet.Bot
         private string actionFeedback;
         private DateTime actionFeedbackUntil;
         private readonly Timer refresh = new Timer { Interval=1000 };
+
+        /// <summary>Tiroir des volets : <c>Panels.Show(volet)</c>, <c>Toggle</c>, <c>CloseAll</c>, <c>Get&lt;T&gt;()</c>.</summary>
+        public PanelHost Panels => drawer;
+        /// <summary>Bandeau bas en trois emplacements (discussion, vie, raccourcis).</summary>
+        public HudPanel Hud => hud;
+
         public GameClientFullform(Accounts account)
         {
             ActualCompte=account;BuildLayout();_ = Handle;Subscribe();Load+=(s,e)=> { RefreshState();InGameMap();refresh.Start(); };FormClosed+=OnSessionClosed;refresh.Tick+=(s,e)=>RefreshState();
@@ -69,12 +72,12 @@ namespace Outil_Azur_complet.Bot
             Controls.Add(root);
 
             var menu = new MenuStrip { Dock = DockStyle.Fill, BackColor = BotUi.FrameLight,
-                ForeColor = BotUi.PaperLight, Font = new Font("Tahoma", 9), GripStyle = ToolStripGripStyle.Hidden };
+                ForeColor = BotUi.PaperLight, Font = BotFonts.Get(9), GripStyle = ToolStripGripStyle.Hidden };
             var characterMenu = new ToolStripMenuItem("Personnage");
-            characterMenu.DropDownItems.Add("Caractéristiques", null, (s,e) => ShowPanel(0));
-            characterMenu.DropDownItems.Add("Inventaire", null, (s,e) => ShowPanel(1));
-            characterMenu.DropDownItems.Add("Sorts", null, (s,e) => ShowPanel(2));
-            characterMenu.DropDownItems.Add("Métiers", null, (s,e) => ShowPanel(3));
+            characterMenu.DropDownItems.Add("Caractéristiques", null, (s,e) => ShowPanel<StatsPanel>());
+            characterMenu.DropDownItems.Add("Inventaire", null, (s,e) => ShowPanel<InventoryPanel>());
+            characterMenu.DropDownItems.Add("Sorts", null, (s,e) => ShowPanel<SpellsPanel>());
+            characterMenu.DropDownItems.Add("Métiers", null, (s,e) => ShowPanel<JobsPanel>());
             var viewMenu = new ToolStripMenuItem("Affichage");
             var grid = new ToolStripMenuItem("Afficher la grille") { CheckOnClick = true };
             grid.CheckedChanged += (s,e) => { showGrid = grid.Checked; if (mapControl != null) mapControl.ShowGrid = showGrid; };
@@ -84,7 +87,7 @@ namespace Outil_Azur_complet.Bot
             viewMenu.DropDownItems.Add("Ajuster la carte", null, (s,e) => mapControl?.Fit());
             viewMenu.DropDownItems.Add("Plein écran (F11)", null, (s,e) => ToggleFullScreen());
             var diagnostic = new ToolStripMenuItem("Diagnostic");
-            diagnostic.DropDownItems.Add("Journal de session", null, (s,e) => ShowPanel(4));
+            diagnostic.DropDownItems.Add("Journal de session", null, (s,e) => ShowPanel<JournalPanel>());
             diagnostic.DropDownItems.Add("Journal des paquets", null, (s,e) => ShowPackets());
             var session = new ToolStripMenuItem("Session");
             session.DropDownItems.Add("Changer de personnage", null, (s,e) => ChangeCharacter());
@@ -125,69 +128,29 @@ namespace Outil_Azur_complet.Bot
             world.Controls.Add(mapArea); world.Controls.Add(mapBar);
             BuildDrawer(mapArea);
 
-            var hud = new ClientPanel { Dock = DockStyle.Fill, BackColor = BotUi.FrameLight,
-                Padding = new Padding(7), Margin = new Padding(0) };
-            var hudLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = new Padding(0) };
-            hudLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 44));
-            hudLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 116));
-            hudLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 56));
-            hud.Controls.Add(hudLayout); root.Controls.Add(hud, 0, 2);
-            BuildChat(hudLayout);
-
-            var lifeArea = new Panel { Dock = DockStyle.Fill, Margin = new Padding(3, 0, 3, 0) };
-            life = new LifeOrb { Dock = DockStyle.Fill, Font = new Font("Tahoma", 8) };
-            xp = new ProgressBar { Dock = DockStyle.Bottom, Height = 5, Maximum = 100, Style = ProgressBarStyle.Continuous };
-            lifeArea.Controls.Add(life); lifeArea.Controls.Add(xp); hudLayout.Controls.Add(lifeArea, 1, 0);
-
-            var shortcuts = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Margin = new Padding(0) };
-            shortcuts.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-            shortcuts.RowStyles.Add(new RowStyle(SizeType.Absolute, 18));
-            shortcuts.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            var icons = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = new Padding(0) };
-            var resources = new System.ComponentModel.ComponentResourceManager(typeof(GameClientFullform));
-            // Icônes du bandeau du client fourni (UI_Banner*Icon de core.swf) ; celles du .resx servent de repli.
-            icons.Controls.Add(IconButton(resources, "roundedButton9.Image", "icone-caracteristiques", "Caractéristiques (C)", (s,e) => ShowPanel(0)));
-            icons.Controls.Add(IconButton(resources, "roundedButton1.Image", "icone-sorts", "Sorts (S)", (s,e) => ShowPanel(2)));
-            icons.Controls.Add(IconButton(resources, "roundedButton2.Image", "icone-inventaire", "Inventaire (I)", (s,e) => ShowPanel(1)));
-            icons.Controls.Add(IconButton(resources, "roundedButton3.Image", "icone-quetes", "Quêtes : interface à compléter", null));
-            icons.Controls.Add(IconButton(resources, "roundedButton4.Image", "icone-carte", "Géoposition : ajuster la carte", (s,e) => mapControl?.Fit()));
-            icons.Controls.Add(IconButton(resources, "roundedButton5.Image", "icone-amis", "Amis : interface à compléter", null));
-            icons.Controls.Add(IconButton(resources, "roundedButton6.Image", "icone-guilde", "Guilde : interface à compléter", null));
-            icons.Controls.Add(IconButton(resources, "roundedButton7.Image", "icone-monture", "Monture : interface à compléter", null));
-            icons.Controls.Add(IconButton(resources, "roundedButton8.Image", "icone-pvp", "Conquête : interface à compléter", null));
-            shortcuts.Controls.Add(icons, 0, 0);
-            summary = BotUi.Label("Personnage en cours de chargement", 8); summary.Dock = DockStyle.Fill;
-            summary.ForeColor = BotUi.Gold; summary.AutoEllipsis = true; shortcuts.Controls.Add(summary, 0, 1);
-            var slots = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = new Padding(0), Padding = new Padding(0,2,0,0) };
-            previousSpellPage = MiniButton("‹", (s,e) => ChangeSpellPage(-1), 24); previousSpellPage.Height = 30;
-            previousSpellPage.AccessibleName = "Page précédente de sorts"; slots.Controls.Add(previousSpellPage);
-            for (int i = 0; i < 10; i++) {
-                var slot = new SpellShortcutButton { Font = new Font("Tahoma",7), Shortcut = i == 9 ? "0" : (i+1).ToString(), Margin = new Padding(1,0,1,0) };
-                slot.Click += (s,e) => SelectQuickSpell((Button)s);
-                slot.MouseUp += (s,e) => { if(e.Button == MouseButtons.Right) OpenSpellDetails((Button)s); };
-                slot.Enabled = false; quickSpells.Add(slot); slots.Controls.Add(slot);
-            }
-            nextSpellPage = MiniButton("›", (s,e) => ChangeSpellPage(1), 24); nextSpellPage.Height = 30;
-            nextSpellPage.AccessibleName = "Page suivante de sorts"; slots.Controls.Add(nextSpellPage);
-            shortcuts.Controls.Add(slots, 0, 2); hudLayout.Controls.Add(shortcuts, 2, 0);
+            hud = new HudPanel { Dock = DockStyle.Fill };
+            root.Controls.Add(hud, 0, 2);
+            BuildChat(hud);
+            BuildLife(hud);
+            BuildShortcuts(hud);
 
             KeyDown += (s,e) => {
-                if (e.KeyCode == Keys.Escape) { mapControl?.SelectSpell(null); drawer.Visible = false; mapArea.Focus(); e.Handled = true; }
+                if (e.KeyCode == Keys.Escape) { mapControl?.SelectSpell(null); drawer.CloseCurrent(); mapArea.Focus(); e.Handled = true; }
                 else if (e.KeyCode == Keys.F11) { ToggleFullScreen(); e.Handled = true; }
                 else if (!(ActiveControl is TextBoxBase) && !(ActiveControl is ComboBox)) {
                     if(e.KeyCode >= Keys.D1 && e.KeyCode <= Keys.D9) { SelectQuickSpell(quickSpells[(int)e.KeyCode-(int)Keys.D1]); e.Handled=e.SuppressKeyPress=true; }
                     else if(e.KeyCode == Keys.D0) { SelectQuickSpell(quickSpells[9]); e.Handled=e.SuppressKeyPress=true; }
                     else if(e.KeyCode == Keys.F1) { _ = ToggleReady(); e.Handled=true; }
                     else if(e.KeyCode == Keys.F2) { _ = PassTurn(); e.Handled=true; }
-                    else if (e.KeyCode == Keys.C) ShowPanel(0);
-                    else if (e.KeyCode == Keys.I) ShowPanel(1);
-                    else if (e.KeyCode == Keys.S) ShowPanel(2);
-                    else if (e.KeyCode == Keys.J) ShowPanel(3);
+                    else if (e.KeyCode == Keys.C) TogglePanel<StatsPanel>();
+                    else if (e.KeyCode == Keys.I) TogglePanel<InventoryPanel>();
+                    else if (e.KeyCode == Keys.S) TogglePanel<SpellsPanel>();
+                    else if (e.KeyCode == Keys.J) TogglePanel<JobsPanel>();
                 }
             };
         }
 
-        private void BuildChat(TableLayoutPanel hud)
+        private void BuildChat(HudPanel host)
         {
             var chatArea = new ClientPanel { Dock = DockStyle.Fill, BackColor = BotUi.Paper, Padding = new Padding(5),
                 Margin = new Padding(0) };
@@ -219,51 +182,68 @@ namespace Outil_Azur_complet.Bot
             composer.Controls.Add(channel,0,0);
             composer.Controls.Add(chatInput,2,0); composer.Controls.Add(send,3,0);
             UpdateRecipientVisibility();
-            chatArea.Controls.Add(chat); chatArea.Controls.Add(privateRecipientBar); chatArea.Controls.Add(composer); hud.Controls.Add(chatArea,0,0);
+            chatArea.Controls.Add(chat); chatArea.Controls.Add(privateRecipientBar); chatArea.Controls.Add(composer);
+            host.SetSlot(HudSlot.Left, chatArea);
         }
 
+        private void BuildLife(HudPanel host)
+        {
+            var lifeArea = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0) };
+            life = new LifeOrb { Dock = DockStyle.Fill, Font = new Font("Tahoma", 8) };
+            xp = new ProgressBar { Dock = DockStyle.Bottom, Height = 5, Maximum = 100, Style = ProgressBarStyle.Continuous };
+            lifeArea.Controls.Add(life); lifeArea.Controls.Add(xp);
+            host.CenterSlot.Padding = new Padding(3, 0, 3, 0); // marge de l'ancienne cellule centrale
+            host.SetSlot(HudSlot.Center, lifeArea);
+        }
+
+        private void BuildShortcuts(HudPanel host)
+        {
+            var shortcuts = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Margin = new Padding(0) };
+            shortcuts.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+            shortcuts.RowStyles.Add(new RowStyle(SizeType.Absolute, 18));
+            shortcuts.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            var icons = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = new Padding(0) };
+            var resources = new System.ComponentModel.ComponentResourceManager(typeof(GameClientFullform));
+            // Icônes du bandeau du client fourni (UI_Banner*Icon de core.swf) ; celles du .resx servent de repli.
+            icons.Controls.Add(IconButton(resources, "roundedButton9.Image", "icone-caracteristiques", "Caractéristiques (C)", (s,e) => TogglePanel<StatsPanel>()));
+            icons.Controls.Add(IconButton(resources, "roundedButton1.Image", "icone-sorts", "Sorts (S)", (s,e) => TogglePanel<SpellsPanel>()));
+            icons.Controls.Add(IconButton(resources, "roundedButton2.Image", "icone-inventaire", "Inventaire (I)", (s,e) => TogglePanel<InventoryPanel>()));
+            icons.Controls.Add(IconButton(resources, "roundedButton3.Image", "icone-quetes", "Quêtes : interface à compléter", null));
+            icons.Controls.Add(IconButton(resources, "roundedButton4.Image", "icone-carte", "Géoposition : ajuster la carte", (s,e) => mapControl?.Fit()));
+            icons.Controls.Add(IconButton(resources, "roundedButton5.Image", "icone-amis", "Amis : interface à compléter", null));
+            icons.Controls.Add(IconButton(resources, "roundedButton6.Image", "icone-guilde", "Guilde : interface à compléter", null));
+            icons.Controls.Add(IconButton(resources, "roundedButton7.Image", "icone-monture", "Monture : interface à compléter", null));
+            icons.Controls.Add(IconButton(resources, "roundedButton8.Image", "icone-pvp", "Conquête : interface à compléter", null));
+            shortcuts.Controls.Add(icons, 0, 0);
+            summary = BotUi.Label("Personnage en cours de chargement", 8); summary.Dock = DockStyle.Fill;
+            summary.ForeColor = BotUi.Gold; summary.AutoEllipsis = true; shortcuts.Controls.Add(summary, 0, 1);
+            var slots = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = new Padding(0), Padding = new Padding(0,2,0,0) };
+            previousSpellPage = MiniButton("‹", (s,e) => ChangeSpellPage(-1), 24); previousSpellPage.Height = 30;
+            previousSpellPage.AccessibleName = "Page précédente de sorts"; slots.Controls.Add(previousSpellPage);
+            for (int i = 0; i < 10; i++) {
+                var slot = new SpellShortcutButton { Font = new Font("Tahoma",7), Shortcut = i == 9 ? "0" : (i+1).ToString(), Margin = new Padding(1,0,1,0) };
+                slot.Click += (s,e) => SelectQuickSpell((Button)s);
+                slot.MouseUp += (s,e) => { if(e.Button == MouseButtons.Right) OpenSpellDetails((Button)s); };
+                slot.Enabled = false; quickSpells.Add(slot); slots.Controls.Add(slot);
+            }
+            nextSpellPage = MiniButton("›", (s,e) => ChangeSpellPage(1), 24); nextSpellPage.Height = 30;
+            nextSpellPage.AccessibleName = "Page suivante de sorts"; slots.Controls.Add(nextSpellPage);
+            shortcuts.Controls.Add(slots, 0, 2);
+            host.SetSlot(HudSlot.Right, shortcuts);
+        }
+
+        /// <summary>Tiroir des volets dans la zone de la carte ; les volets d'origine y sont enregistrés (masqués).</summary>
         private void BuildDrawer(Panel host)
         {
-            drawer = new ClientPanel { Width = 410, BackColor = BotUi.Paper, Padding = new Padding(9), Visible = false,
-                Anchor = AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Bottom };
-            var top = new Panel { Dock = DockStyle.Top, Height = 28 };
-            var title = BotUi.Label("Personnage", 11, true); title.Dock = DockStyle.Fill;
-            var close = MiniButton("×", (s,e) => ClosePanel(), 28); close.Dock = DockStyle.Right;
-            close.AccessibleName = "Fermer le panneau"; top.Controls.Add(title); top.Controls.Add(close);
-            panels = new TabControl { Dock = DockStyle.Fill, Font = new Font("Tahoma", 9) };
-            stats = AddList(panels, "Caractéristiques", "Caractéristique", "Valeur");
-            inventory = AddList(panels, "Inventaire", "Objet", "Qté", "Position");
-            spells = AddList(panels, "Sorts", "Sort", "Niveau");
-            jobs = AddList(panels, "Métiers", "Métier", "Niveau");
-            var logPage = new TabPage("Journal") { BackColor = BotUi.Paper, Padding = new Padding(7) };
-            journal = BotUi.Journal(); logPage.Controls.Add(journal); panels.TabPages.Add(logPage);
-
-            boostStat = new ComboBox { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList,
-                Font = Font, BackColor = BotUi.PaperLight, ForeColor = BotUi.Ink };
-            boostStat.Items.AddRange(new object[] { "Vitalité", "Sagesse", "Force", "Intelligence", "Chance", "Agilité" });
-            boostStat.SelectedIndex = 0; boostStat.SelectedIndexChanged += (s,e) => RefreshState();
-            var allocation = new Panel { Dock = DockStyle.Bottom, Height = 142, Padding = new Padding(0,5,0,0), BackColor = BotUi.Paper };
-            var selectLabel = BotUi.Label("Répartir les points de caractéristiques", 9, true); selectLabel.Dock = DockStyle.Top; selectLabel.Height = 23;
-            boostHelp = BotUi.Status(""); boostHelp.Height = 40;
-            boost = BotUi.Button("Augmenter", async (s,e) => await Boost(), true, 125);
-            allocation.Controls.Add(boostStat); allocation.Controls.Add(selectLabel);
-            allocation.Controls.Add(boostHelp); allocation.Controls.Add(BotUi.Actions(boost)); stats.Parent.Controls.Add(allocation);
-            spellHelp = BotUi.Status("Sélectionnez un sort à améliorer."); spellHelp.Height = 66;
-            upgradeSpell = BotUi.Button("Améliorer de 1 niveau", async (s,e) => await UpgradeSpell(), true, 210);
-            spells.Parent.Controls.Add(spellHelp); spells.Parent.Controls.Add(BotUi.Actions(upgradeSpell));
-            spells.SelectedIndexChanged += (s,e) => UpdateSpellSelection();
-            BuildInteractionPanels();
-            drawer.Controls.Add(panels); drawer.Controls.Add(top); host.Controls.Add(drawer); drawer.BringToFront();
+            drawer = new PanelHost { Width = 410, Anchor = AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Bottom };
+            drawer.Account = ActualCompte;
+            drawer.Feedback += ShowActionFeedback;
+            drawer.PanelShown += (s,e) => LayoutDrawer();
+            foreach (IGamePanel panel in new IGamePanel[] { new StatsPanel(), new InventoryPanel(), new SpellsPanel(), new JobsPanel(),
+                new JournalPanel(), new DialoguePanel(), new ZaapsPanel(), new ShopPanel() })
+                drawer.Register(panel);
+            host.Controls.Add(drawer); drawer.BringToFront();
             host.Resize += (s,e) => LayoutDrawer(); LayoutDrawer();
-        }
-        private ListView AddList(TabControl tabs, string title, params string[] columns)
-        {
-            var page = new TabPage(title) { BackColor = BotUi.Paper, Padding = new Padding(7) };
-            var list = BotUi.List(columns); list.Font = new Font("Tahoma",9);
-            list.Columns[0].Width = columns.Length > 2 ? 165 : 236;
-            if (list.Columns.Count > 1) list.Columns[1].Width = columns.Length > 2 ? 48 : 94;
-            if (list.Columns.Count > 2) list.Columns[2].Width = 120;
-            page.Controls.Add(list); tabs.TabPages.Add(page); return list;
         }
         private void LayoutDrawer()
         {
@@ -271,12 +251,8 @@ namespace Outil_Azur_complet.Bot
             int width = Math.Min(410, Math.Max(330, mapArea.Width - 350));
             drawer.SetBounds(Math.Max(0, mapArea.Width - width - 6), 6, width, Math.Max(1, mapArea.Height - 12));
         }
-        public void ShowPanel(int index)
-        {
-            if (index < 0 || index >= panels.TabPages.Count) return;
-            panels.SelectedIndex = index; drawer.Visible = true; LayoutDrawer(); drawer.BringToFront(); RefreshState();
-        }
-        public void ClosePanel() { drawer.Visible = false; mapArea.Focus(); }
+        private void ShowPanel<T>() where T : class, IGamePanel => drawer.Show(drawer.Get<T>());
+        private void TogglePanel<T>() where T : class, IGamePanel => drawer.Toggle(drawer.Get<T>());
         private Button MiniButton(string title, EventHandler click, int width)
         {
             var button = (Button)BotUi.Button(title, click, false, width);
@@ -347,13 +323,13 @@ namespace Outil_Azur_complet.Bot
             if (reason != null) { ShowActionFeedback(reason); return; }
             InGameMap();
             if (mapControl == null) { ShowActionFeedback("La carte n’est pas encore disponible."); return; }
-            mapControl.SelectSpell(id); ClosePanel(); mapControl.Focus(); UpdateQuickSpells();
+            mapControl.SelectSpell(id); drawer.CloseAll(); mapControl.Focus(); UpdateQuickSpells();
         }
         private void OpenSpellDetails(Button slot)
         {
             short id; if (!quickSpellIds.TryGetValue(slot,out id)) return;
-            ShowPanel(2);
-            foreach (ListViewItem row in spells.Items) if ((short)row.Tag == id) { row.Selected = true; row.EnsureVisible(); break; }
+            var spells = drawer.Get<SpellsPanel>(); if (spells == null) return;
+            drawer.Show(spells); spells.SelectSpell(id);
         }
         private void ChangeSpellPage(int direction)
         {
@@ -392,10 +368,8 @@ namespace Outil_Azur_complet.Bot
         }
         private void Subscribe()
         {
-            ActualCompte.Logger.log_event+=Log;ActualCompte.Logger.log_eventChat+=ChatLog;ActualCompte.AccountStateEvent+=RefreshState;ActualCompte.AccountDisconnectEvent+=RefreshState;ActualCompte.Game.character.SeeLifeRegen+=displaylife;ActualCompte.Game.character.ChatPrivate+=AddPrivateToList;ActualCompte.Game.character.RefreshCaracteristiques+=RefreshState;ActualCompte.Game.character.Spells_Refresh+=RefreshState;ActualCompte.Game.Map.RefreshMap+=MapChanged;ActualCompte.Game.Fight.CombatChanged+=RefreshState;
-            SubscribeInteractions();
+            ActualCompte.Logger.log_eventChat+=ChatLog;ActualCompte.AccountStateEvent+=RefreshState;ActualCompte.AccountDisconnectEvent+=RefreshState;ActualCompte.Game.character.SeeLifeRegen+=displaylife;ActualCompte.Game.character.ChatPrivate+=AddPrivateToList;ActualCompte.Game.character.RefreshCaracteristiques+=RefreshState;ActualCompte.Game.character.Spells_Refresh+=RefreshState;ActualCompte.Game.Map.RefreshMap+=MapChanged;ActualCompte.Game.Fight.CombatChanged+=RefreshState;
         }
-        private void Log(LogsMessages message,string color) { BotUi.OnUi(this,()=>BotUi.Append(journal,BotPacketRedactor.Redact(message.ToString(),ActualCompte),color)); }
         private void ChatLog(LogsMessages message,string color) { BotUi.OnUi(this,()=>BotUi.Append(chat,BotPacketRedactor.Redact(message.ToString(),ActualCompte),color)); }
         private void MapChanged() { BotUi.OnUi(this,()=> { InGameMap();RefreshState(); }); }
         public void InGameMap()
@@ -407,13 +381,14 @@ namespace Outil_Azur_complet.Bot
             mapControl.DisplayStateChanged += UpdateMapDisplay;
             mapControl.SpellSelectionChanged += SpellSelectionChanged;
             mapControl.ActionFeedback += ShowActionFeedback;
+            mapControl.Router.Panels = drawer;
             mapArea.Controls.Add(mapControl); mapControl.SendToBack(); drawer.BringToFront(); UpdateMapDisplay();
         }
         public void displaylife() => RefreshState();
         private void RefreshState()
         {
             BotUi.OnUi(this,()=> {
-                if(ActualCompte.Game==null)return;var c=ActualCompte.Game.character;var s=c.stats;
+                if(ActualCompte.Game==null||uiReleased)return;var c=ActualCompte.Game.character;var s=c.stats;
                 summary.Text=(string.IsNullOrEmpty(c.Name)?"Personnage en cours de chargement":c.Name)+" · Niveau "+c.Level+" · Vie "+s.VitalityActual+"/"+s.MaxVitality+" · Kamas "+c.Kamas;
                 life.UpdateLife(s.VitalityActual, s.MaxVitality, c.Level);
                 toolTips.SetToolTip(life, "Vie : " + s.VitalityActual + "/" + s.MaxVitality + "\nNiveau : " + c.Level);
@@ -434,48 +409,14 @@ namespace Outil_Azur_complet.Bot
                 double span=s.ExpNivNext-s.MinExpNiv;xp.Value=span>0?Math.Max(0,Math.Min(100,(int)((s.ActualEXP-s.MinExpNiv)/span*100))):0;
                 mapStatus.Text=ActualCompte.Game.Map.LoadError??("Carte "+ActualCompte.Game.Map.MapID+" · "+ActualCompte.Game.Map.GetCoordinates+" · Cellule "+(c.Cell==null?"?":c.Cell.CellID.ToString()));
                 if (mapControl != null && mapControl.MissingAssetCount > 0) mapStatus.Text += " · " + mapControl.MissingAssetCount + " ressource(s) absente(s)";
-                stats.BeginUpdate();stats.Items.Clear();Row(stats,"Vie",s.VitalityActual+" / "+s.MaxVitality);Row(stats,"Énergie",s.ActualEnergy+" / "+s.EnergyMax);Row(stats,"Expérience",s.ActualEXP+" / "+s.ExpNivNext);Row(stats,"Points de caractéristiques",c.Carac_Points);Row(stats,"Points d’action",s.PA.StatsTotal);Row(stats,"Points de mouvement",s.PM.StatsTotal);Row(stats,"Vitalité",s.Vita.StatsTotal);Row(stats,"Sagesse",s.Sagesse.StatsTotal);Row(stats,"Force",s.Force.StatsTotal);Row(stats,"Intelligence",s.Intell.StatsTotal);Row(stats,"Chance",s.Chance.StatsTotal);Row(stats,"Agilité",s.Agility.StatsTotal);Row(stats,"Pods",c.Inventory.Actual_pods+" / "+c.Inventory.Pods_Max);stats.EndUpdate();
-                uint selectedItem=inventory.SelectedItems.Count==0?0u:(uint)inventory.SelectedItems[0].Tag;
-                refreshingLists=true;
-                try { inventory.BeginUpdate();inventory.Items.Clear();foreach(var item in c.Inventory.Objets.OrderBy(x=>x.IsEquipped()?0:1).ThenBy(x=>x.Name,StringComparer.CurrentCultureIgnoreCase)) { var row=inventory.Items.Add(string.IsNullOrEmpty(item.Name)?"Objet n° "+item.ID:item.Name);row.SubItems.Add(item.Qua.ToString());row.SubItems.Add(InventoryPosition(item.position.ToString()));row.Tag=item.Inventory_ID;if(item.Inventory_ID==selectedItem)row.Selected=true; }inventory.EndUpdate(); }
-                finally { refreshingLists=false; }
-                jobs.BeginUpdate();jobs.Items.Clear();foreach(var job in c.GetJobsSnapshot())Row(jobs,string.IsNullOrEmpty(job.name)?"Métier #"+job.ID:job.name,job.Level);jobs.EndUpdate();
-                short selectedSpell=spells.SelectedItems.Count==0?(short)-1:(short)spells.SelectedItems[0].Tag;
-                spells.BeginUpdate();spells.Items.Clear();foreach(var spell in c.Spells.OrderBy(x=>x.Value.Name,StringComparer.CurrentCultureIgnoreCase)) { var row=spells.Items.Add(string.IsNullOrEmpty(spell.Value.Name)?"Sort #"+spell.Key:spell.Value.Name);row.SubItems.Add(spell.Value.Level.ToString());row.Tag=spell.Key;if(spell.Key==selectedSpell)row.Selected=true; }spells.EndUpdate();UpdateSpellSelection();UpdateQuickSpells();
-                int cost=BoostCost();boostHelp.Text=c.Carac_Points+" point(s) disponible(s). Coût estimé : "+cost+" point(s).";boost.Enabled=!boosting&&!fight.IsInFight&&send.Enabled&&c.id>0&&cost>0&&c.Carac_Points>=cost;
-                RefreshInteractionPanels();
+                UpdateQuickSpells();
+                drawer.RefreshVisible();
             });
         }
         private static string StateName(AccountStates value)
         {
             switch(value) { case AccountStates.DISCONNECTED:return "Déconnecté";case AccountStates.CONNECTED:return "Connexion en cours";case AccountStates.CONNECTED_INACTIVE:return "Disponible";case AccountStates.MOVING:return "Déplacement";case AccountStates.FIGHTING:return "Combat";case AccountStates.GATHERING:return "Récolte";case AccountStates.DIALOG:return "Dialogue";case AccountStates.STORAGE:return "Stockage";case AccountStates.EXCHANGE:return "Échange";case AccountStates.BUYING:return "Achat";case AccountStates.SELLING:return "Vente";case AccountStates.REGENERATION:return "Régénération";case AccountStates.ZAAP:return "Zaap";default:return value.ToString(); }
         }
-        private static void Row(ListView list,string title,params object[] values) { var row=list.Items.Add(title);foreach(var value in values)row.SubItems.Add(Convert.ToString(value)); }
-        private int BoostCost() { var stat=new[] { StatsEnum.VITALITE,StatsEnum.SAGESSE,StatsEnum.FORCE,StatsEnum.INTELLIGENCE,StatsEnum.CHANCE,StatsEnum.AGILITE }[boostStat.SelectedIndex];return ActualCompte.Game.character.stats.GetCapitalStatsBoost(ActualCompte.Game.character.Race_ID,stat); }
-        private async Task Boost()
-        {
-            if(!boost.Enabled)return;boosting=true;boost.Enabled=false;
-            try { await ActualCompte.Connexion.SendPacket("AB"+new[] { 11,12,10,15,13,14 }[boostStat.SelectedIndex],true);await Task.Delay(500); }
-            catch(Exception ex) { BotUi.Append(journal,ex.Message); }
-            finally { boosting=false;if(!IsDisposed)RefreshState(); }
-        }
-        private void UpdateSpellSelection()
-        {
-            upgradeSpell.Enabled=false;int points=ActualCompte.Game.character.SpellPoints;Spell spell;
-            if(spells.SelectedItems.Count==0||!ActualCompte.Game.character.Spells.TryGetValue((short)spells.SelectedItems[0].Tag,out spell)) { spellHelp.Text=points+" point(s) de sort disponible(s). Sélectionnez un sort à améliorer.";return; }
-            if(!spell.HasMetadata) { spellHelp.Text="Les données de ce sort sont absentes. Exportez les sorts depuis le parseur.";return; }
-            if(spell.Level>=6) { spellHelp.Text="Ce sort est au niveau maximal (6).";return; }
-            spellHelp.Text=points+" point(s) disponible(s). Niveau suivant : "+(spell.Level+1)+", coût : "+spell.Level+" point(s). Le serveur confirme l’amélioration.";
-            upgradeSpell.Enabled=!upgradingSpell&&send.Enabled&&points>=spell.Level&&(ActualCompte.AccountStates==AccountStates.CONNECTED_INACTIVE||ActualCompte.AccountStates==AccountStates.REGENERATION);
-        }
-        private async Task UpgradeSpell()
-        {
-            if(!upgradeSpell.Enabled||spells.SelectedItems.Count==0)return;short id=(short)spells.SelectedItems[0].Tag;upgradingSpell=true;UpdateSpellSelection();
-            try { await ActualCompte.Connexion.SendPacket("SB"+id,true);await Task.Delay(500); }
-            catch(Exception ex) { BotUi.Append(journal,ex.Message); }
-            finally { upgradingSpell=false;if(!IsDisposed)UpdateSpellSelection(); }
-        }
-        private static string InventoryPosition(string value) { switch(value) { case "NOT_EQUIPPED":return "Sac";case "NECKLACE":return "Amulette";case "WEAPON":return "Arme";case "LEFT_RING":return "Anneau gauche";case "RIGHT_RING":return "Anneau droit";case "BELT":return "Ceinture";case "BOOTS":return "Bottes";case "HAT":return "Coiffe";case "CAPE":return "Cape";case "PET":return "Familier";case "SHIELD":return "Bouclier";default:return value.Replace('_',' '); } }
         public void AddPrivateToList(string who) { BotUi.OnUi(this,()=> { WhoPM=who;recipient.Text=who; }); }
         private void ChangeChannel() { GeneralTchat=channel.SelectedIndex==0;RecruitTchat=channel.SelectedIndex==1;MarchandTchat=channel.SelectedIndex==2;GuildeTchat=channel.SelectedIndex==3;GroupTchat=channel.SelectedIndex==4;PMTchat=channel.SelectedIndex==5; }
         private void UpdateRecipientVisibility() { privateRecipientBar.Visible=recipient.Enabled=recipient.Visible=channel.SelectedIndex==5; }
@@ -506,12 +447,30 @@ namespace Outil_Azur_complet.Bot
         private void Disconnect() { ActualCompte.Disconnect();new LoginForm().Show();Close(); }
         private void OnSessionClosed(object sender,FormClosedEventArgs args)
         {
-            refresh.Stop();refresh.Dispose();toolTips.Dispose();
-            if (mapControl != null) { mapControl.DisplayStateChanged -= UpdateMapDisplay; mapControl.SpellSelectionChanged -= SpellSelectionChanged; mapControl.ActionFeedback -= ShowActionFeedback; }
-            foreach (var icon in spellIcons.Values) icon?.Dispose(); spellIcons.Clear();
             if(FG!=null&&!FG.IsDisposed)FG.Close();
-            UnsubscribeInteractions();
-            ActualCompte.Logger.log_event-=Log;ActualCompte.Logger.log_eventChat-=ChatLog;ActualCompte.AccountStateEvent-=RefreshState;ActualCompte.AccountDisconnectEvent-=RefreshState;ActualCompte.Game.character.SeeLifeRegen-=displaylife;ActualCompte.Game.character.ChatPrivate-=AddPrivateToList;ActualCompte.Game.character.RefreshCaracteristiques-=RefreshState;ActualCompte.Game.character.Spells_Refresh-=RefreshState;ActualCompte.Game.Map.RefreshMap-=MapChanged;ActualCompte.Game.Fight.CombatChanged-=RefreshState;ActualCompte.Dispose();
+            ReleaseUi();
+            ActualCompte.Dispose();
+        }
+
+        /// <summary>
+        /// Détache l'interface de la session (minuterie, carte, volets, abonnements) ; appelée à la fermeture et à la
+        /// libération du formulaire, une seule fois, toujours avant la libération du compte.
+        /// </summary>
+        private void ReleaseUi()
+        {
+            if (uiReleased) return;
+            uiReleased = true;
+            refresh.Stop(); refresh.Dispose(); toolTips.Dispose();
+            if (mapControl != null) { mapControl.DisplayStateChanged -= UpdateMapDisplay; mapControl.SpellSelectionChanged -= SpellSelectionChanged; mapControl.ActionFeedback -= ShowActionFeedback; mapControl.Router.Panels = null; }
+            foreach (var icon in spellIcons.Values) icon?.Dispose(); spellIcons.Clear();
+            if (drawer != null) { drawer.Feedback -= ShowActionFeedback; drawer.ReleaseSession(); }
+            if (ActualCompte == null) return;
+            if (ActualCompte.Logger != null) ActualCompte.Logger.log_eventChat-=ChatLog;
+            ActualCompte.AccountStateEvent-=RefreshState;ActualCompte.AccountDisconnectEvent-=RefreshState;
+            var game = ActualCompte.Game; if (game == null) return;
+            if (game.character != null) { game.character.SeeLifeRegen-=displaylife;game.character.ChatPrivate-=AddPrivateToList;game.character.RefreshCaracteristiques-=RefreshState;game.character.Spells_Refresh-=RefreshState; }
+            if (game.Map != null) game.Map.RefreshMap-=MapChanged;
+            if (game.Fight != null) game.Fight.CombatChanged-=RefreshState;
         }
     }
 }
