@@ -210,7 +210,7 @@ namespace Outil_Azur_complet.Bot
             icons.Controls.Add(IconButton(resources, "roundedButton2.Image", "icone-inventaire", "Inventaire (I)", (s,e) => TogglePanel<InventoryPanel>()));
             icons.Controls.Add(IconButton(resources, "roundedButton3.Image", "icone-quetes", "Quêtes : interface à compléter", null));
             icons.Controls.Add(IconButton(resources, "roundedButton4.Image", "icone-carte", "Géoposition : ajuster la carte", (s,e) => mapControl?.Fit()));
-            icons.Controls.Add(IconButton(resources, "roundedButton5.Image", "icone-amis", "Amis : interface à compléter", null));
+            icons.Controls.Add(IconButton(resources, "roundedButton5.Image", "icone-amis", "Amis", (s,e) => TogglePanel<FriendsPanel>()));
             icons.Controls.Add(IconButton(resources, "roundedButton6.Image", "icone-guilde", "Guilde : interface à compléter", null));
             icons.Controls.Add(IconButton(resources, "roundedButton7.Image", "icone-monture", "Monture : interface à compléter", null));
             icons.Controls.Add(IconButton(resources, "roundedButton8.Image", "icone-pvp", "Conquête : interface à compléter", null));
@@ -240,7 +240,7 @@ namespace Outil_Azur_complet.Bot
             drawer.Feedback += ShowActionFeedback;
             drawer.PanelShown += (s,e) => LayoutDrawer();
             foreach (IGamePanel panel in new IGamePanel[] { new StatsPanel(), new InventoryPanel(), new SpellsPanel(), new JobsPanel(),
-                new JournalPanel(), new DialoguePanel(), new ZaapsPanel(), new ShopPanel(), new ExchangePanel(), new StoragePanel(), new FightsListPanel(), new ZaapiPanel(), new KeyCodePanel(), new DocumentPanel(), new PartyPanel() })
+                new JournalPanel(), new DialoguePanel(), new ZaapsPanel(), new ShopPanel(), new ExchangePanel(), new StoragePanel(), new FightsListPanel(), new ZaapiPanel(), new KeyCodePanel(), new DocumentPanel(), new PartyPanel(), new FriendsPanel() })
                 drawer.Register(panel);
             host.Controls.Add(drawer); drawer.BringToFront();
             host.Resize += (s,e) => LayoutDrawer(); LayoutDrawer();
