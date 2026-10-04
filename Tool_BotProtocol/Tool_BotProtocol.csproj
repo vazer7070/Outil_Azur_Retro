@@ -163,6 +163,18 @@
     <Compile Include="Game\Managers\Teleport\TeleportType.cs" />
     <Compile Include="Game\Maps\Combats\FightMoveNode.cs" />
     <Compile Include="Game\Maps\Combats\FightMoveStructs.cs" />
+    <Compile Include="Game\Maps\Entities\ActorKind.cs" />
+    <Compile Include="Game\Maps\Entities\CollectorActor.cs" />
+    <Compile Include="Game\Maps\Entities\FightMonsterActor.cs" />
+    <Compile Include="Game\Maps\Entities\FightSwordsActor.cs" />
+    <Compile Include="Game\Maps\Entities\MapActor.cs" />
+    <Compile Include="Game\Maps\Entities\MerchantActor.cs" />
+    <Compile Include="Game\Maps\Entities\MonsterGroupActor.cs" />
+    <Compile Include="Game\Maps\Entities\NpcActor.cs" />
+    <Compile Include="Game\Maps\Entities\ParkMountActor.cs" />
+    <Compile Include="Game\Maps\Entities\PlayerActor.cs" />
+    <Compile Include="Game\Maps\Entities\PrismActor.cs" />
+    <Compile Include="Game\Maps\Entities\UnknownActor.cs" />
     <Compile Include="Game\Maps\Interactives\InteractivesobjectsIdEmu.cs" />
     <Compile Include="Game\Maps\Interactives\Zaaps.cs" />
     <Compile Include="Game\Maps\Mouvements\AnimDuration.cs" />
@@ -177,6 +189,8 @@
     <Compile Include="Game\Maps\Interactives\InteractivesParent.cs" />
     <Compile Include="Game\Maps\Interfaces\Entites.cs" />
     <Compile Include="Game\Maps\Map.cs" />
+    <Compile Include="Game\Maps\Map.Actors.cs" />
+    <Compile Include="Game\Maps\GmParser.cs" />
     <Compile Include="Game\Maps\Mouvements\PathfinderUtils.cs" />
     <Compile Include="Game\Monstres\Monstres.cs" />
     <Compile Include="Game\NPC\PNJ.cs" />
