@@ -433,9 +433,10 @@ namespace Outil_Azur_complet.Bot.Panels
             graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
             try
             {
-                // Lecture du cache seulement : aucun PNG n'est lu pendant le dessin.
+                // Lecture du cache seulement : aucun PNG n'est lu pendant le dessin. Les images partagées de ClientAssets sont
+                // verrouillées le temps du dessin (GDI+ refuse deux dessins simultanés d'un même Bitmap).
                 ClientAssets.TryCached("Client", Back, out Bitmap back);
-                if (back != null) graphics.DrawImage(back, dial);
+                if (back != null) lock (back) graphics.DrawImage(back, dial);
                 else
                 {
                     using (var fill = new SolidBrush(BotUi.Frame)) graphics.FillEllipse(fill, dial);
@@ -448,7 +449,7 @@ namespace Outil_Azur_complet.Bot.Panels
                 graphics.TranslateTransform(dial.X + dial.Width / 2, dial.Y + dial.Height / 2);
                 if (angle.HasValue) graphics.RotateTransform(angle.Value);
                 var box = new RectangleF(-dial.Width / 2, -dial.Height / 2, dial.Width, dial.Height);
-                if (needle != null) graphics.DrawImage(needle, box);
+                if (needle != null) lock (needle) graphics.DrawImage(needle, box);
                 else if (angle.HasValue)
                 {
                     PointF[] arrow = { new PointF(box.Right - 3, 0), new PointF(-3, -box.Height / 6), new PointF(0, 0), new PointF(-3, box.Height / 6) };
