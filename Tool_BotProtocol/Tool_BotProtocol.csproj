@@ -259,7 +259,6 @@
     <Compile Include="Utils\Logger\BotPacketRedactor.cs" />
     <Compile Include="Utils\Logger\LogsEnums.cs" />
     <Compile Include="Utils\Logger\LogsMessages.cs" />
-    <Compile Include="Utils\Pics\PicturesManager.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

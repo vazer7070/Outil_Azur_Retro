@@ -116,8 +116,9 @@ namespace Outil_Azur_complet.Bot.Controls
         private static readonly Dictionary<string, Library> libraries = new Dictionary<string, Library>(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string[]> Alternatives = new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
-            { "S", new[] { "R", "L", "F", "B" } }, { "R", new[] { "S", "F", "L" } }, { "F", new[] { "R", "S", "L" } },
-            { "L", new[] { "B", "R", "S" } }, { "B", new[] { "L", "S", "R" } }
+            // Orientation la plus proche d'abord ; toutes en dernier recours (un monstre n'a souvent que R et L, ou F seul).
+            { "S", new[] { "R", "L", "F", "B" } }, { "R", new[] { "S", "F", "L", "B" } }, { "F", new[] { "R", "S", "L", "B" } },
+            { "L", new[] { "B", "R", "S", "F" } }, { "B", new[] { "L", "S", "R", "F" } }
         };
 
         private readonly Library library;

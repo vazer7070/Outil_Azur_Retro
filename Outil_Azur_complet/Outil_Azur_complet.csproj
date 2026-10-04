@@ -246,9 +246,6 @@
     </Compile>
     <Compile Include="Bot\Controls\CellState.cs" />
     <Compile Include="Bot\Controls\MapQuality.cs" />
-    <Compile Include="Bot\Controls\tooltip\CustomToolTip.cs">
-      <SubType>Component</SubType>
-    </Compile>
     <Compile Include="Bot\Controls\UserMapCell.cs" />
     <Compile Include="Bot\Controls\BotMapArtwork.cs" />
     <Compile Include="Bot\Controls\SpellShortcutButton.cs">

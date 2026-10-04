@@ -402,7 +402,7 @@ namespace Outil_Azur_complet.Bot.Controls
             var layers = new List<DepthLayer>();
             foreach (ArtworkCell cell in cells)
                 if (cell.Active && cell.Object2Id != 0)
-                    layers.Add(new DepthLayer { Depth = cell.Center.Y, Order = 2, Draw = graphics => DrawPicture(graphics, cell.Object2?.Picture, cell.Center) });
+                    layers.Add(new DepthLayer { Depth = cell.Id * 100f, Order = 2, Draw = graphics => DrawPicture(graphics, cell.Object2?.Picture, cell.Center) }); // profondeur du client : cellule × 100
             depthLayers = layers.OrderBy(layer => layer.Depth).ThenBy(layer => layer.Order).ToArray();
         }
 
