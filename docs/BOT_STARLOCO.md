@@ -71,6 +71,8 @@ Cette reconstruction affiche les images disponibles et les couches de décor ; e
 
 Les caches de ressources sont rechargés sans multiplier les tâches par fichier. Une erreur de lecture est rendue à l’interface ; les données précédentes restent conservées lorsqu’un chargement complet échoue. Le chargement des cartes peut écarter des fichiers invalides et en donner le détail.
 
+Les images du client qui alimentent ces dossiers se produisent hors du bot avec `tools/client-analysis` ([mode d'emploi](../tools/client-analysis/README.md)). `swfsvg` y rend la scène des SWF sans symbole exporté (icônes d'objets, émotes, métiers, emblèmes, portraits), une image donnée d'une animation (cycles de marche et de course image par image, dans un cadre commun), les masques et les formes morphées, et liste les symboles avec leur nombre d'images ; son `index.tsv` donne le cadre de chaque rendu par rapport au point d'ancrage du client. Cette étape ne livre aucune image au bot : elle prépare les exports du décor, des sprites et des icônes.
+
 ## Comptes enregistrés
 
 L’enregistrement est facultatif. Les nouveaux mots de passe enregistrés sont protégés avec Windows DPAPI pour l’utilisateur Windows courant. Ils restent déchiffrables sur cet ordinateur dans sa session Windows ; copier les fichiers sur une autre machine ou vers un autre utilisateur ne garantit pas leur lecture.
