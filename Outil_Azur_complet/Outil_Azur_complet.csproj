@@ -342,6 +342,7 @@
     <Compile Include="Bot\Menus\PartyMenuProvider.cs" />
     <Compile Include="Bot\Menus\FriendsMenuProvider.cs" />
     <Compile Include="Bot\Menus\PlayerMenuProvider.cs" />
+    <Compile Include="Bot\Shortcuts.cs" />
     <Compile Include="Bot\LoginForm.Designer.cs">
       <DependentUpon>LoginForm.cs</DependentUpon>
     </Compile>
