@@ -1,11 +1,24 @@
 //! Exporte des symboles (formes, clips, boutons) d'un SWF en SVG.
-//! usage : swfsvg <fichier.swf> <dossier> [nomExport ...]   (sans nom : tous les exports)
+//!
+//! usage :
+//!   swfsvg [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier> [nomExport ...]
+//!   swfsvg --scene [--name NOM] [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier>
+//!   swfsvg --list <fichier.swf>
+//!
+//! Sans nom d'export, tous les symboles d'`ExportAssets` sont rendus. `--scene` rend la timeline
+//! principale (icônes d'objets, émotes, portraits : formes posées sur la scène, sans export).
+//! `--frame` choisit l'image de la timeline demandée, les clips imbriqués ayant joué depuis leur
+//! création comme à l'écran (cycles de marche) ; `--list` décrit les symboles sans rien rendre.
 use base64::Engine;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
 use std::fs::File;
 use std::io::{Read, Write};
 use swf::{FillStyle, Matrix, ShapeRecord, Tag};
+
+const USAGE: &str = "usage : swfsvg [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier> [nomExport ...]
+        swfsvg --scene [--name NOM] [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier>
+        swfsvg --list <fichier.swf>";
 
 /// Profondeur maximale d'imbrication suivie (clips dans des clips).
 const MAX_DEPTH: usize = 12;
@@ -86,6 +99,13 @@ impl Bounds {
 }
 
 impl Bounds {
+    fn union(&self, o: &Bounds) -> Bounds {
+        match (self.set, o.set) {
+            (false, _) => *o,
+            (_, false) => *self,
+            _ => Bounds { x0: self.x0.min(o.x0), y0: self.y0.min(o.y0), x1: self.x1.max(o.x1), y1: self.y1.max(o.y1), set: true },
+        }
+    }
     fn intersection(&self, o: &Bounds) -> Bounds {
         if !self.set || !o.set {
             return Bounds::default();
@@ -125,6 +145,7 @@ struct Exporter<'a> {
     jpeg_tables: Option<&'a [u8]>,
     bitmaps: HashMap<u16, Option<Bitmap>>,
     timelines: HashMap<u16, Timeline>,
+    cycles: HashMap<u16, usize>,
     defs: String,
     body: String,
     bounds: Bounds,
@@ -247,6 +268,7 @@ impl<'a> Exporter<'a> {
             jpeg_tables,
             bitmaps: HashMap::new(),
             timelines: HashMap::new(),
+            cycles: HashMap::new(),
             defs: String::new(),
             body: String::new(),
             bounds: Bounds::default(),
@@ -274,6 +296,75 @@ impl<'a> Exporter<'a> {
     /// Timeline d'un clip (`DefineSprite`), mise en cache.
     fn sprite_timeline(&mut self, sprite: &swf::Sprite) -> Timeline {
         *self.timelines.entry(sprite.id).or_insert_with(|| timeline_info(&sprite.tags))
+    }
+
+    /// Type affiché par `--list` pour un caractère.
+    fn kind(&self, id: u16) -> &'static str {
+        match self.chars.get(&id) {
+            Some(Tag::DefineShape(_)) => "forme",
+            Some(Tag::DefineSprite(_)) => "clip",
+            Some(Tag::DefineButton(_)) | Some(Tag::DefineButton2(_)) => "bouton",
+            Some(Tag::DefineMorphShape(_)) => "morph",
+            Some(Tag::DefineText(_)) | Some(Tag::DefineText2(_)) => "texte",
+            Some(Tag::DefineBits { .. }) | Some(Tag::DefineBitsJpeg2 { .. }) | Some(Tag::DefineBitsJpeg3(_)) | Some(Tag::DefineBitsLossless(_)) => "bitmap",
+            Some(_) => "autre",
+            None => "absent",
+        }
+    }
+
+    /// Nombre d'images utiles d'un caractère joué comme clip imbriqué : sa timeline jusqu'à son
+    /// `stop()` et celles des clips qu'il contient (un cycle de marche est souvent un clip
+    /// d'une image qui contient le vrai cycle).
+    fn cycle(&mut self, id: u16, depth: usize) -> usize {
+        if depth > MAX_DEPTH {
+            return 1;
+        }
+        if let Some(n) = self.cycles.get(&id) {
+            return *n;
+        }
+        // Valeur provisoire : un clip qui se contient lui-même (fichier corrompu) ne boucle pas.
+        self.cycles.insert(id, 1);
+        let n = match self.chars.get(&id).copied() {
+            Some(Tag::DefineSprite(sp)) => {
+                let info = self.sprite_timeline(sp);
+                self.cycle_of_timeline(&sp.tags, info, false, depth + 1)
+            }
+            Some(Tag::DefineButton(b)) | Some(Tag::DefineButton2(b)) => {
+                let ids: Vec<u16> = b.records.iter().filter(|r| r.states.contains(swf::ButtonState::UP)).map(|r| r.id).collect();
+                ids.into_iter().map(|c| self.cycle(c, depth + 1)).max().unwrap_or(1)
+            }
+            _ => 1,
+        };
+        self.cycles.insert(id, n);
+        n
+    }
+
+    /// Nombre d'images utiles d'une timeline. `root` : timeline demandée (toutes ses images
+    /// comptent, comme pour `gotoAndStop`) ; sinon elle s'arrête sur son premier `stop()`.
+    fn cycle_of_timeline(&mut self, tags: &[Tag], info: Timeline, root: bool, depth: usize) -> usize {
+        let own = if root { info.frames } else { info.stop.map(|s| s + 1).unwrap_or(info.frames) };
+        // Une timeline qui boucle recrée à chaque tour les clips posés après sa première image.
+        let looping = info.frames > 1 && (root || info.stop.is_none());
+        let mut best = own.max(1);
+        let mut frame = 0usize;
+        let mut children: Vec<(usize, u16)> = Vec::new();
+        for t in tags {
+            match t {
+                Tag::PlaceObject(p) => {
+                    if let swf::PlaceObjectAction::Place(cid) | swf::PlaceObjectAction::Replace(cid) = p.action {
+                        if frame < own && (!looping || frame == 0) {
+                            children.push((frame, cid));
+                        }
+                    }
+                }
+                Tag::ShowFrame => frame += 1,
+                _ => {}
+            }
+        }
+        for (born, cid) in children {
+            best = best.max(born + self.cycle(cid, depth + 1));
+        }
+        best
     }
 
     fn next_id(&mut self, prefix: &str) -> String {
@@ -1020,17 +1111,115 @@ fn safe_name(n: &str) -> String {
     n.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' }).collect()
 }
 
-fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() < 3 {
-        eprintln!("usage : swfsvg <fichier.swf> <dossier> [nomExport ...]");
-        std::process::exit(2);
+/// Images demandées par `--frame`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Frames {
+    /// Une image : le fichier garde le nom du symbole (`walkR.svg`).
+    One(usize),
+    /// Plusieurs images : un fichier par image (`walkR_f001.svg`…), toutes dans le même cadre.
+    Range(usize, usize),
+    /// Toutes les images utiles du symbole (voir `--list`).
+    All,
+}
+
+#[derive(Debug, PartialEq)]
+struct Options {
+    scene: bool,
+    list: bool,
+    append_index: bool,
+    frames: Frames,
+    /// Nom du rendu de la scène (`--name`) ; par défaut, le nom du fichier SWF.
+    scene_name: Option<String>,
+    file: String,
+    dir: Option<String>,
+    names: Vec<String>,
+}
+
+fn parse_frames(v: &str) -> Result<Frames, String> {
+    let number = |s: &str| -> Result<usize, String> {
+        match s.trim().parse::<usize>() {
+            Ok(n) if n >= 1 => Ok(n),
+            _ => Err(format!("--frame attend un numéro d'image à partir de 1, « {} » reçu", v)),
+        }
+    };
+    if v == "all" {
+        return Ok(Frames::All);
     }
-    let file = File::open(&args[1]).expect("ouverture");
-    let buf = swf::decompress_swf(file).expect("décompression");
-    let movie = swf::parse_swf(&buf).expect("analyse");
-    std::fs::create_dir_all(&args[2]).expect("dossier");
-    let wanted: Vec<String> = args[3..].to_vec();
+    if let Some((a, b)) = v.split_once('-') {
+        let (a, b) = (number(a)?, number(b)?);
+        if a > b {
+            return Err(format!("--frame {} : la première image dépasse la dernière", v));
+        }
+        return Ok(if a == b { Frames::One(a) } else { Frames::Range(a, b) });
+    }
+    Ok(Frames::One(number(v)?))
+}
+
+fn parse_args(args: &[String]) -> Result<Options, String> {
+    let mut o = Options { scene: false, list: false, append_index: false, frames: Frames::One(1), scene_name: None, file: String::new(), dir: None, names: Vec::new() };
+    let mut positional = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        let a = &args[i];
+        match a.as_str() {
+            "--scene" => o.scene = true,
+            "--list" => o.list = true,
+            "--append-index" => o.append_index = true,
+            "--frame" => {
+                i += 1;
+                let v = args.get(i).ok_or("--frame attend une valeur (N, A-B ou all)")?;
+                o.frames = parse_frames(v)?;
+            }
+            "--name" => {
+                i += 1;
+                let v = args.get(i).ok_or("--name attend un nom")?;
+                o.scene_name = Some(v.clone());
+            }
+            "-h" | "--help" => return Err(String::new()),
+            _ if a.starts_with("--frame=") => o.frames = parse_frames(&a["--frame=".len()..])?,
+            _ if a.starts_with("--name=") => o.scene_name = Some(a["--name=".len()..].to_string()),
+            _ if a.starts_with("--") => return Err(format!("option inconnue : {}", a)),
+            _ => positional.push(a.clone()),
+        }
+        i += 1;
+    }
+    let mut positional = positional.into_iter();
+    o.file = positional.next().ok_or("fichier SWF manquant")?;
+    if o.list {
+        if positional.next().is_some() {
+            return Err("--list n'attend que le fichier SWF".into());
+        }
+        return Ok(o);
+    }
+    o.dir = Some(positional.next().ok_or("dossier de sortie manquant")?);
+    o.names = positional.collect();
+    if o.scene && !o.names.is_empty() {
+        return Err("--scene rend la timeline principale : aucun nom d'export n'est attendu".into());
+    }
+    if o.scene_name.as_deref().map_or(false, |n| n.trim().is_empty()) || (o.scene_name.is_some() && !o.scene) {
+        return Err("--name nomme le rendu de --scene et ne peut pas être vide".into());
+    }
+    Ok(o)
+}
+
+/// Ce que l'on rend : un symbole exporté, ou la scène (timeline principale).
+struct Target {
+    name: String,
+    id: Option<u16>,
+}
+
+fn file_stem(path: &str) -> String {
+    std::path::Path::new(path).file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "scene".to_string())
+}
+
+fn load(path: &str) -> Result<swf::SwfBuf, String> {
+    let file = File::open(path).map_err(|e| format!("{} : ouverture impossible ({})", path, e))?;
+    swf::decompress_swf(file).map_err(|e| format!("{} : SWF illisible ({})", path, e))
+}
+
+fn run(o: &Options) -> Result<String, String> {
+    let buf = load(&o.file)?;
+    let movie = swf::parse_swf(&buf).map_err(|e| format!("{} : SWF illisible ({})", o.file, e))?;
     let mut exports: Vec<(u16, String)> = Vec::new();
     for t in &movie.tags {
         if let Tag::ExportAssets(list) = t {
@@ -1040,27 +1229,149 @@ fn main() {
         }
     }
     let mut exporter = Exporter::new(&movie.tags);
-    let mut index = String::new();
-    for (id, name) in &exports {
-        if !wanted.is_empty() && !wanted.iter().any(|w| w == name) {
-            continue;
+    let main_info = timeline_info(&movie.tags);
+
+    if o.list {
+        let mut out = String::from("nom\tid\ttype\timages\timages_timeline\n");
+        let scene_cycle = exporter.cycle_of_timeline(&movie.tags, main_info, true, 0);
+        let _ = writeln!(out, "scene\t0\tscene\t{}\t{}", scene_cycle, main_info.frames);
+        for (id, name) in &exports {
+            let (cycle, own) = match exporter.chars.get(id).copied() {
+                Some(Tag::DefineSprite(sp)) => {
+                    let info = exporter.sprite_timeline(sp);
+                    (exporter.cycle_of_timeline(&sp.tags, info, true, 0), info.frames)
+                }
+                _ => (exporter.cycle(*id, 0), 1),
+            };
+            let _ = writeln!(out, "{}\t{}\t{}\t{}\t{}", name, id, exporter.kind(*id), cycle, own);
         }
-        exporter.reset();
-        exporter.render_symbol(*id, 1);
-        let svg = svg_document(&exporter.defs, &exporter.body, &exporter.bounds);
-        let b = exporter.bounds;
-        let path = format!("{}/{}.svg", args[2], safe_name(name));
-        let mut f = File::create(&path).expect("écriture");
-        f.write_all(svg.as_bytes()).expect("écriture");
-        let _ = writeln!(index, "{}\t{}\t{}\t{}\t{}\t{}\t{}", name, id, fm(b.x0), fm(b.y0), fm(b.x1 - b.x0), fm(b.y1 - b.y0), exporter.warnings.join("; "));
+        return Ok(out);
     }
-    let mut f = File::create(format!("{}/index.tsv", args[2])).expect("index");
-    f.write_all(index.as_bytes()).expect("index");
+
+    let dir = o.dir.as_deref().unwrap_or(".");
+    std::fs::create_dir_all(dir).map_err(|e| format!("{} : création du dossier impossible ({})", dir, e))?;
+    let targets: Vec<Target> = if o.scene {
+        vec![Target { name: o.scene_name.clone().unwrap_or_else(|| file_stem(&o.file)), id: None }]
+    } else {
+        exports.iter().filter(|(_, n)| o.names.is_empty() || o.names.iter().any(|w| w == n)).map(|(id, n)| Target { name: n.clone(), id: Some(*id) }).collect()
+    };
+    let mut messages = String::new();
+    let missing: Vec<&String> = o.names.iter().filter(|w| !exports.iter().any(|(_, n)| n == *w)).collect();
+    if !missing.is_empty() {
+        let _ = writeln!(messages, "symboles absents de {} : {}", o.file, missing.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(" "));
+    }
+
+    let mut index = String::new();
+    for target in &targets {
+        let total = match target.id {
+            None => exporter.cycle_of_timeline(&movie.tags, main_info, true, 0),
+            Some(id) => match exporter.chars.get(&id).copied() {
+                Some(Tag::DefineSprite(sp)) => {
+                    let info = exporter.sprite_timeline(sp);
+                    exporter.cycle_of_timeline(&sp.tags, info, true, 0)
+                }
+                _ => exporter.cycle(id, 0),
+            },
+        };
+        let (frames, several): (Vec<usize>, bool) = match o.frames {
+            Frames::One(n) => (vec![n], false),
+            Frames::Range(a, b) => ((a..=b).collect(), true),
+            Frames::All => ((1..=total).collect(), true),
+        };
+        // Rendu de chaque image ; plusieurs images partagent le même cadre (union) pour que les PNG
+        // aient la même taille et la même ancre.
+        let mut renders: Vec<(usize, String, String, Bounds, Vec<String>)> = Vec::new();
+        let mut union = Bounds::default();
+        for &n in &frames {
+            exporter.reset();
+            match target.id {
+                None => exporter.render_timeline(&movie.tags, main_info, &M::identity(), 0, n - 1, true),
+                Some(id) => exporter.render_symbol(id, n),
+            }
+            union = union.union(&exporter.bounds);
+            renders.push((n, std::mem::take(&mut exporter.defs), std::mem::take(&mut exporter.body), exporter.bounds, std::mem::take(&mut exporter.warnings)));
+        }
+        for (n, defs, body, bounds, warnings) in renders {
+            let b = if several { union } else { bounds };
+            let file = if several { format!("{}_f{:03}.svg", safe_name(&target.name), n) } else { format!("{}.svg", safe_name(&target.name)) };
+            let path = std::path::Path::new(dir).join(&file);
+            std::fs::write(&path, svg_document(&defs, &body, &b)).map_err(|e| format!("{} : écriture impossible ({})", path.display(), e))?;
+            let _ = writeln!(index, "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}", target.name, target.id.unwrap_or(0), fm(b.x0), fm(b.y0), fm(b.x1 - b.x0), fm(b.y1 - b.y0), warnings.join("; "), fm(b.x1), fm(b.y1), n, total, file);
+        }
+    }
+    let index_path = std::path::Path::new(dir).join("index.tsv");
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .append(o.append_index)
+        .truncate(!o.append_index)
+        .open(&index_path)
+        .map_err(|e| format!("{} : écriture impossible ({})", index_path.display(), e))?;
+    f.write_all(index.as_bytes()).map_err(|e| format!("{} : écriture impossible ({})", index_path.display(), e))?;
+    Ok(messages)
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let options = match parse_args(&args) {
+        Ok(o) => o,
+        Err(message) => {
+            if !message.is_empty() {
+                eprintln!("swfsvg : {}", message);
+            }
+            eprintln!("{}", USAGE);
+            std::process::exit(2);
+        }
+    };
+    match run(&options) {
+        Ok(out) => {
+            if options.list {
+                print!("{}", out);
+            } else if !out.is_empty() {
+                eprint!("{}", out);
+            }
+        }
+        Err(message) => {
+            eprintln!("swfsvg : {}", message);
+            std::process::exit(1);
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn args(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn frames_are_parsed() {
+        assert_eq!(parse_frames("3"), Ok(Frames::One(3)));
+        assert_eq!(parse_frames("2-5"), Ok(Frames::Range(2, 5)));
+        assert_eq!(parse_frames("4-4"), Ok(Frames::One(4)));
+        assert_eq!(parse_frames("all"), Ok(Frames::All));
+        assert!(parse_frames("0").is_err());
+        assert!(parse_frames("5-2").is_err());
+        assert!(parse_frames("x").is_err());
+    }
+
+    #[test]
+    fn options_keep_the_historical_form() {
+        let o = parse_args(&args(&["a.swf", "out", "staticR", "staticL"])).unwrap();
+        assert_eq!((o.scene, o.list, o.frames), (false, false, Frames::One(1)));
+        assert_eq!(o.names, vec!["staticR", "staticL"]);
+        let o = parse_args(&args(&["--scene", "--frame=2", "a.swf", "out"])).unwrap();
+        assert!(o.scene && o.frames == Frames::One(2));
+        assert!(parse_args(&args(&["--scene", "a.swf", "out", "x"])).is_err());
+        assert!(parse_args(&args(&["--list", "a.swf", "out"])).is_err());
+        assert!(parse_args(&args(&["--bogus", "a.swf", "out"])).is_err());
+        assert!(parse_args(&args(&["a.swf"])).is_err());
+        let o = parse_args(&args(&["--scene", "--name", "16_1234", "a.swf", "out"])).unwrap();
+        assert_eq!(o.scene_name.as_deref(), Some("16_1234"));
+        assert!(parse_args(&args(&["--name", "x", "a.swf", "out"])).is_err());
+    }
 
     #[test]
     fn stop_is_found_outside_function_bodies() {
