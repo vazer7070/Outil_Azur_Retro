@@ -43,6 +43,8 @@ namespace Outil_Azur_complet.Bot
                 await LoadStep("Objets interactifs",InteractivesParent.LoadAllInteractivesAsync,()=>InteractivesParent.Count);await LoadStep("Cellules déclencheurs",Triggers.LoadAllTriggersAsync,()=>Triggers.Count);await LoadStep("Zaapis",Zaaps.LoadZaapisAsync,()=>Zaaps.Zaapis.Count);await LoadStep("Panoplies",ItemSets.LoadAllItemSetsAsync,()=>ItemSets.Count);
                 await LoadStep("Textes du client",LangData.LoadAsync,()=>LangData.EntryCount);
                 ServerMessages.Resolver=(type,id,args)=> { string text=LangData.Text.Im(type,id,args); return string.IsNullOrEmpty(text)||(text.StartsWith("!")&&text.EndsWith("!"))?null:text; };
+                // Noms des PNJ et des monstres des textes du client (npc, monsters), avant ceux des exports du serveur.
+                PNJ.ClientNameResolver=id=>LangData.Npc.Has(id)?LangData.Npc.Name(id):null;Monstres.ClientNameResolver=id=>LangData.Monster.Has(id)?LangData.Monster.Name(id):null;
                 if (IsDisposed || Disposing) return;
                 foreach(var warning in Map.LoadWarnings) { failures++;BotUi.Append(journal,"Carte ignorée : "+warning); }
                 foreach(var warning in InteractivesParent.LoadWarnings.Concat(Triggers.LoadWarnings).Concat(Zaaps.LoadWarnings).Concat(ItemSets.LoadWarnings).Take(20))BotUi.Append(journal,"Ressource du serveur : "+warning);
