@@ -146,6 +146,7 @@
     <Compile Include="Game\Accounts\Accounts.cs" />
     <Compile Include="Game\Accounts\AccountStates.cs" />
     <Compile Include="Game\Combats\Fights.cs" />
+    <Compile Include="Game\Data\LangData.cs" />
     <Compile Include="Game\GameClass.cs" />
     <Compile Include="Game\Interactions\Interactions.cs" />
     <Compile Include="Game\Interactions\NpcDialog.cs" />
