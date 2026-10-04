@@ -132,6 +132,60 @@ namespace Tools_protocol.Emulators
         /// <summary>Charge les caches nécessaires aux outils, une fois les connexions établies.</summary>
         public virtual void LoadCaches() { }
 
+        private static readonly InteractiveSkillRule[] NoInteractiveSkillRules = new InteractiveSkillRule[0];
+
+        /// <summary>
+        /// Compétences d'objets interactifs que le serveur accepte et qu'il code en dur (aucune table ne les décrit).
+        /// Vide si l'émulateur ne les documente pas : l'export du bot garde alors seulement les compétences
+        /// d'ateliers lues dans la table des métiers.
+        /// </summary>
+        public virtual IReadOnlyList<InteractiveSkillRule> InteractiveSkillRules => NoInteractiveSkillRules;
+
         public override string ToString() => DisplayName;
+    }
+
+    /// <summary>
+    /// Catégorie d'un objet interactif. Les valeurs reprennent le champ <c>t</c> des objets interactifs
+    /// du client 1.34 (1 récolte, 2 atelier, 3 zaap, 5 porte de maison, 6 coffre, 10 zaapi, 13 enclos).
+    /// </summary>
+    public enum InteractiveKind
+    {
+        Other = 0,
+        Harvest = 1,
+        Workshop = 2,
+        Zaap = 3,
+        House = 5,
+        Chest = 6,
+        Zaapi = 10,
+        MountPark = 13,
+    }
+
+    /// <summary>
+    /// Règle d'émulateur : la compétence <see cref="Skill"/> (<c>GA500&lt;cellule&gt;;&lt;compétence&gt;</c>) est acceptée
+    /// sur les objets interactifs dont le gfx (couche objet 2 de la cellule) est compris entre
+    /// <see cref="FirstGfx"/> et <see cref="LastGfx"/>.
+    /// </summary>
+    public sealed class InteractiveSkillRule
+    {
+        public InteractiveSkillRule(int skill, int firstGfx, int lastGfx, InteractiveKind kind)
+        {
+            if (skill <= 0) throw new ArgumentOutOfRangeException(nameof(skill));
+            if (firstGfx <= 0 || lastGfx < firstGfx) throw new ArgumentOutOfRangeException(nameof(lastGfx));
+            Skill = skill;
+            FirstGfx = firstGfx;
+            LastGfx = lastGfx;
+            Kind = kind;
+        }
+
+        public InteractiveSkillRule(int skill, int gfx, InteractiveKind kind) : this(skill, gfx, gfx, kind) { }
+
+        public int Skill { get; }
+        public int FirstGfx { get; }
+        public int LastGfx { get; }
+
+        /// <summary>Catégorie de l'objet que la compétence désigne ; <see cref="InteractiveKind.Harvest"/> exige une ressource pleine.</summary>
+        public InteractiveKind Kind { get; }
+
+        public bool Matches(int gfx) => gfx >= FirstGfx && gfx <= LastGfx;
     }
 }

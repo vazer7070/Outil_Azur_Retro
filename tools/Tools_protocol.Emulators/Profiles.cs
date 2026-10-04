@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Tools_protocol.Kryone.Database;
 
 namespace Tools_protocol.Emulators
@@ -137,6 +138,78 @@ namespace Tools_protocol.Emulators
             AccountList.AllAccounts();
             GroupesList.groupe();
             CharacterList.AllPerso();
+        }
+
+        public override IReadOnlyList<InteractiveSkillRule> InteractiveSkillRules => StarLocoSkillRules;
+
+        /// <summary>
+        /// Reprise de <c>GameCase.canDoAction</c> du serveur Game : <c>Player.startActionOnCell</c> refuse tout
+        /// <c>GA500&lt;cellule&gt;;&lt;compétence&gt;</c> dont la compétence ne correspond pas au gfx de l'objet de la cellule.
+        /// Les compétences de récolte exigent en plus une ressource pleine (<c>JobConstant.IOBJECT_STATE_FULL</c>).
+        /// Les portes de maison couvrent toute la plage 6700-6776, enclos compris, comme dans le serveur.
+        /// </summary>
+        private static readonly InteractiveSkillRule[] StarLocoSkillRules = BuildStarLocoSkillRules();
+
+        private static InteractiveSkillRule[] BuildStarLocoSkillRules()
+        {
+            var rules = new List<InteractiveSkillRule>();
+            void Add(InteractiveKind kind, int gfx, params int[] skills) { foreach (int skill in skills) rules.Add(new InteractiveSkillRule(skill, gfx, kind)); }
+            void Range(InteractiveKind kind, int first, int last, params int[] skills) { foreach (int skill in skills) rules.Add(new InteractiveSkillRule(skill, first, last, kind)); }
+            // Récolte {compétence, gfx} : faucher, couper, puiser, miner, cueillir, pêcher. Le tas de patates (42)
+            // est vérifié plein par GameCase.startAction plutôt que par canDoAction.
+            int[] harvest =
+            {
+                45, 7511, 53, 7515, 57, 7517, 46, 7512, 50, 7513, 68, 7513, 159, 7550, 52, 7516, 58, 7518, 69, 7514, 54, 7514,
+                6, 7500, 39, 7501, 40, 7502, 10, 7503, 141, 7542, 139, 7541, 37, 7504, 154, 7553, 33, 7505, 41, 7506,
+                34, 7507, 174, 7557, 38, 7508, 35, 7509, 155, 7554, 158, 7552, 102, 7519, 42, 7510,
+                24, 7520, 25, 7522, 26, 7523, 28, 7525, 56, 7524, 162, 7556, 55, 7521, 29, 7526, 31, 7528, 30, 7527, 161, 7555,
+                71, 7533, 72, 7534, 73, 7535, 74, 7536, 160, 7551,
+                128, 7530, 124, 7529, 136, 7544, 140, 7543, 125, 7532, 129, 7531, 126, 7537, 130, 7538, 127, 7539, 131, 7540,
+            };
+            for (int i = 0; i < harvest.Length; i += 2) Add(InteractiveKind.Harvest, harvest[i + 1], harvest[i]);
+            // Ateliers des métiers.
+            Add(InteractiveKind.Workshop, 7028, 151);
+            Add(InteractiveKind.Workshop, 7007, 122, 47);
+            Add(InteractiveKind.Workshop, 7003, 101);
+            Add(InteractiveKind.Workshop, 7005, 48);
+            Add(InteractiveKind.Workshop, 7002, 32);
+            Add(InteractiveKind.Workshop, 7006, 22);
+            Add(InteractiveKind.Workshop, 7019, 23);
+            Add(InteractiveKind.Workshop, 7024, 133);
+            Add(InteractiveKind.Workshop, 7001, 109, 27);
+            Add(InteractiveKind.Workshop, 7022, 135);
+            Add(InteractiveKind.Workshop, 7023, 134);
+            Add(InteractiveKind.Workshop, 7025, 132);
+            Add(InteractiveKind.Workshop, 7020, 1, 113, 115, 116, 117, 118, 119, 120);
+            Add(InteractiveKind.Workshop, 7012, 19, 143, 145, 144, 142, 146, 67, 21, 65, 66, 20, 18);
+            Add(InteractiveKind.Workshop, 7036, 167, 165, 166);
+            Add(InteractiveKind.Workshop, 7037, 164, 163);
+            Add(InteractiveKind.Workshop, 7038, 168, 169);
+            Add(InteractiveKind.Workshop, 7039, 171, 182);
+            Add(InteractiveKind.Workshop, 7027, 156);
+            Add(InteractiveKind.Workshop, 7011, 13, 14);
+            Add(InteractiveKind.Workshop, 7015, 123, 64);
+            Add(InteractiveKind.Workshop, 7013, 17, 16, 147, 148, 149, 15);
+            Add(InteractiveKind.Workshop, 7014, 63);
+            Add(InteractiveKind.Workshop, 7016, 63);
+            Range(InteractiveKind.Workshop, 7008, 7010, 11, 12);
+            Add(InteractiveKind.Workshop, 7021, 121, 181);
+            Add(InteractiveKind.Workshop, 7018, 110);
+            // Zaaps (44 sauvegarder, 114 utiliser), zaapis, maisons, coffres, enclos.
+            foreach (int gfx in new[] { 7000, 7026, 7029, 4287 }) Add(InteractiveKind.Zaap, gfx, 44, 114);
+            foreach (int gfx in new[] { 7030, 7031 }) Add(InteractiveKind.Zaapi, gfx, 157);
+            Range(InteractiveKind.House, 6700, 6776, 81, 84, 97, 98, 108);
+            foreach (int gfx in new[] { 7350, 7351, 7353 }) Add(InteractiveKind.Chest, gfx, 104, 105);
+            foreach (int gfx in new[] { 6763, 6766, 6767, 6772 }) Add(InteractiveKind.MountPark, gfx, 175, 176, 177, 178);
+            // Autres : fontaine de jouvence, levier, statues vers Incarnam, livre des artisans, 153.
+            Add(InteractiveKind.Other, 7004, 62);
+            Add(InteractiveKind.Other, 7045, 179);
+            Add(InteractiveKind.Other, 1845, 183);
+            Range(InteractiveKind.Other, 1853, 1862, 183);
+            Add(InteractiveKind.Other, 2319, 183);
+            Add(InteractiveKind.Other, 7035, 170);
+            Add(InteractiveKind.Other, 7352, 153);
+            return rules.ToArray();
         }
     }
 
