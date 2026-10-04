@@ -474,7 +474,10 @@ impl<'a> Exporter<'a> {
         Some(Bitmap { width: img.width(), height: img.height(), png_b64: base64::engine::general_purpose::STANDARD.encode(&png) })
     }
 
-    fn fill_attr(&mut self, style: &FillStyle, m: &M) -> (String, String) {
+    /// Remplissage d'un tracé posé dans `<g transform="m">` : l'espace utilisateur du tracé est déjà
+    /// celui de la forme, donc les matrices de dégradé et de bitmap s'expriment seules, sans `m`
+    /// (l'y ajouter appliquait deux fois la pose du clip : motifs minuscules et répétés).
+    fn fill_attr(&mut self, style: &FillStyle) -> (String, String) {
         match style {
             FillStyle::Color(c) => {
                 let (hex, a) = color_css(c);
@@ -482,7 +485,7 @@ impl<'a> Exporter<'a> {
             }
             FillStyle::LinearGradient(g) | FillStyle::RadialGradient(g) | FillStyle::FocalGradient { gradient: g, .. } => {
                 let id = self.next_id("g");
-                let gm = m.mul(&M::from_swf(&g.matrix));
+                let gm = M::from_swf(&g.matrix);
                 let linear = matches!(style, FillStyle::LinearGradient(_));
                 let spread = match g.spread {
                     swf::GradientSpread::Pad => "pad",
@@ -512,7 +515,7 @@ impl<'a> Exporter<'a> {
                         // La matrice d'un remplissage bitmap envoie les pixels de l'image vers l'espace de la forme
                         // en twips (20 par pixel) : en pixels, sa partie linéaire est donc divisée par 20.
                         let fm = M::from_swf(matrix);
-                        let bm = m.mul(&M { a: fm.a / 20.0, b: fm.b / 20.0, c: fm.c / 20.0, d: fm.d / 20.0, tx: fm.tx, ty: fm.ty });
+                        let bm = M { a: fm.a / 20.0, b: fm.b / 20.0, c: fm.c / 20.0, d: fm.d / 20.0, tx: fm.tx, ty: fm.ty };
                         let _ = is_repeating; // un motif non répété est rarement débordé par sa forme
                         let (pw, ph) = (w, h);
                         let _ = write!(self.defs, "<pattern id=\"{}\" patternUnits=\"userSpaceOnUse\" width=\"{}\" height=\"{}\" patternTransform=\"{}\"><image width=\"{}\" height=\"{}\" href=\"data:image/png;base64,{}\"/></pattern>", id, pw, ph, bm.svg(), w, h, b64);
@@ -623,7 +626,7 @@ impl<'a> Exporter<'a> {
                     continue;
                 }
             }
-            let (fill, attrs) = self.fill_attr(&style, m);
+            let (fill, attrs) = self.fill_attr(&style);
             let paths = chain_edges(edges);
             let _ = write!(self.body, "<path fill=\"{}\"{} fill-rule=\"{}\" d=\"{}\"/>", fill, attrs, if shape.flags.contains(swf::ShapeFlag::NON_ZERO_WINDING_RULE) { "nonzero" } else { "evenodd" }, path_d(&paths, true));
         }
@@ -637,7 +640,7 @@ impl<'a> Exporter<'a> {
                     (hex, if a < 1.0 { format!(" stroke-opacity=\"{}\"", fm(a)) } else { String::new() })
                 }
                 other => {
-                    let (f, _) = self.fill_attr(other, m);
+                    let (f, _) = self.fill_attr(other);
                     (f, String::new())
                 }
             };
