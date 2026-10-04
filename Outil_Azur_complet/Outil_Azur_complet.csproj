@@ -687,27 +687,22 @@
     </BootstrapperPackage>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Target Name="CopyBotSelectionAssets" AfterTargets="Build">
+  <!-- Images exportées du client (Resources\Bot\<Famille>\..., voir chaque PROVENANCE.md) copiées vers
+       ressources\Bot\<Famille>\... à côté de l'exécutable et lues par ClientAssets.Get(famille, nom) : sorts,
+       sprites (avec ancres.tsv), Items, Portraits, Smileys, Emotes, Jobs, Alignments, Emblems, WorldMap (avec ses .tsv).
+       Client et Selection gardent leur chemin historique ressources\Bot\UI\... ; Decor part dans ressources\maps
+       (CopyBotDecorAssets) ; les anciens PNG de Resources\Bot\UI et Resources\Bot\*.png ne sont pas copiés (comme avant). -->
+  <Target Name="CopyBotAssets" AfterTargets="Build">
     <ItemGroup>
-      <BotSelectionAsset Include="$(ProjectDir)Resources\Bot\Selection\**\*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(BotSelectionAsset)" DestinationFiles="@(BotSelectionAsset->'$(OutDir)ressources\Bot\UI\Selection\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
-  </Target>
-  <Target Name="CopyBotClientAssets" AfterTargets="Build">
-    <ItemGroup>
+      <BotAsset Include="$(ProjectDir)Resources\Bot\**\*.png;$(ProjectDir)Resources\Bot\**\*.tsv" Exclude="$(ProjectDir)Resources\Bot\*.png;$(ProjectDir)Resources\Bot\UI\**;$(ProjectDir)Resources\Bot\Client\**;$(ProjectDir)Resources\Bot\Selection\**;$(ProjectDir)Resources\Bot\Decor\**" />
       <BotClientAsset Include="$(ProjectDir)Resources\Bot\Client\**\*.png" />
-    </ItemGroup>
-    <Copy SourceFiles="@(BotClientAsset)" DestinationFiles="@(BotClientAsset->'$(OutDir)ressources\Bot\UI\Client\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
-  </Target>
-  <Target Name="CopyBotSpellAssets" AfterTargets="Build">
-    <ItemGroup>
+      <BotSelectionAsset Include="$(ProjectDir)Resources\Bot\Selection\**\*" />
       <BotSpellAsset Include="$(ProjectDir)Resources\Bot\BotSorts\**\*.xml" />
-      <BotSpellIcon Include="$(ProjectDir)Resources\Bot\sorts\**\*.png" />
-      <BotSpriteAsset Include="$(ProjectDir)Resources\Bot\sprites\**\*.png" />
     </ItemGroup>
+    <Copy SourceFiles="@(BotAsset)" DestinationFiles="@(BotAsset->'$(OutDir)ressources\Bot\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(BotClientAsset)" DestinationFiles="@(BotClientAsset->'$(OutDir)ressources\Bot\UI\Client\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(BotSelectionAsset)" DestinationFiles="@(BotSelectionAsset->'$(OutDir)ressources\Bot\UI\Selection\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(BotSpellAsset)" DestinationFiles="@(BotSpellAsset->'$(OutDir)ressources\Bot\BotSorts\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(BotSpellIcon)" DestinationFiles="@(BotSpellIcon->'$(OutDir)ressources\Bot\sorts\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(BotSpriteAsset)" DestinationFiles="@(BotSpriteAsset->'$(OutDir)ressources\Bot\sprites\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
   <!-- Textes des fichiers de langue du client (lang2xml.py) : lus par Tool_BotProtocol.Game.Data.LangData. -->
   <Target Name="CopyBotLangAssets" AfterTargets="Build">
@@ -731,10 +726,6 @@
     </ItemGroup>
     <MakeDir Directories="$(OutDir)ressources\maps\backgrounds;$(OutDir)ressources\maps\sols;$(OutDir)ressources\maps\objets;$(OutDir)ressources\maps\musics" />
     <Copy SourceFiles="@(AzurRuntimeAsset)" DestinationFiles="@(AzurRuntimeAsset->'$(OutDir)ressources\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
-  </Target>
-  <!-- Ancres des sprites d'acteurs (tools/client-analysis/exporter_sprites.py) ; les PNG voisins sont copiés par CopyBotSpellAssets. -->
-  <Target Name="CopyBotSpriteAnchors" AfterTargets="Build">
-    <Copy SourceFiles="$(ProjectDir)Resources\Bot\sprites\ancres.tsv" DestinationFolder="$(OutDir)ressources\Bot\sprites" SkipUnchangedFiles="true" Condition="Exists('$(ProjectDir)Resources\Bot\sprites\ancres.tsv')" />
   </Target>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
