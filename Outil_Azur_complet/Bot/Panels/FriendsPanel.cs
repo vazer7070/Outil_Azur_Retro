@@ -439,6 +439,8 @@ namespace Outil_Azur_complet.Bot.Panels
 
         /// <summary>Simule un clic sur la ligne du joueur (tests, clavier) ; faux s'il n'est pas listé.</summary>
         public bool ClickRow(string name) => Raise(RowClicked, name, index => new Point(40, RowBounds(index).Y + 4));
+        /// <summary>Simule un double clic sur la ligne du joueur (message privé).</summary>
+        public bool DoubleClickRow(string name) => detailed && Raise(RowDoubleClicked, name, index => new Point(40, RowBounds(index).Y + 4));
         /// <summary>Simule un clic sur le × de la ligne du joueur.</summary>
         public bool ClickRemove(string name) => Raise(RemoveClicked, name, index => RemoveBounds(index).Location);
 
