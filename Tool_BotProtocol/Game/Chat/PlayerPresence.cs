@@ -63,17 +63,19 @@ namespace Tool_BotProtocol.Game.Chat
             ChatService chat = account?.Game?.Chat;
             if (chat == null) return ChatResult.Refused("Session de jeu indisponible.");
             string packet = isAway ? AwayPacket : InvisiblePacket;
+            bool current;
             lock (sync)
             {
                 if (Pending(isAway ? awaySentAt : invisibleSentAt))
                     return chat.Refuse((isAway ? "/away" : "/invisible") + " : réponse du serveur attendue, " + packet + " n'est pas renvoyé.", true);
                 if (isAway) awaySentAt = Now(); else invisibleSentAt = Now();
+                // État avant l'envoi : la réponse Im peut arriver sur le fil réseau avant la fin de l'envoi.
+                current = isAway ? away : invisible;
             }
             Raise();
             ChatResult result = await chat.SendPacketsAsync(() => ResetPending(isAway), packet).ConfigureAwait(false);
             if (result.Sent)
             {
-                bool current = isAway ? IsAway : IsInvisible;
                 chat.AddLocal(ChatMessageKind.Info, packet + " envoyé : le personnage " + (isAway
                     ? (current ? "ne sera plus absent." : "sera absent. " + AwayWarning)
                     : (current ? "ne sera plus invisible." : "sera invisible. " + InvisibleWarning)));
