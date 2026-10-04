@@ -119,7 +119,8 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
     /// Mise en forme des lignes comme <c>Chat.onMessage</c> du client 1.34 : « Nom : texte », « (Guilde) Nom : texte »,
     /// « de <i>Nom</i> : texte », « à Nom : texte », émote « <i>Nom texte.</i> », pensée « <i>Nom pense : texte</i> ».
     /// Le nom est un lien (menu du joueur) ; les coordonnées <c>[x,y]</c> du texte d'un message de canal sont des liens
-    /// (boussole). Les messages d'objets parlants ne donnent aucune ligne (option du client désactivée par défaut).
+    /// (boussole). Les messages d'objets parlants ne donnent aucune ligne : le client prend leur texte dans les textes des
+    /// objets parlants, que le bot ne lit pas, et n'affiche rien sans lui.
     /// </summary>
     public static class ChatLineBuilder
     {
