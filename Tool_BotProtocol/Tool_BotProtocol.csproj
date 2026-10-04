@@ -158,6 +158,10 @@
     <Compile Include="Game\Data\LangData.cs" />
     <Compile Include="Game\GameClass.cs" />
     <Compile Include="Game\Interactions\Interactions.cs" />
+    <Compile Include="Game\Exchanges\ExchangeRegistry.cs" />
+    <Compile Include="Game\Exchanges\IExchange.cs" />
+    <Compile Include="Game\Exchanges\PlayerExchange.cs" />
+    <Compile Include="Game\Exchanges\StorageExchange.cs" />
     <Compile Include="Game\Interactions\NpcDialog.cs" />
     <Compile Include="Game\Interactions\NpcShop.cs" />
     <Compile Include="Game\Interactions\ZaapDialog.cs" />

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Tool_BotProtocol.Game.Accounts;
+using Tool_BotProtocol.Game.Exchanges;
 using Tool_BotProtocol.Game.Maps.Interfaces;
 using Tool_BotProtocol.Game.NPC;
 using Tool_BotProtocol.Game.Perso.Inventory;
@@ -23,12 +24,14 @@ namespace Tool_BotProtocol.Game.Interactions
     /// <summary>
     /// Boutique d'un PNJ selon <c>dofus.aks.Exchange</c> du client 1.34 : envoi <c>ER0|&lt;pnj&gt;</c>, réception
     /// <c>ECK0|&lt;pnj&gt;</c> puis <c>EL&lt;modèle&gt;;&lt;effets&gt;[;&lt;prix&gt;]|…</c>, <c>EBK</c>/<c>EBE</c>, <c>ESK</c>/<c>ESE</c>, <c>EV</c> ;
-    /// envoi <c>EB&lt;modèle&gt;|&lt;quantité&gt;</c>, <c>ES&lt;objet&gt;|&lt;quantité&gt;</c> et <c>EV</c>.
+    /// envoi <c>EB&lt;modèle&gt;|&lt;quantité&gt;</c>, <c>ES&lt;objet&gt;|&lt;quantité&gt;</c> et <c>EV</c>. Type 0 de <see cref="ExchangeRegistry"/> :
+    /// <c>ECK0</c>, <c>EL</c> et <c>EV</c> lui parviennent par le registre des échanges.
     /// </summary>
-    public sealed class NpcShop : InteractionWindow
+    [ExchangeType(ExchangeTypes.NpcShop)]
+    public sealed class NpcShop : ExchangeWindow
     {
         /// <summary>Type d'échange « boutique PNJ » dans <c>ER</c>/<c>ECK</c> (<c>TRADING_WITH_NPC</c> chez StarLoco).</summary>
-        public const int NpcExchangeType = 0;
+        public const int NpcExchangeType = ExchangeTypes.NpcShop;
         /// <summary>Quantité maximale acceptée par StarLoco dans <c>buy</c>.</summary>
         public const int MaxQuantity = 100000;
         private List<ShopArticle> articles = new List<ShopArticle>();
@@ -94,24 +97,11 @@ namespace Tool_BotProtocol.Game.Interactions
             return "PNJ " + npcId;
         }
 
-        /// <summary>
-        /// <c>ECK&lt;type&gt;|&lt;identifiant&gt;</c> : échange créé. Le type 0 ouvre une boutique PNJ ; les autres types
-        /// (joueur, artisanat, banque…) gardent l'état « stockage » historique du bot sans liste d'articles.
-        /// </summary>
-        internal void OnExchangeCreated(string payload)
+        /// <summary><c>ECK0|&lt;pnj&gt;</c> : boutique ouverte ; la liste des articles suit dans <c>EL</c>.</summary>
+        protected override void HandleCreated(int type, string data)
         {
-            string[] parts = (payload ?? string.Empty).Split('|');
-            if (!int.TryParse(parts[0], out int type)) type = -1;
-            if (type != NpcExchangeType)
-            {
-                if (Account != null && !Account.IsFighting()) Account.AccountStates = AccountStates.STORAGE;
-                Account?.Logger?.LogInfo(Reference, "Échange de type " + parts[0] + " ouvert par le serveur (non géré comme boutique).");
-                return;
-            }
-            Reset();
             // Les identifiants de PNJ sur la carte sont négatifs chez StarLoco : seul l'échec de lecture rend le PNJ inconnu.
-            int npcId = -1;
-            bool known = parts.Length > 1 && int.TryParse(parts[1], out npcId);
+            bool known = TryInt(data.Split('|')[0], out int npcId);
             NpcId = known ? npcId : -1;
             NpcName = known ? ResolveName(NpcId) : "PNJ inconnu";
             MarkOpen();
@@ -120,13 +110,8 @@ namespace Tool_BotProtocol.Game.Interactions
         }
 
         /// <summary><c>EL&lt;modèle&gt;;&lt;effets&gt;[;&lt;prix&gt;]|…</c> : liste de la boutique, lue comme la branche PNJ de <c>Exchange.onList</c>.</summary>
-        internal void OnList(string payload)
+        protected override void HandleList(string payload)
         {
-            if (!IsOpen)
-            {
-                Account?.Logger?.LogInfo(Reference, "Liste d'échange reçue hors boutique PNJ : ignorée.");
-                return;
-            }
             var list = new List<ShopArticle>();
             foreach (string entry in (payload ?? string.Empty).Split('|'))
             {
@@ -162,20 +147,16 @@ namespace Tool_BotProtocol.Game.Interactions
         }
 
         /// <summary><c>EV</c> : fin de l'échange ; le client lit un suffixe « a » comme échange validé.</summary>
-        internal void OnLeave(string suffix)
+        protected override void HandleLeave(string suffix)
         {
             bool wasOpen = IsOpen;
-            bool storage = Account != null && Account.AccountStates == AccountStates.STORAGE;
             Reset();
-            IsPending = false;
             MarkClosed();
-            if (storage) Account.AccountStates = AccountStates.CONNECTED_INACTIVE;
             if (wasOpen) Log(suffix == "a" ? "Échange validé, boutique fermée." : "Boutique fermée.");
-            else if (storage) Account?.Logger?.LogInfo(Reference, "Échange terminé.");
             Notify();
         }
 
-        protected override void Reset()
+        protected override void ResetState()
         {
             NpcId = -1;
             NpcName = string.Empty;
