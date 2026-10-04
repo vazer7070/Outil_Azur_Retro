@@ -154,8 +154,12 @@
     <Compile Include="Game\Accounts\Accounts.cs" />
     <Compile Include="Game\Accounts\AccountStates.cs" />
     <Compile Include="Game\Actions\GameActionRouter.cs" />
+    <Compile Include="Game\Combats\FightActions.cs" />
+    <Compile Include="Game\Combats\FightEffects.cs" />
+    <Compile Include="Game\Combats\FightResult.cs" />
     <Compile Include="Game\Combats\Fights.cs" />
     <Compile Include="Game\Data\LangData.cs" />
+    <Compile Include="Game\Combats\FightTimeline.cs" />
     <Compile Include="Game\GameClass.cs" />
     <Compile Include="Game\Interactions\Interactions.cs" />
     <Compile Include="Game\Interactions\NpcDialog.cs" />

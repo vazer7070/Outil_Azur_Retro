@@ -5,7 +5,9 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Threading;
 using Tool_BotProtocol.Game.Accounts;
+using Tool_BotProtocol.Game.Actions;
 using Tool_BotProtocol.Game.Maps;
+using Tool_BotProtocol.Game.Maps.Entities;
 using Tool_BotProtocol.Game.Maps.Interfaces;
 using Tool_BotProtocol.Game.Maps.Mouvements;
 using Tool_BotProtocol.Game.Perso.Spells;
@@ -35,18 +37,38 @@ namespace Tool_BotProtocol.Game.Combats
         public int ActionPoints { get; internal set; } = -1;
         public int MovementPoints { get; internal set; } = -1;
         public bool IsDead { get; internal set; }
+        /// <summary>Invisible (<c>GA;150</c> avec un nombre de tours positif) ; sa cellule n'est plus transmise par <c>GTM</c>.</summary>
+        public bool IsInvisible { get; internal set; }
+        /// <summary>Combattant porté par celui-ci (<c>GA;50</c>) ; 0 si aucun.</summary>
+        public int CarryingId { get; internal set; }
+        /// <summary>Porteur de ce combattant (<c>GA;50</c>) ; 0 si aucun.</summary>
+        public int CarriedById { get; internal set; }
         internal int BaseActionPoints = -1;
         internal int BaseMovementPoints = -1;
         internal CombatFighter Copy() { return (CombatFighter)MemberwiseClone(); }
     }
-    // Sending a request never spends PA/PM locally: only server packets change combat values.
-    public sealed class Fights : IDisposable
+    /// <summary>
+    /// État d'un combat d'après les paquets du serveur (<c>GJK</c> … <c>GE</c>) et demandes manuelles du compte.
+    /// Envoyer une demande ne dépense jamais de PA/PM localement : seuls les paquets du serveur changent les valeurs.
+    /// Les actions <c>GA</c> reçues en combat passent par <see cref="FightActionTable"/> (voir <c>FightActions.cs</c>),
+    /// puis par <see cref="GameActionRouter"/> pour celles qui n'appartiennent pas au combat. Les événements sont levés
+    /// sur le fil réseau, après la mise à jour de l'état, jamais sous le verrou.
+    /// </summary>
+    public sealed partial class Fights : IDisposable
     {
+        /// <summary>Nombre de lignes conservées dans <see cref="Journal"/>.</summary>
+        public const int JournalCapacity = 200;
         private readonly Accounts.Accounts account;
         private readonly object sync = new object();
         private readonly Dictionary<int, CombatFighter> fighters = new Dictionary<int, CombatFighter>();
         private readonly Dictionary<short, int> lastSpellTurn = new Dictionary<short, int>();
         private readonly Dictionary<short, int> castsThisTurn = new Dictionary<short, int>();
+        private readonly List<int> turnOrder = new List<int>();
+        private readonly List<FightEffect> effects = new List<FightEffect>();
+        private readonly Dictionary<int, HashSet<int>> states = new Dictionary<int, HashSet<int>>();
+        private readonly Dictionary<long, FightZone> zones = new Dictionary<long, FightZone>();
+        private readonly Dictionary<long, FightOptions> teamOptions = new Dictionary<long, FightOptions>();
+        private readonly List<FightLogEntry> journal = new List<FightLogEntry>();
         private CancellationTokenSource cancellation = new CancellationTokenSource();
         private bool disposed;
         private int generation;
@@ -56,8 +78,13 @@ namespace Tool_BotProtocol.Game.Combats
         private CombatPhase phase;
         private bool spectator, ready;
         private int actor, turn, turnDuration;
+        private int lastActor, readyActor;
+        private int? tableTurn;
+        private DateTime turnStartedUtc = DateTime.MinValue;
         private int pa = -1, pm = -1;
         private short[] places = new short[0];
+        private FightFlag lastFlag;
+        private FightResult lastResult;
         private string lastMessage = "Aucun combat en cours.";
         internal Fights(Accounts.Accounts owner) { account = owner; }
         public CombatPhase Phase { get { lock (sync) return phase; } }
@@ -76,9 +103,38 @@ namespace Tool_BotProtocol.Game.Combats
         public short[] PlacementCells { get { lock (sync) return (short[])places.Clone(); } }
         public IReadOnlyDictionary<int, CombatFighter> Fighters
         { get { lock (sync) return fighters.ToDictionary(entry => entry.Key, entry => entry.Value.Copy()); } }
+        /// <summary>Ordre des tours (<c>GTL</c>), tour courant (<c>GTS</c>), dernier tour terminé (<c>GTF</c>) et dernier <c>GTR</c>.</summary>
+        public FightTimeline Timeline
+        { get { lock (sync) return new FightTimeline(turnOrder, actor, lastActor, readyActor, turnDuration, turnStartedUtc, tableTurn); } }
+        public IReadOnlyList<int> TurnOrder { get { lock (sync) return turnOrder.ToArray(); } }
+        /// <summary>Tous les effets en cours (<c>GIE</c> et bonus de caractéristiques reçus par <c>GA</c>), copiés.</summary>
+        public IReadOnlyList<FightEffect> Effects { get { lock (sync) return effects.Select(effect => effect.Copy()).ToList(); } }
+        /// <summary>Zones posées au sol (<c>GDZ</c>).</summary>
+        public IReadOnlyList<FightZone> Zones { get { lock (sync) return zones.Values.ToList(); } }
+        /// <summary>Options connues par équipe (<c>Go</c>), l'équipe étant identifiée par son initiateur.</summary>
+        public IReadOnlyDictionary<long, FightOptions> TeamOptions { get { lock (sync) return new Dictionary<long, FightOptions>(teamOptions); } }
+        /// <summary>Options de l'équipe dont le personnage du compte est l'initiateur (les seules qu'il peut changer chez StarLoco).</summary>
+        public FightOptions OwnTeamOptions { get { lock (sync) return OptionsOf(account.Game.character.id); } }
+        /// <summary>Dernière cellule signalée par un coéquipier (<c>Gf</c>) ; null si aucune depuis le début du combat.</summary>
+        public FightFlag LastFlag { get { lock (sync) return lastFlag; } }
+        /// <summary>Résultat du dernier combat (<c>GE</c>) ; conservé jusqu'au combat suivant ou à la réinitialisation du compte.</summary>
+        public FightResult LastResult { get { lock (sync) return lastResult; } }
+        /// <summary>
+        /// Journal du combat en cours ou du dernier combat terminé, du plus ancien au plus récent (au plus <see cref="JournalCapacity"/> lignes) ;
+        /// vidé au combat suivant ou à la réinitialisation du compte.
+        /// </summary>
+        public IReadOnlyList<FightLogEntry> Journal { get { lock (sync) return journal.ToArray(); } }
         public event Action CombatChanged;
         public event Action CombatReady;
         public event Action CombatFinished;
+        /// <summary>Résultat lu dans <c>GE</c>, levé avant <see cref="CombatFinished"/>.</summary>
+        public event Action<FightResult> CombatResultReceived;
+        /// <summary>Cellule signalée par un combattant (<c>Gf</c>).</summary>
+        public event Action<FightFlag> FlagReceived;
+        /// <summary>Options d'une équipe modifiées (<c>Go</c>) : identifiant de l'équipe et nouvelles options.</summary>
+        public event Action<long, FightOptions> FightOptionChanged;
+        /// <summary>Nouvelle ligne du journal de combat.</summary>
+        public event Action<FightLogEntry> JournalEntryAdded;
         private bool InFight => phase == CombatPhase.Placement || phase == CombatPhase.Active;
         private bool MyTurn => phase == CombatPhase.Active && !spectator && actor == account.Game.character.id;
         private void Changed() { CombatChanged?.Invoke(); }
@@ -88,16 +144,30 @@ namespace Tool_BotProtocol.Game.Combats
             if (!fighters.TryGetValue(id, out value)) fighters[id] = value = new CombatFighter { Id = id, Name = "Combattant #" + id };
             return value;
         }
+        public IReadOnlyList<FightEffect> GetEffects(int fighterId)
+        { lock (sync) return effects.Where(effect => effect.TargetId == fighterId).Select(effect => effect.Copy()).ToList(); }
+        /// <summary>États actifs d'un combattant (<c>GA;950</c>), triés.</summary>
+        public int[] GetStates(int fighterId)
+        { lock (sync) { HashSet<int> set; return states.TryGetValue(fighterId, out set) ? set.OrderBy(state => state).ToArray() : new int[0]; } }
+        public bool HasState(int fighterId, int state)
+        { lock (sync) { HashSet<int> set; return states.TryGetValue(fighterId, out set) && set.Contains(state); } }
+        public FightOptions GetTeamOptions(long teamId) { lock (sync) return OptionsOf(teamId); }
+        private FightOptions OptionsOf(long teamId) { FightOptions value; return teamOptions.TryGetValue(teamId, out value) ? value : FightOptions.None; }
         private void ExpirePending()
         {
             if (pendingKind != null && DateTime.UtcNow - pendingAt > TimeSpan.FromSeconds(8))
             { pendingKind = null; lastMessage = "Aucune confirmation reçue : vous pouvez réessayer."; }
         }
+        private string Disconnected()
+        {
+            if (disposed || account.isdisposed || account.Connexion == null || !account.Connexion.IsConnected()) return "Le serveur est déconnecté.";
+            return InFight ? null : "Aucun combat en cours.";
+        }
         private string ActionUnavailable(bool placement)
         {
             ExpirePending();
-            if (disposed || account.isdisposed || account.Connexion == null || !account.Connexion.IsConnected()) return "Le serveur est déconnecté.";
-            if (!InFight) return "Aucun combat en cours.";
+            string reason = Disconnected();
+            if (reason != null) return reason;
             if (spectator) return "Les spectateurs ne peuvent pas agir.";
             if (placement ? phase != CombatPhase.Placement : !MyTurn) return placement ? "Le placement est terminé." : "Attendez votre tour.";
             CombatFighter self;
@@ -141,6 +211,72 @@ namespace Tool_BotProtocol.Game.Combats
         { return RequestAsync("Gp" + targetCell, "placement", () => ActionUnavailable(true) ?? (places.Contains(targetCell) ? null : "Choisissez une cellule de placement de votre équipe.")); }
         public Task<CombatActionResult> PassTurnAsync()
         { return RequestAsync("Gt", "tour", () => ActionUnavailable(false)); }
+
+        /// <summary>
+        /// <c>GQ</c> (<c>Game.leave</c> du client) : en placement le personnage quitte le combat (ou l'annule s'il l'a lancé),
+        /// en combat actif StarLoco le compte comme mort (abandon, matrice §2 n° 22), en spectateur il cesse d'observer.
+        /// Aucune action n'est mise en attente : la réponse attendue est <c>GV</c>.
+        /// </summary>
+        public Task<CombatActionResult> GiveUpAsync()
+        {
+            return SendDirectAsync("GQ", Disconnected, () => spectator ? "Demande de sortie du mode spectateur envoyée."
+                : phase == CombatPhase.Placement ? "Demande de sortie du combat envoyée."
+                : "Abandon envoyé : le serveur compte le personnage comme mort.");
+        }
+        public string GetGiveUpUnavailableReason() { lock (sync) return Disconnected(); }
+
+        /// <summary><c>GQ&lt;id&gt;</c> : exclut un coéquipier pendant le placement (StarLoco ne l'accepte que de l'initiateur du combat).</summary>
+        public Task<CombatActionResult> KickAsync(int fighterId)
+        { return SendDirectAsync("GQ" + fighterId, () => KickUnavailable(fighterId), () => "Demande d’exclusion envoyée."); }
+        public string GetKickUnavailableReason(int fighterId) { lock (sync) return KickUnavailable(fighterId); }
+        private string KickUnavailable(int fighterId)
+        {
+            string reason = Disconnected();
+            if (reason != null) return reason;
+            if (spectator) return "Les spectateurs ne peuvent pas agir.";
+            if (phase != CombatPhase.Placement) return "L’exclusion n’est possible que pendant le placement.";
+            if (fighterId == account.Game.character.id) return "Utilisez « Abandonner » pour quitter le combat.";
+            if (fighterId <= 0) return "Seul un joueur peut être exclu.";
+            CombatFighter target, self;
+            if (!fighters.TryGetValue(fighterId, out target)) return "Ce combattant est inconnu.";
+            if (fighters.TryGetValue(account.Game.character.id, out self) && self.Team >= 0 && target.Team >= 0 && self.Team != target.Team)
+                return "Ce combattant n’est pas dans votre équipe.";
+            return null;
+        }
+
+        /// <summary>
+        /// Bascule une option de l'équipe comme les boutons <c>FightOptionButtons</c> du client : <c>fN</c>, <c>fS</c>, <c>fP</c>, <c>fH</c>.
+        /// Le serveur répond par <c>Go±&lt;lettre&gt;&lt;équipe&gt;</c> si le personnage est l'initiateur. Comme dans le client, seule
+        /// l'option spectateurs reste disponible une fois le combat commencé.
+        /// </summary>
+        public Task<CombatActionResult> ToggleOptionAsync(FightOptions option)
+        {
+            string packet = FightEffectPackets.RequestFor(option);
+            return SendDirectAsync(packet ?? "f", () => OptionUnavailable(option), () => "Option de combat demandée.");
+        }
+        public string GetOptionUnavailableReason(FightOptions option) { lock (sync) return OptionUnavailable(option); }
+        private string OptionUnavailable(FightOptions option)
+        {
+            if (FightEffectPackets.RequestFor(option) == null) return "Choisissez une seule option de combat.";
+            string reason = Disconnected();
+            if (reason != null) return reason;
+            if (spectator) return "Les spectateurs ne peuvent pas agir.";
+            if (option != FightOptions.BlockSpectators && phase != CombatPhase.Placement) return "Cette option ne se change que pendant le placement.";
+            return null;
+        }
+
+        /// <summary><c>Gf&lt;cellule&gt;</c> (<c>Game.setFlag</c>) : signale une cellule aux coéquipiers, qui reçoivent <c>Gf&lt;id&gt;|&lt;cellule&gt;</c>.</summary>
+        public Task<CombatActionResult> SetFlagAsync(short cellId)
+        { return SendDirectAsync("Gf" + cellId, () => FlagUnavailable(cellId), () => "Cellule signalée à l’équipe."); }
+        public string GetFlagUnavailableReason(short cellId) { lock (sync) return FlagUnavailable(cellId); }
+        private string FlagUnavailable(short cellId)
+        {
+            string reason = Disconnected();
+            if (reason != null) return reason;
+            if (spectator) return "Les spectateurs ne peuvent pas agir.";
+            return account.Game.Map.GetCellFromId(cellId) == null ? "Cette cellule n’existe pas sur la carte." : null;
+        }
+
         public Task<CombatActionResult> MoveAsync(short targetCell)
         {
             string packet;
@@ -172,6 +308,29 @@ namespace Tool_BotProtocol.Game.Combats
                 StartPending(kind); version = generation; connection = account.Connexion;
             }
             Changed(); return SendActionAsync(connection, packet, version);
+        }
+        /// <summary>Envoi sans action en attente (abandon, exclusion, options, drapeau) : le serveur peut ne pas répondre.</summary>
+        private async Task<CombatActionResult> SendDirectAsync(string packet, Func<string> validate, Func<string> success)
+        {
+            int version; TcpClient connection; string message;
+            lock (sync)
+            {
+                string reason = validate();
+                if (reason != null) return new CombatActionResult(false, reason);
+                version = generation; connection = account.Connexion; message = success();
+            }
+            try
+            {
+                await connection.SendPacket(packet).ConfigureAwait(false);
+                lock (sync)
+                {
+                    if (disposed || version != generation || !ReferenceEquals(connection, account.Connexion) || !connection.IsConnected())
+                        return new CombatActionResult(false, "La connexion a été interrompue.");
+                    lastMessage = message;
+                }
+                Changed(); return new CombatActionResult(true, message);
+            }
+            catch (Exception error) { return new CombatActionResult(false, "Envoi impossible : " + error.Message); }
         }
         private void StartPending(string kind)
         { pendingKind = kind; pendingAt = DateTime.UtcNow; pendingConfirmed = false; lastMessage = "Action envoyée, en attente du serveur."; }
@@ -237,14 +396,36 @@ namespace Tool_BotProtocol.Game.Combats
         }
         internal void Start()
         { lock (sync) { if (!InFight) return; phase = CombatPhase.Active; places = new short[0]; pendingKind = null; lastMessage = "Combat commencé. Attendez votre tour."; } Changed(); }
+
+        /// <summary><c>GTL|id|id…</c> : ordre de jeu des combattants vivants (début du combat, invocations, morts).</summary>
+        internal void SetTurnList(string payload)
+        {
+            List<int> order;
+            if (!FightTurnPackets.TryParseTurnList(payload, out order)) { Malformed("GTL", payload); return; }
+            lock (sync) { if (!InFight) return; turnOrder.Clear(); turnOrder.AddRange(order); }
+            Changed();
+        }
+
+        /// <summary><c>GTR&lt;id&gt;</c> : le client répond toujours <c>GT</c> (<c>Game.turnOk</c>) ; StarLoco l'ignore (matrice §2 n° 39).</summary>
+        internal async Task TurnReadyAsync(TcpClient client, string payload)
+        {
+            int id;
+            if (!FightTurnPackets.TryParseActor(payload, out id)) { Malformed("GTR", payload); return; }
+            lock (sync) { if (!InFight || disposed) return; readyActor = id; }
+            Changed();
+            if (client != null && ReferenceEquals(client, account.Connexion) && client.IsConnected()) await client.SendPacket("GT").ConfigureAwait(false);
+        }
+
         internal void StartTurn(string payload)
         {
-            string[] fields = payload.Split('|'); int id, duration;
-            if (fields.Length < 2 || !int.TryParse(fields[0], out id) || !int.TryParse(fields[1], out duration) || duration < 0) return;
+            int id, duration; int? table;
+            if (!FightTurnPackets.TryParseTurnStart(payload, out id, out duration, out table)) { Malformed("GTS", payload); return; }
             lock (sync)
             {
                 if (!InFight) return;
-                phase = CombatPhase.Active; actor = id; turnDuration = duration; pendingKind = null;
+                phase = CombatPhase.Active; actor = id; turnDuration = duration; tableTurn = table; turnStartedUtc = DateTime.UtcNow; pendingKind = null;
+                // Game.onTurnStart → GameManager.cleanPlayer(lastPlayerID) : les effets du combattant précédent perdent un tour.
+                if (lastActor != 0 && lastActor != id) ExpireEffects(lastActor);
                 if (id == account.Game.character.id && !spectator)
                 {
                     turn++; castsThisTurn.Clear(); CombatFighter self = GetFighter(id);
@@ -257,15 +438,123 @@ namespace Tool_BotProtocol.Game.Combats
         }
         internal void EndTurn(string payload)
         {
-            int id; if (!int.TryParse(payload, out id)) return;
-            lock (sync) { if (!InFight || id != actor) return; actor = 0; turnDuration = 0; pendingKind = null; lastMessage = "Tour terminé. Attendez le suivant."; } Changed();
+            int id; if (!FightTurnPackets.TryParseActor(payload, out id)) { Malformed("GTF", payload); return; }
+            lock (sync)
+            {
+                if (!InFight || id != actor) return;
+                lastActor = actor; actor = 0; turnDuration = 0; turnStartedUtc = DateTime.MinValue; pendingKind = null; lastMessage = "Tour terminé. Attendez le suivant.";
+            }
+            Changed();
         }
-        internal void Finish()
+        private void ExpireEffects(int fighterId)
         {
-            lock (sync) { if (!InFight) return; }
-            Clear(false); lock (sync) { if (disposed) return; phase = CombatPhase.Finished; lastMessage = "Combat terminé."; }
+            for (int index = effects.Count - 1; index >= 0; index--)
+            {
+                FightEffect effect = effects[index];
+                // Une durée négative (-1) est un effet sans fin : il n'est retiré que par GA;132, la mort ou la fin du combat.
+                if (effect.TargetId != fighterId || effect.RemainingTurns < 0) continue;
+                effect.RemainingTurns--;
+                if (effect.RemainingTurns <= 0) effects.RemoveAt(index);
+            }
+        }
+
+        /// <summary>
+        /// <c>GIE…</c> : effet affiché sur chaque cible (icônes <c>Buff</c>). Comme <c>EffectsManager.addEffect</c>, un effet de même
+        /// numéro et de même durée s'additionne au précédent ; posé pendant le tour de sa cible, il gagne un tour (<c>Game.onEffect</c>).
+        /// </summary>
+        internal void ApplyEffectPacket(string payload)
+        {
+            List<FightEffect> received = FightEffectPackets.ParseEffect(payload);
+            if (received.Count == 0) { Malformed("GIE", payload); return; }
+            lock (sync)
+            {
+                if (!InFight) return;
+                foreach (FightEffect effect in received)
+                {
+                    if (effect.TargetId == actor && effect.RemainingTurns >= 0) effect.RemainingTurns++;
+                    AddEffect(effect);
+                }
+            }
+            Changed();
+        }
+        private void AddEffect(FightEffect effect)
+        {
+            FightEffect same = effects.FirstOrDefault(existing => existing.Source == effect.Source && existing.TargetId == effect.TargetId
+                && existing.EffectId == effect.EffectId && existing.RemainingTurns == effect.RemainingTurns);
+            if (same == null) { effects.Add(effect); return; }
+            if (same.Param1.HasValue || effect.Param1.HasValue) same.Param1 = (same.Param1 ?? 0) + (effect.Param1 ?? 0);
+        }
+        /// <summary><c>GIe</c> (<c>Game.onClearAllEffect</c>) : retire tous les effets de tous les combattants.</summary>
+        internal void ClearAllEffects()
+        { lock (sync) { if (!InFight) return; effects.Clear(); } Changed(); }
+
+        /// <summary><c>GDZ±&lt;cellule&gt;;&lt;taille&gt;;&lt;couleur&gt;</c> : zone dessinée (<c>+</c>) ou effacée (<c>-</c>).</summary>
+        internal void ApplyZones(string payload)
+        {
+            List<FightZoneChange> changes = FightEffectPackets.ParseZones(payload);
+            if (changes.Count == 0) { Malformed("GDZ", payload); return; }
+            lock (sync)
+            {
+                if (!InFight) return;
+                foreach (FightZoneChange change in changes)
+                {
+                    long key = ((long)change.Zone.CellId << 32) | (uint)change.Zone.Color;
+                    if (change.Visible) zones[key] = change.Zone; else zones.Remove(key);
+                }
+            }
+            Changed();
+        }
+
+        /// <summary><c>Go±&lt;A|S|P|H&gt;&lt;équipe&gt;</c> : envoyé à toute la carte, y compris hors combat pour les épées d'autres combats.</summary>
+        internal void ApplyFightOption(string payload)
+        {
+            bool enabled; FightOptions option; long team; FightOptions current;
+            if (!FightEffectPackets.TryParseOption(payload, out enabled, out option, out team)) { Malformed("Go", payload); return; }
+            lock (sync)
+            {
+                if (disposed) return;
+                current = OptionsOf(team);
+                current = enabled ? current | option : current & ~option;
+                if (current == FightOptions.None) teamOptions.Remove(team); else teamOptions[team] = current;
+            }
+            FightOptionChanged?.Invoke(team, current); Changed();
+        }
+
+        /// <summary><c>Gf&lt;combattant&gt;|&lt;cellule&gt;</c> : cellule signalée (message <c>PLAYER_SET_FLAG</c> du client).</summary>
+        internal void ShowFlag(string payload)
+        {
+            int actorId, cellId; FightFlag flag;
+            if (!FightEffectPackets.TryParseFlag(payload, out actorId, out cellId)) { Malformed("Gf", payload); return; }
+            lock (sync) { if (!InFight) return; lastFlag = flag = new FightFlag(actorId, cellId, DateTime.UtcNow); }
+            Report(0, actorId, 0, NameOf(actorId) + " signale la cellule " + cellId + ".");
+            FlagReceived?.Invoke(flag); Changed();
+        }
+
+        /// <summary><c>GV</c> : sortie du combat sans résultat (abandon, spectateur, exclusion).</summary>
+        internal void Finish() { Finish(null); }
+        /// <summary><c>GE…</c> : fin du combat ; le résultat est conservé dans <see cref="LastResult"/>.</summary>
+        internal void Finish(string resultPayload)
+        {
+            FightResult result = resultPayload == null ? null : FightResult.Parse(resultPayload);
+            if (resultPayload != null && result == null) Malformed("GE", resultPayload);
+            else if (result != null && result.Rejected.Count > 0)
+                account.Logger?.LogDanger("COMBAT", result.Rejected.Count + " ligne(s) du résultat de combat illisible(s), ignorée(s).");
+            int self = account.Game.character.id;
+            FightLogEntry[] kept;
+            lock (sync) { if (!InFight) return; kept = journal.ToArray(); }
+            Clear(false);
+            lock (sync)
+            {
+                if (disposed) return;
+                phase = CombatPhase.Finished; lastResult = result; journal.AddRange(kept);
+                FightResultEntry own = result?.Find(self);
+                lastMessage = own == null ? "Combat terminé." : own.Kind == FightResultKind.Winner ? "Combat terminé : victoire."
+                    : own.Kind == FightResultKind.Loser ? "Combat terminé : défaite." : "Combat terminé.";
+            }
             if (account.AccountStates == AccountStates.FIGHTING) account.AccountStates = AccountStates.CONNECTED_INACTIVE;
-            Changed(); CombatFinished?.Invoke();
+            Changed();
+            if (result != null) CombatResultReceived?.Invoke(result);
+            CombatFinished?.Invoke();
         }
         public void UpdateFighterFromMap(string[] info)
         {
@@ -274,7 +563,7 @@ namespace Tool_BotProtocol.Game.Combats
             lock (sync)
             {
                 if (!InFight) return;
-                CombatFighter fighter = GetFighter(id); fighter.Name = info[4]; fighter.Type = type; fighter.CellId = cell;
+                CombatFighter fighter = GetFighter(id); fighter.Name = info[4]; fighter.Type = type; fighter.CellId = cell; fighter.IsDead = false;
                 int value;
                 if (int.TryParse(info[6].Split('^')[0], out value)) fighter.Gfx = value;
                 if (int.TryParse(info[1], out value)) fighter.Orientation = value;
@@ -336,9 +625,15 @@ namespace Tool_BotProtocol.Game.Combats
         }
         private void UpdateMapCell(int id, short cellId)
         {
-            Cell cell = account.Game.Map.GetCellFromId(cellId);
-            if (id == account.Game.character.id) account.Game.character.Cell = cell;
-            else { Entites entity; if (account.Game.Map.Entites.TryGetValue(id, out entity)) entity.Cell = cell; }
+            Map map = account.Game.Map;
+            Cell cell = map.GetCellFromId(cellId);
+            if (id == account.Game.character.id)
+            {
+                account.Game.character.Cell = cell;
+                MapActor self = map.Self;
+                if (self != null) self.Cell = cell;
+            }
+            else { Entites entity; if (map.Entites.TryGetValue(id, out entity)) entity.Cell = cell; }
         }
         internal void BeginAction(string payload)
         {
@@ -358,70 +653,92 @@ namespace Tool_BotProtocol.Game.Combats
         }
         internal void Refuse(string message)
         { lock (sync) { if (!InFight) return; lastMessage = "Le serveur a refusé l’action : " + message; } account.Logger.LogDanger("COMBAT", LastActionMessage); Changed(); }
+
+        /// <summary>
+        /// <c>GA</c> reçu en combat (appelé par <c>MapFrame</c> avec le paquet découpé sur <c>;</c>). 0 (refus) et 1 (déplacement)
+        /// sont traités ici ; les autres actions passent par <see cref="FightActionTable"/>, puis par <see cref="GameActionRouter"/>
+        /// (actions hors combat : défis, interactifs…). Un acteur vide désigne le personnage du compte, comme dans le client.
+        /// </summary>
         internal async Task ProcessActionAsync(TcpClient connection, string[] parts)
         {
-            int action; if (parts.Length < 2 || !int.TryParse(parts[1], out action)) return;
-            if (action == 0) { lock (sync) { pendingKind = null; lastMessage = "Le serveur a refusé l’action."; } Changed(); return; }
-            int source; if (parts.Length < 3 || !int.TryParse(parts[2], out source)) return;
-            string data = parts.Length >= 4 ? parts[3] : string.Empty;
-            if (action == 1) { await ProcessMovementAsync(connection, parts[0], source, data).ConfigureAwait(false); return; }
-            string[] args = data.Split(','); int target, delta;
-            lock (sync)
+            if (parts == null || parts.Length < 2) return;
+            GameActionPacket packet = GameActionPacket.Parse("GA" + string.Join(";", parts));
+            if (packet == null) { Malformed("GA", string.Join(";", parts)); return; }
+            if (packet.ActionId == 0) { lock (sync) { pendingKind = null; lastMessage = "Le serveur a refusé l’action."; } Changed(); return; }
+            int source;
+            if (packet.Actor.Length == 0) source = account.Game.character.id;
+            else if (!int.TryParse(packet.Actor, out source)) { Malformed("GA", packet.Raw); return; }
+            if (packet.ActionId == 1) { await ProcessMovementAsync(connection, packet.GameActionId, source, packet.Parameters).ConfigureAwait(false); return; }
+            lock (sync) { if (!InFight) return; }
+            var context = new FightActionContext(this, connection, packet, source);
+            try
             {
-                if (!InFight) return;
-                if (action == 300 || action == 302)
-                {
-                    short spellId;
-                    if (source == account.Game.character.id && short.TryParse(args[0], out spellId))
-                    {
-                        pendingConfirmed = true;
-                        if (action == 300)
-                        { lastMessage = "Sort confirmé par le serveur."; lastSpellTurn[spellId] = turn; int count; castsThisTurn.TryGetValue(spellId, out count); castsThisTurn[spellId] = count + 1; }
-                        else lastMessage = "Échec critique confirmé par le serveur.";
-                    }
-                }
-                else if ((action == 102 || action == 129) && args.Length >= 2 && int.TryParse(args[0], out target) && int.TryParse(args[1], out delta))
-                {
-                    CombatFighter fighter = GetFighter(target);
-                    if (action == 102 && fighter.ActionPoints >= 0) fighter.ActionPoints = Math.Max(0, fighter.ActionPoints + delta);
-                    if (action == 129 && fighter.MovementPoints >= 0) fighter.MovementPoints = Math.Max(0, fighter.MovementPoints + delta);
-                    if (target == account.Game.character.id)
-                    {
-                        if (action == 102 && pa >= 0) pa = Math.Max(0, pa + delta);
-                        if (action == 129 && pm >= 0) pm = Math.Max(0, pm + delta);
-                        if (action == 102 && delta == 0 && pendingKind == "sort") pendingKind = null;
-                    }
-                }
-                else if ((action == 100 || action == 103) && int.TryParse(args[0], out target))
-                {
-                    CombatFighter fighter = GetFighter(target);
-                    if (action == 103) { fighter.IsDead = true; fighter.Life = 0; fighter.CellId = -1; }
-                    else if (args.Length >= 2 && int.TryParse(args[1], out delta) && fighter.Life >= 0) fighter.Life = Math.Max(0, fighter.Life + delta);
-                }
+                if (!await FightActionTable.DispatchAsync(context).ConfigureAwait(false)
+                    && !await GameActionRouter.DispatchAsync(new GameActionContext(connection, packet)).ConfigureAwait(false))
+                    account.Logger?.LogDebug("COMBAT", "Action de jeu GA " + packet.ActionId + " sans gestionnaire en combat, ignorée.");
             }
-            short cellId;
-            if (action == 4 && args.Length >= 2 && int.TryParse(args[0], out target) && short.TryParse(args[1], out cellId))
-            { lock (sync) GetFighter(target).CellId = cellId; UpdateMapCell(target, cellId); }
-            if (action == 51 && short.TryParse(data, out cellId))
-            { lock (sync) GetFighter(source).CellId = cellId; UpdateMapCell(source, cellId); }
-            if (action == 103 && int.TryParse(args[0], out target)) UpdateMapCell(target, -1);
+            catch (Exception error)
+            {
+                // Un gestionnaire défaillant ne doit ni couper la lecture des paquets suivants ni laisser l'interface sans rafraîchissement.
+                account.Logger?.LogException("COMBAT", error);
+            }
             account.Game.Map.GetEntitiesRefreshEvent(); Changed();
         }
         private async Task ProcessMovementAsync(TcpClient connection, string actionIdText, int id, string encoded)
         {
             List<Cell> path = PathfinderUtils.DecodeServerPath(account.Game.Map, encoded);
             if (path == null || path.Count == 0) return;
-            int version; CancellationToken token;
-            lock (sync) { if (!InFight || disposed) return; version = generation; token = cancellation.Token; GetFighter(id).CellId = path.Last().CellID; }
+            int version, carried; CancellationToken token;
             Cell destination = path.Last();
+            lock (sync)
+            {
+                if (!InFight || disposed) return;
+                version = generation; token = cancellation.Token;
+                CombatFighter mover = GetFighter(id);
+                mover.CellId = destination.CellID;
+                // Un combattant porté qui se déplace quitte son porteur ; celui qu'un porteur transporte le suit (client : uncarriedSprite).
+                if (mover.CarriedById != 0) Unlink(mover.CarriedById, id);
+                carried = mover.CarryingId;
+                if (carried != 0) GetFighter(carried).CellId = destination.CellID;
+            }
             int duration = PathfinderUtils.GetTimeOnMap(path[0], path);
             account.Game.Map.NotifyEntityMovement(id, path, duration);
-            UpdateMapCell(id, path.Last().CellID); account.Game.Map.GetEntitiesRefreshEvent(); Changed();
+            UpdateMapCell(id, destination.CellID);
+            if (carried != 0) UpdateMapCell(carried, destination.CellID);
+            account.Game.Map.GetEntitiesRefreshEvent(); Changed();
             int actionId;
             if (id != account.Game.character.id || !int.TryParse(actionIdText, out actionId) || actionId < 0) return;
             try { await Task.Delay(duration, token).ConfigureAwait(false); } catch (OperationCanceledException) { return; }
             lock (sync) { if (disposed || version != generation || !MyTurn || !ReferenceEquals(connection, account.Connexion) || account.Game.Map.GetCellFromId(destination.CellID) != destination) return; }
             await connection.SendPacket("GKK" + actionId).ConfigureAwait(false);
+        }
+
+        /// <summary>Nom affichable d'un combattant : acteur de la carte (nom résolu des monstres), sinon nom reçu dans <c>GM</c>.</summary>
+        internal string NameOf(int id)
+        {
+            MapActor mapActor = account.Game.Map.GetActor(id);
+            if (mapActor != null && !string.IsNullOrEmpty(mapActor.DisplayName)) return mapActor.DisplayName;
+            if (id == account.Game.character.id && !string.IsNullOrEmpty(account.Game.character.Name)) return account.Game.character.Name;
+            lock (sync) { CombatFighter fighter; if (fighters.TryGetValue(id, out fighter) && !string.IsNullOrEmpty(fighter.Name)) return fighter.Name; }
+            return "Combattant #" + id;
+        }
+        /// <summary>Ajoute une ligne au journal puis lève <see cref="JournalEntryAdded"/> hors du verrou.</summary>
+        internal void Report(int actionId, int actorId, int targetId, string text)
+        {
+            FightLogEntry entry = new FightLogEntry(actionId, actorId, targetId, text);
+            lock (sync)
+            {
+                if (!InFight) return;
+                journal.Add(entry);
+                if (journal.Count > JournalCapacity) journal.RemoveRange(0, journal.Count - JournalCapacity);
+            }
+            JournalEntryAdded?.Invoke(entry);
+        }
+        private void Malformed(string prefix, string payload)
+        {
+            string shown = payload ?? string.Empty;
+            if (shown.Length > 80) shown = shown.Substring(0, 80) + "…";
+            account.Logger?.LogDanger("COMBAT", "Paquet " + prefix + " illisible ignoré : " + shown);
         }
         public void Clear(bool notify = true)
         {
@@ -430,13 +747,21 @@ namespace Tool_BotProtocol.Game.Combats
             {
                 generation++; previous = cancellation; cancellation = disposed ? null : new CancellationTokenSource();
                 phase = CombatPhase.None; spectator = ready = false; actor = turn = turnDuration = 0; pa = pm = -1;
+                lastActor = readyActor = 0; tableTurn = null; turnStartedUtc = DateTime.MinValue;
                 places = new short[0]; fighters.Clear(); lastSpellTurn.Clear(); castsThisTurn.Clear();
+                turnOrder.Clear(); effects.Clear(); states.Clear(); zones.Clear(); teamOptions.Clear(); journal.Clear();
+                lastFlag = null; lastResult = null;
                 pendingKind = null; pendingConfirmed = false; lastMessage = "Aucun combat en cours.";
             }
             if (previous != null) { previous.Cancel(); previous.Dispose(); }
             if (notify && !disposed) Changed();
         }
         public void Dispose()
-        { lock (sync) { if (disposed) return; disposed = true; } Clear(false); CombatChanged = null; CombatReady = null; CombatFinished = null; }
+        {
+            lock (sync) { if (disposed) return; disposed = true; }
+            Clear(false);
+            CombatChanged = null; CombatReady = null; CombatFinished = null;
+            CombatResultReceived = null; FlagReceived = null; FightOptionChanged = null; JournalEntryAdded = null;
+        }
     }
 }
