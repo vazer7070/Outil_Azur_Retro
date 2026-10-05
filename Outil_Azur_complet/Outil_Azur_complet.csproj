@@ -318,6 +318,15 @@
     <Compile Include="Bot\Panels\FriendsPanel.cs" />
     <Compile Include="Bot\Panels\CommandsHelpPanel.cs" />
     <Compile Include="Bot\Panels\InventoryPanel.cs" />
+    <Compile Include="Bot\Controls\ItemSlot.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\ItemGrid.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\ItemTooltip.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Bot\Panels\StatsPanel.cs" />
     <Compile Include="Bot\Panels\SpellsPanel.cs" />
     <Compile Include="Bot\Panels\JobsPanel.cs" />
