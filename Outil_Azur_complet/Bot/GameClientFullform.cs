@@ -233,7 +233,7 @@ namespace Outil_Azur_complet.Bot
 
         /// <summary>
         /// Clic droit global du client : version (<c>Client v…</c>), « Qualité Flash » et ses quatre niveaux, « Options », barre
-        /// déplaçable (à venir) ; puis les entrées propres au bot : carte, métiers et diagnostic (journal de session, paquets).
+        /// déplaçable (à venir) ; puis les entrées propres au bot : carte, métiers, commandes du serveur et diagnostic (journal de session, paquets).
         /// </summary>
         private void FillGlobalMenu()
         {
