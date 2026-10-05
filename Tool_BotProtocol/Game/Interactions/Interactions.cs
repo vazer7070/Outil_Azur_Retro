@@ -107,6 +107,10 @@ namespace Tool_BotProtocol.Game.Interactions
         public Groupes.PartyActions Party { get; private set; }
         /// <summary>Amis, ennemis et conjoint : <c>F…</c> et <c>i…</c> (lot F2).</summary>
         public Social.FriendsActions Friends { get; private set; }
+        /// <summary>Maisons : <c>hP</c>, <c>hL</c>, <c>hCK</c>, <c>hSK</c>, <c>hG</c>, <c>hV</c> ; envois <c>hB</c>, <c>hS</c>, <c>hG±</c>, <c>hQ</c>, <c>GA507</c> (lot F8).</summary>
+        public Habitat.HouseActions House { get; private set; }
+        /// <summary>Magasin d'un marchand hors ligne (type 4), organisation du sien (type 6) et mode marchand <c>Eq</c>/<c>EQ</c> (lot F8).</summary>
+        public Exchanges.MerchantExchange Merchant { get; private set; }
 
         internal InteractionsClass(Accounts.Accounts account)
         {
@@ -121,8 +125,10 @@ namespace Tool_BotProtocol.Game.Interactions
             Zaapi = new ZaapiDialog(account);
             Party = new Groupes.PartyActions(account);
             Friends = new Social.FriendsActions(account);
+            House = new Habitat.HouseActions(account);
+            Merchant = Exchanges.Get<Exchanges.MerchantExchange>();
         }
 
-        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); Party.Clear(); Friends.Clear(); }
+        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); Party.Clear(); Friends.Clear(); House.Clear(); }
     }
 }

@@ -142,6 +142,8 @@
     <Compile Include="Frames\Jeu\FriendsFrame.cs" />
     <Compile Include="Frames\Jeu\GuildFrame.cs" />
     <Compile Include="Frames\Jeu\InteractionFrame.cs" />
+    <Compile Include="Frames\Jeu\HouseFrame.cs" />
+    <Compile Include="Frames\Jeu\MerchantFrame.cs" />
     <Compile Include="Frames\Jeu\InteractiveFrame.cs" />
     <Compile Include="Frames\Jeu\InventoryFrame.cs" />
     <Compile Include="Frames\Jeu\JobsFrame.cs" />
@@ -181,6 +183,9 @@
     <Compile Include="Game\Exchanges\IExchange.cs" />
     <Compile Include="Game\Exchanges\PlayerExchange.cs" />
     <Compile Include="Game\Exchanges\StorageExchange.cs" />
+    <Compile Include="Game\Exchanges\MerchantExchange.cs" />
+    <Compile Include="Game\Habitat\House.cs" />
+    <Compile Include="Game\Habitat\HouseActions.cs" />
     <Compile Include="Game\Interactions\InteractiveActions.cs" />
     <Compile Include="Game\Interactions\KeyCodeDialog.cs" />
     <Compile Include="Game\Interactions\NpcDialog.cs" />
