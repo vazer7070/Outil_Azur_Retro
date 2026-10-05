@@ -15,7 +15,7 @@ namespace Outil_Azur_complet.Bot.Controls
     /// de raccourcis (même format de glisser que celle-ci), dépôt d'un objet porté pour le ranger dans le sac.
     /// Les objets sont ceux donnés par <see cref="SetItems"/> ; la grille ne parle jamais au serveur.
     /// </summary>
-    internal sealed class ItemGrid : Control
+    public sealed class ItemGrid : Control
     {
         public const int CellSize = 40;
         private const int Gap = 4;
@@ -34,6 +34,7 @@ namespace Outil_Azur_complet.Bot.Controls
             BackColor = BotUi.PaperLight; ForeColor = BotUi.Ink; Font = BotFonts.Get(8, FontStyle.Bold);
             MinimumSize = new Size(CellSize + 2 * Gap, CellSize + 2 * Gap);
             AllowDrop = true;
+            ItemAssets.Ensure(this);
         }
 
         /// <summary>Objets affichés, dans l'ordre des cases.</summary>
@@ -180,7 +181,8 @@ namespace Outil_Azur_complet.Bot.Controls
                 {
                     dragArmed = false;
                     InventoryObjects dragged = SelectedItem;
-                    DoDragDrop(ItemCellPainter.DragData(dragged, DragQuantity <= 0 ? dragged.Qua : DragQuantity), DragDropEffects.Move);
+                    try { DoDragDrop(ItemCellPainter.DragData(dragged, DragQuantity <= 0 ? dragged.Qua : DragQuantity), DragDropEffects.Move); }
+                    catch (Exception error) when (error is InvalidOperationException || error is System.Runtime.InteropServices.ExternalException) { /* Glisser refusé par le système : rien à envoyer. */ }
                     return;
                 }
             }
@@ -222,8 +224,13 @@ namespace Outil_Azur_complet.Bot.Controls
         protected override void OnDragDrop(DragEventArgs e)
         {
             base.OnDragDrop(e);
+            AcceptDrop(ItemCellPainter.Payload(e));
+        }
+
+        /// <summary>Dépôt d'un contenu glissé (gestionnaire de glisser-déposer, menus, tests) : lève <see cref="Dropped"/> pour un objet porté.</summary>
+        public void AcceptDrop(ShortcutPayload payload)
+        {
             SetHighlight(false);
-            ShortcutPayload payload = ItemCellPainter.Payload(e);
             if (payload != null && payload.Kind == ShortcutSlotKind.Item && payload.FromPosition >= 0) Dropped?.Invoke(payload);
         }
 

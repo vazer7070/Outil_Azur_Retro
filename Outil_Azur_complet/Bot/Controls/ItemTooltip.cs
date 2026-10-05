@@ -5,7 +5,6 @@ using System.Globalization;
 using System.Linq;
 using System.Windows.Forms;
 using Outil_Azur_complet.Bot.Controls.Chat;
-using Tool_BotProtocol.Game.Data;
 using Tool_BotProtocol.Game.Perso.Inventory;
 
 namespace Outil_Azur_complet.Bot.Controls
@@ -16,9 +15,9 @@ namespace Outil_Azur_complet.Bot.Controls
     /// « ciblable » et « destructible » exportés du client. Les textes viennent d'<see cref="ItemSheet"/> (lot F13b) :
     /// le contrôle ne lit ni fichier ni réseau. Sa hauteur suit son contenu (<see cref="PreferredHeightFor"/>).
     /// </summary>
-    internal sealed class ItemTooltip : Control
+    public sealed class ItemTooltip : Control
     {
-        private const int Margin = 8;
+        private const int Inset = 8, SymbolSize = 24, SymbolStep = 26;
         private readonly List<Line> lines = new List<Line>();
         private ItemSheet sheet;
         private ItemSetSheet set;
@@ -32,10 +31,13 @@ namespace Outil_Azur_complet.Bot.Controls
             BackColor = BotUi.Paper; ForeColor = BotUi.Ink; Font = BotFonts.Get(9);
             MinimumSize = new Size(120, 40);
             Height = 40;
+            ItemAssets.Ensure(this);
         }
 
         /// <summary>Fiche affichée, ou null (contrôle vide avec <see cref="EmptyText"/>).</summary>
         public ItemSheet Sheet => sheet;
+        /// <summary>Panoplie portée affichée sous la fiche, ou null.</summary>
+        public ItemSetSheet Set => set;
         /// <summary>Texte affiché quand aucune fiche n'est posée.</summary>
         public string EmptyText { get; set; } = "Sélectionnez un objet pour voir sa fiche.";
         /// <summary>Vrai quand la hauteur du contrôle suit son contenu (fiche posée dans un volet) ; faux dans une infobulle dimensionnée par l'appelant.</summary>
@@ -47,7 +49,7 @@ namespace Outil_Azur_complet.Bot.Controls
         /// <summary>Pose une fiche et, s'il y a lieu, la panoplie portée qui la concerne ; null vide le contrôle.</summary>
         public void Show(ItemSheet value, ItemSetSheet wornSet = null)
         {
-            sheet = value; set = wornSet;
+            sheet = value; set = value == null ? null : wornSet;
             Rebuild();
         }
 
@@ -60,54 +62,54 @@ namespace Outil_Azur_complet.Bot.Controls
             {
                 string title = sheet.Name + " (" + sheet.LevelText + ")" + (sheet.Quantity > 1 ? " × " + sheet.Quantity.ToString(CultureInfo.InvariantCulture) : string.Empty);
                 Add(title, Style.Title);
-                string category = sheet.TypeName.Length > 0 ? sheet.TypeName : Text("ITEM_TYPE", "Catégorie") + " " + sheet.Type.ToString(CultureInfo.InvariantCulture);
+                string category = sheet.TypeName.Length > 0 ? sheet.TypeName : Lang("ITEM_TYPE", "Catégorie") + " " + sheet.Type.ToString(CultureInfo.InvariantCulture);
                 if (sheet.SetName != null) category += " · " + sheet.SetName;
                 if (sheet.IsEquipped) category += " · " + ItemSlots.Name(sheet.Position);
                 Add(category, Style.Muted);
                 if (sheet.Description.Length > 0) Add(sheet.Description, Style.Body);
-                Add(Text("EFFECTS", "Effets"), Style.Header);
-                if (sheet.Effects.Count == 0) Add(Text("NO_EFFECTS", "Aucun effet"), Style.Muted);
+                Add(Lang("EFFECTS", "Effets"), Style.Header);
+                if (sheet.Effects.Count == 0) Add(Lang("NO_EFFECTS", "Aucun effet"), Style.Muted);
                 foreach (string effect in sheet.Effects) Add(effect, Style.Effect);
-                if (sheet.ConditionLines.Count > 0)
+                if (sheet.Conditions.Length > 0 && sheet.ConditionLines.Count > 0)
                 {
-                    Add(Text("CONDITIONS", "Conditions"), Style.Header);
+                    Add(Lang("CONDITIONS", "Conditions"), Style.Header);
                     foreach (string condition in sheet.ConditionLines) Add(condition, Style.Condition);
                 }
                 if (sheet.Characteristics.Count > 0)
                 {
-                    Add(Text("CHARACTERISTICS", "Caractéristiques"), Style.Header);
+                    Add(Lang("CHARACTERISTICS", "Caractéristiques"), Style.Header);
                     foreach (string line in sheet.Characteristics) Add(line, Style.Body);
                 }
                 var footer = new List<string>();
                 if (sheet.WeightText.Length > 0) footer.Add(sheet.WeightText);
-                if (sheet.Price.HasValue) footer.Add(sheet.Price.Value.ToString("#,0", Spaced) + " " + Text("KAMAS", "Kamas").ToLowerInvariant());
-                if (sheet.TwoHanded) footer.Add(Text("TWO_HANDS_WEAPON", "Arme à deux mains"));
+                if (sheet.Price.HasValue) footer.Add(sheet.Price.Value.ToString("#,0", Spaced) + " " + Lang("KAMAS", "Kamas").ToLowerInvariant());
+                if (sheet.TwoHanded) footer.Add(Lang("TWO_HANDS_WEAPON", "Arme à deux mains"));
                 if (sheet.Cursed) footer.Add("Objet maudit");
                 if (sheet.Ethereal) footer.Add("Objet éthéré");
                 if (footer.Count > 0) Add(string.Join(" · ", footer), Style.Muted);
                 if (set != null)
                 {
-                    Add(set.Name + " — " + Text("ITEMSET_EQUIPED_ITEMS", "Objets équipés") + " : " + set.EquippedCount.ToString(CultureInfo.InvariantCulture)
+                    Add(set.Name + " — " + Lang("ITEMSET_EQUIPED_ITEMS", "Objets équipés") + " : " + set.EquippedCount.ToString(CultureInfo.InvariantCulture)
                         + " / " + set.Items.Count.ToString(CultureInfo.InvariantCulture), Style.Header);
                     foreach (KeyValuePair<int, bool> entry in set.Items)
                         Add((entry.Value ? "● " : "○ ") + ItemEffects.ItemName(entry.Key), entry.Value ? Style.Body : Style.Muted);
                     if (set.Effects.Count > 0)
                     {
-                        Add(Text("ITEMSET_EFFECTS", "Effets actuels"), Style.Header);
+                        Add(Lang("ITEMSET_EFFECTS", "Effets actuels"), Style.Header);
                         foreach (string effect in set.Effects) Add(effect, Style.Effect);
                     }
                 }
             }
-            if (AutoHeight) Height = PreferredHeightFor(Width);
+            if (AutoHeight && IsHandleCreated) Height = PreferredHeightFor(Width);
             Invalidate();
         }
 
         private void Add(string text, Style style) { if (!string.IsNullOrWhiteSpace(text)) lines.Add(new Line { Text = text.Trim(), Style = style }); }
 
         private static readonly NumberFormatInfo Spaced = new NumberFormatInfo { NumberGroupSeparator = " ", NumberGroupSizes = new[] { 3 } };
-        private static string Text(string key, string fallback) => ChatUiText.Get(key, fallback);
+        private static string Lang(string key, string fallback) => ChatUiText.Get(key, fallback);
 
-        private Font FontOf(Style style)
+        private static Font FontOf(Style style)
         {
             switch (style)
             {
@@ -118,7 +120,7 @@ namespace Outil_Azur_complet.Bot.Controls
             }
         }
 
-        private Color ColorOf(Style style)
+        private static Color ColorOf(Style style)
         {
             switch (style)
             {
@@ -129,34 +131,37 @@ namespace Outil_Azur_complet.Bot.Controls
             }
         }
 
-        private int TextWidth(int width) => Math.Max(40, width - 2 * Margin - (sheet != null && SymbolCount() > 0 ? 0 : 0));
-
-        private int SymbolCount() => (sheet.TwoHanded ? 1 : 0) + (sheet.Usable ? 1 : 0) + (sheet.Targetable ? 1 : 0) + (sheet.CanDestroy ? 1 : 0);
+        private int SymbolCount() => sheet == null ? 0 : (sheet.TwoHanded ? 1 : 0) + (sheet.Usable ? 1 : 0) + (sheet.Targetable ? 1 : 0) + (sheet.CanDestroy ? 1 : 0);
 
         /// <summary>Hauteur nécessaire pour afficher toute la fiche à la largeur donnée.</summary>
         public int PreferredHeightFor(int width)
         {
-            int total = Margin;
             if (lines.Count == 0) return Math.Max(MinimumSize.Height, 40);
+            int total = Inset, textWidth = Math.Max(40, width - 2 * Inset);
             using (Graphics graphics = CreateGraphics())
             {
-                int textWidth = TextWidth(width);
                 for (int i = 0; i < lines.Count; i++)
                 {
-                    int available = i == 0 && sheet != null ? Math.Max(40, textWidth - SymbolCount() * 26) : textWidth;
-                    total += MeasureLine(graphics, lines[i], available) + (lines[i].Style == Style.Header ? 4 : 1);
+                    int available = i == 0 ? Math.Max(40, textWidth - SymbolCount() * SymbolStep) : textWidth;
+                    total += MeasureLine(graphics, lines[i], available) + (lines[i].Style == Style.Header && i > 0 ? 4 : 1);
                 }
             }
-            return total + Margin;
+            return total + Inset;
         }
 
-        private int MeasureLine(Graphics graphics, Line line, int width) =>
+        private static int MeasureLine(Graphics graphics, Line line, int width) =>
             TextRenderer.MeasureText(graphics, line.Text, FontOf(line.Style), new Size(width, int.MaxValue), TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix).Height;
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            if (AutoHeight && lines.Count > 0) Height = PreferredHeightFor(Width);
+        }
 
         protected override void OnResize(EventArgs e)
         {
             base.OnResize(e);
-            if (AutoHeight && lines.Count > 0)
+            if (AutoHeight && lines.Count > 0 && IsHandleCreated)
             {
                 int wanted = PreferredHeightFor(Width);
                 if (wanted != Height) Height = wanted;
@@ -171,11 +176,11 @@ namespace Outil_Azur_complet.Bot.Controls
             using (var pen = new Pen(BotUi.Gold)) graphics.DrawRectangle(pen, frame);
             if (lines.Count == 0)
             {
-                TextRenderer.DrawText(graphics, EmptyText, BotFonts.Get(8, FontStyle.Italic), Rectangle.Inflate(ClientRectangle, -Margin, -Margin), BotUi.Muted,
+                TextRenderer.DrawText(graphics, EmptyText, BotFonts.Get(8, FontStyle.Italic), Rectangle.Inflate(ClientRectangle, -Inset, -Inset), BotUi.Muted,
                     TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
                 return;
             }
-            int textWidth = TextWidth(Width), y = Margin;
+            int textWidth = Math.Max(40, Width - 2 * Inset), y = Inset;
             int symbols = DrawSymbols(graphics);
             for (int i = 0; i < lines.Count; i++)
             {
@@ -184,12 +189,12 @@ namespace Outil_Azur_complet.Bot.Controls
                 int height = MeasureLine(graphics, line, available);
                 if (line.Style == Style.Header && i > 0)
                 {
-                    using (var pen = new Pen(BotUi.Gold)) graphics.DrawLine(pen, Margin, y + 1, Width - Margin, y + 1);
+                    using (var pen = new Pen(BotUi.Gold)) graphics.DrawLine(pen, Inset, y + 1, Width - Inset, y + 1);
                     y += 3;
                 }
-                TextRenderer.DrawText(graphics, line.Text, FontOf(line.Style), new Rectangle(Margin, y, available, height), ColorOf(line.Style),
+                TextRenderer.DrawText(graphics, line.Text, FontOf(line.Style), new Rectangle(Inset, y, available, height), ColorOf(line.Style),
                     TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
-                y += height + (line.Style == Style.Header ? 1 : 1);
+                y += height + 1;
             }
         }
 
@@ -202,12 +207,13 @@ namespace Outil_Azur_complet.Bot.Controls
             if (sheet.Usable) names.Add("ItemViewerUseHand");
             if (sheet.Targetable) names.Add("ItemViewerTarget");
             if (sheet.CanDestroy) names.Add("ItemViewerDestroy");
-            int x = Width - Margin;
+            int x = Width - Inset;
             foreach (string name in names)
             {
-                Image image = ClientAssets.Get(name);
-                x -= 26;
-                var box = new Rectangle(x, Margin - 2, 24, 24);
+                // Images lues en tâche de fond (ItemAssets) : jamais de lecture sur le fil de l'interface.
+                Bitmap image = ItemAssets.Cached(name);
+                x -= SymbolStep;
+                var box = new Rectangle(x, Inset - 2, SymbolSize, SymbolSize);
                 if (image != null) ClientAssets.DrawFit(graphics, image, box);
                 else
                 {
@@ -216,7 +222,7 @@ namespace Outil_Azur_complet.Bot.Controls
                         TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
                 }
             }
-            return names.Count * 26;
+            return names.Count * SymbolStep;
         }
     }
 
@@ -224,10 +230,10 @@ namespace Outil_Azur_complet.Bot.Controls
     /// Infobulle flottante portant un <see cref="ItemTooltip"/> : la boutique et l'échange l'ouvrent au survol d'une ligne,
     /// après un court délai, et la ferment quand la souris quitte la liste. Un seul exemplaire par volet ; ne prend pas le focus.
     /// </summary>
-    internal sealed class ItemTooltipPopup : IDisposable
+    public sealed class ItemTooltipPopup : IDisposable
     {
-        private const int Width = 300, MaxHeight = 420;
-        private readonly ItemTooltip viewer = new ItemTooltip { AutoHeight = false, Width = Width };
+        private const int PopupWidth = 300, MaxHeight = 420;
+        private readonly ItemTooltip viewer = new ItemTooltip { AutoHeight = false, Width = PopupWidth };
         private readonly ToolStripDropDown drop;
         private readonly ToolStripControlHost host;
         private readonly Timer delay = new Timer { Interval = 350 };
@@ -244,6 +250,8 @@ namespace Outil_Azur_complet.Bot.Controls
 
         /// <summary>Fiche affichée en ce moment (null quand l'infobulle est fermée).</summary>
         public ItemSheet Sheet => drop.Visible ? viewer.Sheet : null;
+        /// <summary>Clé de la ligne survolée dont la fiche est affichée ou attendue.</summary>
+        public object Key => key;
 
         /// <summary>Demande l'affichage d'une fiche pour la clé donnée (ligne survolée) ; une même clé ne relance rien.</summary>
         public void Request(Control over, Point screenLocation, object itemKey, Func<ItemSheet> build, Func<ItemSetSheet> buildSet = null)
@@ -251,7 +259,8 @@ namespace Outil_Azur_complet.Bot.Controls
             if (over == null || itemKey == null) { Hide(); return; }
             if (Equals(key, itemKey) && (drop.Visible || delay.Enabled)) { location = screenLocation; return; }
             key = itemKey; owner = over; location = screenLocation;
-            pendingSheet = build?.Invoke(); pendingSet = buildSet?.Invoke();
+            try { pendingSheet = build?.Invoke(); pendingSet = buildSet?.Invoke(); }
+            catch (Exception) { pendingSheet = null; pendingSet = null; }
             if (pendingSheet == null) { Hide(); return; }
             if (drop.Visible) Open(); else { delay.Stop(); delay.Start(); }
         }
@@ -266,11 +275,11 @@ namespace Outil_Azur_complet.Bot.Controls
         {
             if (owner == null || owner.IsDisposed || !owner.IsHandleCreated || pendingSheet == null) return;
             viewer.Show(pendingSheet, pendingSet);
-            int height = Math.Min(MaxHeight, viewer.PreferredHeightFor(Width));
-            viewer.Size = new Size(Width, height); host.Size = viewer.Size; drop.Size = viewer.Size;
+            int height = Math.Min(MaxHeight, viewer.PreferredHeightFor(PopupWidth));
+            viewer.Size = new Size(PopupWidth, height); host.Size = viewer.Size; drop.Size = viewer.Size;
             Point target = new Point(location.X + 16, location.Y + 12);
             Rectangle screen = Screen.FromControl(owner).WorkingArea;
-            if (target.X + Width > screen.Right) target.X = Math.Max(screen.Left, location.X - Width - 8);
+            if (target.X + PopupWidth > screen.Right) target.X = Math.Max(screen.Left, location.X - PopupWidth - 8);
             if (target.Y + height > screen.Bottom) target.Y = Math.Max(screen.Top, screen.Bottom - height);
             try { if (drop.Visible) drop.Location = target; else drop.Show(target); }
             catch (Exception error) when (error is InvalidOperationException || error is ArgumentException) { /* Fenêtre en cours de fermeture. */ }
