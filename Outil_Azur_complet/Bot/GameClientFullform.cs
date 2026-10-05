@@ -228,7 +228,7 @@ namespace Outil_Azur_complet.Bot
             drawer.PanelShown += (s,e) => { LayoutDrawer(); banner?.RequestRefresh(); };
             drawer.PanelClosed += (s,e) => banner?.RequestRefresh();
             foreach (IGamePanel panel in new IGamePanel[] { new StatsPanel(), new InventoryPanel(), new SpellsPanel(), new JobsPanel(),
-                new JournalPanel(), new DialoguePanel(), new ZaapsPanel(), new ShopPanel(), new ExchangePanel(), new StoragePanel(), new FightsListPanel(), new ZaapiPanel(), new KeyCodePanel(), new DocumentPanel(), new PartyPanel(), new FriendsPanel(), new CommandsHelpPanel(), new FightResultPanel(), new MerchantPanel(), new HouseIndoorPanel() })
+                new JournalPanel(), new DialoguePanel(), new ZaapsPanel(), new ShopPanel(), new ExchangePanel(), new StoragePanel(), new FightsListPanel(), new ZaapiPanel(), new KeyCodePanel(), new DocumentPanel(), new PartyPanel(), new FriendsPanel(), new CommandsHelpPanel(), new FightResultPanel(), new MerchantPanel(), new HouseIndoorPanel(), new WorldMapPanel() })
                 drawer.Register(panel);
             host.Controls.Add(drawer); drawer.BringToFront();
             host.Resize += (s,e) => LayoutDrawer(); LayoutDrawer();
