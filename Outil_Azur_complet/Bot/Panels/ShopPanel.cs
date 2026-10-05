@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Outil_Azur_complet.Bot.Controls;
 using Tool_BotProtocol.Game;
 using Tool_BotProtocol.Game.Interactions;
 using Tool_BotProtocol.Game.Perso.Inventory;
@@ -12,6 +13,8 @@ namespace Outil_Azur_complet.Bot.Panels
     /// <summary>
     /// Boutique d'un PNJ (<c>NpcShop</c> du client) : s'ouvre sur <c>ECK0</c> puis <c>EL</c>, se ferme sur <c>EV</c>.
     /// Acheter envoie <c>EB&lt;modèle&gt;|&lt;quantité&gt;</c>, Vendre <c>ES&lt;objet&gt;|&lt;quantité&gt;</c>, Fermer (ou ×/Échap) <c>EV</c>.
+    /// Le survol d'un article ou d'un objet du sac ouvre la fiche d'objet du client (<see cref="ItemTooltipPopup"/>, lot F13b) :
+    /// effets de <c>EL</c>, conditions, poids et prix.
     /// </summary>
     public sealed class ShopPanel : GamePanel
     {
@@ -20,6 +23,7 @@ namespace Outil_Azur_complet.Bot.Panels
         private NumericUpDown shopQuantity, sellQuantity;
         private Control shopBuy, shopSell, shopLeave;
         private Label shopStatus;
+        private ItemTooltipPopup itemTips;
         private bool wasOpen;
         private InventoryClass inventory;
 
@@ -54,7 +58,36 @@ namespace Outil_Azur_complet.Bot.Panels
             shopStatus = MakeStatus(NoShopText);
             shopLeave = MakeButton("Fermer", async (s, e) => await LeaveShop(), false, 100);
             page.Controls.Add(split); page.Controls.Add(shopStatus); page.Controls.Add(BotUi.Actions(shopLeave));
+            itemTips = new ItemTooltipPopup();
+            Hover(shopList, row => "article:" + row.Tag, row => ArticleSheet((int)row.Tag));
+            Hover(shopInventory, row => "sac:" + row.Tag, row => ItemSheet.From(Game?.character?.Inventory?.GetByInventoryId((uint)row.Tag)));
             return page;
+        }
+
+        /// <summary>Fiche d'un article de <c>EL</c> : modèle, effets transmis et prix (textes du client, sinon <c>BotObjets</c>).</summary>
+        private ItemSheet ArticleSheet(int templateId)
+        {
+            ShopArticle article = Game?.Interactions?.Shop?.Articles.FirstOrDefault(entry => entry.TemplateId == templateId);
+            return article == null ? null : ItemSheet.FromTemplate(article.TemplateId, article.Stats, 1, article.Price);
+        }
+
+        /// <summary>Infobulle de fiche au survol d'une ligne ; fermée quand la souris quitte la liste.</summary>
+        private void Hover(ListView list, Func<ListViewItem, object> key, Func<ListViewItem, ItemSheet> build)
+        {
+            list.MouseMove += (s, e) =>
+            {
+                if (itemTips == null || IsDisposed) return;
+                ListViewItem row = list.GetItemAt(e.X, e.Y);
+                if (row == null || row.Tag == null) { itemTips.Hide(); return; }
+                itemTips.Request(list, list.PointToScreen(e.Location), key(row), () => build(row));
+            };
+            list.MouseLeave += (s, e) => itemTips?.Hide();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) { itemTips?.Dispose(); itemTips = null; }
+            base.Dispose(disposing);
         }
 
         protected override void OnBind(GameClass game)
@@ -74,7 +107,7 @@ namespace Outil_Azur_complet.Bot.Panels
         {
             bool open = IsServerWindowOpen;
             if (open && !wasOpen) RequestShow();
-            else if (!open && wasOpen) RaiseClosed();
+            else if (!open && wasOpen) { itemTips?.Hide(); RaiseClosed(); }
             wasOpen = open;
             RefreshView();
         });

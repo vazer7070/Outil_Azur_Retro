@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Tool_BotProtocol.Game.Data;
 using Tool_BotProtocol.Game.Perso.Inventory.Enums;
 
 namespace Tool_BotProtocol.Game.Perso.Inventory
@@ -38,11 +39,23 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
                 return InventoryObjects.FullInventory[id];
             return null;
         }
-        /// <summary>Nom à afficher pour un modèle d'objet : la fiche BotObjets si elle existe, sinon « Objet n° X ».</summary>
+        /// <summary>Nom à afficher pour un modèle d'objet : la fiche BotObjets si elle existe, sinon les textes du client, sinon « Objet n° X ».</summary>
         public static string DisplayName(int templateId)
         {
             InventoryObjects template = ReturnInventory(templateId);
-            return template != null && !string.IsNullOrEmpty(template.Name) ? template.Name : "Objet n° " + templateId;
+            if (template != null && !string.IsNullOrEmpty(template.Name)) return template.Name;
+            return LangData.Item.Has(templateId) ? LangData.Item.Name(templateId) : "Objet n° " + templateId;
+        }
+        /// <summary>Catégorie de la fenêtre d'inventaire (filtres du client) pour le bot.</summary>
+        public static InventoryObjectsTypes ToInventoryType(ItemCategory category)
+        {
+            switch (category)
+            {
+                case ItemCategory.Equipment: return InventoryObjectsTypes.EQUIPMENTS;
+                case ItemCategory.Resources: return InventoryObjectsTypes.RESOURCES;
+                case ItemCategory.Quest: return InventoryObjectsTypes.QUEST_ITEMS;
+                default: return InventoryObjectsTypes.MISCELLANEOUS;
+            }
         }
         /// <summary>
         /// Lit une fiche d'objet au format du client 1.34 (<c>CharactersManager.getItemObjectFromData</c>) :
@@ -82,6 +95,17 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
                 item.Level = metadata.Level;
                 item.Conditions = metadata.Conditions;
                 item.Inventory = InventoryUtilities.GetTypeForObjectInInventory(metadata.Type);
+                item.HasMetadata = true;
+            }
+            else if (LangData.Item.Has(template))
+            {
+                // Fiche du modèle absente de BotObjets : les textes du client (lot D4) donnent nom, type, niveau et poids.
+                item.Name = LangData.Item.Name(template);
+                item.Type = (byte)Math.Max(0, Math.Min(255, LangData.Item.Type(template) ?? 0));
+                item.Level = (short)Math.Max(0, Math.Min(short.MaxValue, LangData.Item.Level(template) ?? 0));
+                item.pods = (short)Math.Max(0, Math.Min(short.MaxValue, LangData.Item.Pods(template) ?? 0));
+                item.Conditions = LangData.Item.Conditions(template);
+                item.Inventory = ToInventoryType(ItemSlots.CategoryOf(item.Type));
                 item.HasMetadata = true;
             }
             else item.Name = "Objet n° " + template;
