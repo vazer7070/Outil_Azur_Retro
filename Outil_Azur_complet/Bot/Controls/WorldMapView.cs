@@ -199,7 +199,7 @@ namespace Outil_Azur_complet.Bot.Controls
         private readonly HashSet<int> hiddenCategories = new HashSet<int>();
         private TileTable table;
         private WorldMapAreas areas = WorldMapAreas.Empty;
-        private int superArea, zoom = DefaultZoom, loadGeneration;
+        private int superArea, zoom = DefaultZoom, loadGeneration, pendingLoaded;
         private Point current;
         private Point? currentMap, waypoint, compass, dragCell, hover;
         private WorldMapFlag[] highlights = new WorldMapFlag[0];
@@ -686,38 +686,61 @@ namespace Outil_Azur_complet.Bot.Controls
             RequestRedraw(true);
         }
 
-        /// <summary>Redessine depuis n'importe quel fil ; sans poignée, la prochaine création de poignée dessinera l'état à jour.</summary>
+        /// <summary>Redessine depuis n'importe quel fil ; sans poignée, la création de la poignée dessinera l'état à jour et lèvera
+        /// <see cref="DataLoaded"/> sur le fil de l'interface (jamais depuis le pool de threads).</summary>
         private void RequestRedraw(bool loaded)
         {
             if (disposed) return;
+            if (loaded) Interlocked.Exchange(ref pendingLoaded, 1);
             try
             {
-                if (IsHandleCreated && InvokeRequired)
-                    BeginInvoke((Action)(() => { if (disposed || IsDisposed) return; Invalidate(); if (loaded) DataLoaded?.Invoke(this, EventArgs.Empty); }));
-                else if (!InvokeRequired) { Invalidate(); if (loaded) DataLoaded?.Invoke(this, EventArgs.Empty); }
+                if (!IsHandleCreated) return;
+                if (InvokeRequired) BeginInvoke((Action)FlushRedraw);
+                else FlushRedraw();
             }
             catch (InvalidOperationException) { /* poignée en cours de destruction ou contrôle libéré */ }
+        }
+
+        /// <summary>Sur le fil de l'interface : redessine et signale les données arrivées depuis le dernier dessin.</summary>
+        private void FlushRedraw()
+        {
+            if (disposed || IsDisposed) return;
+            Invalidate();
+            if (Interlocked.Exchange(ref pendingLoaded, 0) == 1) DataLoaded?.Invoke(this, EventArgs.Empty);
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            FlushRedraw();
         }
 
         /// <summary>Lit <c>tuiles.tsv</c> et <c>sous-zones/sous-zones.tsv</c> d'une super-zone ; une table absente ou illisible donne une table vide.</summary>
         private static TileTable ReadTables(string root, int superArea)
         {
             var result = new TileTable { SuperArea = superArea };
-            string folder = Path.Combine(root ?? string.Empty, "WorldMap", superArea.ToString(CultureInfo.InvariantCulture));
-            foreach (string[] fields in ReadTsv(Path.Combine(folder, "tuiles.tsv")))
+            try
             {
-                string name = fields[0];
-                int underscore = name.IndexOf('_', 1);
-                if (underscore < 0 || !TryInt(name.Substring(0, underscore), out int _) || !TryInt(name.Substring(underscore + 1), out int _)) continue;
-                if (!TryInt(fields[1], out int x) || !TryInt(fields[2], out int y) || !TryInt(fields[3], out int width) || !TryInt(fields[4], out int height)) continue;
-                if (width < 1 || height < 1) continue;
-                result.Tiles[name] = new TileInfo { X = x, Y = y, Width = width, Height = height };
+                string folder = Path.Combine(root ?? string.Empty, "WorldMap", superArea.ToString(CultureInfo.InvariantCulture));
+                foreach (string[] fields in ReadTsv(Path.Combine(folder, "tuiles.tsv")))
+                {
+                    string name = fields[0];
+                    int underscore = name.IndexOf('_', 1);
+                    if (underscore < 0 || !TryInt(name.Substring(0, underscore), out int _) || !TryInt(name.Substring(underscore + 1), out int _)) continue;
+                    if (!TryInt(fields[1], out int x) || !TryInt(fields[2], out int y) || !TryInt(fields[3], out int width) || !TryInt(fields[4], out int height)) continue;
+                    if (width < 1 || height < 1) continue;
+                    result.Tiles[name] = new TileInfo { X = x, Y = y, Width = width, Height = height };
+                }
+                foreach (string[] fields in ReadTsv(Path.Combine(folder, "sous-zones", "sous-zones.tsv")))
+                {
+                    if (!TryInt(fields[0], out int id) || !TryInt(fields[1], out int x) || !TryInt(fields[2], out int y) || !TryInt(fields[3], out int width) || !TryInt(fields[4], out int height)) continue;
+                    if (width < 1 || height < 1) continue;
+                    result.SubAreas[id] = new SubAreaInfo { X = x, Y = y, Width = width, Height = height };
+                }
             }
-            foreach (string[] fields in ReadTsv(Path.Combine(folder, "sous-zones", "sous-zones.tsv")))
+            catch (Exception error) when (error is ArgumentException || error is IOException || error is UnauthorizedAccessException || error is NotSupportedException)
             {
-                if (!TryInt(fields[0], out int id) || !TryInt(fields[1], out int x) || !TryInt(fields[2], out int y) || !TryInt(fields[3], out int width) || !TryInt(fields[4], out int height)) continue;
-                if (width < 1 || height < 1) continue;
-                result.SubAreas[id] = new SubAreaInfo { X = x, Y = y, Width = width, Height = height };
+                // Racine ou chemin invalide : la table reste vide (fond uni), la vue n'attend pas une table qui ne viendra pas.
             }
             return result;
         }
