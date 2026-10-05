@@ -42,6 +42,33 @@ namespace Outil_Azur_complet.Bot
             root.Controls.Add(header, 0, 0); form.Controls.Add(root); return root;
         }
 
+        /// <summary>
+        /// Bandeau pris dans un écran du client fourni : une image principale (par exemple les œufs de classe de l'écran
+        /// de connexion) et, à gauche, une image d'accompagnement (le logo). Renvoie <c>null</c> sans ces fichiers.
+        /// </summary>
+        internal static Control Banner(string asset, int height, string leftAsset = null, DockStyle anchor = DockStyle.Fill)
+        {
+            var image = ClientAssets.Get(asset); if (image == null) return null;
+            // Le fond reprend la couleur d'un bord de l'image pour que le bandeau se fonde dans le décor du client :
+            // ancrée à droite, l'illustration prolonge son bord gauche ; ancrée à gauche, son bord droit.
+            bool keep = anchor == DockStyle.Left || anchor == DockStyle.Right;
+            Color back = anchor == DockStyle.Right ? image.GetPixel(Math.Min(2, image.Width - 1), image.Height / 2)
+                : anchor == DockStyle.Left ? image.GetPixel(Math.Max(0, image.Width - 3), image.Height / 2)
+                : image.GetPixel(Math.Min(3, image.Width - 1), image.Height - Math.Min(4, image.Height));
+            if (back.A < 250) back = Frame; else back = Color.FromArgb(255, back);
+            var banner = new Panel { Dock = DockStyle.Bottom, Height = height, BackColor = back, Margin = new Padding(0),
+                Padding = keep ? new Padding(0) : new Padding(8, 4, 8, 4), Name = "client-" + asset, AccessibleName = "Décor du client : " + asset };
+            banner.Controls.Add(new PictureBox { Dock = keep ? anchor : DockStyle.Fill, Image = image, SizeMode = PictureBoxSizeMode.Zoom,
+                Width = keep ? Math.Max(1, height * image.Width / Math.Max(1, image.Height)) : 0, BackColor = Color.Transparent, Margin = new Padding(0) });
+            var left = leftAsset == null ? null : ClientAssets.Get(leftAsset);
+            if (left != null) {
+                var side = new PictureBox { Dock = DockStyle.Left, Width = (int)(height * 1.15), Image = left, SizeMode = PictureBoxSizeMode.Zoom, Padding = new Padding(6, 2, 2, 2),
+                    BackColor = Color.Transparent, Margin = new Padding(0), Name = "client-" + leftAsset, AccessibleName = "Décor du client : " + leftAsset };
+                banner.Controls.Add(side);
+            }
+            return banner;
+        }
+
         internal static Label Label(string text, float size = 10, bool bold = false) => new Label {
             Text = text, Font = new Font("Tahoma", size, bold ? FontStyle.Bold : FontStyle.Regular),
             ForeColor = Ink, BackColor = Color.Transparent };
@@ -91,11 +118,9 @@ namespace Outil_Azur_complet.Bot
         }
         internal static Control Button(string title, EventHandler action, bool primary = false, int width = 150)
         {
-            var button = new Button { Text = title, Width = width, Height = 34, Font = new Font("Tahoma", 9),
-                FlatStyle = FlatStyle.Flat, BackColor = primary ? Olive : PaperLight,
-                ForeColor = primary ? Color.White : Ink, Cursor = Cursors.Hand, Margin = new Padding(0, 0, 7, 0) };
-            button.FlatAppearance.BorderColor = primary ? Color.FromArgb(69, 80, 40) : Gold;
-            button.FlatAppearance.MouseOverBackColor = primary ? Color.FromArgb(125, 139, 75) : Color.FromArgb(249, 240, 203);
+            // Pilules du client fourni (orange pour l'action principale, parchemin sinon) ; rendu plat si elles manquent.
+            var button = new ClientButton { Text = title, Width = width, Height = 34, Font = new Font("Tahoma", 9, primary ? FontStyle.Bold : FontStyle.Regular),
+                Primary = primary, BackColor = primary ? Olive : PaperLight, ForeColor = primary ? Color.White : Ink, Margin = new Padding(0, 0, 7, 0) };
             button.Click += action; return button;
         }
         internal static Label Status(string text)

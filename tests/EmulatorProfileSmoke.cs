@@ -4,6 +4,7 @@ using System.Reflection;
 using Tools_protocol.Emulators;
 using Tools_protocol.Json;
 using Tools_protocol.Managers;
+using Tools_protocol.Query;
 
 internal static class EmulatorProfileSmoke
 {
@@ -43,6 +44,7 @@ internal static class EmulatorProfileSmoke
         Check(kryone.Table("panoplies") == "itemsets" && kryone.Table("comptes") == "accounts", "Kryone auth tables were not resolved");
         Check(EmuManager.ReturnTable("Template", "Kryone") == "item_template", "Legacy table lookup changed");
         Check(kryone.Table("inexistante") == "", "Unknown logical table resolved to a name");
+        Check(kryone.ItemColumn("guid") == "guid" && kryone.ItemColumn("qua") == "qua" && kryone.ItemColumn("pos") == "pos", "Kryone item columns changed");
         foreach (EmulatorFeature feature in Enum.GetValues(typeof(EmulatorFeature)))
             Check(kryone.Supports(feature), "Kryone lacks " + feature);
 
@@ -52,15 +54,40 @@ internal static class EmulatorProfileSmoke
         Check(!sunshine.UsesWorldDatabase, "Sunshine should only use the auth database");
         EmulatorProfile codebreak = EmulatorRegistry.Find("Codebreak");
         Check(codebreak.Locate("perso") == TableLocation.World, "Codebreak characters should live in world");
-        EmulatorProfile starloco = EmulatorRegistry.Find("StarLoco");
-        Check(starloco.Features == EmulatorFeature.None && starloco.UsesWorldDatabase, "StarLoco profile changed");
+        Check(codebreak.Features == EmulatorFeature.None, "Codebreak exposes SQL tools");
 
-        // The legacy panoply helpers keep their Kryone behaviour and are inert elsewhere.
+        // StarLoco carries its own table names: players and item instances in login (auth),
+        // resources in game (world), and Kryone's data classes through its data model.
+        EmulatorProfile starloco = EmulatorRegistry.Find("StarLoco");
+        Check(starloco.Features == kryone.Features && starloco.UsesWorldDatabase, "StarLoco features changed");
+        Check(starloco.DataModel == "Kryone" && kryone.DataModel == "Kryone", "StarLoco should reuse the Kryone data classes");
+        Check(starloco.Locate("comptes") == TableLocation.Auth && starloco.Table("comptes") == "accounts", "StarLoco accounts: " + starloco.Table("comptes"));
+        Check(starloco.Locate("perso") == TableLocation.Auth && starloco.Table("perso") == "players", "StarLoco characters: " + starloco.Table("perso"));
+        Check(starloco.Locate("items") == TableLocation.Auth && starloco.Table("items") == "world.entity.objects", "StarLoco items: " + starloco.Table("items"));
+        Check(starloco.Locate("Template") == TableLocation.World && starloco.Table("Template") == "item_template", "StarLoco templates: " + starloco.Table("Template"));
+        Check(starloco.Table("sort") == "sorts" && starloco.Table("cartes") == "maps" && starloco.Table("groupes") == "administration.groups" && starloco.Table("enclos") == "mountpark_data", "StarLoco resource tables changed");
+        Check(starloco.Locate("sort") == TableLocation.World && starloco.Locate("groupes") == TableLocation.Auth, "StarLoco table locations changed");
+        Check(!starloco.KnowsTable("titres") && !starloco.KnowsTable("paroli") && starloco.Table("titres") == "", "StarLoco should not pretend to have Kryone titles or paroli");
+        Check(starloco.ItemColumn("guid") == "id" && starloco.ItemColumn("qua") == "quantity" && starloco.ItemColumn("pos") == "position" &&
+            starloco.ItemColumn("template") == "template" && starloco.ItemColumn("stats") == "stats" && starloco.ItemColumn("puit") == "puit", "StarLoco item columns are wrong");
+        Check(EmuManager.ReturnTable("items", "StarLoco") == "world.entity.objects", "Legacy table lookup ignores StarLoco names");
+        // Profile names take precedence over the JSON mapping files, which Kryone keeps using.
+        JsonManager.World_dico["items"] = "items_json";
+        try { Check(starloco.Table("items") == "world.entity.objects" && kryone.Table("items") == "items_json", "Profile table names did not take precedence"); }
+        finally { JsonManager.World_dico["items"] = "items"; }
+        // Dotted StarLoco table names are quoted as one identifier; unsafe names stay refused.
+        Check(QueryBuilder.SelectFromQuery(new[] { "*" }, "world.entity.objects", "", "") == "SELECT * FROM `world.entity.objects`", "Dotted table name was not quoted");
+        foreach (string unsafeName in new[] { "a..b", ".a", "a.", "a;b", "a`b", "", "1a" })
+            Check(!QueryBuilder.IsIdentifier(unsafeName), "Unsafe identifier accepted: " + unsafeName);
+
+        // The legacy panoply helpers keep their Kryone behaviour, work for StarLoco and are inert elsewhere.
         EmulatorRegistry.Select("Kryone");
         Check(EmuManager.UpdateRowPano("", "12") == "12" && EmuManager.UpdateRowPano("1,2", "12") == "1,2,12", "Panoply row update changed");
         Check(EmuManager.ReturnPanoCol() == "items" && EmuManager.ReturnInfoCol("pano") == "name", "Panoply columns changed");
         EmulatorRegistry.Select("StarLoco");
-        Check(EmuManager.UpdateRowPano("1", "12") == "" && EmuManager.ReturnPanoCol() == "", "Panoply helpers wrote for StarLoco");
+        Check(EmuManager.UpdateRowPano("1", "12") == "1,12" && EmuManager.ReturnPanoCol() == "items", "Panoply helpers refused StarLoco");
+        EmulatorRegistry.Select("Codebreak");
+        Check(EmuManager.UpdateRowPano("1", "12") == "" && EmuManager.ReturnPanoCol() == "", "Panoply helpers wrote for Codebreak");
 
         // The menu refuses SQL tools an emulator does not support, but keeps offline tools.
         Type menu = Type.GetType("Outil_Azur_complet.Menu, Outil_Azur_complet", true);
@@ -68,8 +95,10 @@ internal static class EmulatorProfileSmoke
         init.GetField("NoDB", BindingFlags.Public | BindingFlags.Static).SetValue(null, false);
         MethodInfo unavailable = menu.GetMethod("Unavailability", BindingFlags.NonPublic | BindingFlags.Static);
         Func<string, string> reason = tool => (string)unavailable.Invoke(null, new object[] { tool });
-        Check(reason("Éditeur de maps") == null && reason("AzurBot") == null, "Offline tools were blocked for StarLoco");
-        Check(reason("Éditeur de sorts") != null && reason("Éditeur de compte") != null, "SQL tools were allowed for StarLoco");
+        Check(reason("Éditeur de maps") == null && reason("AzurBot") == null, "Offline tools were blocked for Codebreak");
+        Check(reason("Éditeur de sorts") != null && reason("Éditeur de compte") != null, "SQL tools were allowed for Codebreak");
+        EmulatorRegistry.Select("StarLoco");
+        Check(reason("Éditeur de sorts") == null && reason("Éditeur de compte") == null && reason("Éditeur d'objets") == null && reason("Outil de recherche") == null, "StarLoco tools were blocked");
         EmulatorRegistry.Select("Sunshine");
         Check(reason("Éditeur de compte") == null && reason("Éditeur de personnage") != null, "Sunshine menu gating is wrong");
         EmulatorRegistry.Select("Kryone");

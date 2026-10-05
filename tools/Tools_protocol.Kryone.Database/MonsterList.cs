@@ -5,7 +5,7 @@ using System.Data;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows.Forms;
-using Tools_protocol.Json;
+using Tools_protocol.Emulators;
 using Tools_protocol.Query;
 
 namespace Tools_protocol.Kryone.Database
@@ -142,7 +142,7 @@ namespace Tools_protocol.Kryone.Database
 		{
 			get
 			{
-				return JsonManager.SearchWorld("monstres");
+				return EmulatorRegistry.Current.Table("monstres");
 			}
 		}
 
@@ -171,11 +171,32 @@ namespace Tools_protocol.Kryone.Database
 			MaxKamas = (int)reader["maxKamas"];
 			Exps = (string)reader["exps"];
 			AI_Type = (int)reader["AI_Type"];
-			Capturable = (int)reader["Capturable"];
+			Capturable = OptionalInt(reader, "Capturable");
 			Type = (int)reader["type"];
 			//AggroDistance = (int)reader["aggroDistance"];
-			IaModels = (string)reader["iaModels"];
-			Size = (int)reader["size"];
+			// iaModels et size manquent dans les dumps kauth et StarLoco fournis.
+			IaModels = OptionalText(reader, "iaModels");
+			Size = OptionalInt(reader, "size");
+		}
+
+		private static int Ordinal(IDataRecord reader, string column)
+		{
+			for (int index = 0; index < reader.FieldCount; index++)
+				if (string.Equals(reader.GetName(index), column, StringComparison.OrdinalIgnoreCase))
+					return index;
+			return -1;
+		}
+
+		private static int OptionalInt(IDataRecord reader, string column)
+		{
+			int index = Ordinal(reader, column);
+			return index < 0 || reader.IsDBNull(index) ? 0 : Convert.ToInt32(reader.GetValue(index));
+		}
+
+		private static string OptionalText(IDataRecord reader, string column)
+		{
+			int index = Ordinal(reader, column);
+			return index < 0 || reader.IsDBNull(index) ? "" : Convert.ToString(reader.GetValue(index));
 		}
 
 		public static string CapturableOrNot(int id)
@@ -201,11 +222,12 @@ namespace Tools_protocol.Kryone.Database
 		{
 			string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TableMonstre, "", "");
 
-			using (MySqlConnection connection = new MySqlConnection(DatabaseManager2.ConnectionString))
+			using (MySqlConnection connection = new MySqlConnection(EmulatorRegistry.ConnectionFor("monstres")))
 			{
 				try
 				{
 					connection.Open();
+					AllMonster.Clear();
 					MySqlDataReader reader = new MySqlCommand(query, connection).ExecuteReader();
 					while (reader.Read())
 					{

@@ -29,7 +29,6 @@
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.Name = "UserMapControl";
             this.Size = new System.Drawing.Size(365, 307);
-            this.Paint += new System.Windows.Forms.PaintEventHandler(this.UserMapControl_Paint);
             this.ResumeLayout(false);
 
         }

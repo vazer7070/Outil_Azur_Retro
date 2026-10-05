@@ -1,0 +1,359 @@
+<?xml version='1.0' encoding='utf-8'?>
+<BotLang famille="effects" langue="fr" version="266" source="effects_fr_266.swf">
+<entree table="E" id="4" c="-1" d="Téléporte à une distance de #1 cases maximum." o="" />
+<entree table="E" id="5" c="-1" d="Fait reculer de #1 case(s)" o="" />
+<entree table="E" id="6" c="0" d="Fait avancer de #1 case(s)" o="" />
+<entree table="E" id="7" c="0" d="Divorcer le couple" o="" />
+<entree table="E" id="8" c="0" d="Echange les places de 2 joueurs" o="" />
+<entree table="E" id="9" c="0" d="Esquive #1% des coups en reculant de #2 case(s)" o="" />
+<entree table="E" id="10" c="0" d="Permet d'utiliser l'émoticon #3" o="" />
+<entree table="E" id="13" c="0" d="Change le temps de jeu d'un joueur" o="" />
+<entree table="E" id="34" c="0" d="Débute une quête" o="/" />
+<entree table="E" id="50" c="0" d="Porter un joueur" o="" />
+<entree table="E" id="51" c="0" d="Jeter un joueur" o="" />
+<entree table="E" id="77" c="0" d="Vole #1{~1~2 à }#2 PM" j="true" o="" />
+<entree table="E" id="78" c="0" d="Ajoute +#1{~1~2 à }#2 PM" j="true" o="+" />
+<entree table="E" id="79" c="0" d="#3% dommages subis x#1, sinon soigné de x#2" o="" />
+<entree table="E" id="81" c="0" d="PDV rendus : #1{~1~2 à }#2" j="true" o="" />
+<entree table="E" id="82" c="0" d="Vole #1{~1~2 à }#2 PDV (fixe)" j="true" o="" />
+<entree table="E" id="84" c="0" d="Vole #1{~1~2 à }#2 PA" j="true" o="" />
+<entree table="E" id="85" c="0" d="Dommages : #1{~1~2 à }#2% de la vie de l'attaquant (eau)" e="W" j="true" o="" />
+<entree table="E" id="86" c="0" d="Dommages : #1{~1~2 à }#2% de la vie de l'attaquant (terre)" e="E" j="true" o="" />
+<entree table="E" id="87" c="0" d="Dommages : #1{~1~2 à }#2% de la vie de l'attaquant (air)" e="A" j="true" o="" />
+<entree table="E" id="88" c="0" d="Dommages : #1{~1~2 à }#2% de la vie de l'attaquant (feu)" e="F" j="true" o="" />
+<entree table="E" id="89" c="0" d="Dommages : #1{~1~2 à }#2% de la vie de l'attaquant (neutre)" e="N" j="true" o="" />
+<entree table="E" id="90" c="0" d="Donne #1{~1~2 à }#2 % de sa vie" j="true" o="" />
+<entree table="E" id="91" c="0" d="Vole #1{~1~2 à }#2 PDV (eau)" e="W" j="true" o="" t="true" />
+<entree table="E" id="92" c="0" d="Vole #1{~1~2 à }#2 PDV (terre)" e="E" j="true" o="" t="true" />
+<entree table="E" id="93" c="0" d="Vole #1{~1~2 à }#2 PDV (air)" e="A" j="true" o="" t="true" />
+<entree table="E" id="94" c="0" d="Vole #1{~1~2 à }#2 PDV (feu)" e="F" j="true" o="" t="true" />
+<entree table="E" id="95" c="0" d="Vole #1{~1~2 à }#2 PDV (neutre)" e="N" j="true" o="" t="true" />
+<entree table="E" id="96" c="0" d="Dommages : #1{~1~2 à }#2 (eau)" e="W" j="true" o="" t="true" />
+<entree table="E" id="97" c="0" d="Dommages : #1{~1~2 à }#2 (terre)" e="E" j="true" o="" t="true" />
+<entree table="E" id="98" c="0" d="Dommages : #1{~1~2 à }#2 (air)" e="A" j="true" o="" t="true" />
+<entree table="E" id="99" c="0" d="Dommages : #1{~1~2 à }#2 (feu)" e="F" j="true" o="" t="true" />
+<entree table="E" id="100" c="0" d="Dommages : #1{~1~2 à }#2 (neutre)" e="N" j="true" o="" t="true" />
+<entree table="E" id="101" c="1" d="PA perdus à la cible : #1{~1~2 à }#2" j="true" o="/" />
+<entree table="E" id="105" c="16" d="Dommages réduits de  #1{~1~2 à }#2" j="true" o="+" />
+<entree table="E" id="106" c="30" d="Renvoie un sort de niveau #2 maximum" o="" />
+<entree table="E" id="107" c="31" d="Dommages retournés : #1{~1~2 à }#2" j="true" o="" />
+<entree table="E" id="108" c="0" d="PDV rendus : #1{~1~2 à }#2" j="true" o="" />
+<entree table="E" id="109" c="0" d="Dommages pour le lanceur : #1{~1~2 à }#2" j="true" o="-" />
+<entree table="E" id="110" c="0" d="+#1{~1~2 à }#2 en vie" j="true" o="+" />
+<entree table="E" id="111" c="1" d="+#1{~1~2 à }#2 PA" j="true" o="+" />
+<entree table="E" id="112" c="16" d="+#1{~1~2 à }#2 de dommages" j="true" o="+" />
+<entree table="E" id="113" c="0" d="Double les dommages ou rend  #1{~1~2 à }#2 PDV" j="true" o="" />
+<entree table="E" id="114" c="17" d="Multiplie les dommages par #1" o="+" />
+<entree table="E" id="115" c="18" d="+#1{~1~2 à }#2 aux coups critiques" j="true" o="+" />
+<entree table="E" id="116" c="19" d="-#1{~1~2 à -}#2 à la portée" j="true" o="-" />
+<entree table="E" id="117" c="19" d="+#1{~1~2 à }#2 à la portée" j="true" o="+" />
+<entree table="E" id="118" c="10" d="+#1{~1~2 à }#2 en force" j="true" o="+" />
+<entree table="E" id="119" c="14" d="+#1{~1~2 à }#2 en agilité" j="true" o="+" />
+<entree table="E" id="120" c="0" d="Ajoute +#1{~1~2 à }#2 PA" j="true" o="+" />
+<entree table="E" id="121" c="16" d="+#1{~1~2 à }#2 de dommages" j="true" o="+" />
+<entree table="E" id="122" c="39" d="+#1{~1~2 à }#2 aux échecs critiques" j="true" o="-" />
+<entree table="E" id="123" c="13" d="+#1{~1~2 à }#2 à la chance" j="true" o="+" />
+<entree table="E" id="124" c="12" d="+#1{~1~2 à }#2 en sagesse" j="true" o="+" />
+<entree table="E" id="125" c="11" d="+#1{~1~2 à }#2 en vitalité" j="true" o="+" />
+<entree table="E" id="126" c="15" d="+#1{~1~2 à }#2 en intelligence" j="true" o="+" />
+<entree table="E" id="127" c="23" d="PM perdus : #1{~1~2 à }#2" j="true" o="-" />
+<entree table="E" id="128" c="23" d="+#1{~1~2 à }#2 PM" j="true" o="+" />
+<entree table="E" id="130" c="-1" d="Vole  #1{~1~2 à }#2 d'or" j="true" o="" />
+<entree table="E" id="131" c="0" d="#1 PA utilisés font perdre #2 PDV" o="-" />
+<entree table="E" id="132" c="-1" d="Enlève les envoûtements" o="" />
+<entree table="E" id="133" c="1" d="PA perdus pour le lanceur : #1{~1~2 à }#2" j="true" o="-" />
+<entree table="E" id="134" c="23" d="PM perdus pour le lanceur : #1{~1~2 à }#2" j="true" o="-" />
+<entree table="E" id="135" c="19" d="Portée du lanceur réduite de : #1{~1~2 à }#2" j="true" o="-" />
+<entree table="E" id="136" c="19" d="Portée du lanceur augmentée de : #1{~1~2 à }#2" j="true" o="+" />
+<entree table="E" id="137" c="16" d="Dommages physiques du lanceur augmentés de : #1{~1~2 à }#2" j="true" o="+" />
+<entree table="E" id="138" c="17" d="Augmente les dommages de #1{~1~2 à }#2%" j="true" o="+" />
+<entree table="E" id="139" c="29" d="Rend #1{~1~2 à }#2 points d'énergie" j="true" o="+" />
+<entree table="E" id="140" c="-1" d="Fait passer le tour suivant" o="" />
+<entree table="E" id="141" c="0" d="Tue la cible" o="" />
+<entree table="E" id="142" c="16" d="+#1{~1~2 à }#2 aux dommages physiques" j="true" o="+" />
+<entree table="E" id="143" c="0" d="PDV rendus : #1{~1~2 à }#2" j="true" o="" />
+<entree table="E" id="144" c="0" d="Dommages : #1{~1~2 à }#2 (non boostés)" j="true" o="-" />
+<entree table="E" id="145" c="16" d="-#1{~1~2 à }#2 aux dommages" j="true" o="-" />
+<entree table="E" id="146" c="38" d="Change les paroles" o="" />
+<entree table="E" id="147" c="0" d="Ressuscite un allié" o="" />
+<entree table="E" id="148" c="0" d="Quelqu'un vous suit !" o="" />
+<entree table="E" id="149" c="38" d="Change l'apparence" o="" />
+<entree table="E" id="150" c="24" d="Rend le personnage invisible" o="+" />
+<entree table="E" id="152" c="13" d="-#1{~1~2 à -}#2 en chance" j="true" o="-" />
+<entree table="E" id="153" c="11" d="-#1{~1~2 à -}#2 en vitalité" j="true" o="-" />
+<entree table="E" id="154" c="14" d="-#1{~1~2 à -}#2 en agilité" j="true" o="-" />
+<entree table="E" id="155" c="15" d="-#1{~1~2 à -}#2 en intelligence" j="true" o="-" />
+<entree table="E" id="156" c="12" d="-#1{~1~2 à -}#2 en sagesse" j="true" o="-" />
+<entree table="E" id="157" c="10" d="-#1{~1~2 à -}#2 en force" j="true" o="-" />
+<entree table="E" id="158" c="0" d="Augmente le poids portable de #1{~1~2 à }#2 pods" j="true" o="+" />
+<entree table="E" id="159" c="0" d="Réduit le poids portable de #1{~1~2 à }#2 pods" j="true" o="-" />
+<entree table="E" id="160" c="27" d="+#1{~1~2 à }#2 % de chance d'esquiver les pertes de PA" j="true" o="+" />
+<entree table="E" id="161" c="28" d="+#1{~1~2 à }#2 % de chance d'esquiver les pertes de PM" j="true" o="+" />
+<entree table="E" id="162" c="27" d="-#1{~1~2 à }#2 % de chance d'esquiver les pertes de PA" j="true" o="-" />
+<entree table="E" id="163" c="28" d="-#1{~1~2 à }#2 % de chance d'esquiver les pertes de PM" j="true" o="-" />
+<entree table="E" id="164" c="-1" d="Dommages réduits de #1%" o="-" />
+<entree table="E" id="165" c="16" d="Augmente les dommages (#1) de #2%" o="+" />
+<entree table="E" id="166" c="0" d="PA retournés : #1{~1~2 à }#2" j="true" o="" />
+<entree table="E" id="168" c="1" d="-#1{~1~2 à -}#2 PA" j="true" o="-" />
+<entree table="E" id="169" c="23" d="-#1{~1~2 à -}#2 PM" j="true" o="-" />
+<entree table="E" id="171" c="18" d="-#1{~1~2 à }#2 aux coups critiques" j="true" o="-" />
+<entree table="E" id="172" c="20" d="Réduction magique diminué de #1{~1~2 à }#2" j="true" o="-" />
+<entree table="E" id="173" c="21" d="Réduction physique diminué de #1{~1~2 à }#2" j="true" o="-" />
+<entree table="E" id="174" c="44" d="+#1{~1~2 à }#2 en initiative" j="true" o="+" />
+<entree table="E" id="175" c="44" d="-#1{~1~2 à }#2 en initiative" j="true" o="-" />
+<entree table="E" id="176" c="48" d="+#1{~1~2 à }#2 en prospection" j="true" o="+" />
+<entree table="E" id="177" c="48" d="-#1{~1~2 à }#2 en prospection" j="true" o="-" />
+<entree table="E" id="178" c="49" d="+#1{~1~2 à }#2 de soins" j="true" o="+" />
+<entree table="E" id="179" c="49" d="-#1{~1~2 à }#2 de soins" j="true" o="-" />
+<entree table="E" id="180" c="-1" d="Crée un double du lanceur de sort" o="" />
+<entree table="E" id="181" c="-1" d="Invoque : #1" o="" />
+<entree table="E" id="182" c="26" d="+#1{~1~2 à }#2 créatures invocables" j="true" o="+" />
+<entree table="E" id="183" c="20" d="Réduction magique de #1{~1~2 à }#2" j="true" o="/" />
+<entree table="E" id="184" c="21" d="Réduction physique de #1{~1~2 à }#2" j="true" o="/" />
+<entree table="E" id="185" c="0" d="Invoque une créature statique" o="" />
+<entree table="E" id="186" c="17" d="Diminue les dommages de #1{~1~2 à }#2%" j="true" o="-" />
+<entree table="E" id="188" c="0" d="Changer l'alignement" o="/" />
+<entree table="E" id="194" c="0" d="Gagner #1{~1~2 à }#2 kamas" j="true" o="+" />
+<entree table="E" id="197" c="0" d="Transforme en #1" o="" />
+<entree table="E" id="201" c="-1" d="Pose un objet au sol" o="" />
+<entree table="E" id="202" c="-1" d="Dévoile tous les objets invisibles" o="" />
+<entree table="E" id="206" c="0" d="Ressuscite la cible" o="" />
+<entree table="E" id="210" c="33" d="#1{~1~2 à }#2 % de résistance à la terre" j="true" o="+" />
+<entree table="E" id="211" c="35" d="#1{~1~2 à }#2 % de résistance à l'eau" j="true" o="+" />
+<entree table="E" id="212" c="36" d="#1{~1~2 à }#2 % de résistance à l'air" j="true" o="+" />
+<entree table="E" id="213" c="34" d="#1{~1~2 à }#2 % de résistance au feu" j="true" o="+" />
+<entree table="E" id="214" c="37" d="#1{~1~2 à }#2 % de résistance neutre" j="true" o="+" />
+<entree table="E" id="215" c="33" d="#1{~1~2 à }#2 % de faiblesse face à la terre" j="true" o="-" />
+<entree table="E" id="216" c="35" d="#1{~1~2 à }#2 % de faiblesse face à l'eau " j="true" o="-" />
+<entree table="E" id="217" c="36" d="#1{~1~2 à }#2 % de faiblesse face à l'air" j="true" o="-" />
+<entree table="E" id="218" c="34" d="#1{~1~2 à }#2 % de faiblesse face au feu" j="true" o="-" />
+<entree table="E" id="219" c="37" d="#1{~1~2 à }#2 % de faiblesse neutre" j="true" o="-" />
+<entree table="E" id="220" c="50" d="Renvoie #1 dommages" o="+" />
+<entree table="E" id="221" c="0" d="Qu'y a-t-il là dedans ?" o="" />
+<entree table="E" id="222" c="0" d="Qu'y a-t-il là dedans ?" o="" />
+<entree table="E" id="225" c="70" d="+#1{~1~2 à }#2 de dommages aux pièges" j="true" o="+" />
+<entree table="E" id="226" c="69" d="+#1{~1~2 à }#2% de dommages aux pièges" j="true" o="+" />
+<entree table="E" id="229" c="0" d="Récupère une monture !" o="+" />
+<entree table="E" id="230" c="51" d="+#1 en énergie perdue" o="/" />
+<entree table="E" id="240" c="54" d="+#1{~1~2 à }#2 de résistance à la terre" j="true" o="+" />
+<entree table="E" id="241" c="56" d="+#1{~1~2 à }#2 de résistance à l'eau" j="true" o="+" />
+<entree table="E" id="242" c="57" d="+#1{~1~2 à }#2 de résistance à l'air" j="true" o="+" />
+<entree table="E" id="243" c="55" d="+#1{~1~2 à }#2 de résistance au feu" j="true" o="+" />
+<entree table="E" id="244" c="58" d="+#1{~1~2 à }#2 de résistance neutre" j="true" o="+" />
+<entree table="E" id="245" c="54" d="-#1{~1~2 à }#2 de résistance à la terre" j="true" o="-" />
+<entree table="E" id="246" c="56" d="-#1{~1~2 à }#2 de résistance à l'eau" j="true" o="-" />
+<entree table="E" id="247" c="57" d="-#1{~1~2 à }#2 de résistance à l'air" j="true" o="-" />
+<entree table="E" id="248" c="55" d="-#1{~1~2 à }#2 de résistance au feu" j="true" o="-" />
+<entree table="E" id="249" c="58" d="-#1{~1~2 à }#2 de résistance neutre" j="true" o="-" />
+<entree table="E" id="250" c="59" d="#1{~1~2 à }#2 % de res. terre face aux combattants " j="true" o="+" />
+<entree table="E" id="251" c="61" d="#1{~1~2 à }#2 % de res. eau face aux combattants" j="true" o="+" />
+<entree table="E" id="252" c="62" d="#1{~1~2 à }#2 % de res. air face aux combattants" j="true" o="+" />
+<entree table="E" id="253" c="60" d="#1{~1~2 à }#2 % de res. feu face aux combattants" j="true" o="+" />
+<entree table="E" id="254" c="63" d="#1{~1~2 à }#2 % de res. neutre face aux combattants" j="true" o="+" />
+<entree table="E" id="255" c="59" d="#1{~1~2 à }#2 % de faiblesse terre face aux combattants" j="true" o="-" />
+<entree table="E" id="256" c="61" d="#1{~1~2 à }#2 % de faiblesse eau face aux combattants" j="true" o="-" />
+<entree table="E" id="257" c="62" d="#1{~1~2 à }#2 % de faiblesse air face aux combattants" j="true" o="-" />
+<entree table="E" id="258" c="60" d="#1{~1~2 à }#2 % de faiblesse feu face aux combattants" j="true" o="-" />
+<entree table="E" id="259" c="63" d="#1{~1~2 à }#2 % de faiblesse neutre face aux combattants" j="true" o="-" />
+<entree table="E" id="260" c="64" d="+#1{~1~2 à }#2 de res. terre face aux combattants " j="true" o="+" />
+<entree table="E" id="261" c="66" d="+#1{~1~2 à }#2 de res. eau face aux combattants " j="true" o="+" />
+<entree table="E" id="262" c="67" d="+#1{~1~2 à }#2 de res. air face aux combattants" j="true" o="+" />
+<entree table="E" id="263" c="65" d="+#1{~1~2 à }#2 de res. feu aux combattants" j="true" o="+" />
+<entree table="E" id="264" c="68" d="+#1{~1~2 à }#2 de res. neutre aux combattants" j="true" o="+" />
+<entree table="E" id="265" c="16" d="Dommages réduits de #1{~1~2 à }#2" j="true" o="+" />
+<entree table="E" id="266" c="13" d="#1{~1~2 à -}#2 vol de chance" j="true" o="" />
+<entree table="E" id="267" c="11" d="#1{~1~2 à -}#2 vol de vitalité" j="true" o="" />
+<entree table="E" id="268" c="14" d="#1{~1~2 à -}#2 vol d'agilité" j="true" o="" />
+<entree table="E" id="269" c="15" d="#1{~1~2 à -}#2 vol d'intelligence" j="true" o="" />
+<entree table="E" id="270" c="12" d="#1{~1~2 à -}#2 vol de sagesse" j="true" o="" />
+<entree table="E" id="271" c="12" d="#1{~1~2 à -}#2 vol de force" j="true" o="" />
+<entree table="E" id="275" c="0" d="Dommages : #1{~1~2 à }#2% de la vie manquante de l'attaquant (eau)" j="true" o="" />
+<entree table="E" id="276" c="0" d="Dommages : #1{~1~2 à }#2% de la vie manquante de l'attaquant (terre)" j="true" o="" />
+<entree table="E" id="277" c="0" d="Dommages : #1{~1~2 à }#2% de la vie manquante de l'attaquant (air)" j="true" o="" />
+<entree table="E" id="278" c="0" d="Dommages : #1{~1~2 à }#2% de la vie manquante de l'attaquant (feu)" j="true" o="" />
+<entree table="E" id="279" c="0" d="Dommages : #1{~1~2 à }#2% de la vie manquante de l'attaquant (neutre)" j="true" o="" />
+<entree table="E" id="281" c="0" d="Augmente la portée du sort #1 de #3" o="+" />
+<entree table="E" id="282" c="0" d="Rend la portée du sort #1 modifiable" o="+" />
+<entree table="E" id="283" c="0" d="+#3 de dommages sur le sort #1" o="+" />
+<entree table="E" id="284" c="0" d="+#3 de soins sur le sort #1" o="+" />
+<entree table="E" id="285" c="0" d="Réduit de #3 le coût en PA du sort #1" o="+" />
+<entree table="E" id="286" c="0" d="Réduit de #3 le délai de relance du sort #1" o="+" />
+<entree table="E" id="287" c="0" d="+#3 aux CC sur le sort #1" o="+" />
+<entree table="E" id="288" c="0" d="Désactive le lancer en ligne du sort #1" o="+" />
+<entree table="E" id="289" c="0" d="Désactive la ligne de vue du sort #1" o="+" />
+<entree table="E" id="290" c="0" d="Augmente de #3 le nombre de lancer maximal par tour du sort #1" o="+" />
+<entree table="E" id="291" c="0" d="Augmente de #3 le nombre de lancer maximal par cible du sort #1" o="+" />
+<entree table="E" id="292" c="0" d="Fixe à #3 le délai de relance du sort #1" o="+" />
+<entree table="E" id="293" c="0" d="Augmente les dégâts de base du sort #1 de #3" o="+" />
+<entree table="E" id="294" c="0" d="Diminue la portée du sort #1 de #3" o="-" />
+<entree table="E" id="310" c="0" d="null" o="/" />
+<entree table="E" id="320" c="0" d="Vole #1{~1~2 à }#2 PO" j="true" o="" />
+<entree table="E" id="333" c="38" d="Change une couleur" o="" />
+<entree table="E" id="335" c="0" d="Change l'apparence" o="" />
+<entree table="E" id="400" c="-1" d="Pose un piège de rang #2" o="" />
+<entree table="E" id="401" c="-1" d="Pose un glyphe de rang #2" o="" />
+<entree table="E" id="402" c="-1" d="Pose un glyphe de rang #2" o="" />
+<entree table="E" id="405" c="0" d="Tue et remplace par une invocation" o="" />
+<entree table="E" id="406" c="0" d="[wip]Enlève les effets du sort %1" o="" />
+<entree table="E" id="407" c="0" d="PDV rendus : #1{~1~2 à }#2" j="true" o="" />
+<entree table="E" id="513" c="0" d="Pose un prisme" o="" />
+<entree table="E" id="600" c="0" d="Téléporte au point de sauvegarde" o="" />
+<entree table="E" id="601" c="0" d="null" o="+" />
+<entree table="E" id="602" c="0" d="Enregistre sa position" o="" />
+<entree table="E" id="603" c="0" d="Apprend le métier #3" o="" />
+<entree table="E" id="604" c="0" d="Apprend le sort #3" o="" />
+<entree table="E" id="605" c="0" d="+#1{~1~2 à }#2 points d' XP" j="true" o="+" />
+<entree table="E" id="606" c="12" d="+#1{~1~2 à }#2 en sagesse" j="true" o="+" />
+<entree table="E" id="607" c="10" d="+#1{~1~2 à }#2 en force" j="true" o="+" />
+<entree table="E" id="608" c="13" d="+#1{~1~2 à }#2 en chance" j="true" o="+" />
+<entree table="E" id="609" c="14" d="+#1{~1~2 à }#2 en agilité" j="true" o="+" />
+<entree table="E" id="610" c="11" d="+#1{~1~2 à }#2 en vitalité" j="true" o="+" />
+<entree table="E" id="611" c="15" d="+#1{~1~2 à }#2 en intelligence" j="true" o="+" />
+<entree table="E" id="612" c="0" d="+#1{~1~2 à }#2 points de caractéristique" j="true" o="+" />
+<entree table="E" id="613" c="0" d="+#1{~1~2 à }#2 points de sort" j="true" o="+" />
+<entree table="E" id="614" c="0" d="+ #1 d'XP dans le métier #2" o="+" />
+<entree table="E" id="615" c="0" d="Fait oublier le métier de #3" o="" />
+<entree table="E" id="616" c="0" d="Fait oublier un niveau du sort #3" o="" />
+<entree table="E" id="620" c="0" d="Consulter #3" o="" />
+<entree table="E" id="621" c="0" d="Invoque : #3 (grade #1)" o="" />
+<entree table="E" id="622" c="0" d="Téléporte chez soi" o="" />
+<entree table="E" id="623" c="-1" d="Invoque : #3" o="/" />
+<entree table="E" id="624" c="0" d="Fait oublier un niveau du sort #3" o="" />
+<entree table="E" id="625" c="0" d="null" o="/" />
+<entree table="E" id="626" c="0" d="null" o="/" />
+<entree table="E" id="627" c="0" d="Reproduit la carte d'origine" o="/" />
+<entree table="E" id="628" c="0" d="Invoque : #3" o="/" />
+<entree table="E" id="631" c="0" d="null" o="" />
+<entree table="E" id="640" c="52" d="Ajoute #3 points d'honneur" o="+" />
+<entree table="E" id="641" c="53" d="Ajoute #3 points de déshonneur" o="-" />
+<entree table="E" id="642" c="52" d="Retire #3 points d'honneur" o="-" />
+<entree table="E" id="643" c="53" d="Retire #3 points de déshonneur" o="+" />
+<entree table="E" id="645" c="0" d="Ressuscite les alliés présents sur la carte" o="+" />
+<entree table="E" id="646" c="0" d="PDV rendus : #1{~1~2 à }#2" j="true" o="+" />
+<entree table="E" id="647" c="0" d="Libère les âmes des ennemis" o="+" />
+<entree table="E" id="648" c="0" d="Libère une âme ennemie" o="+" />
+<entree table="E" id="649" c="0" d="Faire semblant d'être #3" o="/" />
+<entree table="E" id="654" c="0" d="null" o="+" />
+<entree table="E" id="666" c="0" d="Pas d'effet supplémentaire" o="/" />
+<entree table="E" id="669" c="0" d="Incarnation de niveau #3" o="/" />
+<entree table="E" id="670" c="0" d="Dommages : #1{~1~2 à }#2% de la vie de l'attaquant (neutre)" j="true" o="" t="true" />
+<entree table="E" id="671" c="0" d="Dommages : #1{~1~2 à }#2% de la vie de l'attaquant (neutre)" j="true" o="" t="true" />
+<entree table="E" id="672" c="0" d="Dommages : #1{~1~2 à }#2% de la vie de l'attaquant (neutre)" j="true" o="" />
+<entree table="E" id="699" c="0" d="Lier son métier : #1" o="/" />
+<entree table="E" id="700" c="0" d="Change l'élément de frappe" o="" />
+<entree table="E" id="701" c="0" d="Puissance : #1{~1~2 à }#2" o="" />
+<entree table="E" id="702" c="0" d="+#1{~1~2 à }#2 point de durabilité" j="true" o="" />
+<entree table="E" id="705" c="0" d="#1% capture d'âme de puissance #3" o="/" />
+<entree table="E" id="706" c="0" d="#1% de proba de capturer une monture" o="/" />
+<entree table="E" id="710" c="0" d="Coût supplémentaire" o="/" />
+<entree table="E" id="715" c="0" d="#1 : #3" o="/" />
+<entree table="E" id="716" c="0" d="#1 : #3" o="/" />
+<entree table="E" id="717" c="0" d="#1 : #3" o="/" />
+<entree table="E" id="720" c="0" d="Nombre de victimes : #2" o="" />
+<entree table="E" id="724" c="0" d="Débloque le titre #3" o="" />
+<entree table="E" id="725" c="0" d="Renommer la guilde : #4" o="/" />
+<entree table="E" id="730" c="0" d="Téléporte au prisme allié le plus proche" o="" />
+<entree table="E" id="731" c="80" d="Agresse les joueurs de l'alignement ennemi automatiquement" j="true" o="+" />
+<entree table="E" id="732" c="81" d="Résistance à l'agression automatique par les joueurs ennemis : #1{~1~2 à }#2" j="true" o="+" />
+<entree table="E" id="740" c="0" d="" o="" />
+<entree table="E" id="741" c="0" d="null" o="" />
+<entree table="E" id="742" c="0" d="null" o="" />
+<entree table="E" id="750" c="72" d="Bonus aux chances de capture : #1{~1~2 à }#2%" j="true" o="/" />
+<entree table="E" id="751" c="73" d="Bonus à l'xp de la dragodinde : #1{~1~2 à }#2%" j="true" o="/" />
+<entree table="E" id="752" c="78" d="Bonus d'esquive : #1{~1~2 à }#2%" j="true" o="+" />
+<entree table="E" id="753" c="79" d="Bonus de blocage : #1{~1~2 à }#2%" j="true" o="+" />
+<entree table="E" id="760" c="0" d="Disparaît en se déplaçant" o="" />
+<entree table="E" id="765" c="0" d="Echange les places de 2 joueurs" o="" />
+<entree table="E" id="770" c="74" d="Confusion horaire : #1{~1~2 à }#2 degrés" j="true" o="-" />
+<entree table="E" id="771" c="74" d="Confusion horaire : #1{~1~2 à }#2 Pi/2" j="true" o="-" />
+<entree table="E" id="772" c="74" d="Confusion horaire : #1{~1~2 à }#2 Pi/4" j="true" o="-" />
+<entree table="E" id="773" c="74" d="Confusion contre horaire : #1{~1~2 à }#2 degrés" j="true" o="-" />
+<entree table="E" id="774" c="74" d="Confusion contre horaire : #1{~1~2 à }#2 Pi/2" j="true" o="-" />
+<entree table="E" id="775" c="74" d="Confusion contre horaire : #1{~1~2 à }#2 Pi/4" j="true" o="-" />
+<entree table="E" id="776" c="75" d="+#1{~1~2 à }#2% de dégâts subis permanents" j="true" o="-" />
+<entree table="E" id="780" c="0" d="Invoque le dernier allié mort avec #1{~1~2 à }#2 % de ses PDV" j="true" o="+" />
+<entree table="E" id="781" c="0" d="Minimise les effets aléatoires" o="-" />
+<entree table="E" id="782" c="0" d="Maximise les effets aléatoires" o="/" />
+<entree table="E" id="783" c="0" d="Pousse jusqu'à la case visée" o="/" />
+<entree table="E" id="784" c="0" d="Retour à la position de départ" o="/" />
+<entree table="E" id="785" c="0" d="null" o="/" />
+<entree table="E" id="786" c="0" d="Soigne sur attaque" o="/" />
+<entree table="E" id="787" c="0" d="#1" o="/" />
+<entree table="E" id="788" c="0" d="Châtiment de #2 sur #3 tour(s)" o="+" />
+<entree table="E" id="789" c="0" d="null" o="/" />
+<entree table="E" id="790" c="0" d="null" o="" />
+<entree table="E" id="791" c="0" d="Prépare #1{~1~2 à }#2 parchemins pour mercenaire [wait]" o="/" />
+<entree table="E" id="792" c="0" d="#1" o="/" />
+<entree table="E" id="793" c="0" d="#1" o="/" />
+<entree table="E" id="795" c="0" d="Arme de chasse" o="/" />
+<entree table="E" id="800" c="0" d="Points de vie : #3" o="" />
+<entree table="E" id="805" c="0" d="Reçu le : #1" o="" />
+<entree table="E" id="806" c="0" d="Corpulence : #1" o="" />
+<entree table="E" id="807" c="0" d="Dernier repas : #1" o="" />
+<entree table="E" id="808" c="0" d="A mangé le : #1" o="" />
+<entree table="E" id="810" c="0" d="Taille : #3 poces" o="" />
+<entree table="E" id="811" c="0" d="Tour(s) restant(s) : #3" o="" />
+<entree table="E" id="812" c="0" d="Résistance : #2 / #3" o="" />
+<entree table="E" id="813" c="0" d="null" o="/" />
+<entree table="E" id="814" c="0" d="#1" o="/" />
+<entree table="E" id="815" c="0" d="null" o="" />
+<entree table="E" id="816" c="0" d="null" o="/" />
+<entree table="E" id="825" c="0" d="Téléporte" o="+" />
+<entree table="E" id="905" c="0" d="Lance un combat contre #2" o="/" />
+<entree table="E" id="930" c="0" d="Augmente la sérénité, diminue l'agressivité" o="/" />
+<entree table="E" id="931" c="0" d="Augmente l'agressivité, diminue la sérénité" o="/" />
+<entree table="E" id="932" c="0" d="Augmente l'endurance" o="+" />
+<entree table="E" id="933" c="0" d="Diminue l'endurance" o="-" />
+<entree table="E" id="934" c="0" d="Augmente l'amour" o="+" />
+<entree table="E" id="935" c="0" d="Diminue l'amour" o="-" />
+<entree table="E" id="936" c="0" d="Accelère la maturité" o="+" />
+<entree table="E" id="937" c="0" d="Ralentit la maturité" o="-" />
+<entree table="E" id="939" c="0" d="Augmente les capacités d'un familier #3" o="+" />
+<entree table="E" id="940" c="0" d="Capacités accrues" o="+" />
+<entree table="E" id="946" c="0" d="Retirer temporairement un objet d'élevage" o="/" />
+<entree table="E" id="947" c="0" d="Récupérer un objet d'enclos" o="/" />
+<entree table="E" id="948" c="0" d="Objet pour enclos" o="/" />
+<entree table="E" id="949" c="0" d="Monter/Descendre d'une monture" o="/" />
+<entree table="E" id="950" c="71" d="Etat #3" o="/" />
+<entree table="E" id="951" c="71" d="Enlève l'état '#3'" o="/" />
+<entree table="E" id="952" c="71" d="Désactive l'état '#3'" o="/" />
+<entree table="E" id="960" c="0" d="Alignement : #3" o="/" />
+<entree table="E" id="961" c="0" d="Grade : #3" o="/" />
+<entree table="E" id="962" c="0" d="Niveau : #3" o="/" />
+<entree table="E" id="963" c="0" d="Créé depuis : #3 jour(s)" o="/" />
+<entree table="E" id="964" c="0" d="Nom : #4" o="/" />
+<entree table="E" id="970" c="0" d="null" o="" />
+<entree table="E" id="971" c="0" d="null" o="" />
+<entree table="E" id="972" c="0" d="null" o="" />
+<entree table="E" id="973" c="0" d="null" o="" />
+<entree table="E" id="974" c="0" d="null" o="" />
+<entree table="E" id="981" c="0" d="Non échangeable" o="/" />
+<entree table="E" id="982" c="0" d="Non échangeable" o="/" />
+<entree table="E" id="983" c="0" d="Échangeable dès le : #1" o="/" />
+<entree table="E" id="984" c="0" d="null" o="/" />
+<entree table="E" id="985" c="0" d="Modifié par : #4" o="/" />
+<entree table="E" id="986" c="0" d="Prépare #1{~1~2 à }#2 parchemins" o="/" />
+<entree table="E" id="987" c="0" d="Appartient à : #4" o="/" />
+<entree table="E" id="988" c="0" d="Fabriqué par : #4" o="/" />
+<entree table="E" id="989" c="0" d="Recherche : #4" o="/" />
+<entree table="E" id="990" c="0" d="#4" o="/" />
+<entree table="E" id="994" c="0" d="!! Certificat invalide !!" o="-" />
+<entree table="E" id="995" c="0" d="Consulter la fiche de la monture" o="/" />
+<entree table="E" id="996" c="0" d="Appartient à : #4" o="/" />
+<entree table="E" id="997" c="0" d="Nom : #4" o="/" />
+<entree table="E" id="998" c="0" d="Validité : #1j #2h #3m" o="/" />
+<entree table="E" id="999" c="0" d="null" o="+" />
+<entree table="EDMG" id="0" valeur="100" />
+<entree table="EDMG" id="1" valeur="95" />
+<entree table="EDMG" id="2" valeur="97" />
+<entree table="EDMG" id="3" valeur="92" />
+<entree table="EDMG" id="4" valeur="98" />
+<entree table="EDMG" id="5" valeur="93" />
+<entree table="EDMG" id="6" valeur="96" />
+<entree table="EDMG" id="7" valeur="91" />
+<entree table="EDMG" id="8" valeur="99" />
+<entree table="EDMG" id="9" valeur="94" />
+<entree table="EDMG" id="10" valeur="80" />
+<entree table="EHEL" id="0" valeur="108" />
+<entree table="EHEL" id="1" valeur="81" />
+</BotLang>

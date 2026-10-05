@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Outil_Azur_complet.Bot;
+using Outil_Azur_complet.Bot.Panels;
 using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Game.Maps;
@@ -104,17 +105,17 @@ internal static class BotUiSmoke
                 Spell.AllSpells.Clear();var template=new Spell(10,"Sort fictif");template.GetSpellsStats(1,new SpellStats { PA=3 });template.GetSpellsStats(2,new SpellStats { PA=4 });account.Game.character.Spells[10]=template.CopyForCharacter(1);account.Game.character.SpellPoints=5;
                 using(var dashboard=new GameClientFullform(account))
                 {
-                    Render(dashboard,"bot-session");Check(((ProgressBar)Get(dashboard,"xp")).Value==50,"XP uses total XP instead of current level progress");Render(dashboard,"bot-session-minimum",true);Check(((Label)Get(dashboard,"state")).Height>=22,"Session status is clipped");
+                    Render(dashboard,"bot-session");Check(Math.Abs(((Outil_Azur_complet.Bot.Controls.Banner.CircleGauge)Get(dashboard,"xp")).Value-50)<0.5,"XP uses total XP instead of current level progress");Render(dashboard,"bot-session-minimum",true);Check(((Label)Get(dashboard,"state")).Height>=22,"Session status is clipped");
                     var area=(Panel)Get(dashboard,"mapArea");Check(area.Width>=dashboard.ClientSize.Width*0.95&&area.Height>=dashboard.ClientSize.Height*0.70,"Map is still a small navigation preview");Check(!((Control)Get(dashboard,"drawer")).Visible,"Character panel permanently covers map");
-                    dashboard.ShowPanel(0);Check(((Control)Get(dashboard,"drawer")).Visible,"Stats panel failed to open");Render(dashboard,"bot-personnage-stats",true);
-                    dashboard.ShowPanel(2);var spellList=(ListView)Get(dashboard,"spells");Check(spellList.Items.Count==1&&spellList.Items[0].Text=="Sort fictif","Learned spell is absent from UI");spellList.Items[0].Selected=true;Check(!((Control)Get(dashboard,"upgradeSpell")).Enabled,"Spell upgrade enabled without connection");Render(dashboard,"bot-sorts",true);
-                    account.Game.character.Spells[10]=template.CopyForCharacter(6);account.Game.character.SpellsRefreshEvent();Application.DoEvents();Check(spellList.SelectedItems.Count==1&&spellList.SelectedItems[0].SubItems[1].Text=="6","Spell update lost the selection or level");Check(((Label)Get(dashboard,"spellHelp")).Text.Contains("maximal"),"Maximal spell can still be upgraded");dashboard.ClosePanel();Check(!((Control)Get(dashboard,"drawer")).Visible,"Drawer cannot be closed");
+                    dashboard.Panels.Show(dashboard.Panels.Get<StatsPanel>());Check(((Control)Get(dashboard,"drawer")).Visible,"Stats panel failed to open");Render(dashboard,"bot-personnage-stats",true);
+                    var spellPanel=dashboard.Panels.Get<SpellsPanel>();dashboard.Panels.Show(spellPanel);var spellList=(ListView)Get(spellPanel,"spells");Check(spellList.Items.Count==1&&spellList.Items[0].Text=="Sort fictif","Learned spell is absent from UI");spellList.Items[0].Selected=true;Check(!((Control)Get(spellPanel,"upgradeSpell")).Enabled,"Spell upgrade enabled without connection");Render(dashboard,"bot-sorts",true);
+                    account.Game.character.Spells[10]=template.CopyForCharacter(6);account.Game.character.SpellsRefreshEvent();Application.DoEvents();Check(spellList.SelectedItems.Count==1&&spellList.SelectedItems[0].SubItems[1].Text=="6","Spell update lost the selection or level");Check(((Label)Get(spellPanel,"spellHelp")).Text.Contains("maximal"),"Maximal spell can still be upgraded");dashboard.Panels.CloseAll();Check(!((Control)Get(dashboard,"drawer")).Visible,"Drawer cannot be closed");
                     var xml=System.Xml.Linq.XElement.Load(Path.Combine(TestPaths.ApplicationBin,"ressources","Bot","BotMaps","7411.xml"));
                     Map.AllBotMaps[7411]=new Map { MapID=7411,MapWidth=byte.Parse(xml.Element("LARGEUR").Value),MapHeight=byte.Parse(xml.Element("LONGUEUR").Value),X=int.Parse(xml.Element("X").Value),Y=int.Parse(xml.Element("Y").Value),MapData=xml.Element("MAP_DATA").Value,Back_ID=int.Parse(xml.Element("BACK").Value) };
                     account.Game.Map.SetRefreshMap("7411|date|");account.Game.character.Cell=account.Game.Map.MapCells[282];
-                    var mapView=(Outil_Azur_complet.Bot.Interfaces.MapControl)Get(dashboard,"mapControl");Check(mapView.ArtworkStatus.Contains("Décor chargé"),"Bundled map scenery is unavailable from the application directory");
+                    var mapView=(Outil_Azur_complet.Bot.Interfaces.MapControl)Get(dashboard,"mapControl");for(int wait=0;wait<200&&mapView.ArtworkStatus.StartsWith("Chargement du décor");wait++){Application.DoEvents();System.Threading.Thread.Sleep(50);}Check(mapView.ArtworkStatus.Contains("Décor chargé"),"Bundled map scenery is unavailable from the application directory");
                     Render(dashboard,"bot-astrub",true);mapView.ZoomIn();Render(dashboard,"bot-astrub-zoom",true);mapView.Fit();
-                    ((ComboBox)Get(dashboard,"channel")).SelectedIndex=5;((TextBox)Get(dashboard,"recipient")).Text="Destinataire fictif";Render(dashboard,"bot-discussion-privee",true);Check(((TextBox)Get(dashboard,"chatInput")).Width>=130,"Private recipient makes message entry unusable");dashboard.Close();
+                    var chat=(Outil_Azur_complet.Bot.Controls.Chat.ChatPanel)Get(dashboard,"chatPanel");chat.Prefill("/w Destinataire ");Render(dashboard,"bot-discussion-privee",true);Check(chat.Input.Width>=130&&chat.Input.Text=="/w Destinataire ","Private message entry is unusable");dashboard.Close();
                 }
             }
         }

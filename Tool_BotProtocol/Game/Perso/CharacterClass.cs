@@ -49,6 +49,8 @@ namespace Tool_BotProtocol.Game.Perso
 
         public bool UseMount { get; set; } = false;
         public sbyte NpcToSpeak_id { get; set; }
+        /// <summary>Métier dont l'outil est équipé, annoncé par OT ; null lorsque OT arrive sans identifiant.</summary>
+        public int? CurrentJobTool { get; set; }
 
         public event Action Server_Selection;
         public event Action Player_Selection;
@@ -108,10 +110,6 @@ namespace Tool_BotProtocol.Game.Perso
         public void ServerSelectedEvent() => Server_Selection?.Invoke();
         public void PathFindingMapPerso(List<Cell> Liste) => MoveMinimapPathfinding?.Invoke(Liste);
         public Jobs.Jobs[] GetJobsSnapshot() { lock (Jobs) return Jobs.ToArray(); }
-        public IEnumerable<short> GetSkillsForRecolte()
-        {
-            lock (Jobs) return Jobs.SelectMany(x => x.Skills.Where(y => !y.CanCraft).Select(y => y.Id)).ToArray();
-        }
         public IEnumerable<JobSkills> GetAvailableSkills()
         {
             lock (Jobs) return Jobs.SelectMany(job => job.Skills).ToArray();
@@ -254,6 +252,7 @@ namespace Tool_BotProtocol.Game.Perso
             InEquip.Clear();
             GroupMembers.Clear();
             InGroupe = HasGuild = UseMount = false;
+            CurrentJobTool = null;
             EquipLeader = null;
             Canal = string.Empty;
             Carac_Points = SpellPoints = Kamas = 0;

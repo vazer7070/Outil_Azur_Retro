@@ -19,7 +19,7 @@ namespace Tool_BotProtocol.Game.Perso.Spells
         public string Position { get; set; }
         public bool HasMetadata => Stats.Count > 0;
         public Dictionary<byte, SpellStats> Stats;
-        static string SpellsPath = @".\ressources\Bot\BotSorts";
+        static string SpellsPath = Path.Combine(".", "ressources", "Bot", "BotSorts");
 
         public static Dictionary<short, Spell>AllSpells = new Dictionary<short, Spell>();
 

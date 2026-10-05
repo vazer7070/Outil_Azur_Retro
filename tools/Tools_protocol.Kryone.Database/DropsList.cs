@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using Tools_protocol.Json;
+using Tools_protocol.Emulators;
 using Tools_protocol.Query;
 
 namespace Tools_protocol.Kryone.Database
@@ -95,11 +95,12 @@ namespace Tools_protocol.Kryone.Database
 			set;
 		}
 
+		/// <summary>Table des butins selon le profil d'émulateur courant.</summary>
 		public static string TableDrops
 		{
 			get
 			{
-				return JsonManager.SearchWorld("drops");
+				return EmulatorRegistry.Current.Table("drops");
 			}
 		}
 
@@ -109,21 +110,51 @@ namespace Tools_protocol.Kryone.Database
 			DropsList.DropsName = new List<string>();
 		}
 
+		/// <summary>
+		/// Lit un butin. StarLoco n'a pas de colonne id (la clef est monstre + objet) :
+		/// l'identifiant vaut alors 0 et <see cref="Load_Drops"/> en attribue un.
+		/// </summary>
 		public DropsList(IDataReader reader)
 		{
-			this.Id = (uint)reader["id"];
-			this.MonsterName = (string)reader["monsterName"];
-			this.MonsterId = (uint)reader["monsterid"];
-			this.ObjectName = (string)reader["objectName"];
-			this.ObjectId = (uint)reader["objectid"];
-			this.PercentGrade1 = (decimal)reader["percentGrade1"];
-			this.PercentGrade2 = (decimal)reader["percentGrade2"];
-			this.PercentGrade3 = (decimal)reader["percentGrade3"];
-			this.PercentGrade4 = (decimal)reader["percentGrade4"];
-			this.PercentGrade5 = (decimal)reader["percentGrade5"];
-			this.Ceil = (uint)reader["ceil"];
-			this.Action = (string)reader["action"];
-			this.Level = (int)reader["level"];
+			this.Id = Number(reader, "id");
+			this.MonsterName = Text(reader, "monsterName");
+			this.MonsterId = Number(reader, "monsterid");
+			this.ObjectName = Text(reader, "objectName");
+			this.ObjectId = Number(reader, "objectid");
+			this.PercentGrade1 = Percent(reader, "percentGrade1");
+			this.PercentGrade2 = Percent(reader, "percentGrade2");
+			this.PercentGrade3 = Percent(reader, "percentGrade3");
+			this.PercentGrade4 = Percent(reader, "percentGrade4");
+			this.PercentGrade5 = Percent(reader, "percentGrade5");
+			this.Ceil = Number(reader, "ceil");
+			this.Action = Text(reader, "action");
+			this.Level = Ordinal(reader, "level") < 0 ? -1 : Convert.ToInt32(reader[Ordinal(reader, "level")]);
+		}
+
+		private static int Ordinal(IDataRecord reader, string column)
+		{
+			for (int index = 0; index < reader.FieldCount; index++)
+				if (string.Equals(reader.GetName(index), column, StringComparison.OrdinalIgnoreCase))
+					return index;
+			return -1;
+		}
+
+		private static string Text(IDataRecord reader, string column)
+		{
+			int index = Ordinal(reader, column);
+			return index < 0 || reader.IsDBNull(index) ? "" : Convert.ToString(reader.GetValue(index));
+		}
+
+		private static uint Number(IDataRecord reader, string column)
+		{
+			int index = Ordinal(reader, column);
+			return index < 0 || reader.IsDBNull(index) ? 0 : Convert.ToUInt32(reader.GetValue(index));
+		}
+
+		private static decimal Percent(IDataRecord reader, string column)
+		{
+			int index = Ordinal(reader, column);
+			return index < 0 || reader.IsDBNull(index) ? 0 : Convert.ToDecimal(reader.GetValue(index));
 		}
 
 		public static uint DropId(string data)
@@ -225,24 +256,28 @@ namespace Tools_protocol.Kryone.Database
 		{
 			string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TableDrops, "", "");
 
-			using (MySqlConnection connection = new MySqlConnection(DatabaseManager2.ConnectionString))
+			using (MySqlConnection connection = new MySqlConnection(EmulatorRegistry.ConnectionFor("drops")))
 			{
 				try
 				{
 					connection.Open();
-					MySqlDataReader reader = new MySqlCommand(query, connection).ExecuteReader();
-					DropsList D = null;
-					while (reader.Read())
+					var loaded = new Dictionary<uint, DropsList>();
+					var names = new List<string>();
+					using (var command = new MySqlCommand(query, connection))
+					using (var reader = command.ExecuteReader())
 					{
-						D = new DropsList(reader);
-						AllDrops.Add(D.Id, D);
-						DropsName.Add(D.ObjectName);
-						Drops_Count = DropsName.Count;
+						bool hasId = Ordinal(reader, "id") >= 0;
+						while (reader.Read())
+						{
+							DropsList D = new DropsList(reader);
+							if (!hasId) D.Id = (uint)loaded.Count + 1;
+							loaded.Add(D.Id, D);
+							names.Add(D.ObjectName);
+						}
 					}
-					reader.Close();
-					reader.Dispose();
-					connection.Close();
-					connection.Dispose();
+					AllDrops = loaded;
+					DropsName = names;
+					Drops_Count = names.Count;
 				}
 				catch (MySqlException) {  }
 			}

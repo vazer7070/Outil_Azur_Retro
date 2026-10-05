@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -12,6 +13,14 @@ using Tool_BotProtocol.Utils.Interfaces;
 
 namespace Tool_BotProtocol.Game.Perso.Inventory
 {
+    /// <summary>Panoplie annoncée par le serveur (paquet OS du client 1.34).</summary>
+    public sealed class ItemSetState
+    {
+        public int Id { get; internal set; }
+        public int[] ItemIds { get; internal set; } = new int[0];
+        public string Bonus { get; internal set; } = string.Empty;
+    }
+
     public class InventoryClass : IDisposable, IEliminable
     {
         private Accounts.Accounts Account;
@@ -28,10 +37,22 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
         public IEnumerable<InventoryObjects> Ressources => Objets.Where(x => x.Inventory == Enums.InventoryObjectsTypes.RESOURCES);
         public IEnumerable<InventoryObjects> QuestItems => Objets.Where(x => x.Inventory == Enums.InventoryObjectsTypes.QUEST_ITEMS);
         public int Percent_Pods => Pods_Max > 0 ? (int)((double)Actual_pods / Pods_Max * 100) : 0;
+        /// <summary>Panoplies portées, telles qu'annoncées par OS+ ; OS- retire l'entrée.</summary>
+        public ConcurrentDictionary<int, ItemSetState> ItemSets { get; } = new ConcurrentDictionary<int, ItemSetState>();
+
+        /// <summary>Dernier refus ou demande de confirmation du serveur (OAE…, OK…) à présenter dans l'interface.</summary>
+        public string LastServerMessage { get; private set; } = string.Empty;
 
         public event Action<bool> RefreshInventory;
         public event Action Open_StockAction;
         public event Action Close_StockAction;
+
+        /// <summary>Mémorise un message du serveur et prévient l'interface sans modifier les objets.</summary>
+        public void NotifyRefused(string reason)
+        {
+            LastServerMessage = reason ?? string.Empty;
+            RefreshInventory?.Invoke(false);
+        }
 
         internal InventoryClass(Accounts.Accounts account)
         {
@@ -40,25 +61,46 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
 
         }
         public InventoryObjects GetItemsById(int id) => Objets.FirstOrDefault( x => x.ID == id);
+        public InventoryObjects GetByInventoryId(uint inventoryId) => PlayerItems != null && PlayerItems.TryGetValue(inventoryId, out InventoryObjects item) ? item : null;
         public InventoryObjects GetObjetsPosition(InventorySlots P) => Objets.FirstOrDefault(x => x.position == P);
 
+        /// <summary>
+        /// Ajoute les objets d'un enregistrement « O » du paquet OAK : fiches séparées par « ; »,
+        /// chacune au format client <c>id~modèle~quantité~position~effets</c> en hexadécimal.
+        /// Une fiche déjà connue est remplacée (le serveur renvoie l'objet complet après une fusion de pile).
+        /// </summary>
         public void Add_Items(string paquet)
         {
-            Task.Run(() =>
+            int added = 0;
+            foreach (string o in (paquet ?? string.Empty).Split(';'))
             {
-                foreach(string o in paquet.Split(';'))
-                {
-                    if (!string.IsNullOrEmpty(o))
-                    {
-                        string[] parts = o.Split('~');
-                        uint id = Convert.ToUInt32(parts[0], 16);
-                        InventoryObjects I = new InventoryObjects(o);
-                        PlayerItems.TryAdd(id, I);
-                    }
-                }
-            }).Wait();
+                if (string.IsNullOrWhiteSpace(o)) continue;
+                InventoryObjects item = InventoryObjects.Parse(o);
+                if (item == null) { Account?.Logger?.LogError("INVENTAIRE", "Fiche d'objet illisible : " + o); continue; }
+                PlayerItems[item.Inventory_ID] = item;
+                added++;
+            }
+            if (added > 0) RefreshInventory?.Invoke(true);
+        }
 
+        /// <summary>Remplace une fiche d'objet (paquet OC) ; un objet inconnu est ajouté.</summary>
+        public bool Update_Item(string record)
+        {
+            InventoryObjects item = InventoryObjects.Parse(record);
+            if (item == null) return false;
+            PlayerItems[item.Inventory_ID] = item;
             RefreshInventory?.Invoke(true);
+            return true;
+        }
+
+        /// <summary>Déplace un objet vers l'emplacement annoncé par le serveur (paquet OM) ; vide = sac.</summary>
+        public bool Move_Item(uint inventoryId, string position)
+        {
+            if (!PlayerItems.TryGetValue(inventoryId, out InventoryObjects item)) return false;
+            item.position = int.TryParse(position, NumberStyles.Integer, CultureInfo.InvariantCulture, out int slot)
+                ? (InventorySlots)slot : InventorySlots.NOT_EQUIPPED;
+            RefreshInventory?.Invoke(true);
+            return true;
         }
 
         public void Modify_Items(string paquet)
@@ -66,17 +108,13 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
             if (!string.IsNullOrEmpty(paquet))
             {
                 string[] part = paquet.Split('|');
-                InventoryObjects U = Objets.FirstOrDefault(x => x.Inventory_ID == uint.Parse(part[0]));
+                if (part.Length < 2 || !uint.TryParse(part[0], out uint id) || !int.TryParse(part[1], out int qua)) return;
+                InventoryObjects U = Objets.FirstOrDefault(x => x.Inventory_ID == id);
 
                 if(U != null)
                 {
-                    int qua = int.Parse(part[1]);
-                    InventoryObjects NewItems = U;
-                    NewItems.Qua = qua;
-
-                    if(PlayerItems.TryUpdate(U.Inventory_ID, NewItems, U))
-                        RefreshInventory?.Invoke(true);
-                            
+                    U.Qua = qua;
+                    RefreshInventory?.Invoke(true);
                 }
             }
         }
@@ -112,13 +150,22 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
 
             Delete_Item(I, qua, DeleteMessage);
         }
+        private bool CanAct(InventoryObjects item, out string reason)
+        {
+            reason = null;
+            if (item == null) { reason = "Aucun objet sélectionné."; return false; }
+            if (Account?.Connexion == null || !Account.Connexion.IsConnected()) { reason = "Connectez le personnage avant d'agir sur l'inventaire."; return false; }
+            if (Account.IsFighting() || Account.IsMoving()) { reason = "Action impossible pendant un combat ou un déplacement."; return false; }
+            if (item.Qua <= 0) { reason = $"L'objet {item.Name} n'est plus disponible."; return false; }
+            return true;
+        }
+        /// <summary>
+        /// Demande au serveur d'équiper l'objet : <c>OM&lt;id&gt;|&lt;emplacement&gt;|1</c>, comme <c>Items.movement</c> du client.
+        /// La position locale n'est modifiée qu'à la réception de <c>OM</c> ; un refus arrive en <c>OAE…</c>.
+        /// </summary>
         public async Task<bool> Equip_item(InventoryObjects I)
         {
-            if(I == null || I.Qua == 0 || Account.Isbusy())
-            {
-                Account.Logger.LogError("INVENTAIRE", $"L'objet {I.Name} ne peux être équipé");
-                return false;
-            }
+            if (!CanAct(I, out string reason)) { Account?.Logger?.LogError("INVENTAIRE", reason); return false; }
             if(I.Level > Account.Game.character.Level)
             {
                 Account.Logger.LogError("INVENTAIRE", $"Le niveau de l'objet {I.Name} est supérieur à ton niveau");
@@ -135,53 +182,65 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
                 Account.Logger.LogError("INVENTAIRE", $"L'objet {I.Name} n'est pas un objet équipable");
                 return false;
             }
-            foreach(InventorySlots I_S in Possible_P)
-            {
-                if(GetObjetsPosition(I_S) == null)
-                {
-                    await Account.Connexion.SendPacket($"OM{I.Inventory_ID}|{I_S}", true);
-                    Account.Logger.LogInfo("INVENTAIRE", $"L'objet {I.Name} est équipé");
-                    I.position = I_S;
-                    RefreshInventory?.Invoke(true);
-                    return true;
-                }
-            }
-            if(PlayerItems.TryGetValue(GetObjetsPosition(Possible_P[0]).Inventory_ID, out InventoryObjects H))
-            {
-                H.position = InventorySlots.NOT_EQUIPPED;
-                await Account.Connexion.SendPacket($"OM{H.Inventory_ID}|{InventorySlots.NOT_EQUIPPED}");
-            }
-            await Account.Connexion.SendPacket($"OM{H.Inventory_ID}|{Possible_P[0]}");
-
-            if(I.Qua == 1)
-                I.position = Possible_P[0];
-
-            Account.Logger.LogInfo("INVENTAIRE", $"L'objet {I.Name} est équipé");
-            RefreshInventory?.Invoke(true);
+            // Premier emplacement libre, sinon le premier emplacement possible : le serveur gère l'échange ou le refus.
+            InventorySlots slot = Possible_P.FirstOrDefault(candidate => GetObjetsPosition(candidate) == null);
+            if (!Possible_P.Contains(slot) || GetObjetsPosition(slot) != null) slot = Possible_P[0];
+            await Account.Connexion.SendPacket($"OM{I.Inventory_ID}|{(int)slot}|1", true);
+            Account.Logger.LogInfo("INVENTAIRE", $"Demande d'équipement de {I.Name} envoyée ; le serveur confirme par OM.");
             return true;
         }
+        /// <summary>Demande au serveur de ranger l'objet dans le sac : <c>OM&lt;id&gt;|-1|1</c>.</summary>
         public async Task<bool> Desequip_Item(InventoryObjects O)
         {
-            if (O == null)
-                return false;
+            if (!CanAct(O, out string reason)) { Account?.Logger?.LogError("INVENTAIRE", reason); return false; }
             if(O.position == InventorySlots.NOT_EQUIPPED)
+            {
+                Account.Logger.LogError("INVENTAIRE", $"{O.Name} n'est pas équipé");
                 return false;
-            await Account.Connexion.SendPacket($"OM{O.Inventory_ID}|{InventorySlots.NOT_EQUIPPED}");
-            O.position = InventorySlots.NOT_EQUIPPED;
-            Account.Logger.LogInfo("INVENTAIRE", $"{O.Name} déséquipé");
-            RefreshInventory.Invoke(true);
+            }
+            await Account.Connexion.SendPacket($"OM{O.Inventory_ID}|{(int)InventorySlots.NOT_EQUIPPED}|1", true);
+            Account.Logger.LogInfo("INVENTAIRE", $"Demande de retrait de {O.Name} envoyée ; le serveur confirme par OM.");
             return true;
         }
-        public async void Use_Item(InventoryObjects G)
+        /// <summary>Utilise un objet : <c>OU&lt;id&gt;|</c> comme <c>Items.use</c> sans cible. La quantité est mise à jour par OQ/OR.</summary>
+        public async Task<bool> Use_Item(InventoryObjects G)
         {
-            if (G == null)
-                return;
-            if (G.Qua == 0)
-                return;
-            await Account.Connexion.SendPacket($"OU{G.Inventory_ID}|");
-            Delete_Item(G, 1, false);
-            Account.Logger.LogInfo("INVENTAIRE", $"Objet {G.Name} utilisé");
-
+            if (!CanAct(G, out string reason)) { Account?.Logger?.LogError("INVENTAIRE", reason); return false; }
+            await Account.Connexion.SendPacket($"OU{G.Inventory_ID}|", true);
+            Account.Logger.LogInfo("INVENTAIRE", $"Utilisation de {G.Name} demandée ; le serveur confirme.");
+            return true;
+        }
+        /// <summary>Jette un objet au sol : <c>OD&lt;id&gt;|&lt;quantité&gt;</c> comme <c>Items.drop</c>. Le serveur répond par OR/OQ ou ODE.</summary>
+        public async Task<bool> Drop_Item(InventoryObjects item, int quantity)
+        {
+            if (!CanAct(item, out string reason)) { Account?.Logger?.LogError("INVENTAIRE", reason); return false; }
+            if (quantity <= 0 || quantity > item.Qua)
+            {
+                Account.Logger.LogError("INVENTAIRE", $"Quantité invalide pour jeter {item.Name} (1 à {item.Qua}).");
+                return false;
+            }
+            await Account.Connexion.SendPacket($"OD{item.Inventory_ID}|{quantity}", true);
+            Account.Logger.LogInfo("INVENTAIRE", $"Demande de jeter {quantity} × {item.Name} envoyée ; le serveur confirme.");
+            return true;
+        }
+        /// <summary>Panoplie annoncée par OS : <c>+id|objets;…|bonus</c> ajoute ou remplace, <c>-id</c> retire.</summary>
+        public bool Apply_ItemSet(string payload)
+        {
+            if (string.IsNullOrEmpty(payload)) return false;
+            bool added = payload[0] == '+';
+            if (!added && payload[0] != '-') return false;
+            string[] parts = payload.Substring(1).Split('|');
+            if (!int.TryParse(parts[0], out int setId)) return false;
+            if (added)
+            {
+                var set = new ItemSetState { Id = setId, Bonus = parts.Length > 2 ? parts[2] : string.Empty };
+                if (parts.Length > 1)
+                    set.ItemIds = parts[1].Split(';').Select(value => int.TryParse(value, out int id) ? id : -1).Where(id => id >= 0).ToArray();
+                ItemSets[setId] = set;
+            }
+            else ItemSets.TryRemove(setId, out ItemSetState ignored);
+            RefreshInventory?.Invoke(true);
+            return true;
         }
         public void CanOpen_stock() => Open_StockAction?.Invoke();
         public void CanCloseStock() => Close_StockAction?.Invoke();
@@ -193,12 +252,14 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
             Actual_pods = 0;
             Pods_Max = 0;
             PlayerItems.Clear();
+            ItemSets.Clear();
         }
         public virtual void Dispose(bool disposed)
         {
             if (!isDisposed)
             {
                 PlayerItems.Clear();
+                ItemSets.Clear();
                 PlayerItems = null;
                 Account = null;
                 isDisposed = true;

@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Runtime.CompilerServices;
 using System.Windows.Forms;
-using Tools_protocol.Json;
+using Tools_protocol.Emulators;
 using Tools_protocol.Managers;
 using Tools_protocol.Query;
 
@@ -101,11 +101,12 @@ namespace Tools_protocol.Kryone.Database
 
 		public string StoreObjets { get; set; }
 
+		/// <summary>Table des personnages selon le profil d'émulateur courant.</summary>
 		public static string TablePerso
 		{
 			get
 			{
-				return JsonManager.SearchAuth("perso");
+				return EmulatorRegistry.Current.Table("perso");
 			}
 		}
 
@@ -172,7 +173,7 @@ namespace Tools_protocol.Kryone.Database
 			string query = QueryBuilder.SelectFromQuery(args, TablePerso, "", "");
 			var characters = new Dictionary<string, CharacterList>(StringComparer.OrdinalIgnoreCase);
 			var namesById = new Dictionary<int, string>();
-			using (var connection = new MySqlConnection(DatabaseManager.ConnectionString))
+			using (var connection = new MySqlConnection(EmulatorRegistry.ConnectionFor("perso")))
 			using (var command = new MySqlCommand(query, connection))
 			{
 				connection.Open();
@@ -275,8 +276,7 @@ namespace Tools_protocol.Kryone.Database
 
 		private static bool ValidTable(string table)
 		{
-			return !string.IsNullOrWhiteSpace(table) &&
-				Regex.IsMatch(table, @"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant);
+			return QueryBuilder.IsIdentifier(table);
 		}
 
 		private static void LoadInventoryItems(int[] ids)
@@ -284,11 +284,16 @@ namespace Tools_protocol.Kryone.Database
 			string table = ItemList.TableItems;
 			if (ids.Length == 0) return;
 			if (!ValidTable(table)) { InventoryLoadError = "Le nom de la table des objets world est invalide dans la configuration."; return; }
-			if (string.IsNullOrWhiteSpace(DatabaseManager2.ConnectionString)) { InventoryLoadError = "La connexion à la base world n'est pas active. Vérifiez sa configuration."; return; }
+			string connectionString = EmulatorRegistry.ConnectionFor("items");
+			if (string.IsNullOrWhiteSpace(connectionString)) { InventoryLoadError = "La connexion à la base world n'est pas active. Vérifiez sa configuration."; return; }
 			try
 			{
 				var loaded = new Dictionary<int, ItemList>();
-				using (var connection = new MySqlConnection(DatabaseManager2.ConnectionString))
+				EmulatorProfile emulator = EmulatorRegistry.Current;
+				string columns = string.Join(",", new[] { "guid", "template", "qua", "pos", "stats", "puit" }
+					.Select(column => QueryBuilder.QuoteIdentifier(emulator.ItemColumn(column))));
+				string key = QueryBuilder.QuoteIdentifier(emulator.ItemColumn("guid"));
+				using (var connection = new MySqlConnection(connectionString))
 				{
 					connection.Open();
 					for (int offset = 0; offset < ids.Length; offset += 500)
@@ -296,7 +301,7 @@ namespace Tools_protocol.Kryone.Database
 						{
 							int[] batch = ids.Skip(offset).Take(500).ToArray();
 							string parameters = string.Join(",", batch.Select((id, index) => "@id" + index));
-							command.CommandText = $"SELECT `guid`,`template`,`qua`,`pos`,`stats`,`puit` FROM `{table}` WHERE `guid` IN ({parameters})";
+							command.CommandText = $"SELECT {columns} FROM `{table}` WHERE {key} IN ({parameters})";
 							for (int index = 0; index < batch.Length; index++) command.Parameters.AddWithValue("@id" + index, batch[index]);
 							using (var reader = command.ExecuteReader())
 								while (reader.Read())
@@ -316,11 +321,12 @@ namespace Tools_protocol.Kryone.Database
 		{
 			var names = new Dictionary<int, string>();
 			string table = ItemTemplateList.TableTemplate;
+			string connectionString = EmulatorRegistry.ConnectionFor("Template");
 			if (ids.Length == 0 || !ValidTable(table) ||
-				string.IsNullOrWhiteSpace(DatabaseManager.ConnectionString)) return names;
+				string.IsNullOrWhiteSpace(connectionString)) return names;
 			try
 			{
-				using (var connection = new MySqlConnection(DatabaseManager.ConnectionString))
+				using (var connection = new MySqlConnection(connectionString))
 				using (var command = new MySqlCommand { Connection = connection })
 				{
 					string parameters = string.Join(",", ids.Select((id, index) => "@id" + index));

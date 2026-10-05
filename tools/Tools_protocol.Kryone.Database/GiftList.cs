@@ -1,10 +1,11 @@
-﻿using MySql.Data.MySqlClient;
+using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Tools_protocol.Emulators;
 using Tools_protocol.Query;
 
 namespace Tools_protocol.Kryone.Database
@@ -13,7 +14,7 @@ namespace Tools_protocol.Kryone.Database
     {
         public int ID { get; set; }
         public string Objects { get; set; }
-        public static string TableGift => Json.JsonManager.SearchWorld("gifts");
+        public static string TableGift => EmulatorRegistry.Current.Table("gifts");
         public static Dictionary<int, string> AllGiftsDico = new Dictionary<int, string>();
         public static int GiftsCount;
 
@@ -26,7 +27,7 @@ namespace Tools_protocol.Kryone.Database
         {
             string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TableGift, "", "");
 
-            using (MySqlConnection connection = new MySqlConnection(DatabaseManager2.ConnectionString))
+            using (MySqlConnection connection = new MySqlConnection(EmulatorRegistry.ConnectionFor("gifts")))
             {
                 try
                 {

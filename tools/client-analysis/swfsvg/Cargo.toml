@@ -1,0 +1,11 @@
+[package]
+name = "swfsvg"
+version = "0.2.2"
+edition = "2021"
+
+[dependencies]
+swf = "0.2"
+encoding_rs = "0.8"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+flate2 = "1"
+base64 = "0.22"

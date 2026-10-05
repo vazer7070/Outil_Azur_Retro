@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -11,6 +12,7 @@ using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Network.ByPass;
 using Tool_BotProtocol.Utils.Crypto;
+using Tool_BotProtocol.Utils.Logger;
 using Tools_protocol.Network;
 
 namespace Tool_BotProtocol.Network
@@ -32,7 +34,10 @@ namespace Tool_BotProtocol.Network
 
         private readonly object _sync = new object();
         private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
-        private readonly List<int> _pings = new List<int>(50);
+        private const int MaxPingSamples = 50;
+        private readonly List<int> _pings = new List<int>(MaxPingSamples);
+        // Instants d'envoi des « ping » encore sans « pong » : StarLoco répond dans l'ordre.
+        private readonly Queue<long> _pendingPings = new Queue<long>();
         private SocketSession _session;
         private int _sendUsers;
         private bool _semaphoreDisposed;
@@ -42,6 +47,10 @@ namespace Tool_BotProtocol.Network
         public Accounts account;
         public event Action<string> packetReceivedEvent;
         public event Action<string> packetSendEvent;
+        /// <summary>Paquet entièrement écrit sur le socket (un paquet = un envoi terminé par <c>\n\0</c>).</summary>
+        public event Action<string> PacketSent;
+        /// <summary>Paquet refusé avant l'envoi (paquet, raison) : vide ou contenant un NUL ou un retour à la ligne.</summary>
+        public event Action<string, string> PacketRejected;
         public event Action<string> socketInformationEvent;
         public string apikey;
         public string Token;
@@ -65,6 +74,7 @@ namespace Tool_BotProtocol.Network
                 previous?.Decoder.Reset();
             }
             CloseSession(previous);
+            lock (_pings) _pendingPings.Clear();
             try
             {
                 if (GlobalConfig.BYPASS)
@@ -153,8 +163,27 @@ namespace Tool_BotProtocol.Network
             }
         }
 
+        /// <summary>
+        /// Raison du refus d'un paquet, ou null s'il peut partir seul : StarLoco découpe chaque envoi sur le NUL puis
+        /// sur <c>\n</c> et ne traite que les premières lignes (<c>GameHandler.messageReceived</c>). Un paquet contenant
+        /// un NUL, un <c>\n</c> ou un <c>\r</c> deviendrait plusieurs paquets ou serait tronqué.
+        /// </summary>
+        public static string SinglePacketViolation(string packet)
+        {
+            if (string.IsNullOrEmpty(packet)) return "paquet vide";
+            if (packet.IndexOf('\0') >= 0) return "caractère NUL dans le paquet";
+            if (packet.IndexOf('\n') >= 0 || packet.IndexOf('\r') >= 0) return "retour à la ligne dans le paquet";
+            return null;
+        }
+
         public async Task SendPacketAsync(string packet)
         {
+            string violation = SinglePacketViolation(packet);
+            if (violation != null)
+            {
+                RejectPacket(packet, violation);
+                return;
+            }
             SocketSession session;
             lock (_sync)
             {
@@ -168,7 +197,9 @@ namespace Tool_BotProtocol.Network
                 await _semaphore.WaitAsync().ConfigureAwait(false);
                 entered = true;
                 if (!IsCurrent(session) || !session.Socket.Connected) return;
-                byte[] data = Encoding.UTF8.GetBytes((packet ?? string.Empty) + "\n\0");
+                // Enregistré avant l'écriture : la réponse « pong » peut être traitée avant la fin de SendAsync.
+                if (packet == "ping") MarkPingSent();
+                byte[] data = Encoding.UTF8.GetBytes(packet + "\n\0");
                 int offset = 0;
                 while (offset < data.Length)
                 {
@@ -178,7 +209,11 @@ namespace Tool_BotProtocol.Network
                     if (sent <= 0) throw new SocketException((int)SocketError.ConnectionReset);
                     offset += sent;
                 }
-                if (IsCurrent(session)) packetSendEvent?.Invoke(packet);
+                if (IsCurrent(session))
+                {
+                    packetSendEvent?.Invoke(packet);
+                    PacketSent?.Invoke(packet);
+                }
             }
             catch (Exception error)
             {
@@ -205,6 +240,45 @@ namespace Tool_BotProtocol.Network
         public async Task SendPacket(string packet, bool reponse = false)
         {
             await SendPacketAsync(packet).ConfigureAwait(false);
+        }
+
+        private void RejectPacket(string packet, string reason)
+        {
+            Accounts owner;
+            Action<string, string> rejected;
+            lock (_sync) { owner = account; rejected = PacketRejected; }
+            string shown = BotPacketRedactor.Redact(packet, owner);
+            ReportInformation("Paquet refusé avant l'envoi (" + reason + ") : " + shown);
+            try { owner?.Logger?.LogError("PROTOCOLE", "Paquet refusé avant l'envoi (" + reason + ") : un envoi ne doit contenir qu'un seul paquet."); }
+            catch { /* Journal fermé : le refus reste signalé par l'événement. */ }
+            try { rejected?.Invoke(packet, reason); }
+            catch { /* A diagnostic subscriber must not break the caller. */ }
+        }
+
+        private void MarkPingSent()
+        {
+            lock (_pings)
+            {
+                if (_pendingPings.Count >= MaxPingSamples) _pendingPings.Dequeue();
+                _pendingPings.Enqueue(Stopwatch.GetTimestamp());
+            }
+        }
+
+        /// <summary>
+        /// À appeler sur la réponse « pong » de StarLoco (réponse à « ping ») : mesure l'aller-retour du plus ancien
+        /// « ping » en attente et l'ajoute aux 50 dernières mesures. Renvoie la durée en ms, ou -1 sans « ping » en attente.
+        /// </summary>
+        public int NotifyPong()
+        {
+            lock (_pings)
+            {
+                if (_pendingPings.Count == 0) return -1;
+                long elapsed = Stopwatch.GetTimestamp() - _pendingPings.Dequeue();
+                int milliseconds = (int)Math.Min(int.MaxValue, Math.Max(0L, elapsed * 1000L / Stopwatch.Frequency));
+                if (_pings.Count >= MaxPingSamples) _pings.RemoveAt(0);
+                _pings.Add(milliseconds);
+                return milliseconds;
+            }
         }
 
         public void DisconnectSocket()
@@ -264,8 +338,8 @@ namespace Tool_BotProtocol.Network
             }
         }
 
-        public int GetTotalPings() => _pings.Count;
-        public int GetPingAverage() => _pings.Count == 0 ? 0 : (int)_pings.Average();
+        public int GetTotalPings() { lock (_pings) return _pings.Count; }
+        public int GetPingAverage() { lock (_pings) return _pings.Count == 0 ? 0 : (int)_pings.Average(); }
         ~TcpClient() => Dispose(false);
 
         public void Dispose()
@@ -290,6 +364,8 @@ namespace Tool_BotProtocol.Network
                 account = null;
                 packetReceivedEvent = null;
                 packetSendEvent = null;
+                PacketSent = null;
+                PacketRejected = null;
                 socketInformationEvent = null;
             }
             CloseSession(current);

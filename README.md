@@ -1,11 +1,15 @@
+# Outil Azur Retro
+
+L’état des fonctions corrigées, les écarts encore présents avec ce README et les critères de validation sont décrits dans [l’état du projet](docs/ETAT_PROJET.md). La suite reproductible compte **38 tests : 29 sans base et 9 d'intégration** ; voir [les tests](tests/README.md). Pour reprendre le projet rapidement, consulter aussi l'[inventaire de reprise](docs/INVENTAIRE_REPRISE.md).
+
 ## Émulateurs pris en charge
 
 Azur décrit chaque émulateur par un **profil** (`tools/Tools_protocol.Emulators`) : où se trouve chaque table (base auth ou world), quelles fonctions l'outil sait y utiliser et ce qu'il charge au démarrage. Le menu grise les outils qu'un profil ne gère pas et en donne la raison ; la configuration affiche la prise en charge de chaque émulateur. Ajouter un émulateur revient à ajouter un profil.
 
 | Émulateur | Pris en charge aujourd'hui |
 | --- | --- |
-| **Kryone V2** (kauth / kworld) | Tous les outils : comptes, personnages, inventaires, création d'objets, 24 éditeurs de ressources, recherche, placements et export XML vers le bot. C'est la seule cible vérifiée par les tests d'intégration. |
-| **StarLoco** | Le client bot (connexion Login/Game, personnages, déplacements, sorts). Les éditeurs SQL attendent la correspondance de ses tables `login`/`game`, qui ne sont pas interchangeables avec celles de Kryone. L'éditeur de cartes, les objets du client et le gestionnaire fonctionnent sans base. |
+| **Kryone V2** (kauth / kworld) | Tous les outils : comptes, personnages, inventaires, création d'objets, 24 éditeurs de ressources, recherche, placements et export XML vers le bot. C'est la cible de référence des tests d'intégration. |
+| **StarLoco** (login / game) | Les mêmes outils SQL que Kryone sur ses deux bases : comptes, personnages et exemplaires d'objets (`world.entity.objects`) dans `login` ; modèles d'objets, panoplies, recettes, 24 éditeurs de ressources, recherche, placements et export XML vers le bot dans `game`. Le profil porte les noms de ses 58 tables et les colonnes renommées ; pas de titres ni de paroli. Vérifié par un test d'intégration sur ses schémas `login`/`game` ; voir [la compatibilité StarLoco](docs/STARLOCO_COMPATIBILITE.md). Le client bot (connexion Login/Game, personnages, déplacements, sorts) reste à valider sur un vrai serveur. |
 | **Sunshine** | Consultation des comptes uniquement. |
 | **Codebreak** | Connexion aux bases uniquement ; les outils SQL ne sont pas encore adaptés à son schéma. |
 
@@ -125,9 +129,9 @@ Le bouton **Placements serveur** superpose les PNJ, groupes fixes, zaaps et encl
 L'éditeur ne peut pas être lancé si l'application ne détecte pas les fichiers d'images nécéssaires à son bon fonctionnement, il est donc important de vérifier leurs présence et que ce soit bien des images de tuiles de carte correspondantes aux dossiers présents à la racine d'AzurToolRetro.
 
 ### Client AzurToolBot
-Le client est une re-création en C# du client Dofus Retro, qui parle directement le protocole **Login/Game de StarLoco** (connexion, serveurs, sélection et création de personnage, cartes, déplacements, discussion, caractéristiques, inventaire, sorts et métiers). Il reprend des éléments du bot de **Salesprendes**. Son interface suit la composition du client d'origine : grande carte, bandeau de jeu en bas, fiches refermables. Le [guide du bot](docs/BOT_STARLOCO.md) décrit son utilisation et ses limites.
+Le client est une re-création en C# du client Dofus Retro, qui parle directement le protocole **Login/Game de StarLoco** (connexion, serveurs, sélection et création de personnage, cartes, déplacements, discussion, caractéristiques, inventaire, dialogues PNJ, zaaps, boutique PNJ, sorts et métiers). Il reprend des éléments du bot de **Salesprendes**. Son interface suit la composition du client d'origine : grande carte, bandeau de jeu en bas, fiches refermables. Ses boutons, le bandeau de connexion, le socle de l'aperçu de création et les icônes du bandeau de jeu sont les éléments graphiques du client Dofus 1.34 fourni, exportés de `core.swf` ([provenance](Outil_Azur_complet/Resources/Bot/Client/PROVENANCE.md)). Les formats de paquets que le bot suit sont ceux relevés dans le code du client : [référence du protocole](docs/PROTOCOLE_CLIENT_1_34.md), produite par les outils de [`tools/client-analysis`](tools/client-analysis/README.md). Le [guide du bot](docs/BOT_STARLOCO.md) décrit son utilisation et ses limites.
 
-Ce qui est vérifié aujourd'hui l'est par des tests sur boucle locale avec des serveurs fictifs ; la connexion à un vrai StarLoco reste à valider. Le combat et les interactions sont partiels.
+Ce qui est vérifié aujourd'hui l'est par des tests sur boucle locale avec des serveurs fictifs ; la connexion à un vrai StarLoco reste à valider. Le combat reste partiel ; les dialogues PNJ, les zaaps, la boutique PNJ et les actions d'inventaire (équiper, utiliser, jeter) sont vérifiés avec des paquets fictifs aux formats du client 1.34 et de StarLoco, sans validation en jeu réel.
 
 Les trois modes historiquement annoncés ne sont **pas disponibles** et ne sont pas proposés dans l'interface :
 

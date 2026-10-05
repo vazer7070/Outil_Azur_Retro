@@ -94,6 +94,8 @@ internal static class BotCombatSmoke
                     await Feed(account, "GM|+9;1;0;-7;101;-2;1100^100;1;-1;-1;-1;0,0,0,0;60;4;2;1");
                     Check(fight.Fighters[-7].ActionPoints == 4 && fight.Fighters[-7].Team == 1 && account.Game.Map.Entites.ContainsKey(-7), "Combat GM monster layout ignored");
                     await Feed(account, "GTM|42;0;100;8;3;0;;100|-7;0;60;4;2;9;;60|malformed");
+                    await Feed(account, "GTL|42|-7"); await Feed(account, "GTR42");
+                    Check(fight.TurnOrder.SequenceEqual(new[] { 42, -7 }) && await Within(Read(peer)) == "GT", "GTL order or GTR acknowledgement missing");
                     await Feed(account, "GTS43|30000");
                     Check(!(await fight.CastSpellAsync(10, 3)).Sent && !(await fight.PassTurnAsync()).Sent, "Another actor's turn allows actions");
                     await Feed(account, "GTF43"); await Feed(account, "GTS42|30000");
@@ -138,8 +140,8 @@ internal static class BotCombatSmoke
                     await Feed(account, "GDM|900090|new-date|"); Check(await Within(Read(peer)) == "GI", "Map changed without requesting GI");
                     await oldMovement; Check(peer.Available == 0 && fight.IsInFight && account.IsFighting(), "Old combat map movement sends a stale ACK or clears fight");
                     await Feed(account, "GE0|0");
-                    Check(fight.Phase == CombatPhase.Finished && !fight.IsInFight && account.AccountStates == AccountStates.CONNECTED_INACTIVE && fight.Fighters.Count == 0,
-                        "Fight end retains stale state");
+                    Check(fight.Phase == CombatPhase.Finished && !fight.IsInFight && account.AccountStates == AccountStates.CONNECTED_INACTIVE && fight.Fighters.Count == 0
+                        && fight.LastResult != null && fight.LastResult.DurationMilliseconds == 0 && fight.TurnOrder.Count == 0, "Fight end retains stale state or loses GE");
                     await Feed(account, "GJK3|0|0|1|0|4"); await Feed(account, "GTS42|30000");
                     Check(fight.IsSpectator && !fight.IsMyTurn && !(await fight.CastSpellAsync(10, 3)).Sent, "Spectator can cast");
                     await Feed(account, "GV"); Check(await Within(Read(peer)) == "GC1" && !fight.IsInFight, "Leaving spectator mode retains fight state");

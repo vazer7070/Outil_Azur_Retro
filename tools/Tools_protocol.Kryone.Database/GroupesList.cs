@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Runtime.CompilerServices;
-using Tools_protocol.Json;
+using Tools_protocol.Emulators;
 using Tools_protocol.Query;
 
 namespace Tools_protocol.Kryone.Database
@@ -30,11 +30,12 @@ namespace Tools_protocol.Kryone.Database
 			set;
 		}
 
+		/// <summary>Table des groupes de droits selon le profil d'émulateur courant.</summary>
 		public static string TableGroupe
 		{
 			get
 			{
-				return JsonManager.SearchAuth("groupes");
+				return EmulatorRegistry.Current.Table("groupes");
 			}
 		}
 
@@ -43,11 +44,21 @@ namespace Tools_protocol.Kryone.Database
 			GroupesList.Grades = new Dictionary<int, string>();
 		}
 
+		/// <summary>Kryone nomme les colonnes nom/commandes, StarLoco name/commands.</summary>
 		public GroupesList(IDataReader reader)
 		{
-			this.Id = (int)reader["id"];
-			this.Nom = (string)reader["nom"];
-			this.Commandes = (string)reader["commandes"];
+			this.Id = Convert.ToInt32(reader["id"]);
+			this.Nom = Text(reader, "nom", "name");
+			this.Commandes = Text(reader, "commandes", "commands");
+		}
+
+		private static string Text(IDataRecord reader, params string[] columns)
+		{
+			foreach (string column in columns)
+				for (int index = 0; index < reader.FieldCount; index++)
+					if (string.Equals(reader.GetName(index), column, StringComparison.OrdinalIgnoreCase))
+						return reader.IsDBNull(index) ? "" : Convert.ToString(reader.GetValue(index));
+			return "";
 		}
 
 		public static void groupe()
@@ -55,7 +66,7 @@ namespace Tools_protocol.Kryone.Database
 			string[] args = new string[] { "*" };
 			string query = QueryBuilder.SelectFromQuery(args, GroupesList.TableGroupe, "", "");
 
-			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
+			using (MySqlConnection connection = new MySqlConnection(EmulatorRegistry.ConnectionFor("groupes")))
 			{
 				try
 				{
@@ -65,7 +76,7 @@ namespace Tools_protocol.Kryone.Database
 					{
 						if (!GroupesList.Grades.ContainsKey(Convert.ToInt32(lecteur["id"])))
 						{
-							GroupesList.Grades.Add(Convert.ToInt32(lecteur["id"]), lecteur["nom"].ToString());
+							GroupesList.Grades.Add(Convert.ToInt32(lecteur["id"]), Text(lecteur, "nom", "name"));
 						}
 					}
 					lecteur.Close();

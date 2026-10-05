@@ -1,0 +1,301 @@
+<?xml version='1.0' encoding='utf-8'?>
+<BotLang famille="interactiveobjects" langue="fr" version="198" source="interactiveobjects_fr_198.swf">
+<interactif id="1" nom="Frêne" type="1" competences="6" />
+<interactif id="2" nom="Scie" type="2" competences="101" />
+<interactif id="8" nom="Chêne" type="1" competences="10" />
+<interactif id="11" nom="Table de confection" type="2" competences="14,13" />
+<interactif id="12" nom="Atelier" type="2" competences="12,11" />
+<interactif id="13" nom="Etabli" type="2" competences="16,149,147,148,15,17" />
+<interactif id="15" nom="Chaudron" type="2" competences="" />
+<interactif id="16" nom="Zaap" type="3" competences="114,44" />
+<interactif id="17" nom="Fer" type="1" competences="24" />
+<interactif id="22" nom="Four" type="2" competences="27,109" />
+<interactif id="24" nom="Argent" type="1" competences="29" />
+<interactif id="25" nom="Or" type="1" competences="30" />
+<interactif id="26" nom="Pierre de Bauxite" type="1" competences="31" />
+<interactif id="27" nom="Moule" type="2" competences="32" />
+<interactif id="28" nom="If" type="1" competences="33" />
+<interactif id="29" nom="Ebène" type="1" competences="34" />
+<interactif id="30" nom="Orme" type="1" competences="35" />
+<interactif id="31" nom="Erable" type="1" competences="37" />
+<interactif id="32" nom="Charme" type="1" competences="38" />
+<interactif id="33" nom="Châtaignier" type="1" competences="39" />
+<interactif id="34" nom="Noyer" type="1" competences="40" />
+<interactif id="35" nom="Merisier" type="1" competences="41" />
+<interactif id="37" nom="Pierre de Kobalte" type="1" competences="28" />
+<interactif id="38" nom="Blé" type="1" competences="45" />
+<interactif id="39" nom="Houblon" type="1" competences="46" />
+<interactif id="40" nom="Moulin" type="2" competences="" />
+<interactif id="41" nom="Meule" type="2" competences="48" />
+<interactif id="42" nom="Lin" type="1" competences="68,50" />
+<interactif id="43" nom="Orge" type="1" competences="53" />
+<interactif id="44" nom="Seigle" type="1" competences="52" />
+<interactif id="45" nom="Avoine" type="1" competences="57" />
+<interactif id="46" nom="Chanvre" type="1" competences="69,54" />
+<interactif id="47" nom="Malt" type="1" competences="58" />
+<interactif id="48" nom="Tas de patates" type="1" competences="42" />
+<interactif id="49" nom="Table à Patates" type="2" competences="22" />
+<interactif id="50" nom="Concasseur" type="2" competences="122,47" />
+<interactif id="52" nom="Etain" type="1" competences="55" />
+<interactif id="53" nom="Pierre Cuivrée" type="1" competences="25" />
+<interactif id="54" nom="Manganèse" type="1" competences="56" />
+<interactif id="55" nom="Bronze" type="1" competences="26" />
+<interactif id="56" nom="Source de jouvence" type="4" competences="62" />
+<interactif id="57" nom="Enclume" type="2" competences="67,146,19,18,20,143,145,142,144,66,65,21" />
+<interactif id="58" nom="Machine à Coudre" type="2" competences="63" />
+<interactif id="60" nom="Marmite" type="7" competences="111" />
+<interactif id="61" nom="Edelweiss" type="1" competences="74" />
+<interactif id="62" nom="Alembic" type="2" competences="96" />
+<interactif id="63" nom="Froment" type="1" competences="" />
+<interactif id="64" nom="Epeautre" type="1" competences="" />
+<interactif id="65" nom="Sorgho" type="1" competences="" />
+<interactif id="66" nom="Menthe Sauvage" type="1" competences="72" />
+<interactif id="67" nom="Trèfle à 5 feuilles" type="1" competences="71" />
+<interactif id="68" nom="Orchidée Freyesque" type="1" competences="73" />
+<interactif id="69" nom="Mortier &amp; Pilon" type="2" competences="" />
+<interactif id="70" nom="Porte" type="5" competences="97,98,84,100,81,108" />
+<interactif id="71" nom="Petits poissons (mer)" type="1" competences="128" />
+<interactif id="72" nom="Somoon Agressif" type="1" competences="" />
+<interactif id="73" nom="Pwoulpe" type="1" competences="" />
+<interactif id="74" nom="Poissons (rivière)" type="1" competences="125" />
+<interactif id="75" nom="Petits poissons (rivière)" type="1" competences="124" />
+<interactif id="76" nom="Gros poissons (rivière)" type="1" competences="126" />
+<interactif id="77" nom="Poissons (mer)" type="1" competences="129" />
+<interactif id="78" nom="Gros poissons (mer)" type="1" competences="130" />
+<interactif id="79" nom="Poissons géants (rivière)" type="1" competences="127" />
+<interactif id="80" nom="Truite Vaseuse" type="1" competences="" />
+<interactif id="81" nom="Poissons géants (mer)" type="1" competences="131" />
+<interactif id="82" nom="Coton" type="1" competences="" />
+<interactif id="83" nom="Fileuse" type="2" competences="95" />
+<interactif id="84" nom="Puits" type="1" competences="102" />
+<interactif id="85" nom="Coffre" type="6" competences="106,105,104" />
+<interactif id="86" nom="Machine à Coudre" type="2" competences="64,123" />
+<interactif id="88" nom="Etabli en bois" type="2" competences="110" />
+<interactif id="90" nom="Alambic" type="2" competences="23" />
+<interactif id="92" nom="Enclume magique" type="2" competences="1,116,113,119,120,117,118,115" />
+<interactif id="93" nom="Concasseur Munster" type="2" competences="121,181" />
+<interactif id="94" nom="Plan de Travail" type="2" competences="135" />
+<interactif id="95" nom="Plan de travail" type="2" competences="132" />
+<interactif id="96" nom="Plan de Travail" type="2" competences="133" />
+<interactif id="97" nom="Plan de Travail" type="2" competences="134" />
+<interactif id="98" nom="Bombu" type="1" competences="139" />
+<interactif id="99" nom="Ombre étrange" type="1" competences="140" />
+<interactif id="100" nom="Pichon" type="1" competences="136" />
+<interactif id="101" nom="Oliviolet" type="1" competences="141" />
+<interactif id="102" nom="Machine de force" type="1" competences="150" />
+<interactif id="103" nom="Etabli Pyrotechnique" type="2" competences="151" />
+<interactif id="104" nom="KoinKoin" type="1" competences="152" />
+<interactif id="105" nom="Poubelle" type="6" competences="153" />
+<interactif id="106" nom="Zaapi" type="10" competences="157" />
+<interactif id="107" nom="Enclume à boucliers" type="2" competences="156" />
+<interactif id="108" nom="Bambou" type="1" competences="154" />
+<interactif id="109" nom="Bambou sombre" type="1" competences="155" />
+<interactif id="110" nom="Bambou sacré" type="1" competences="158" />
+<interactif id="111" nom="Riz" type="1" competences="159" />
+<interactif id="112" nom="Pandouille" type="1" competences="160" />
+<interactif id="113" nom="Dolomite" type="1" competences="161" />
+<interactif id="114" nom="Silicate" type="1" competences="162" />
+<interactif id="116" nom="Machine à Coudre Magique" type="2" competences="165,166,167" />
+<interactif id="117" nom="Atelier Magique" type="2" competences="169,168" />
+<interactif id="118" nom="Table Magique" type="2" competences="164,163" />
+<interactif id="119" nom="Liste des artisans" type="12" competences="170" />
+<interactif id="120" nom="Enclos" type="13" competences="176,177,175,178" />
+<interactif id="121" nom="Kaliptus" type="1" competences="174" />
+<interactif id="122" nom="Atelier de bricolage" type="2" competences="182,171" />
+<interactif id="127" nom="Levier" type="14" competences="179" />
+<interactif id="128" nom="Statue de classe" type="15" competences="183" />
+<interactif id="131" nom="Perce-neige" type="1" competences="188" />
+<interactif id="132" nom="Poisson de Frigost" type="1" competences="189" />
+<interactif id="133" nom="Tremble" type="1" competences="190" />
+<interactif id="134" nom="Frostizz" type="1" competences="191" />
+<interactif id="135" nom="Obsidienne" type="1" competences="192" />
+<gfx id="1845" interactif="128" />
+<gfx id="1853" interactif="128" />
+<gfx id="1854" interactif="128" />
+<gfx id="1855" interactif="128" />
+<gfx id="1856" interactif="128" />
+<gfx id="1857" interactif="128" />
+<gfx id="1858" interactif="128" />
+<gfx id="1859" interactif="128" />
+<gfx id="1860" interactif="128" />
+<gfx id="1861" interactif="128" />
+<gfx id="1862" interactif="128" />
+<gfx id="2319" interactif="128" />
+<gfx id="4287" interactif="16" />
+<gfx id="4516" interactif="70" />
+<gfx id="6700" interactif="70" />
+<gfx id="6701" interactif="70" />
+<gfx id="6702" interactif="70" />
+<gfx id="6703" interactif="70" />
+<gfx id="6704" interactif="70" />
+<gfx id="6705" interactif="70" />
+<gfx id="6706" interactif="70" />
+<gfx id="6707" interactif="70" />
+<gfx id="6708" interactif="70" />
+<gfx id="6709" interactif="70" />
+<gfx id="6710" interactif="70" />
+<gfx id="6711" interactif="70" />
+<gfx id="6713" interactif="70" />
+<gfx id="6714" interactif="70" />
+<gfx id="6715" interactif="70" />
+<gfx id="6716" interactif="70" />
+<gfx id="6717" interactif="70" />
+<gfx id="6718" interactif="70" />
+<gfx id="6719" interactif="70" />
+<gfx id="6720" interactif="70" />
+<gfx id="6721" interactif="70" />
+<gfx id="6722" interactif="70" />
+<gfx id="6723" interactif="70" />
+<gfx id="6724" interactif="70" />
+<gfx id="6725" interactif="70" />
+<gfx id="6726" interactif="70" />
+<gfx id="6729" interactif="70" />
+<gfx id="6730" interactif="70" />
+<gfx id="6731" interactif="70" />
+<gfx id="6732" interactif="70" />
+<gfx id="6733" interactif="70" />
+<gfx id="6734" interactif="70" />
+<gfx id="6735" interactif="70" />
+<gfx id="6736" interactif="70" />
+<gfx id="6737" interactif="70" />
+<gfx id="6738" interactif="70" />
+<gfx id="6739" interactif="70" />
+<gfx id="6740" interactif="70" />
+<gfx id="6741" interactif="70" />
+<gfx id="6742" interactif="70" />
+<gfx id="6743" interactif="70" />
+<gfx id="6744" interactif="70" />
+<gfx id="6745" interactif="70" />
+<gfx id="6746" interactif="70" />
+<gfx id="6747" interactif="70" />
+<gfx id="6748" interactif="70" />
+<gfx id="6749" interactif="70" />
+<gfx id="6750" interactif="70" />
+<gfx id="6751" interactif="70" />
+<gfx id="6752" interactif="70" />
+<gfx id="6753" interactif="70" />
+<gfx id="6754" interactif="70" />
+<gfx id="6755" interactif="70" />
+<gfx id="6756" interactif="70" />
+<gfx id="6757" interactif="70" />
+<gfx id="6758" interactif="70" />
+<gfx id="6759" interactif="70" />
+<gfx id="6760" interactif="70" />
+<gfx id="6761" interactif="70" />
+<gfx id="6762" interactif="70" />
+<gfx id="6763" interactif="120" />
+<gfx id="6764" interactif="70" />
+<gfx id="6765" interactif="70" />
+<gfx id="6766" interactif="120" />
+<gfx id="6767" interactif="120" />
+<gfx id="6768" interactif="70" />
+<gfx id="6769" interactif="70" />
+<gfx id="6770" interactif="70" />
+<gfx id="6772" interactif="120" />
+<gfx id="6773" interactif="70" />
+<gfx id="6774" interactif="70" />
+<gfx id="6775" interactif="70" />
+<gfx id="6776" interactif="70" />
+<gfx id="7000" interactif="16" />
+<gfx id="7001" interactif="22" />
+<gfx id="7002" interactif="27" />
+<gfx id="7003" interactif="2" />
+<gfx id="7004" interactif="56" />
+<gfx id="7005" interactif="41" />
+<gfx id="7006" interactif="49" />
+<gfx id="7007" interactif="50" />
+<gfx id="7008" interactif="12" />
+<gfx id="7009" interactif="12" />
+<gfx id="7010" interactif="12" />
+<gfx id="7011" interactif="11" />
+<gfx id="7012" interactif="57" />
+<gfx id="7013" interactif="13" />
+<gfx id="7014" interactif="58" />
+<gfx id="7015" interactif="86" />
+<gfx id="7016" interactif="58" />
+<gfx id="7017" interactif="60" />
+<gfx id="7018" interactif="88" />
+<gfx id="7019" interactif="90" />
+<gfx id="7020" interactif="92" />
+<gfx id="7021" interactif="93" />
+<gfx id="7022" interactif="94" />
+<gfx id="7023" interactif="97" />
+<gfx id="7024" interactif="96" />
+<gfx id="7025" interactif="95" />
+<gfx id="7026" interactif="16" />
+<gfx id="7027" interactif="107" />
+<gfx id="7028" interactif="103" />
+<gfx id="7029" interactif="16" />
+<gfx id="7030" interactif="106" />
+<gfx id="7031" interactif="106" />
+<gfx id="7035" interactif="119" />
+<gfx id="7036" interactif="116" />
+<gfx id="7037" interactif="118" />
+<gfx id="7038" interactif="117" />
+<gfx id="7039" interactif="122" />
+<gfx id="7041" interactif="127" />
+<gfx id="7042" interactif="127" />
+<gfx id="7043" interactif="127" />
+<gfx id="7044" interactif="127" />
+<gfx id="7045" interactif="127" />
+<gfx id="7350" interactif="85" />
+<gfx id="7351" interactif="85" />
+<gfx id="7352" interactif="105" />
+<gfx id="7353" interactif="85" />
+<gfx id="7500" interactif="1" />
+<gfx id="7501" interactif="33" />
+<gfx id="7502" interactif="34" />
+<gfx id="7503" interactif="8" />
+<gfx id="7504" interactif="31" />
+<gfx id="7505" interactif="28" />
+<gfx id="7506" interactif="35" />
+<gfx id="7507" interactif="29" />
+<gfx id="7508" interactif="32" />
+<gfx id="7509" interactif="30" />
+<gfx id="7510" interactif="48" />
+<gfx id="7511" interactif="38" />
+<gfx id="7512" interactif="39" />
+<gfx id="7513" interactif="42" />
+<gfx id="7514" interactif="46" />
+<gfx id="7515" interactif="43" />
+<gfx id="7516" interactif="44" />
+<gfx id="7517" interactif="45" />
+<gfx id="7518" interactif="47" />
+<gfx id="7519" interactif="84" />
+<gfx id="7520" interactif="17" />
+<gfx id="7521" interactif="52" />
+<gfx id="7522" interactif="53" />
+<gfx id="7523" interactif="55" />
+<gfx id="7524" interactif="54" />
+<gfx id="7525" interactif="37" />
+<gfx id="7526" interactif="24" />
+<gfx id="7527" interactif="25" />
+<gfx id="7528" interactif="26" />
+<gfx id="7529" interactif="75" />
+<gfx id="7530" interactif="71" />
+<gfx id="7531" interactif="77" />
+<gfx id="7532" interactif="74" />
+<gfx id="7533" interactif="67" />
+<gfx id="7534" interactif="66" />
+<gfx id="7535" interactif="68" />
+<gfx id="7536" interactif="61" />
+<gfx id="7537" interactif="76" />
+<gfx id="7538" interactif="78" />
+<gfx id="7539" interactif="79" />
+<gfx id="7540" interactif="81" />
+<gfx id="7541" interactif="98" />
+<gfx id="7542" interactif="101" />
+<gfx id="7543" interactif="99" />
+<gfx id="7544" interactif="100" />
+<gfx id="7546" interactif="102" />
+<gfx id="7547" interactif="102" />
+<gfx id="7549" interactif="104" />
+<gfx id="7550" interactif="111" />
+<gfx id="7551" interactif="112" />
+<gfx id="7552" interactif="110" />
+<gfx id="7553" interactif="108" />
+<gfx id="7554" interactif="109" />
+<gfx id="7555" interactif="113" />
+<gfx id="7556" interactif="114" />
+<gfx id="7557" interactif="121" />
+</BotLang>

@@ -1,7 +1,8 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [switch]$Integration,
     [switch]$NoBuild,
+    [switch]$Outils,
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Debug',
     [ValidateRange(10, 600)]
@@ -45,10 +46,33 @@ try {
     $azurTests += 'AllEditorsWorkflowSmoke'
     $azurTests += 'ItemClientSwfSmoke'
     $azurTests += @('NetworkCaptureSmoke', 'BotTransportSmoke')
-    $azurTests += @('BotConfigSmoke', 'BotHandshakeSmoke', 'BotGameplaySmoke', 'BotSpellsSmoke', 'BotSpellXmlSmoke', 'BotMapViewSmoke', 'BotUiSmoke')
+    $azurTests += @('BotConfigSmoke', 'BotHandshakeSmoke', 'BotGameplaySmoke', 'BotSpellsSmoke', 'BotSpellXmlSmoke', 'BotMapViewSmoke', 'BotUiSmoke', 'BotClientSkinSmoke')
     $azurTests += @('BotCombatSmoke', 'BotCombatUiSmoke', 'BotEntitiesSmoke')
+    $azurTests += @('BotDialogsSmoke', 'BotShopSmoke')
     $azurTests += 'ResourceManagerSmoke'
     $azurTests += 'EmulatorProfileSmoke'
+    $azurTests += 'BotSessionSmoke'
+    $azurTests += 'BotActorsModelSmoke'
+    $azurTests += 'BotPanelsSmoke'
+    $azurTests += 'BotServerExportsSmoke'
+    $azurTests += 'BotLangDataSmoke'
+    $azurTests += 'BotDecorAnchorsSmoke'
+    $azurTests += 'BotFightProtocolSmoke'
+    $azurTests += 'BotChatProtocolSmoke'
+    $azurTests += 'BotNpcDialogTextsSmoke'
+    $azurTests += 'BotSpriteSheetsSmoke'
+    $azurTests += 'BotMovementSmoke'
+    $azurTests += 'BotExchangeSmoke'
+    $azurTests += 'BotMapActionsSmoke'
+    $azurTests += 'BotClientIconsSmoke'
+    $azurTests += 'BotInteractivesSmoke'
+    $azurTests += 'BotPartySmoke'
+    $azurTests += 'BotActorRenderSmoke'
+    $azurTests += 'BotFriendsSmoke'
+    $azurTests += 'BotChatUiSmoke'
+    $azurTests += 'BotServerCommandsSmoke'
+    $azurTests += 'BotBannerSmoke'
+    $azurTests += 'BotFightUiSmoke'
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'
@@ -75,6 +99,7 @@ try {
         $azurTests += @('InventoryIntegrationSmoke', 'ModerationIntegrationSmoke', 'ItemCreationIntegrationSmoke', 'ResourceExportIntegrationSmoke', 'MapActionIntegrationSmoke', 'ServerEditingIntegrationSmoke')
         $azurTests += 'AllEditorsIntegrationSmoke'
         $azurTests += 'KauthSchemaIntegrationSmoke'
+        $azurTests += 'StarLocoSchemaIntegrationSmoke'
     }
 
     Push-Location -LiteralPath $azurWork
@@ -106,6 +131,26 @@ try {
         }
     }
     finally { Pop-Location }
+    if ($Outils) {
+        # Outils d'analyse du client (Rust) : swfsvg se teste sur un SWF fabriqué par ses tests.
+        if (!(Get-Command cargo -ErrorAction SilentlyContinue)) { throw 'cargo est introuvable : installez Rust ou retirez -Outils.' }
+        & cargo test --release --quiet --manifest-path (Join-Path $azurRoot 'tools\client-analysis\swfsvg\Cargo.toml')
+        if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de swfsvg.' }
+        Write-Host 'Tests de swfsvg réussis.'
+        # Export des sprites d'acteurs (Python, cairosvg et Pillow) : faux swfsvg, aucun fichier du client.
+        $azurPython = Get-Command python3, python -ErrorAction SilentlyContinue | Select-Object -First 1
+        if (!$azurPython) { throw 'Python 3 est introuvable : installez-le avec cairosvg et Pillow ou retirez -Outils.' }
+        & $azurPython.Source (Join-Path $azurRoot 'tools\client-analysis\tests\test_exporter_sprites.py')
+        if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de exporter_sprites.py.' }
+        & $azurPython.Source (Join-Path $azurRoot 'tools\client-analysis\tests\test_exporter_icons.py')
+        if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de exporter_icons.py.' }
+        & $azurPython.Source (Join-Path $azurRoot 'tools\client-analysis\test_docs2xml.py')
+        if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de docs2xml.py.' }
+        & $azurPython.Source (Join-Path $azurRoot 'tools\client-analysis\tests\test_exporter_etats_interactifs.py')
+        if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de exporter_etats_interactifs.py.' }
+        & $azurPython.Source (Join-Path $azurRoot 'tools\client-analysis\tests\test_exporter_artworks.py')
+        if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de exporter_artworks.py.' }
+    }
     Write-Host "$($azurTests.Count) tests réussis. Fichiers temporaires et journaux : $azurWork"
 }
 finally {

@@ -28,7 +28,8 @@ namespace Outil_Azur_complet.editeur_perso
         public CharacterSkillKind Kind { get; internal set; }
         public IReadOnlyList<CharacterSkillEntry> Entries { get; internal set; }
         public IReadOnlyList<CharacterSkillChoice> Choices { get; internal set; }
-        internal string ConnectionString, PlayerTable, AccountTable, TemplateTable;
+        /// <summary>TemplateReference est déjà entre accents graves, qualifiée par sa base si le profil la place ailleurs.</summary>
+        internal string ConnectionString, PlayerTable, AccountTable, TemplateReference;
         internal object Original;
     }
     public static class CharacterSkillsService
@@ -42,11 +43,13 @@ namespace Outil_Azur_complet.editeur_perso
         {
             if (characterId <= 0) throw new ArgumentOutOfRangeException(nameof(characterId));
             string column = Column(kind);
+            string connectionString = ServerSql.ConnectionFor("perso", EmulatorFeature.Characters);
             var result = new CharacterSkillsSnapshot
             {
-                CharacterId = characterId, Kind = kind, ConnectionString = ServerSql.AuthConnection(EmulatorFeature.Characters),
+                CharacterId = characterId, Kind = kind, ConnectionString = connectionString,
                 PlayerTable = CharacterList.TablePerso, AccountTable = AccountList.TableCompte,
-                TemplateTable = kind == CharacterSkillKind.Spells ? SpellsList.TableSort : JobsList.TableJobs
+                // Les sorts et métiers de StarLoco sont dans game : la référence est alors qualifiée par cette base.
+                TemplateReference = ServerSql.TableReference(connectionString, kind == CharacterSkillKind.Spells ? "sort" : "metiers")
             };
             using (var connection = new MySqlConnection(result.ConnectionString))
             {
@@ -64,7 +67,7 @@ namespace Outil_Azur_complet.editeur_perso
                 result.Entries = Parse(Convert.ToString(result.Original), kind);
                 var choices = new List<CharacterSkillChoice>();
                 string nameColumn = kind == CharacterSkillKind.Spells ? "nom" : "name";
-                using (var command = new MySqlCommand($"SELECT `id`, `{nameColumn}` FROM {ServerSql.Identifier(result.TemplateTable)} ORDER BY `{nameColumn}`, `id`", connection))
+                using (var command = new MySqlCommand($"SELECT `id`, `{nameColumn}` FROM {result.TemplateReference} ORDER BY `{nameColumn}`, `id`", connection))
                 using (var reader = command.ExecuteReader())
                     while (reader.Read()) choices.Add(new CharacterSkillChoice { Id = Convert.ToInt32(reader["id"]), Name = Convert.ToString(reader[nameColumn]) });
                 result.Choices = choices;
@@ -143,7 +146,7 @@ namespace Outil_Azur_complet.editeur_perso
                             throw new InvalidOperationException("Le compte doit exister et être déconnecté.");
                     }
                     foreach (var entry in list)
-                        using (var command = new MySqlCommand($"SELECT `id` FROM {ServerSql.Identifier(snapshot.TemplateTable)} WHERE `id`=@id", connection, transaction))
+                        using (var command = new MySqlCommand($"SELECT `id` FROM {snapshot.TemplateReference} WHERE `id`=@id", connection, transaction))
                         {
                             command.Parameters.AddWithValue("@id", entry.Id);
                             if (command.ExecuteScalar() == null) throw new FormatException($"La compétence {entry.Id} n'existe pas dans les ressources.");
