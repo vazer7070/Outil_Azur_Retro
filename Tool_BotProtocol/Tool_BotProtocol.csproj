@@ -177,6 +177,7 @@
     <Compile Include="Game\GameClass.cs" />
     <Compile Include="Game\Interactions\DocumentDialog.cs" />
     <Compile Include="Game\Interactions\Interactions.cs" />
+    <Compile Include="Game\Exchanges\CollectorExchange.cs" />
     <Compile Include="Game\Exchanges\ExchangeRegistry.cs" />
     <Compile Include="Game\Exchanges\IExchange.cs" />
     <Compile Include="Game\Exchanges\PlayerExchange.cs" />
@@ -258,6 +259,8 @@
     <Compile Include="Game\Session\ServerMessage.cs" />
     <Compile Include="Game\Social\Friends.cs" />
     <Compile Include="Game\Social\FriendsActions.cs" />
+    <Compile Include="Game\Guildes\Guild.cs" />
+    <Compile Include="Game\Guildes\GuildActions.cs" />
     <Compile Include="Json\AccountsJson.cs" />
     <Compile Include="Json\Config.cs" />
     <Compile Include="Network\ByPass\ByPassLauncher.cs" />
