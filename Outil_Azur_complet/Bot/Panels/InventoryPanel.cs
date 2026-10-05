@@ -33,8 +33,9 @@ namespace Outil_Azur_complet.Bot.Panels
         private Panel sheetArea, podsGauge;
         private Label kamasLabel, podsLabel, inventoryHelp;
         private FlowLayoutPanel filters;
-        // Un bouton par filtre, sa catégorie dans Tag (null = tout le sac : un dictionnaire refuserait cette clé).
-        private readonly List<ClientButton> filterButtons = new List<ClientButton>();
+        // Un bouton par filtre avec sa catégorie (null = tout le sac : un dictionnaire refuserait cette clé ; Tag reste libre
+        // pour les étiquettes texte que les tests de l'habillage lisent sur tous les boutons de la fenêtre).
+        private readonly List<KeyValuePair<ItemCategory?, ClientButton>> filterButtons = new List<KeyValuePair<ItemCategory?, ClientButton>>();
         private ItemCategory? filter;
         private NumericUpDown inventoryQuantity;
         private Control equipItem, unequipItem, useItem, dropItem, destroyItem;
@@ -120,17 +121,16 @@ namespace Outil_Azur_complet.Bot.Panels
         {
             var button = (ClientButton)MakeButton(title, (s, e) => Filter = category, false, width);
             button.Height = 24; button.Margin = new Padding(0, 0, 3, 0); button.Font = BotFonts.Get(8);
-            button.Tag = category;
-            filterButtons.Add(button);
+            filterButtons.Add(new KeyValuePair<ItemCategory?, ClientButton>(category, button));
             filters.Controls.Add(button);
         }
 
         private void UpdateFilterButtons()
         {
-            foreach (ClientButton button in filterButtons)
+            foreach (KeyValuePair<ItemCategory?, ClientButton> entry in filterButtons)
             {
-                bool active = (ItemCategory?)button.Tag == filter;
-                button.Primary = active; button.Font = BotFonts.Get(8, active ? FontStyle.Bold : FontStyle.Regular); button.Invalidate();
+                bool active = entry.Key == filter;
+                entry.Value.Primary = active; entry.Value.Font = BotFonts.Get(8, active ? FontStyle.Bold : FontStyle.Regular); entry.Value.Invalidate();
             }
         }
 
