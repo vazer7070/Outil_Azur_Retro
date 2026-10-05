@@ -33,13 +33,17 @@ namespace Outil_Azur_complet.Bot.Panels
         private Panel sheetArea, podsGauge;
         private Label kamasLabel, podsLabel, inventoryHelp;
         private FlowLayoutPanel filters;
-        private readonly Dictionary<ItemCategory?, ClientButton> filterButtons = new Dictionary<ItemCategory?, ClientButton>();
+        // Un bouton par filtre, sa catégorie dans Tag (null = tout le sac : un dictionnaire refuserait cette clé).
+        private readonly List<ClientButton> filterButtons = new List<ClientButton>();
         private ItemCategory? filter;
         private NumericUpDown inventoryQuantity;
         private Control equipItem, unequipItem, useItem, dropItem, destroyItem;
         private ContextMenuStrip itemMenu;
         private bool dropArmed, refreshing, destroyPending;
         private uint? selectedId;
+        // Dernier refus du serveur (OAE, ODE, OdE, Im1…) : gardé sous l'objet jusqu'au prochain changement de sélection ou
+        // d'inventaire, car la fenêtre de jeu rafraîchit les volets visibles à chaque mise à jour d'état.
+        private string serverNotice;
         private InventoryClass bag;
         private CharacterClass character;
         private GameSession session;
@@ -117,16 +121,16 @@ namespace Outil_Azur_complet.Bot.Panels
             var button = (ClientButton)MakeButton(title, (s, e) => Filter = category, false, width);
             button.Height = 24; button.Margin = new Padding(0, 0, 3, 0); button.Font = BotFonts.Get(8);
             button.Tag = category;
-            filterButtons[category] = button;
+            filterButtons.Add(button);
             filters.Controls.Add(button);
         }
 
         private void UpdateFilterButtons()
         {
-            foreach (KeyValuePair<ItemCategory?, ClientButton> entry in filterButtons)
+            foreach (ClientButton button in filterButtons)
             {
-                bool active = entry.Key == filter;
-                entry.Value.Primary = active; entry.Value.Font = BotFonts.Get(8, active ? FontStyle.Bold : FontStyle.Regular); entry.Value.Invalidate();
+                bool active = (ItemCategory?)button.Tag == filter;
+                button.Primary = active; button.Font = BotFonts.Get(8, active ? FontStyle.Bold : FontStyle.Regular); button.Invalidate();
             }
         }
 
@@ -151,7 +155,7 @@ namespace Outil_Azur_complet.Bot.Panels
         private void OnInventoryChanged(bool changed) => OnUi(() =>
         {
             if (!changed) ShowHelp(Game?.character?.Inventory?.LastServerMessage);
-            else RefreshView();
+            else { serverNotice = null; RefreshView(); }
         });
 
         private void OnStatsChanged() => OnUi(UpdateHeader);
@@ -166,8 +170,9 @@ namespace Outil_Azur_complet.Bot.Panels
         private void ShowHelp(string message)
         {
             if (string.IsNullOrEmpty(message) || inventoryHelp == null) return;
-            inventoryHelp.Text = message;
+            serverNotice = message;
             Feedback(message);
+            UpdateActions();
         }
 
         public override void RefreshView()
@@ -225,7 +230,7 @@ namespace Outil_Azur_complet.Bot.Panels
 
         private void Select(uint? id, bool fromPlateau)
         {
-            if (selectedId != id) DisarmDrop();
+            if (selectedId != id) { DisarmDrop(); serverNotice = null; }
             selectedId = id;
             refreshing = true;
             try
@@ -266,13 +271,15 @@ namespace Outil_Azur_complet.Bot.Panels
             useItem.Text = SpecialItems.IsDocument(item) ? "Lire" : "Utiliser";
             if (dropArmed) return;
             dropItem.Text = "Jeter";
-            // Pierres d'âme et documents (lot F14) : règle du serveur rappelée sous l'objet.
+            // Pierres d'âme et documents (lot F14) : règle du serveur rappelée sous l'objet ; dernier refus du serveur en dessous.
             string note = item == null ? null : SpecialItems.Note(item, Game.Map?.MapID ?? 0);
-            inventoryHelp.Text = item == null ? SelectText
+            string text = item == null ? SelectText
                 : item.Name + " · " + item.Qua + " · " + (worn ? ItemSlots.Name((int)item.position) : "dans le sac")
                     + (item.HasMetadata ? string.Empty : " · fiche absente de BotObjets et des textes du client")
                     + (note == null ? string.Empty : Environment.NewLine + note);
-            inventoryHelp.Height = note == null ? 46 : 80;
+            if (!string.IsNullOrEmpty(serverNotice)) text = (item == null ? string.Empty : text + Environment.NewLine) + serverNotice;
+            inventoryHelp.Text = text;
+            inventoryHelp.Height = note == null && (item == null || string.IsNullOrEmpty(serverNotice)) ? 46 : 80;
         }
 
         private void DisarmDrop() { dropArmed = false; if (dropItem != null) dropItem.Text = "Jeter"; }

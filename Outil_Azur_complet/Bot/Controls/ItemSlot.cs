@@ -239,6 +239,9 @@ namespace Outil_Azur_complet.Bot.Controls
         /// <summary>Clic droit : menu contextuel demandé.</summary>
         public event Action<ItemSlot, Point> MenuRequested;
 
+        /// <summary>Sélectionne l'emplacement par programme (clavier, tests) : lève <see cref="Activated"/> comme un clic gauche.</summary>
+        public void Activate() => Activated?.Invoke(this, EventArgs.Empty);
+
         /// <summary>Vrai si l'objet glissé peut être posé ici d'après son type (le serveur confirme ou refuse ensuite).</summary>
         public bool Accepts(InventoryObjects candidate) => candidate != null && ItemSlots.Accepts(Position, candidate.Type) && (int)candidate.position != Position;
 
