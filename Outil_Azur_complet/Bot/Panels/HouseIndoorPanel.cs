@@ -36,7 +36,8 @@ namespace Outil_Azur_complet.Bot.Panels
 
         public override string Title => HouseTexts.Text("HOUSE_WORD", "Maison");
         public override Image Icon => ClientAssets.Icon("UI_HouseIndoor", 24) ?? ClientAssets.Icon("icone-carte", 24);
-        public override bool IsModal => true;
+        /// <summary>Modal seulement quand la fenêtre de vente du serveur est ouverte : ouvert depuis le menu global, le volet ne ferme pas les autres fenêtres.</summary>
+        public override bool IsModal => IsServerWindowOpen;
         public override bool IsServerWindowOpen => Game?.Interactions?.House?.IsOpen == true;
         /// <summary>Boîte <c>DO_U_BUY_HOUSE</c> ouverte, ou <c>null</c> (diagnostic et tests).</summary>
         public Form BuyDialog => buyDialog;
