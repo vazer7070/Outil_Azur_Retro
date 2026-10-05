@@ -288,8 +288,9 @@ namespace Tool_BotProtocol.Game.Guildes
             name = (name ?? string.Empty).Trim();
             if (HasGuild) return Refused(GuildTexts.Get("GUILD_CREATE_ALLREADY_IN_GUILD", "Tu es déjà membre d'une guilde. Il t'est impossible d'en créer une nouvelle sans quitter la première."));
             if (!creationWindowOpen) return Refused("Utilisez une guildalogemme au temple des guildes (carte " + CreationMapId.ToString(CultureInfo.InvariantCulture) + ") : le serveur ouvre alors le panneau de création (gn).");
-            if (name.Length == 0 || name.Length > 20 || !name.All(character => (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || character == '-' || character == '\''))
-                return Refused("Nom de guilde invalide : 1 à 20 lettres sans accent, tirets ou apostrophes.");
+            if (name.Length == 0 || name.Length > 20 || name.Count(character => character == '-') > 2
+                || !name.All(character => (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || character == '-' || character == '\''))
+                return Refused("Nom de guilde invalide : 1 à 20 lettres sans accent ou apostrophes, deux tirets au plus.");
             if (backId < 1 || backColor < 0 || upId < 1 || upColor < 0) return Refused("Emblème invalide.");
             return SendAsync("gC" + backId.ToString(CultureInfo.InvariantCulture) + "|" + backColor.ToString(CultureInfo.InvariantCulture) + "|"
                 + upId.ToString(CultureInfo.InvariantCulture) + "|" + upColor.ToString(CultureInfo.InvariantCulture) + "|" + name, "Création de la guilde « " + name + " » demandée.");
@@ -358,7 +359,9 @@ namespace Tool_BotProtocol.Game.Guildes
                 {
                     GuildMember member;
                     if (line.Length == 0) continue;
-                    if (GuildMember.TryParse(line, out member)) entries.Add(member); else unreadable++;
+                    // Retrait (gIM-) : le client ne lit que l'identifiant de chaque entrée ; StarLoco n'envoie que gIM+ (liste entière).
+                    string entry = add ? line : line.Split(';')[0] + ";";
+                    if (GuildMember.TryParse(entry, out member)) entries.Add(member); else unreadable++;
                 }
             Guild.ApplyMembers(add, entries);
             if (unreadable > 0) Debug(unreadable.ToString(CultureInfo.InvariantCulture) + " ligne(s) de membre illisible(s) ignorée(s) : " + Preview(message));
@@ -388,14 +391,17 @@ namespace Tool_BotProtocol.Game.Guildes
                 if (body.Length == 0 || body == "null") { Guild.ClearCollectors(); RaiseChanged(); return; }
                 if (body[0] != '+' && body[0] != '-') { Malformed(message); return; }
                 var entries = new List<GuildCollector>();
+                var removed = new List<long>();
                 int unreadable = 0;
                 foreach (string line in body.Substring(1).Split('|'))
                 {
-                    GuildCollector collector;
+                    GuildCollector collector; long id;
                     if (line.Length == 0) continue;
-                    if (GuildCollector.TryParse(line, out collector)) entries.Add(collector); else unreadable++;
+                    // Retrait : le client ne lit que l'identifiant (base 36) de chaque entrée (removeTaxCollector).
+                    if (body[0] == '-') { if (GuildTexts.TryBase36(line.Split(';')[0], out id)) removed.Add(id); else unreadable++; }
+                    else if (GuildCollector.TryParse(line, out collector)) entries.Add(collector); else unreadable++;
                 }
-                Guild.ApplyCollectors(body[0] == '+', entries);
+                if (body[0] == '+') Guild.ApplyCollectors(true, entries); else Guild.RemoveCollectors(removed);
                 if (unreadable > 0) Debug(unreadable.ToString(CultureInfo.InvariantCulture) + " percepteur(s) illisible(s) ignoré(s) : " + Preview(message));
                 RaiseChanged();
                 return;

@@ -643,6 +643,16 @@ namespace Tool_BotProtocol.Game.Guildes
         internal void SetBoosts(GuildBoosts boosts) { lock (sync) { Boosts = boosts; BoostsReceived = true; } }
 
         /// <summary><c>gITM+</c> ajoute ou met à jour (les combattants connus sont gardés), <c>gITM-</c> retire ; <c>gITM</c> vide efface tout.</summary>
+        /// <summary>Retire les percepteurs listés (<c>gITM-</c>) par identifiant ; la liste reste reçue.</summary>
+        internal void RemoveCollectors(IReadOnlyList<long> ids)
+        {
+            lock (sync)
+            {
+                collectors = collectors.Where(collector => !ids.Contains(collector.Id)).ToArray();
+                CollectorsReceived = true;
+            }
+        }
+
         internal void ApplyCollectors(bool add, IReadOnlyList<GuildCollector> entries)
         {
             lock (sync)
