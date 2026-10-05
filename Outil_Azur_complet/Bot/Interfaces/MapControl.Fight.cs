@@ -115,7 +115,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
         {
             if (!flagMode || e == null || e.Handled) return;
             e.Handled = true;
-            FlagMode = false;
+            flagMode = false; UserMap.Cursor = Cursors.Default; // sortie silencieuse : le message qui suit vient de l'envoi
             var fight = Account.Game?.Fight;
             if (fight == null) return;
             try

@@ -270,7 +270,7 @@ namespace Outil_Azur_complet.Bot.Panels
         {
             if (disposing)
             {
-                if (icons != null) { foreach (Image image in icons.Images) image.Dispose(); icons.Dispose(); icons = null; }
+                if (icons != null) { icons.Dispose(); icons = null; }
             }
         }
     }
