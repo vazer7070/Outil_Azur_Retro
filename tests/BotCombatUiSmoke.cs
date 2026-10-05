@@ -14,6 +14,7 @@ using System.Windows.Forms;
 using Outil_Azur_complet.Bot;
 using Outil_Azur_complet.Bot.Controls;
 using Outil_Azur_complet.Bot.Interfaces;
+using Outil_Azur_complet.Bot.Panels;
 using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
@@ -117,6 +118,9 @@ internal static class BotCombatUiSmoke
                         Feed(account,"GTF42");Feed(account,"GTS43|30000");slots[0].PerformClick();
                         Check(view.SelectedSpellId==null&&peer.Available==0,"Another actor's turn allows casting");
                         Feed(account,"GE0|0");Check(!((Control)Get(form,"combatTools")).Visible,"Combat actions stay visible after GE");
+                        // Lot F12b : GE ouvre le volet de résultat, refermé ici pour laisser la carte libre aux captures.
+                        Application.DoEvents();Check(form.Panels.Current is FightResultPanel,"GE did not open the result panel");
+                        ((Button)((FightResultPanel)form.Panels.Current).CloseButton).PerformClick();Application.DoEvents();
                         // Real supplied Astrub scenery, with explicitly synthetic actors and combat state.
                         var xml=System.Xml.Linq.XElement.Load(Path.Combine(TestPaths.ApplicationBin,"ressources","Bot","BotMaps","7411.xml"));
                         Map.AllBotMaps[7411]=new Map {MapID=7411,MapWidth=byte.Parse(xml.Element("LARGEUR").Value),MapHeight=byte.Parse(xml.Element("LONGUEUR").Value),MapData=xml.Element("MAP_DATA").Value,Back_ID=int.Parse(xml.Element("BACK").Value)};
@@ -124,6 +128,9 @@ internal static class BotCombatUiSmoke
                         Feed(account,"GM|+282;2;0;42;Personnage de test;8;80^100;0|+300;2;0;43;Autre joueur;2;20^100;0|+310;2;0;-8;100;-4;40^100;0|+299;2;20;-7;101,102;-3;1566^100,1069^100;5,6");
                         Capture(form,"bot-entites-astrub");
                         Feed(account,"GJK2|1|1|0|30000|0");Feed(account,"GS");Feed(account,"GTM|42;0;250;6;3;282;;300");Feed(account,"GTS42|30000");
+                        // Lot F12b : ligne de temps, options et bouton Abandonner présents sur la capture compacte.
+                        Feed(account,"GTL|42|43|-8|-7");Application.DoEvents();
+                        Check(form.Timeline.Visible&&form.Timeline.Entries.Count==4&&form.FightOptions.Visible&&((Button)Get(form,"giveUp")).Visible,"Fight controls are missing from the compact HUD");
                         Capture(form,"bot-combat-compact");slots[0].PerformClick();Capture(form,"bot-combat-ciblage");form.Close();
                     }
                 }

@@ -72,6 +72,7 @@ try {
     $azurTests += 'BotChatUiSmoke'
     $azurTests += 'BotServerCommandsSmoke'
     $azurTests += 'BotBannerSmoke'
+    $azurTests += 'BotFightUiSmoke'
     $azurTests += 'BotInventoryGridSmoke'
 
     if ($Integration) {

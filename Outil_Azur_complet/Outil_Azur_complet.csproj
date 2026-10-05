@@ -279,6 +279,9 @@
     <Compile Include="Bot\Interfaces\MapControl.Designer.cs">
       <DependentUpon>MapControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="Bot\Interfaces\MapControl.Fight.cs">
+      <DependentUpon>MapControl.cs</DependentUpon>
+    </Compile>
     <Compile Include="Bot\LoadingBotForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -331,6 +334,7 @@
     <Compile Include="Bot\Panels\SpellsPanel.cs" />
     <Compile Include="Bot\Panels\JobsPanel.cs" />
     <Compile Include="Bot\Panels\JournalPanel.cs" />
+    <Compile Include="Bot\Panels\FightResultPanel.cs" />
     <Compile Include="Bot\Controls\ActorMenuRegistry.cs" />
     <Compile Include="Bot\Controls\ActorContextMenu.cs" />
     <Compile Include="Bot\Controls\HudPanel.cs">
@@ -377,6 +381,15 @@
     </Compile>
     <Compile Include="Bot\Controls\Banner\MainMenuPopup.cs" />
     <Compile Include="Bot\Controls\Banner\BannerPanel.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Fight\TimelineControl.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Fight\FightOptionButtons.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Fight\ChallengeMenu.cs">
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Bot\LoginForm.Designer.cs">

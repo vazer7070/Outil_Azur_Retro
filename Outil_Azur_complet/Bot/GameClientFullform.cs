@@ -9,9 +9,11 @@ using Outil_Azur_complet.Bot.Interfaces;
 using Outil_Azur_complet.Bot.Controls;
 using Outil_Azur_complet.Bot.Controls.Banner;
 using Outil_Azur_complet.Bot.Controls.Chat;
+using Outil_Azur_complet.Bot.Controls.Fight;
 using Outil_Azur_complet.Bot.Panels;
 using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Game.Accounts;
+using Tool_BotProtocol.Game.Combats;
 using Tool_BotProtocol.Game.Data;
 using Tool_BotProtocol.Game.Perso.Spells;
 namespace Outil_Azur_complet.Bot
@@ -19,7 +21,9 @@ namespace Outil_Azur_complet.Bot
     /// <summary>
     /// Fenêtre de jeu : composition seulement. Barre d'état en haut (état de la session, retour d'action, zoom, actions de
     /// combat), carte (<see cref="MapControl"/> et son routeur de clics) avec le tiroir des volets (<see cref="Panels"/>), le
-    /// nom de zone centré et les coordonnées, puis le bandeau bas (<see cref="HudPanel"/> : discussion <see cref="ChatPanel"/>,
+    /// nom de zone centré et les coordonnées, les contrôles de combat posés sur la carte (<see cref="TimelineControl"/>,
+    /// <see cref="FightOptionButtons"/>, <see cref="ChallengeMenu"/>, drapeau de <see cref="MapControl"/>), puis le bandeau bas
+    /// (<see cref="HudPanel"/> : discussion <see cref="ChatPanel"/>,
     /// cœur et PA / PM, bandeau du client <see cref="BannerPanel"/>). Le clic droit sur la barre ou le bandeau ouvre le menu
     /// global du client (version, qualité, options) et le diagnostic ; les touches suivent la table <see cref="Shortcuts"/>.
     /// Chaque fonctionnalité vit dans son volet (<c>Bot/Panels</c>), son contrôle (<c>Bot/Controls</c>) ou son fournisseur
@@ -47,8 +51,11 @@ namespace Outil_Azur_complet.Bot
         private readonly ContextMenuStrip globalMenu = new ContextMenuStrip();
         private List<Button> quickSpells;
         private Dictionary<Button, short> quickSpellIds;
-        private Button previousSpellPage, nextSpellPage, ready, passTurn;
+        private Button previousSpellPage, nextSpellPage, ready, passTurn, giveUp;
         private FlowLayoutPanel combatTools;
+        private TimelineControl timeline;
+        private FightOptionButtons fightOptions;
+        private ChallengeMenu challengeMenu;
         private OptionsForm optionsWindow;
         private string actionFeedback;
         private DateTime actionFeedbackUntil;
@@ -68,6 +75,14 @@ namespace Outil_Azur_complet.Bot
         public OptionsForm OptionsWindow => optionsWindow != null && !optionsWindow.IsDisposed ? optionsWindow : null;
         /// <summary>Menu du clic droit global (reconstruit à chaque ouverture).</summary>
         public ContextMenuStrip GlobalMenu { get { if (!uiReleased) FillGlobalMenu(); return globalMenu; } }
+        /// <summary>Ligne de temps du combat posée en haut de la carte ; <c>null</c> avant la première carte.</summary>
+        public TimelineControl Timeline => timeline;
+        /// <summary>Options d'équipe du combat (<c>fN</c>, <c>fP</c>, <c>fH</c>, <c>fS</c>, drapeau) ; <c>null</c> avant la première carte.</summary>
+        public FightOptionButtons FightOptions => fightOptions;
+        /// <summary>Menu de placement (Prêt / Annuler) en bas de la carte ; <c>null</c> avant la première carte.</summary>
+        public ChallengeMenu PlacementMenu => challengeMenu;
+        /// <summary>Carte de la fenêtre ; <c>null</c> avant la première carte.</summary>
+        public MapControl Map => mapControl;
         /// <summary>Hauteur du bandeau bas quand le chat est réduit.</summary>
         public const int HudHeight = 112;
         /// <summary>Hauteur de la barre d'état en haut de la fenêtre.</summary>
@@ -139,7 +154,10 @@ namespace Outil_Azur_complet.Bot
             passTurn = MiniButton("Passer", async (s,e) => await PassTurn(), 67);
             ((ClientButton)passTurn).Glyph = ClientAssets.Icon("tour-suivant-haut", 18); // flèche de fin de tour du client
             ready.AccessibleName = "Prêt pour le combat"; passTurn.AccessibleName = "Passer le tour";
-            combatTools.Controls.Add(ready); combatTools.Controls.Add(passTurn);
+            // _btnGiveUp du bandeau du client : GIVE_UP (confirmation DO_U_GIVEUP) ; en spectateur, Game.leave() sans question.
+            giveUp = MiniButton(Lang("GIVE_UP", "Abandonner"), async (s,e) => await GiveUpAsync(), 88);
+            giveUp.AccessibleName = "Abandonner le combat"; giveUp.Name = "give-up";
+            combatTools.Controls.Add(ready); combatTools.Controls.Add(passTurn); combatTools.Controls.Add(giveUp);
             bar.Controls.Add(summary); bar.Controls.Add(state); bar.Controls.Add(zoomTools); bar.Controls.Add(combatTools);
             return bar;
         }
@@ -210,7 +228,7 @@ namespace Outil_Azur_complet.Bot
             drawer.PanelShown += (s,e) => { LayoutDrawer(); banner?.RequestRefresh(); };
             drawer.PanelClosed += (s,e) => banner?.RequestRefresh();
             foreach (IGamePanel panel in new IGamePanel[] { new StatsPanel(), new InventoryPanel(), new SpellsPanel(), new JobsPanel(),
-                new JournalPanel(), new DialoguePanel(), new ZaapsPanel(), new ShopPanel(), new ExchangePanel(), new StoragePanel(), new FightsListPanel(), new ZaapiPanel(), new KeyCodePanel(), new DocumentPanel(), new PartyPanel(), new FriendsPanel(), new CommandsHelpPanel() })
+                new JournalPanel(), new DialoguePanel(), new ZaapsPanel(), new ShopPanel(), new ExchangePanel(), new StoragePanel(), new FightsListPanel(), new ZaapiPanel(), new KeyCodePanel(), new DocumentPanel(), new PartyPanel(), new FriendsPanel(), new CommandsHelpPanel(), new FightResultPanel() })
                 drawer.Register(panel);
             host.Controls.Add(drawer); drawer.BringToFront();
             host.Resize += (s,e) => LayoutDrawer(); LayoutDrawer();
@@ -394,9 +412,10 @@ namespace Outil_Azur_complet.Bot
             return false;
         }
 
-        /// <summary>Échap : annule la visée (<c>removeCursor</c>), sinon ferme le dernier volet, sinon ouvre <c>AskMainMenu</c>.</summary>
+        /// <summary>Échap : annule la visée ou le signalement d'une cellule (<c>removeCursor</c>), sinon ferme le dernier volet, sinon ouvre <c>AskMainMenu</c>.</summary>
         private void Escape()
         {
+            if (mapControl != null && mapControl.FlagMode) { mapControl.FlagMode = false; return; }
             if (mapControl?.SelectedSpellId != null) { mapControl.SelectSpell(null); return; }
             if (drawer.Current != null) { drawer.CloseCurrent(); mapArea.Focus(); return; }
             _ = banner.MainMenu.AskAsync();
@@ -447,6 +466,56 @@ namespace Outil_Azur_complet.Bot
             try { var result = await ActualCompte.Game.Fight.PassTurnAsync(); ShowActionFeedback(result.Message); }
             catch (Exception ex) { ShowActionFeedback(ex.Message); }
         }
+
+        /// <summary>
+        /// Bouton « Abandonner » (<c>_btnGiveUp</c> du bandeau du client) : un spectateur quitte sans question (<c>Game.leave</c>) ;
+        /// un combattant confirme d'abord (<c>GameManager.giveUpGame</c>, texte <c>DO_U_GIVEUP</c> ; <c>DO_U_SUICIDE</c> n'existe que
+        /// sur les serveurs hardcore). Puis <c>GQ</c> : sortie pendant le placement, mort du personnage une fois le combat lancé
+        /// (StarLoco, matrice §2 n° 22). La boîte ne bloque pas la fenêtre : les paquets continuent d'arriver.
+        /// </summary>
+        private async Task GiveUpAsync()
+        {
+            var fight = ActualCompte.Game?.Fight;
+            if (fight == null) return;
+            string reason = fight.GetGiveUpUnavailableReason();
+            if (reason != null) { ShowActionFeedback(reason); return; }
+            if (!fight.IsSpectator)
+            {
+                string question = Lang("DO_U_GIVEUP", "Si vous abandonnez, votre combat sera perdu. Êtes-vous certain de vouloir abandonner ?");
+                if (!fight.IsPlacement) question += "\n\nLe serveur comptera votre personnage comme mort.";
+                BotDialogResult answer;
+                try { answer = await BotDialogs.AskYesNoAsync(this, Lang("GIVE_UP", "Abandonner"), question); }
+                catch (Exception ex) when (ex is InvalidOperationException || ex is ObjectDisposedException) { return; }
+                if (answer != BotDialogResult.Yes) { ShowActionFeedback("Abandon annulé."); return; }
+                if (uiReleased) return;
+            }
+            try { var result = await fight.GiveUpAsync(); ShowActionFeedback(result.Message); }
+            catch (Exception ex) { ShowActionFeedback(ex.Message); }
+        }
+
+        /// <summary>Bouton drapeau des options de combat : la carte attend un clic sur la cellule à signaler (<c>Gf&lt;cellule&gt;</c>).</summary>
+        private void OnFlagRequested(object sender, EventArgs e) { if (!uiReleased) mapControl?.ToggleFlagMode(); }
+
+        /// <summary><c>Gf&lt;id&gt;|&lt;cellule&gt;</c> reçu (fil réseau) : drapeau dessiné sur la carte.</summary>
+        private void OnFlagReceived(FightFlag flag) => BotUi.OnUi(this, () => { if (!uiReleased) mapControl?.ShowFlag(flag); });
+
+        /// <summary>Contrôles de combat posés sur la zone de la carte (créés avec la première carte, comme <see cref="MapControl"/>).</summary>
+        private void BuildFightControls()
+        {
+            timeline = new TimelineControl();
+            fightOptions = new FightOptionButtons();
+            challengeMenu = new ChallengeMenu();
+            fightOptions.Feedback += ShowActionFeedback; challengeMenu.Feedback += ShowActionFeedback;
+            fightOptions.FlagRequested += OnFlagRequested;
+            mapArea.Controls.Add(timeline); mapArea.Controls.Add(fightOptions); mapArea.Controls.Add(challengeMenu);
+            timeline.BringToFront(); fightOptions.BringToFront(); challengeMenu.BringToFront();
+            fightOptions.Place();
+            mapArea.Resize += LayoutFightControls;
+            timeline.Bind(ActualCompte); fightOptions.Bind(ActualCompte); challengeMenu.Bind(ActualCompte);
+            var fight = ActualCompte.Game?.Fight;
+            if (fight != null) fight.FlagReceived += OnFlagReceived;
+        }
+        private void LayoutFightControls(object sender, EventArgs e) { timeline?.Center(); challengeMenu?.Place(); }
         private void ToggleFullScreen()
         {
             if (WindowState == FormWindowState.Maximized && FormBorderStyle == FormBorderStyle.None) {
@@ -476,6 +545,7 @@ namespace Outil_Azur_complet.Bot
             mapControl.Router.Panels = drawer;
             Outil_Azur_complet.Bot.Menus.InteractiveMenuProvider.Attach(mapControl);
             mapArea.Controls.Add(mapControl); mapControl.SendToBack();
+            BuildFightControls();
             if (banner != null) { banner.MapInfos.BringToFront(); banner.CenterText.BringToFront(); }
             drawer.BringToFront(); ApplyOptions(); UpdateMapDisplay();
         }
@@ -499,14 +569,20 @@ namespace Outil_Azur_complet.Bot
             var c=ActualCompte.Game.character;
             string activity=StateName(ActualCompte.AccountStates);state.Text=ActualCompte.ConnectionStatus==activity?activity:ActualCompte.ConnectionStatus+" · "+activity;bool connected=ActualCompte.Connexion!=null&&ActualCompte.Connexion.IsConnected();
             var fight = ActualCompte.Game.Fight;
-            combatTools.Visible = fight.IsInFight && !fight.IsSpectator; combatTools.Width = combatTools.Visible ? 135 : 0;
-            ready.Visible = fight.IsPlacement; ready.Text = fight.IsReady ? "Annuler" : "Prêt";
+            bool inFight = fight.IsInFight, spectator = fight.IsSpectator;
+            bool showReady = inFight && !spectator && fight.IsPlacement, showPass = inFight && !spectator && !fight.IsPlacement;
+            combatTools.Visible = inFight; combatTools.Width = inFight ? 4 + (showReady ? ready.Width + 2 : 0) + (showPass ? passTurn.Width + 2 : 0) + giveUp.Width + 2 : 0;
+            ready.Visible = showReady; ready.Text = fight.IsReady ? "Annuler" : "Prêt";
             ready.Enabled = connected && fight.IsPlacement && !fight.IsActionPending;
-            passTurn.Visible = fight.IsInFight && !fight.IsPlacement;
+            passTurn.Visible = showPass;
             passTurn.Enabled = connected && fight.IsMyTurn && !fight.IsActionPending;
+            giveUp.Visible = inFight; giveUp.Enabled = connected && fight.GetGiveUpUnavailableReason() == null;
+            giveUp.Text = spectator ? "Quitter" : Lang("GIVE_UP", "Abandonner");
             string nextTurn = ShortcutLabel("NEXTTURN");
             toolTips.SetToolTip(ready, "Confirmer ou annuler votre préparation (" + nextTurn + ")");
             toolTips.SetToolTip(passTurn, "Terminer votre tour (" + nextTurn + ")");
+            toolTips.SetToolTip(giveUp, spectator ? Lang("GIVE_UP_SPECTATOR", "Quitter le mode 'Spectateur'") + " (GQ)"
+                : fight.IsPlacement ? "Quitter ce combat avant son début (GQ)" : "Abandonner le combat (GQ) : le serveur compte le personnage comme mort");
             var map = ActualCompte.Game.Map;
             string text = (string.IsNullOrEmpty(c.Name) ? "Personnage en cours de chargement" : c.Name + " · Niveau " + c.Level + " · " + BannerArt.Thousands(c.Kamas) + " kamas")
                 + " · " + (map.LoadError ?? ("Carte " + map.MapID + " " + map.GetCoordinates + " · Cellule " + (c.Cell == null ? "?" : c.Cell.CellID.ToString(CultureInfo.InvariantCulture))));
@@ -548,6 +624,9 @@ namespace Outil_Azur_complet.Bot
             options.OptionChanged -= OnOptionChanged;
             if (OptionsWindow != null) optionsWindow.Close();
             if (mapControl != null) { mapControl.DisplayStateChanged -= UpdateMapDisplay; mapControl.SpellSelectionChanged -= SpellSelectionChanged; mapControl.ActionFeedback -= ShowActionFeedback; mapControl.Router.Panels = null; }
+            if (timeline != null) { mapArea.Resize -= LayoutFightControls; timeline.Release(); }
+            if (fightOptions != null) { fightOptions.Feedback -= ShowActionFeedback; fightOptions.FlagRequested -= OnFlagRequested; fightOptions.Release(); }
+            if (challengeMenu != null) { challengeMenu.Feedback -= ShowActionFeedback; challengeMenu.Release(); }
             if (banner != null)
             {
                 banner.Feedback -= ShowActionFeedback; banner.Shortcuts.SpellClicked -= SelectQuickSpell; banner.Shortcuts.SpellDetailsRequested -= OpenSpellDetails;
@@ -560,7 +639,7 @@ namespace Outil_Azur_complet.Bot
             var game = ActualCompte.Game; if (game == null) return;
             if (game.character != null) { game.character.RefreshCaracteristiques-=RefreshState;game.character.Spells_Refresh-=RefreshState; }
             if (game.Map != null) game.Map.RefreshMap-=MapChanged;
-            if (game.Fight != null) game.Fight.CombatChanged-=RefreshState;
+            if (game.Fight != null) { game.Fight.CombatChanged-=RefreshState; game.Fight.FlagReceived -= OnFlagReceived; }
         }
     }
 }
