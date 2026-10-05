@@ -33,7 +33,7 @@ using Tool_BotProtocol.Utils.Crypto;
 // StarLoco, sur un serveur fictif local avec des textes du client synthétiques : hP, hL±, hCK, hSK, hG, hV et paquets mal formés ;
 // menu de la porte (titre « <objet> <maison> », ligne Chez X / Chez moi !, états O/S/L des compétences) ; hB<prix> après le contrôle
 // des kamas, hS<prix>, GA507<compétence> chez soi, hG±, hQ ; magasin d'un marchand (ER4|id|cellule, ECK4, EL, EB, EBK/EBE), son
-// propre magasin (ER6, ECK6, EMO+ avec prix, modification du prix, EMO-), Eq → Eq1|1|<taxe> → EQ, restriction AR bit 32 ; puis les
+// propre magasin (ER6, ECK6, EMO+ avec prix, modification du prix, EMO-), Eq refusé fenêtre ouverte ou magasin vide, Eq → Im125 / Eq1|1|<taxe> → EQ → Im176, restriction AR bit 32 ; puis les
 // volets Magasin (boîte DO_U_OFFLINEEXCHANGE : Non n'envoie rien, Oui envoie EQ) et Maison (vente, DO_U_BUY_HOUSE, menu intérieur)
 // dans une fenêtre de jeu invisible, et les menus des acteurs (marchand, soi-même).
 internal static class BotHouseMerchantSmoke
@@ -337,15 +337,23 @@ internal static class BotHouseMerchantSmoke
         Check(!shop.IsOpen && shop.ExchangeType == -1 && shop.Items.Count == 0 && shop.MerchantId == -1 && registry.Current == null && account.AccountStates == AccountStates.CONNECTED_INACTIVE,
             "EV did not close the merchant shop");
 
-        // Son propre magasin : ER6, ECK6 + EL vide, EMO+ avec prix, prix modifié avec la quantité du lot, EMO-, Eq/Eq1/EQ.
+        // Son propre magasin : ER6, ECK6 + EL vide ; Eq refusé fenêtre ouverte (StarLoco l'ignore pendant un échange) puis, après EV, refusé magasin vide (Im123).
         Check(Sent(shop.OrganizeAsync())); Expect(peer, "ER6", "Organize does not send ER6");
         Feed(account, "ECK6"); Feed(account, "EL");
         Check(shop.IsOrganizing && !shop.IsBuying && shop.MerchantId == 42 && shop.ContentReceived && shop.Items.Count == 0 && account.AccountStates == AccountStates.SELLING, "ECK6 + empty EL did not open the own shop");
         Check(!Sent(shop.AddToShopAsync(3, 6, 10)) && !Sent(shop.AddToShopAsync(3, 1, 0)) && !Sent(shop.AddToShopAsync(1001, 1, 10)) && !Sent(shop.AddToShopAsync(4242, 1, 10)) && !Sent(shop.BuyAsync(3, 1)),
             "Invalid shop additions were accepted");
+        InteractionResult openShop = Result(shop.AskMerchantModeAsync());
+        Check(!openShop.Sent && openShop.Message.Contains("EV") && !shop.TaxRequested, "Eq was accepted while the shop window is open");
+        NoPacket(peer, "Refused shop additions reached the server");
+        Check(Sent(shop.LeaveAsync())); Expect(peer, "EV", "Leave does not send EV (own shop)"); Feed(account, "EV");
         InteractionResult empty = Result(shop.AskMerchantModeAsync());
         Check(!empty.Sent && empty.Message.Contains("Im123"), "Merchant mode with an empty shop was requested");
-        NoPacket(peer, "Refused shop additions reached the server");
+        NoPacket(peer, "Eq was sent for an empty shop");
+        Check(Sent(shop.OrganizeAsync())); Expect(peer, "ER6", "Second ER6 was not sent");
+        Feed(account, "ECK6"); Feed(account, "EL");
+        Check(shop.IsOrganizing && shop.ContentReceived && shop.Items.Count == 0, "Second ECK6 + EL did not reopen the own shop");
+        // EMO+ avec prix, prix modifié avec la quantité du lot, EMO-, EiK± ; puis EV et le mode marchand hors fenêtre : Eq, Im125, Eq, Eq1, refus, accord, EQ, Im176.
         Check(Sent(shop.AddToShopAsync(3, 2, 500))); Expect(peer, "EMO+3|2|500", "Adding does not send EMO+<objet>|<quantité>|<prix>");
         Feed(account, "EL3;2;2001;;500"); Check(shop.Items.Single().Price == 500 && shop.TotalPrice == 1000, "Own shop EL was not read");
         Check(Sent(shop.ChangePriceAsync(3, 700))); Expect(peer, "EMO+3|2|700", "Price change does not send EMO+<lot>|<quantité du lot>|<prix>");
@@ -354,7 +362,12 @@ internal static class BotHouseMerchantSmoke
         Feed(account, "EiK+77|1|2003||7"); Check(shop.Items.Count == 2 && shop.Items[1].Id == 77 && shop.Items[1].Price == 7, "EiK+ was not read");
         Feed(account, "EiK-77"); Check(shop.Items.Count == 1, "EiK- was not read");
         Feed(account, "EiKx"); Feed(account, "EiK+a|1|2|3|4"); Feed(account, "EiE"); Check(shop.Items.Count == 1 && shop.LastMessage.Contains("EiE"), "Malformed Ei changed the shop");
+        Check(!Sent(shop.AskMerchantModeAsync()) && !shop.TaxRequested, "Eq accepted while organizing");
+        Check(Sent(shop.LeaveAsync())); Expect(peer, "EV", "Leave does not send EV (organized shop)"); Feed(account, "EV");
+        Check(!shop.IsOpen && account.AccountStates == AccountStates.CONNECTED_INACTIVE, "EV did not close the own shop");
         Check(Sent(shop.AskMerchantModeAsync()) && shop.TaxRequested); Expect(peer, "Eq", "Merchant mode does not send Eq");
+        Feed(account, "Im125;6"); Check(!shop.TaxRequested && shop.PendingTax == null && shop.LastMessage.Contains("Im125"), "Im125 did not release the tax request");
+        Check(Sent(shop.AskMerchantModeAsync()) && shop.TaxRequested); Expect(peer, "Eq", "Eq after Im125 was not sent");
         Check(!Sent(shop.AskMerchantModeAsync()) && !Sent(shop.ConfirmMerchantModeAsync()), "Eq sent twice or EQ before Eq1");
         Feed(account, "Eq1|1|50");
         MerchantTax tax = shop.PendingTax;
@@ -369,7 +382,8 @@ internal static class BotHouseMerchantSmoke
         Check(Sent(shop.ConfirmMerchantModeAsync()) && shop.PendingTax == null && shop.MerchantModeRequested); Expect(peer, "EQ", "Confirm does not send EQ");
         foreach (string packet in new[] { "Eq1", "Eq1|a|b|c", "Eq1|1|-5" }) Feed(account, packet);
         Check(shop.PendingTax == null && !logs.Any(entry => entry.Contains("non appliqué")), "Malformed Eq1 was applied or raised");
-        Feed(account, "EV"); Check(!shop.IsOpen && account.AccountStates == AccountStates.CONNECTED_INACTIVE, "EV did not close the own shop");
+        Feed(account, "Im176"); Check(!shop.MerchantModeRequested && shop.LastMessage.Contains("Im176"), "Im176 did not release the merchant mode");
+        NoPacket(peer, "Server refusals triggered a reply");
 
         // Restriction AR (bit 32) : plus de mode marchand ; puis Clear.
         Feed(account, "ARw"); Check(!shop.CanBeMerchant && !Sent(shop.OrganizeAsync()) && !Sent(shop.AskMerchantModeAsync()), "AR bit 32 did not forbid the merchant mode");
@@ -448,7 +462,13 @@ internal static class BotHouseMerchantSmoke
             Click(repriceButton); Expect(peer, "EMO+3|1|300", "Price button does not send EMO+<lot>|<quantité du lot>|<prix>");
             ((NumericUpDown)Get(panel, "merchantQuantity")).Value = 1;
             Click(removeButton); Expect(peer, "EMO-3|1", "Remove button does not send EMO-<lot>|<quantité>");
-            Check(modeButton.Enabled, "Merchant mode button disabled");
+            Check(!modeButton.Enabled && ((Label)Get(panel, "merchantTotal")).Text.Contains("Mode marchand"), "Merchant mode button enabled while the shop window is open");
+            Click(leaveButton); Expect(peer, "EV", "Close button does not send EV (own shop)");
+            Feed(account, "EV"); Application.DoEvents(); Check(!drawer.IsOpen(panel), "Own shop panel stayed open after EV");
+
+            // Mode marchand depuis le volet ouvert par le clic droit global (aucune fenêtre serveur) : Eq → Eq1 → boîte ; Non n'envoie rien, Oui envoie EQ.
+            ((ToolStripMenuItem)global.Items.Find("merchant", false)[0]).PerformClick(); Application.DoEvents();
+            Check(drawer.Current == panel && modeButton.Enabled && ((Control)Get(panel, "merchantOrganize")).Visible, "Merchant panel from the global menu differs");
             Click(modeButton); Expect(peer, "Eq", "Merchant mode button does not send Eq");
             Check(!modeButton.Enabled, "Merchant mode button enabled while waiting for Eq1");
             FeedFromNetwork(account, "Eq1|1|50");
@@ -466,7 +486,7 @@ internal static class BotHouseMerchantSmoke
             Answer(panel.TaxDialog, "Oui"); Expect(peer, "EQ", "« Oui » does not send EQ");
             PumpUntil(() => panel.TaxDialog == null && shop.MerchantModeRequested);
             Check(!modeButton.Enabled && ((Label)Get(panel, "merchantStatus")).Text.Contains("EQ envoyé"), "Status after EQ differs");
-            Feed(account, "EV"); Application.DoEvents(); Check(!drawer.IsOpen(panel), "Own shop panel stayed open after EV");
+            drawer.RequestClose(panel); Application.DoEvents(); Check(!drawer.IsOpen(panel), "Merchant panel did not close without a server window");
 
             // Volet Maison, propriétaire : hL+ puis hCK|0 depuis un fil réseau → vente à 12 000 → hS12000 ; hV ferme.
             Feed(account, "hP" + OwnHouse + "|Personnage de test;0"); Feed(account, "hL+|" + OwnHouse + ";0;0;0");

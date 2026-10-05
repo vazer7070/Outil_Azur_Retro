@@ -19,7 +19,8 @@ namespace Outil_Azur_complet.Bot.Panels
     /// <c>EB&lt;lot&gt;|&lt;quantité&gt;</c>, Mettre en vente <c>EMO+&lt;objet&gt;|&lt;quantité&gt;|&lt;prix&gt;</c>, Retirer <c>EMO-&lt;lot&gt;|&lt;quantité&gt;</c>,
     /// Modifier le prix <c>EMO+&lt;lot&gt;|&lt;quantité du lot&gt;|&lt;prix&gt;</c>, Fermer (ou ×/Échap) <c>EV</c>. « Mode marchand » envoie <c>Eq</c> ;
     /// à la réponse <c>Eq1</c>, la boîte <c>DO_U_OFFLINEEXCHANGE</c> (Oui / Non) précède <c>EQ</c>, avec l'avertissement que StarLoco
-    /// déconnecte alors le client. Hors magasin, le volet (menu global) propose <c>ER6</c> et <c>Eq</c>.
+    /// déconnecte alors le client. Hors magasin, le volet (menu global) propose <c>ER6</c> et <c>Eq</c> ; « Mode marchand » reste grisé tant
+    /// qu'une fenêtre est ouverte, StarLoco ignorant <c>Eq</c> pendant un échange.
     /// </summary>
     public sealed class MerchantPanel : GamePanel
     {
@@ -165,7 +166,7 @@ namespace Outil_Azur_complet.Bot.Panels
             RefreshView();
         }
 
-        private void OnInventoryChanged(bool changed) { if (changed) OnUi(RefreshView); }
+        private void OnInventoryChanged(bool changed) { if (changed && !Post(RefreshView)) OnUi(RefreshView); }
 
         /// <summary><c>Eq</c> : la question n'est posée qu'à la réponse <c>Eq1</c> du serveur.</summary>
         public async Task<string> AskMerchantModeAsync()
@@ -244,7 +245,7 @@ namespace Outil_Azur_complet.Bot.Panels
             foreach (Control label in lotsActions.Controls.OfType<Label>()) label.Visible = true;
             merchantOrganize.Visible = !shop.IsOpen;
             merchantTotal.Text = shop.IsOpen ? shop.Items.Count + " lot(s), " + shop.TotalPrice.ToString("N0", CultureInfo.CurrentCulture) + " kamas au total"
-                + (organizing ? " · taxe estimée " + (shop.TotalPrice / 1000).ToString("N0", CultureInfo.CurrentCulture) + " kamas (prix ÷ 1 000 chez StarLoco)" : string.Empty) : string.Empty;
+                + (organizing ? " · taxe estimée " + (shop.TotalPrice / 1000).ToString("N0", CultureInfo.CurrentCulture) + " kamas (prix ÷ 1 000 chez StarLoco) · fermez le magasin avant « Mode marchand » (StarLoco ignore Eq pendant un échange)" : string.Empty) : string.Empty;
             string tax = shop.PendingTax != null ? " Taxe proposée : " + shop.PendingTax.Tax + " kamas." : shop.MerchantModeRequested ? " EQ envoyé : StarLoco déconnecte le client." : string.Empty;
             merchantStatus.Text = shop.IsOpen ? (shop.LastMessage.Length > 0 ? shop.LastMessage : "Magasin ouvert.") + tax
                 : NoShopText + (shop.LastMessage.Length > 0 ? "\n" + shop.LastMessage : string.Empty) + tax;
@@ -265,7 +266,7 @@ namespace Outil_Azur_complet.Bot.Panels
             if (bagItem != null) bagQuantity.Maximum = Math.Max(1, bagItem.Qua);
             merchantAdd.Enabled = connected && shop.IsOrganizing && bagItem != null;
             merchantOrganize.Enabled = connected && !shop.IsOpen && shop.CanBeMerchant;
-            merchantMode.Enabled = connected && shop.CanBeMerchant && shop.PendingTax == null && !shop.TaxRequested && !shop.MerchantModeRequested;
+            merchantMode.Enabled = connected && !shop.IsOpen && shop.CanBeMerchant && shop.PendingTax == null && !shop.TaxRequested && !shop.MerchantModeRequested;
             merchantLeave.Enabled = connected && shop.IsOpen;
         }
 

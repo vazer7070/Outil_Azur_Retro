@@ -9,6 +9,7 @@ using Tool_BotProtocol.Game.Interactions;
 using Tool_BotProtocol.Game.Maps.Entities;
 using Tool_BotProtocol.Game.Maps.Interfaces;
 using Tool_BotProtocol.Game.Perso.Inventory;
+using Tool_BotProtocol.Game.Session;
 
 namespace Tool_BotProtocol.Game.Exchanges
 {
@@ -36,6 +37,9 @@ namespace Tool_BotProtocol.Game.Exchanges
     /// mettre en vente <c>EMO+&lt;objet&gt;|&lt;quantité&gt;|&lt;prix&gt;</c>, retirer <c>EMO-&lt;exemplaire&gt;|&lt;quantité&gt;</c> ; fermer <c>EV</c>.
     /// Le mode marchand (<c>MERCHANT_MODE</c>) envoie <c>Eq</c> ; StarLoco répond <c>Eq1|1|&lt;taxe&gt;</c> ou un <c>Im</c> (123 magasin vide,
     /// 113 carte interdite, 125;&lt;n&gt; trop de marchands) ; <c>EQ</c> paie la taxe (<c>Im176</c> si les kamas manquent) et déconnecte le client.
+    /// <c>askOfflineExchange</c> ignore <c>Eq</c> pendant un échange (<c>getExchangeAction() != null</c>) : comme le client, qui ne propose
+    /// <c>MERCHANT_MODE</c> que depuis le menu du personnage, le bot refuse <c>Eq</c> tant qu'une fenêtre est ouverte. Les refus <c>Im</c>
+    /// (lot S1, <see cref="GameSession.ServerMessageReceived"/>) libèrent la demande en attente.
     /// </summary>
     [ExchangeType(ExchangeTypes.OfflineMerchant)]
     [ExchangeType(ExchangeTypes.MyShop)]
@@ -48,6 +52,9 @@ namespace Tool_BotProtocol.Game.Exchanges
         private readonly object sync = new object();
         private List<MerchantItem> items = new List<MerchantItem>();
         private AccountStates openState = AccountStates.BUYING;
+        /// <summary>Dernier contenu connu de son magasin (<c>EL</c> de type 6) : vide ou non ; <c>null</c> tant qu'il n'a pas été ouvert.</summary>
+        private bool? shopKnownEmpty;
+        private bool sessionSubscribed;
 
         internal MerchantExchange(Accounts.Accounts account) : base(account) { }
 
@@ -171,14 +178,19 @@ namespace Tool_BotProtocol.Game.Exchanges
             return SendAsync("EV", "Fermeture du magasin demandée.");
         }
 
-        /// <summary>Envoie <c>Eq</c> (<c>MERCHANT_MODE</c>) : le serveur annonce la taxe par <c>Eq1</c>, ou refuse par <c>Im</c>.</summary>
+        /// <summary>
+        /// Envoie <c>Eq</c> (<c>MERCHANT_MODE</c>) hors de toute fenêtre : le serveur annonce la taxe par <c>Eq1</c>, ou refuse par <c>Im123</c>
+        /// (magasin vide), <c>Im113</c> (carte interdite) ou <c>Im125;&lt;n&gt;</c> (trop de marchands). StarLoco ignore <c>Eq</c> pendant un échange.
+        /// </summary>
         public Task<InteractionResult> AskMerchantModeAsync()
         {
+            EnsureSessionSubscribed();
             if (Account?.Connexion == null || !Account.Connexion.IsConnected()) return Task.FromResult(Refuse("Connectez le personnage avant cette action."));
             if (Account.IsFighting()) return Task.FromResult(Refuse("Action impossible pendant un combat."));
+            if (IsOpen || Account.Is_In_Dialog()) return Task.FromResult(Refuse("Fermez d'abord la fenêtre en cours (EV) : StarLoco ignore Eq pendant un échange ou un dialogue, et le client ne propose le mode marchand que depuis le menu du personnage."));
             if (!CanBeMerchant) return Task.FromResult(Refuse("Le mode marchand est interdit à ce personnage (restriction du serveur)."));
             if (TaxRequested || PendingTax != null) return Task.FromResult(Refuse("La taxe du mode marchand a déjà été demandée."));
-            if (IsOrganizing && ContentReceived && Items.Count == 0) return Task.FromResult(Refuse("Mettez au moins un objet en vente avant de passer en mode marchand (Im123)."));
+            if (shopKnownEmpty == true) return Task.FromResult(Refuse("Mettez au moins un objet en vente (Organiser mon magasin) avant de passer en mode marchand (Im123)."));
             TaxRequested = true;
             return SendAsync("Eq", "Taxe du mode marchand demandée ; le serveur répond par Eq1 ou un refus Im.");
         }
@@ -186,6 +198,7 @@ namespace Tool_BotProtocol.Game.Exchanges
         /// <summary>Envoie <c>EQ</c> après l'accord sur la taxe (<c>DO_U_OFFLINEEXCHANGE</c>) ; StarLoco déconnecte ensuite le client.</summary>
         public Task<InteractionResult> ConfirmMerchantModeAsync()
         {
+            EnsureSessionSubscribed();
             MerchantTax tax = PendingTax;
             if (tax == null) return Task.FromResult(Refuse("Demandez d'abord la taxe du mode marchand (Eq)."));
             if (Account?.Connexion == null || !Account.Connexion.IsConnected()) return Task.FromResult(Refuse("Connectez le personnage avant cette action."));
@@ -207,7 +220,44 @@ namespace Tool_BotProtocol.Game.Exchanges
             Notify();
         }
 
+        private void EnsureSessionSubscribed()
+        {
+            if (sessionSubscribed) return;
+            GameSession session = Account?.Game?.Session;
+            if (session == null) return;
+            session.ServerMessageReceived += OnServerMessage;
+            sessionSubscribed = true;
+        }
+
         // ---- Réceptions ------------------------------------------------------------------------------------
+
+        /// <summary>
+        /// Refus de StarLoco lus dans la famille <c>Im</c> (type 1 = <c>ERROR_</c>) : 23 magasin vide, 13 carte interdite, 25 trop de marchands
+        /// après <c>Eq</c> ; 76 kamas insuffisants après <c>EQ</c>. Ignorés quand rien n'est en attente (ces codes servent aussi ailleurs).
+        /// </summary>
+        private void OnServerMessage(ServerMessage message)
+        {
+            try
+            {
+                if (message == null || message.Kind != ServerMessageKind.Error || !message.NumericId.HasValue) return;
+                int code = message.NumericId.Value;
+                if ((code == 23 || code == 13 || code == 25) && (TaxRequested || PendingTax != null))
+                {
+                    TaxRequested = false;
+                    PendingTax = null;
+                    if (code == 23) shopKnownEmpty = true;
+                    LogError("Mode marchand refusé par le serveur (Im1" + code.ToString(CultureInfo.InvariantCulture) + ") : " + message.Text);
+                    Notify();
+                }
+                else if (code == 76 && MerchantModeRequested)
+                {
+                    MerchantModeRequested = false;
+                    LogError("Mode marchand refusé : kamas insuffisants pour la taxe (Im176).");
+                    Notify();
+                }
+            }
+            catch (Exception error) when (!(error is OutOfMemoryException)) { Account?.Logger?.LogException(Reference, error); }
+        }
 
         /// <summary><c>Eq1|1|&lt;taxe&gt;</c> (<c>Exchange.onAskOfflineExchange</c>) : type, taux (champ ÷ 10, en %) et taxe en kamas.</summary>
         internal void OnTaxProposed(string payload)
@@ -312,6 +362,7 @@ namespace Tool_BotProtocol.Game.Exchanges
             lock (sync) items = list;
             ContentReceived = true;
             IsPending = false;
+            if (ExchangeType == ExchangeTypes.MyShop) shopKnownEmpty = list.Count == 0;
             if (unreadable > 0) Account?.Logger?.LogError(Reference, unreadable + " lot(s) illisible(s) dans le magasin ignoré(s).");
             Log(list.Count + " lot(s) dans le magasin pour " + TotalPrice + " kamas.");
             Notify();
@@ -331,6 +382,7 @@ namespace Tool_BotProtocol.Game.Exchanges
             PendingTax = null;
             TaxRequested = false;
             MerchantModeRequested = false;
+            shopKnownEmpty = null;
         }
 
         private MerchantItem Find(uint id) { lock (sync) return items.FirstOrDefault(item => item.Id == id)?.Copy(); }
