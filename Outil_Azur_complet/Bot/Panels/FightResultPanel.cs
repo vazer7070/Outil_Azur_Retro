@@ -24,7 +24,9 @@ namespace Outil_Azur_complet.Bot.Panels
     public sealed class FightResultPanel : GamePanel
     {
         private static readonly string[] PveColumns = { "NAME_BIG|Nom", "LEVEL_SMALL|Niv.", "KAMAS|Kamas", "WIN_XP|XP gagnée", "XP_MOUNT|Monture", "XP_GUILD|Guilde", "WIN_ITEMS|Objets gagnés" };
-        private static readonly string[] PvpColumns = { "NAME_BIG|Nom", "LEVEL_SMALL|Niv.", "HONOUR|Honneur", "RANK|Grade", "DISHONOUR|Déshonneur", "KAMAS|Kamas", "WIN_XP|XP gagnée" };
+        /// <summary>Colonnes de <c>UI_GameResultTeamPVP</c> (agression, conquête) : l'honneur et le déshonneur remplacent la monture et la guilde.</summary>
+        private static readonly string[] PvpColumns = { "NAME_BIG|Nom", "LEVEL_SMALL|Niv.", "KAMAS|Kamas", "HONOUR_POINTS|Points d'honneur", "RANK|Grade", "WIN_ITEMS|Objets gagnés", "DISGRACE_POINTS|Points de déshonneur", "WIN_XP|XP gagnée" };
+        private static readonly int[] PveWidths = { 130, 44, 70, 80, 60, 60, 160 }, PvpWidths = { 130, 44, 70, 90, 50, 140, 90, 80 };
         private Label heading, duration, bonus, status;
         private Label winnersTitle, losersTitle, collectorsTitle;
         private ListView winners, losers, collectors;
@@ -32,7 +34,7 @@ namespace Outil_Azur_complet.Bot.Panels
         private ImageList icons;
         private Control close;
         private FightResult result;
-        private int turns;
+        private int turns, lastTurns;
 
         public override string Title => BannerArt.Text("GAME_RESULTS", "Résultat du combat");
         public override Image Icon => ClientAssets.Icon("icone-pvp", 24);
@@ -74,7 +76,7 @@ namespace Outil_Azur_complet.Bot.Panels
             winners = ResultList("result-winners"); layout.Controls.Add(winners, 0, 3);
             losersTitle = SectionTitle(BannerArt.Text("LOOSERS", "Perdants")); layout.Controls.Add(losersTitle, 0, 4);
             losers = ResultList("result-losers"); layout.Controls.Add(losers, 0, 5);
-            collectorsTitle = SectionTitle(BannerArt.Text("COLLECTOR", "Percepteur")); collectorsTitle.Visible = false; layout.Controls.Add(collectorsTitle, 0, 6);
+            collectorsTitle = SectionTitle(BannerArt.Text("GUILD_TAXCOLLECTORS", "Percepteurs")); collectorsTitle.Visible = false; layout.Controls.Add(collectorsTitle, 0, 6);
             collectors = ResultList("result-collectors"); collectors.Visible = false; layout.Controls.Add(collectors, 0, 7);
             var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, Margin = new Padding(0), Padding = new Padding(0, 6, 0, 0), WrapContents = false };
             close = MakeButton(BannerArt.Text("CLOSE", "Fermer"), (s, e) => RaiseClosed(), true, 110); close.Name = "result-close";
@@ -98,7 +100,7 @@ namespace Outil_Azur_complet.Bot.Panels
         {
             ListView list = MakeList(8.25f, PveColumns.Select(Column).ToArray());
             list.Name = name; list.Margin = new Padding(0); list.SmallImageList = icons; list.GridLines = false;
-            SizeColumns(list);
+            SizeColumns(list, PveWidths);
             return list;
         }
 
@@ -108,9 +110,8 @@ namespace Outil_Azur_complet.Bot.Panels
             return BannerArt.Text(parts[0], parts[1]);
         }
 
-        private static void SizeColumns(ListView list)
+        private static void SizeColumns(ListView list, int[] widths)
         {
-            int[] widths = { 130, 44, 70, 80, 60, 60, 160 };
             for (int index = 0; index < list.Columns.Count; index++) list.Columns[index].Width = index < widths.Length ? widths[index] : 80;
         }
 
@@ -134,19 +135,36 @@ namespace Outil_Azur_complet.Bot.Panels
 
         protected override void OnBind(GameClass game)
         {
-            if (game?.Fight != null) game.Fight.CombatResultReceived += OnResult;
+            if (game?.Fight == null) return;
+            game.Fight.CombatResultReceived += OnResult;
+            game.Fight.CombatChanged += OnCombatChanged;
         }
 
         protected override void OnUnbind(GameClass game)
         {
-            if (game?.Fight != null) game.Fight.CombatResultReceived -= OnResult;
+            if (game?.Fight == null) return;
+            game.Fight.CombatResultReceived -= OnResult;
+            game.Fight.CombatChanged -= OnCombatChanged;
+        }
+
+        /// <summary>
+        /// Fil réseau : le client affiche <c>currentTableTurn</c> (3ᵉ champ de <c>GTS</c>, jamais envoyé par StarLoco, matrice §2 n° 16) ;
+        /// à défaut, le nombre de tours joués par le personnage. <c>GE</c> remet ces compteurs à zéro avant de livrer le résultat :
+        /// la dernière valeur connue en combat est gardée ici.
+        /// </summary>
+        private void OnCombatChanged()
+        {
+            Fights fight = Game?.Fight;
+            if (fight == null || !fight.IsInFight) return;
+            int value = fight.Timeline.TableTurn ?? fight.TurnNumber;
+            if (value > 0) lastTurns = value;
         }
 
         /// <summary>Fil réseau : le résultat est copié puis affiché sur le fil de l'interface.</summary>
         private void OnResult(FightResult received)
         {
             if (received == null) return;
-            int played = Game?.Fight?.TurnNumber ?? 0;
+            int played = lastTurns; lastTurns = 0;
             OnUi(() => { Show(received, played); RequestShow(); });
         }
 
@@ -184,7 +202,7 @@ namespace Outil_Azur_complet.Bot.Panels
                 {
                     list.Columns.Clear();
                     foreach (string column in columns) list.Columns.Add(column, 80);
-                    SizeColumns(list);
+                    SizeColumns(list, fightType == 1 ? PvpWidths : PveWidths);
                 }
                 foreach (FightResultEntry entry in entries)
                 {
@@ -194,10 +212,12 @@ namespace Outil_Azur_complet.Bot.Panels
                     item.SubItems.Add(entry.Level.ToString(CultureInfo.InvariantCulture));
                     if (fightType == 1)
                     {
+                        // GameResultPlayerPVP : kamas, honneur gagné (total entre parenthèses), grade, objets, déshonneur gagné, xp gagnée.
+                        item.SubItems.Add(entry.Kamas.HasValue ? BannerArt.Thousands(entry.Kamas.Value) : string.Empty);
                         item.SubItems.Add(Signed(entry.WonHonour) + (entry.Honour.HasValue ? " (" + BannerArt.Thousands(entry.Honour.Value) + ")" : string.Empty));
                         item.SubItems.Add(entry.Rank.HasValue ? entry.Rank.Value.ToString(CultureInfo.InvariantCulture) : string.Empty);
-                        item.SubItems.Add(Signed(entry.WonDisgrace));
-                        item.SubItems.Add(entry.Kamas.HasValue ? BannerArt.Thousands(entry.Kamas.Value) : string.Empty);
+                        item.SubItems.Add(ItemsOf(entry));
+                        item.SubItems.Add(Signed(entry.WonDisgrace) + (entry.Disgrace.HasValue ? " (" + BannerArt.Thousands(entry.Disgrace.Value) + ")" : string.Empty));
                         item.SubItems.Add(entry.WonExperience.HasValue ? BannerArt.Thousands(entry.WonExperience.Value) : string.Empty);
                     }
                     else
