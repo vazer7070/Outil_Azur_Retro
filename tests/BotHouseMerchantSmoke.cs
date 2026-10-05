@@ -67,6 +67,7 @@ internal static class BotHouseMerchantSmoke
     }
 
     private static void Check(bool value, string message) { if (!value) throw new Exception(message); }
+    private static void Check(bool value, [System.Runtime.CompilerServices.CallerLineNumber] int line = 0) { if (!value) throw new Exception("Check failed at line " + line); }
     private static object Get(object target, string field) => target.GetType().GetField(field, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(target);
     private static IEnumerable<Control> All(Control value) { yield return value; foreach (Control child in value.Controls) foreach (var nested in All(child)) yield return nested; }
     private static void PumpUntil(Func<bool> done, int seconds = 6)
@@ -350,7 +351,7 @@ internal static class BotHouseMerchantSmoke
         Check(Sent(shop.ChangePriceAsync(3, 700))); Expect(peer, "EMO+3|2|700", "Price change does not send EMO+<lot>|<quantité du lot>|<prix>");
         Check(!Sent(shop.ChangePriceAsync(3, 0)) && !Sent(shop.RemoveFromShopAsync(3, 3)) && !Sent(shop.RemoveFromShopAsync(9, 1)), "Invalid price change or removal accepted");
         Check(Sent(shop.RemoveFromShopAsync(3, 1))); Expect(peer, "EMO-3|1", "Removal does not send EMO-<lot>|<quantité>");
-        Feed(account, "EiK+77|1|2003|;7"); Check(shop.Items.Count == 2 && shop.Items[1].Id == 77 && shop.Items[1].Price == 7, "EiK+ was not read");
+        Feed(account, "EiK+77|1|2003||7"); Check(shop.Items.Count == 2 && shop.Items[1].Id == 77 && shop.Items[1].Price == 7, "EiK+ was not read");
         Feed(account, "EiK-77"); Check(shop.Items.Count == 1, "EiK- was not read");
         Feed(account, "EiKx"); Feed(account, "EiK+a|1|2|3|4"); Feed(account, "EiE"); Check(shop.Items.Count == 1 && shop.LastMessage.Contains("EiE"), "Malformed Ei changed the shop");
         Check(Sent(shop.AskMerchantModeAsync()) && shop.TaxRequested); Expect(peer, "Eq", "Merchant mode does not send Eq");
@@ -366,7 +367,7 @@ internal static class BotHouseMerchantSmoke
         Check(!poorTax.Sent && poorTax.Message.Contains("Im176") && shop.PendingTax != null, "EQ was sent without the kamas of the tax");
         account.Game.character.Kamas = 20000;
         Check(Sent(shop.ConfirmMerchantModeAsync()) && shop.PendingTax == null && shop.MerchantModeRequested); Expect(peer, "EQ", "Confirm does not send EQ");
-        foreach (string packet in new[] { "Eq1", "Eq1|a|b|c", "Eq1|1|1|-5" }) Feed(account, packet);
+        foreach (string packet in new[] { "Eq1", "Eq1|a|b|c", "Eq1|1|-5" }) Feed(account, packet);
         Check(shop.PendingTax == null && !logs.Any(entry => entry.Contains("non appliqué")), "Malformed Eq1 was applied or raised");
         Feed(account, "EV"); Check(!shop.IsOpen && account.AccountStates == AccountStates.CONNECTED_INACTIVE, "EV did not close the own shop");
 

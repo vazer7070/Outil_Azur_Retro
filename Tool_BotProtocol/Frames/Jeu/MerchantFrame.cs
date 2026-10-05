@@ -15,7 +15,8 @@ namespace Tool_BotProtocol.Frames.Jeu
         private static MerchantExchange Merchant(TcpClient client) => client.account.Game.Interactions.Merchant;
 
         [MessageAttribution("Eq1")]
-        public void TaxProposed(TcpClient client, string message) => Merchant(client).OnTaxProposed(message.Substring(3));
+        /// <summary>Le client lit <c>p4.substr(2)</c> : le « 1 » du préfixe est le premier champ (type) de <c>Eq&lt;type&gt;|&lt;taux&gt;|&lt;taxe&gt;</c>.</summary>
+        public void TaxProposed(TcpClient client, string message) => Merchant(client).OnTaxProposed(message.Substring(2));
 
         [MessageAttribution("Ei")]
         public void ShopMovement(TcpClient client, string message) =>
