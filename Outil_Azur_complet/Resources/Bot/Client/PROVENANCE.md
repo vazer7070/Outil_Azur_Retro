@@ -53,8 +53,9 @@ python3 tools/client-analysis/exporter_icons.py --client "<client 1.34>" --sorti
 | UI_ChallengeMenu.png, UI_ChallengeMenu_fond.png, UI_ChallengeMenu_coche.png | `UI_ChallengeMenu` ; `_fond` : sans l'instance `_mcTick`, `_coche` : la coche « prêt » seule, dans le même cadre | Menu de placement (prêt / annuler) |
 | UI_GameResultPlayer.png, UI_GameResultPlayer_mort.png | `UI_GameResultPlayer` ; `_mort` : l'instance `_mcDeadHead` seule (le crâne des combattants morts), dans le même cadre | Lignes du panneau de fin de combat |
 | FlagCell.png | scène de `clips/flag.swf` rendue à l'image 30 (liste `SCENES_UI`, option `--frame` de `swfsvg` 0.2.2) | Drapeau posé sur une case (`Gf`) |
+| UI_HouseIndoor.png | symbole du même nom (enseigne de la maison : bourse et cadenas) | Icône du volet Maison (menu intérieur, vente, maison de guilde ; lot F8) |
 
-Les symboles de combat (ligne de temps, options d'équipe, menu de placement, résultat) et le drapeau ont été exportés avec la même commande (`--familles UI`) et `swfsvg` 0.2.2 construit depuis `tools/swfsvg` ; les 47 PNG déjà versionnés se sont rendus à l'identique.
+Les symboles de combat (ligne de temps, options d'équipe, menu de placement, résultat) et le drapeau ont été exportés avec la même commande (`--familles UI`) et `swfsvg` 0.2.2 construit depuis `tools/swfsvg` ; les 47 PNG déjà versionnés se sont rendus à l'identique. `UI_HouseIndoor` (lot F8) a été exporté avec la même commande et le même `swfsvg` 0.2.2 ; les 66 PNG déjà versionnés se sont de nouveau rendus à l'identique.
 
 `CircleChrono`, `Clock`, `Compass` et `Emblem` ne contiennent qu'un cadre invisible : le client les dessine par le code. `CircleChrono` y attache deux `CircleChronoHalfDefault`, demi-disques en aplat magenta recolorés par la couleur de style `bgcolor` (blanche par défaut), que le code masque et tourne selon le temps restant : il n'y a rien à exporter, le bot dessine un secteur de la couleur voulue. Les emblèmes de guilde sont composés par `ClientAssets.Emblem` à partir de `../Emblems`. `UI_MainMenu` et `UI_WaypointItemLocate` ne sont pas réexportés : ce sont `onglet-menu.png` et `zaap.png` ci-dessus.
 
