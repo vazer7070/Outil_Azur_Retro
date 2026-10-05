@@ -57,3 +57,19 @@ python3 tools/client-analysis/exporter_icons.py --client "<client 1.34>" --sorti
 Les symboles de combat (ligne de temps, options d'équipe, menu de placement, résultat) et le drapeau ont été exportés avec la même commande (`--familles UI`) et `swfsvg` 0.2.2 construit depuis `tools/swfsvg` ; les 47 PNG déjà versionnés se sont rendus à l'identique.
 
 `CircleChrono`, `Clock`, `Compass` et `Emblem` ne contiennent qu'un cadre invisible : le client les dessine par le code. `CircleChrono` y attache deux `CircleChronoHalfDefault`, demi-disques en aplat magenta recolorés par la couleur de style `bgcolor` (blanche par défaut), que le code masque et tourne selon le temps restant : il n'y a rien à exporter, le bot dessine un secteur de la couleur voulue. Les emblèmes de guilde sont composés par `ClientAssets.Emblem` à partir de `../Emblems`. `UI_MainMenu` et `UI_WaypointItemLocate` ne sont pas réexportés : ce sont `onglet-menu.png` et `zaap.png` ci-dessus.
+
+## Inventaire et fiche d'objet (`exporter_inventaire.py`, lot F13b)
+
+Produits par `tools/client-analysis/exporter_inventaire.py`, qui réutilise le rendu d'`exporter_icons.py` (swfsvg, cairosvg à l'échelle 2, magenta pur rendu transparent, recadrage sur les pixels visibles, palette de 256 couleurs quand l'écart reste invisible). Commande exacte, depuis la racine du dépôt :
+
+```sh
+python3 tools/client-analysis/exporter_inventaire.py --client "<client 1.34>" --sortie Outil_Azur_complet/Resources/Bot
+```
+
+| PNG | Source dans `modules/core.swf` | Usage |
+| --- | --- | --- |
+| inventaire-silhouette.png | `UI_Inventory`, profondeur 16 seule (placement sans nom) | Silhouette derrière les emplacements d'équipement (`InventoryPanel`) |
+| inventaire-croix.png | `UI_Inventory`, instance `_mcTwoHandedCrossLeft` seule | Croix posée sur le bouclier quand l'arme se tient à deux mains |
+| ItemViewerDestroy.png, ItemViewerTarget.png, ItemViewerTwoHand.png, ItemViewerUseHand.png | symboles du même nom | Fiche d'objet (`ItemTooltip`) : détruire, cibler, arme à deux mains, utiliser |
+| UI_InventoryMountIcon.png | symbole du même nom | Emplacement de la monture |
+| ItemSetViewerItemBorder.png | symbole du même nom | Objet de panoplie non porté |

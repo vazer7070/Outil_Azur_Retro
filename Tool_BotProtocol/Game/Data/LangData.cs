@@ -334,6 +334,26 @@ namespace Tool_BotProtocol.Game.Data
             public static int? Gfx(int id) => Int(Attribute("items", "objet", Key(id), "gfx"));
             public static int? Level(int id) => Int(Attribute("items", "objet", Key(id), "niveau"));
             public static string TypeName(int typeId) => Attribute("items", "type", Key(typeId), "nom") ?? Key(typeId);
+            /// <summary>Super-type d'un type d'objet (<c>I.t[type].t</c>) : 1 amulette, 2 arme, 3 anneau, 4 ceinture, 5 bottes, 6 consommable, 7 bouclier, 8 outil, 9 ressource, 10 coiffe, 11 cape, 12 familier, 13 dofus, 14 quête… ; null si inconnu.</summary>
+            public static int? SuperType(int typeId) => Int(Attribute("items", "type", Key(typeId), "superType"));
+            /// <summary>Emplacements d'équipement d'un super-type (<c>I.ss[superType]</c>, <c>getSlotsFromSuperType</c>) ; vide si aucun ou inconnu.</summary>
+            public static int[] SlotsOfSuperType(int superType) => Ints(Attribute("items", "emplacements", Key(superType), "emplacements"));
+            public static int? Pods(int id) => Int(Attribute("items", "objet", Key(id), "pods"));
+            public static int? Price(int id) => Int(Attribute("items", "objet", Key(id), "prix"));
+            /// <summary>Conditions d'équipement brutes (<c>I.u[id].c</c>, par exemple <c>CS&gt;4&amp;PL&gt;10</c>) ; vide si aucune.</summary>
+            public static string Conditions(int id) => Attribute("items", "objet", Key(id), "conditions") ?? string.Empty;
+            /// <summary>Panoplie du modèle (<c>I.u[id].s</c>) ou null.</summary>
+            public static int? SetId(int id) => Int(Attribute("items", "objet", Key(id), "panoplie"));
+            public static bool IsUsable(int id) => Flag("items", "objet", Key(id), "utilisable");
+            public static bool IsTargetable(int id) => Flag("items", "objet", Key(id), "ciblable");
+            public static bool IsTwoHanded(int id) => Flag("items", "objet", Key(id), "deuxMains");
+            public static bool IsEthereal(int id) => Flag("items", "objet", Key(id), "ethere");
+            public static bool IsCursed(int id) => Flag("items", "objet", Key(id), "maudit");
+            /// <summary>
+            /// Caractéristiques d'une arme (<c>I.u[id].e</c>) : bonus de coup critique, coût en PA, portée minimale, portée
+            /// maximale, coup critique (1/n), échec critique (1/n), en ligne, ligne de vue ; vide si l'objet n'est pas une arme.
+            /// </summary>
+            public static string[] WeaponStats(int id) => Strings(Attribute("items", "objet", Key(id), "arme"));
             private static IList<string> UniqueStrings()
             {
                 Dictionary<string, Entry> rows = Rows("items", "texteUnique");
@@ -343,6 +363,39 @@ namespace Tool_BotProtocol.Game.Data
                 foreach (KeyValuePair<string, Entry> row in rows) { int? i = Int(row.Key); if (i >= 0) values[i.Value] = row.Value.Get("texte"); }
                 return values;
             }
+        }
+
+        /// <summary>
+        /// Effets (<c>effects_fr</c> : <c>E[id] = {d, c, o, j, t}</c>) : <c>d</c> = description à motifs (<c>#1</c> minimum, <c>#2</c> maximum,
+        /// <c>#3</c> troisième paramètre, <c>#4</c> texte), <c>c</c> = caractéristique associée, <c>o</c> = opérateur (+, -, /), <c>j</c> = jet de dés,
+        /// <c>t</c> = affiché dans l'infobulle.
+        /// </summary>
+        public static class Effect
+        {
+            public static bool Has(int id) => Find("effects", "E", Key(id)) != null;
+            /// <summary>Motif de description (non substitué), ou null si l'effet est inconnu.</summary>
+            public static string Pattern(int id) => Attribute("effects", "E", Key(id), "d");
+            /// <summary>Texte de l'effet avec ses paramètres substitués comme <c>getDescription</c> du client ; null si l'effet est inconnu ou son texte vide.</summary>
+            public static string Describe(int id, params string[] parameters)
+            {
+                string pattern = Pattern(id);
+                if (string.IsNullOrEmpty(pattern)) return null;
+                string text = LangData.Describe(pattern, parameters);
+                return string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+            }
+            public static string Operator(int id) => Attribute("effects", "E", Key(id), "o") ?? string.Empty;
+            public static int? Characteristic(int id) => Int(Attribute("effects", "E", Key(id), "c"));
+            public static bool ShowInTooltip(int id) => Flag("effects", "E", Key(id), "t");
+        }
+
+        /// <summary>Panoplies (<c>itemsets_fr</c> : <c>IS[id] = {n, i}</c>).</summary>
+        public static class ItemSet
+        {
+            public static bool Has(int id) => Find("itemsets", "IS", Key(id)) != null;
+            /// <summary>Nom de la panoplie, ou l'identifiant si elle est inconnue.</summary>
+            public static string Name(int id) => Attribute("itemsets", "IS", Key(id), "n") ?? Key(id);
+            /// <summary>Modèles d'objets de la panoplie ; vide si elle est inconnue.</summary>
+            public static int[] Items(int id) => Ints(Attribute("itemsets", "IS", Key(id), "i"));
         }
 
         /// <summary>Sorts (<c>spells_fr</c> : nom et description ; les niveaux restent ceux de <c>BotSorts</c>).</summary>
@@ -784,6 +837,10 @@ namespace Tool_BotProtocol.Game.Data
         private static string Attribute(string family, string table, string id, string name) => Find(family, table, id)?.Get(name);
 
         private static string Key(int id) => id.ToString(CultureInfo.InvariantCulture);
+
+        /// <summary>Attribut booléen écrit par lang2xml.py (« true »/« false ») ; faux s'il manque.</summary>
+        private static bool Flag(string family, string table, string id, string name) =>
+            string.Equals(Attribute(family, table, id, name), "true", StringComparison.OrdinalIgnoreCase);
 
         private static int? Int(string text)
         {

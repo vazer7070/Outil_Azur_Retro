@@ -492,15 +492,15 @@ internal static class BotServerCommandsSmoke
     {
         var panel = drawer.Get<InventoryPanel>();
         drawer.Show(panel); PumpUntil(() => drawer.Current == panel);
-        var list = (ListView)Get(panel, "inventory");
+        // Lot F13b : le sac est une grille (ItemGrid) ; la sélection d'une case met la fiche et les boutons à jour.
+        var list = (ItemGrid)Get(panel, "inventory");
         var use = (Button)Get(panel, "useItem");
         var help = (Label)Get(panel, "inventoryHelp");
         Func<uint, bool> select = id =>
         {
-            ListViewItem row = list.Items.Cast<ListViewItem>().FirstOrDefault(item => (uint)item.Tag == id);
-            if (row == null) return false;
-            list.SelectedItems.Clear(); row.Selected = true; panel.RefreshView();
-            return list.SelectedItems.Count == 1;
+            if (!list.SelectItem(id)) return false;
+            Application.DoEvents();
+            return list.SelectedItem != null && list.SelectedItem.Inventory_ID == id;
         };
         Check(select(Book) && use.Text == "Lire" && use.Enabled && help.Text.Contains("dCK"), "The book row does not offer « Lire »: " + use.Text + " / " + help.Text);
         Click(use);
