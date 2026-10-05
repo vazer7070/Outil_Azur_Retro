@@ -335,6 +335,7 @@
     <Compile Include="Bot\Panels\JobsPanel.cs" />
     <Compile Include="Bot\Panels\JournalPanel.cs" />
     <Compile Include="Bot\Panels\FightResultPanel.cs" />
+    <Compile Include="Bot\Panels\WorldMapPanel.cs" />
     <Compile Include="Bot\Controls\ActorMenuRegistry.cs" />
     <Compile Include="Bot\Controls\ActorContextMenu.cs" />
     <Compile Include="Bot\Controls\HudPanel.cs">
@@ -390,6 +391,9 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Bot\Controls\Fight\ChallengeMenu.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\WorldMapView.cs">
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Bot\LoginForm.Designer.cs">

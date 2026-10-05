@@ -1,7 +1,3 @@
-# Outil Azur Retro
-
-L’état des fonctions corrigées, les écarts encore présents avec ce README et les critères de validation sont décrits dans [l’état du projet](docs/ETAT_PROJET.md). La suite reproductible compte **38 tests : 29 sans base et 9 d'intégration** ; voir [les tests](tests/README.md). Pour reprendre le projet rapidement, consulter aussi l'[inventaire de reprise](docs/INVENTAIRE_REPRISE.md).
-
 ## Émulateurs pris en charge
 
 Azur décrit chaque émulateur par un **profil** (`tools/Tools_protocol.Emulators`) : où se trouve chaque table (base auth ou world), quelles fonctions l'outil sait y utiliser et ce qu'il charge au démarrage. Le menu grise les outils qu'un profil ne gère pas et en donne la raison ; la configuration affiche la prise en charge de chaque émulateur. Ajouter un émulateur revient à ajouter un profil.
