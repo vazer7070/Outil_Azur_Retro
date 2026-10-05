@@ -228,7 +228,7 @@ namespace Outil_Azur_complet.Bot
             drawer.PanelShown += (s,e) => { LayoutDrawer(); banner?.RequestRefresh(); };
             drawer.PanelClosed += (s,e) => banner?.RequestRefresh();
             foreach (IGamePanel panel in new IGamePanel[] { new StatsPanel(), new InventoryPanel(), new SpellsPanel(), new JobsPanel(),
-                new JournalPanel(), new DialoguePanel(), new ZaapsPanel(), new ShopPanel(), new ExchangePanel(), new StoragePanel(), new FightsListPanel(), new ZaapiPanel(), new KeyCodePanel(), new DocumentPanel(), new PartyPanel(), new FriendsPanel(), new CommandsHelpPanel(), new FightResultPanel(), new WorldMapPanel() })
+                new JournalPanel(), new DialoguePanel(), new ZaapsPanel(), new ShopPanel(), new ExchangePanel(), new StoragePanel(), new FightsListPanel(), new ZaapiPanel(), new KeyCodePanel(), new DocumentPanel(), new PartyPanel(), new FriendsPanel(), new CommandsHelpPanel(), new FightResultPanel(), new MerchantPanel(), new HouseIndoorPanel(), new WorldMapPanel() })
                 drawer.Register(panel);
             host.Controls.Add(drawer); drawer.BringToFront();
             host.Resize += (s,e) => LayoutDrawer(); LayoutDrawer();
@@ -276,6 +276,8 @@ namespace Outil_Azur_complet.Bot
             globalMenu.Items.Add(new ToolStripMenuItem("Ajuster la carte", null, (s,e) => mapControl?.Fit()) { Name = "fit" });
             globalMenu.Items.Add(new ToolStripMenuItem("Plein écran (" + ShortcutLabel("FULLSCREEN") + ")", null, (s,e) => ToggleFullScreen()) { Name = "fullscreen" });
             globalMenu.Items.Add(new ToolStripMenuItem("Métiers", null, (s,e) => ShowPanel<JobsPanel>()) { Name = "jobs" });
+            globalMenu.Items.Add(new ToolStripMenuItem(Lang("HOUSE_WORD", "Maison"), null, (s,e) => ShowPanel<HouseIndoorPanel>()) { Name = "house" });
+            globalMenu.Items.Add(new ToolStripMenuItem("Mode marchand", null, (s,e) => ShowPanel<MerchantPanel>()) { Name = "merchant" });
             globalMenu.Items.Add(new ToolStripMenuItem("Commandes du serveur", null, (s,e) => ShowPanel<CommandsHelpPanel>()) { Name = "server-commands" });
             var diagnostic = new ToolStripMenuItem("Diagnostic >>") { Name = "diagnostic" };
             diagnostic.DropDown.Renderer = new RetroMenuRenderer(); diagnostic.DropDown.BackColor = BotUi.Paper;

@@ -11,6 +11,7 @@ using Outil_Azur_complet.Bot.Panels;
 using Tool_BotProtocol.Game;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Game.Data;
+using Tool_BotProtocol.Game.Habitat;
 using Tool_BotProtocol.Game.Interactions;
 using Tool_BotProtocol.Game.Maps.Entities;
 using Tool_BotProtocol.Game.Maps.Interactives;
@@ -24,8 +25,9 @@ namespace Outil_Azur_complet.Bot.Menus
     /// cachée (« X »), grisée ou active (« V »). Les paramètres du critère dépendent du type de l'objet :
     /// ressources, ateliers, zaap, fontaine, marmite, zaapi, liste des artisans, levier et statue (types 1, 2, 3, 4, 7, 10, 12,
     /// 14, 15) : J = la compétence appartient au métier de l'outil équipé, N = niveau ≤ 5 ; porte (5) : J, puis propriétaire,
-    /// à vendre et verrouillée (données des maisons absentes du bot : faux) ; coffre (6) : J, chez soi (faux), S vrai,
-    /// verrouillé (faux) ; enclos (13) : J, enclos de la guilde, à vendre, accessible, N = public (<see cref="MountParkInfo"/>).
+    /// à vendre et verrouillée ; coffre (6) : J, chez soi, S vrai, verrouillé (données des maisons de <c>hP</c>/<c>hL</c> par
+    /// <see cref="HouseDoorMenuProvider"/>, lot F8 ; faux sans elles) ; enclos (13) : J, enclos de la guilde, à vendre, accessible,
+    /// N = public (<see cref="MountParkInfo"/>). Une porte connue titre « &lt;objet&gt; &lt;maison&gt; » et affiche « Chez moi ! » / « Chez X » / « Maison abandonnée ».
     /// Un autre type n'a pas de menu : le clic reste un déplacement. Maj + clic utilise la première compétence active
     /// (sauf « Sauvegarder » d'un zaap et les ressources, pour lesquelles le client affiche toujours le menu).
     /// Ce n'est pas un <see cref="IActorMenuProvider"/> : un objet interactif n'est pas un acteur de la carte.
@@ -61,10 +63,11 @@ namespace Outil_Azur_complet.Bot.Menus
             if (park != null) entries.Add(MenuEntry.Statique(park.Describe()));
             ISet<short> jobSkills = CurrentJobSkills(game.character);
             string guild = OwnGuild(game);
+            HouseInfo house = HouseDoorMenuProvider.HouseOf(interactive, game);
             bool shortcutChosen = false;
             foreach (short skill in interactive.ClientSkills)
             {
-                string state = StateOf(type, skill, jobSkills, game.character, park, guild);
+                string state = StateOf(type, skill, jobSkills, game.character, park, guild, house);
                 if (state == SkillState.Hidden) continue;
                 bool enabled = state == SkillState.Enabled && interactive.IsUsable;
                 string name = LangData.Skill.Name(skill);
@@ -96,13 +99,16 @@ namespace Outil_Azur_complet.Bot.Menus
             entries?.FirstOrDefault(entry => entry.ParDéfaut && entry.Activé && entry.Action != null);
 
         /// <summary>État d'une compétence pour ce type d'objet (<c>Skill.getState</c> avec les paramètres du client).</summary>
-        public static string StateOf(int type, short skill, ISet<short> jobSkills, CharacterClass character, MountParkInfo park, string guild)
+        public static string StateOf(int type, short skill, ISet<short> jobSkills, CharacterClass character, MountParkInfo park, string guild) =>
+            StateOf(type, skill, jobSkills, character, park, guild, null);
+
+        /// <summary>Même état, avec les données de la maison d'une porte ou d'un coffre (<c>null</c> : propriétaire, vente et verrou faux).</summary>
+        public static string StateOf(int type, short skill, ISet<short> jobSkills, CharacterClass character, MountParkInfo park, string guild, HouseInfo house)
         {
             string criterion = SkillState.Criterion(skill);
             switch (type)
             {
-                case 5: return SkillState.Evaluate(criterion, true, false, false, false);
-                case 6: return SkillState.Evaluate(criterion, true, false, true, false);
+                case 5: case 6: return HouseDoorMenuProvider.StateOf(type, criterion, house);
                 case 13:
                     bool mine = park != null && park.IsMine(guild);
                     return SkillState.Evaluate(criterion, true, mine, park != null && park.Price > 0, park != null && (park.IsPublic || mine), false, park != null && park.IsPublic);
@@ -148,9 +154,13 @@ namespace Outil_Azur_complet.Bot.Menus
         {
             var strip = new ContextMenuStrip { Renderer = renderer, Font = BotFonts.Get(8.25f), BackColor = BotUi.Paper, ForeColor = BotUi.Ink,
                 ShowImageMargin = true, AccessibleName = "Menu de l'objet interactif", Name = MenuName };
-            string title = interactive?.Name ?? string.Empty;
+            HouseInfo house = HouseDoorMenuProvider.HouseOf(interactive, context?.Game ?? router?.Account?.Game);
+            string title = HouseDoorMenuProvider.Title(interactive, house);
             strip.Items.Add(new ToolStripLabel(title.Replace("&", "&&")) { Tag = ActorContextMenu.HeaderTag, Font = BotFonts.Get(8.25f, FontStyle.Bold),
                 ForeColor = BotUi.Ink, AccessibleName = "Objet : " + title });
+            string ownerLine = HouseDoorMenuProvider.OwnerLine(interactive, house);
+            if (ownerLine != null)
+                strip.Items.Add(new ToolStripLabel(ownerLine.Replace("&", "&&")) { Name = "house-owner", Font = BotFonts.Get(8.25f), ForeColor = BotUi.Muted, AccessibleName = ownerLine });
             if (entries == null || entries.Count == 0) { strip.Items.Add(new ToolStripMenuItem("Aucune action disponible") { Enabled = false }); return strip; }
             foreach (MenuEntry entry in entries)
             {

@@ -335,6 +335,8 @@
     <Compile Include="Bot\Panels\JobsPanel.cs" />
     <Compile Include="Bot\Panels\JournalPanel.cs" />
     <Compile Include="Bot\Panels\FightResultPanel.cs" />
+    <Compile Include="Bot\Panels\MerchantPanel.cs" />
+    <Compile Include="Bot\Panels\HouseIndoorPanel.cs" />
     <Compile Include="Bot\Panels\WorldMapPanel.cs" />
     <Compile Include="Bot\Controls\ActorMenuRegistry.cs" />
     <Compile Include="Bot\Controls\ActorContextMenu.cs" />
@@ -357,6 +359,8 @@
     <Compile Include="Bot\Menus\PartyMenuProvider.cs" />
     <Compile Include="Bot\Menus\FriendsMenuProvider.cs" />
     <Compile Include="Bot\Menus\PlayerMenuProvider.cs" />
+    <Compile Include="Bot\Menus\HouseDoorMenuProvider.cs" />
+    <Compile Include="Bot\Menus\MerchantMenuProvider.cs" />
     <Compile Include="Bot\Shortcuts.cs" />
     <Compile Include="Bot\OptionsForm.cs">
       <SubType>Form</SubType>

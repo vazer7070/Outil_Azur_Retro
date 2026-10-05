@@ -551,6 +551,8 @@ SYMBOLES_UI = [
     "UI_FightOptionBlockJoinerExceptPartyMemberUp", "UI_FightOptionBlockJoinerExceptPartyMemberDown",
     "UI_FightOptionBlockSpectatorUp", "UI_FightOptionBlockSpectatorDown", "UI_FightOptionNeedHelpUp", "UI_FightOptionNeedHelpDown",
     "UI_FightOptionButtonCell", "UI_FightOptionTacticModeUp", "UI_FightOptionTacticModeDown", "UI_ChallengeMenu", "UI_GameResultPlayer",
+    # Maisons (lot F8) : icône du menu intérieur
+    "UI_HouseIndoor",
 ]
 # Scènes de clips/ rendues à une image donnée (symbole, SWF relatif au client, image, échelle) : le drapeau de combat
 # (`Gf`, `flag.swf` joué par `spriteLaunchVisualEffect`) est pris à l'image 30, flèche posée au-dessus du losange.
