@@ -156,6 +156,7 @@ namespace Outil_Azur_complet.Bot.Panels
         {
             Fights fight = Game?.Fight;
             if (fight == null || !fight.IsInFight) return;
+            if (fight.IsPlacement) { lastTurns = 0; return; }
             int value = fight.Timeline.TableTurn ?? fight.TurnNumber;
             if (value > 0) lastTurns = value;
         }
