@@ -21,6 +21,7 @@ Familles (dossier écrit sous --sortie, voir README.md de ce dossier) :
               (exports subarea_<id>)            -> WorldMap/<zone>/sous-zones/<id>.png + sous-zones.tsv
               clips/maps/hints.swf               -> WorldMap/hints/<id>.png ; dungeon.swf -> WorldMap/dungeon.png
   UI          modules/core.swf (symboles listés dans SYMBOLES_UI) -> Client/<Symbole>.png
+              clips/flag.swf (scènes de SCENES_UI, à une image donnée) -> Client/FlagCell.png
 
 Chaque SWF passe par `swfsvg` (mode --scene ou nom d'export), puis cairosvg à l'échelle de la
 famille ; les pixels magenta purs (emplacements remplis à l'exécution) deviennent transparents
@@ -280,11 +281,11 @@ def lire_index(dossier):
     return lignes
 
 
-def swfsvg(binaire, swf, dossier, scene=False, noms=()):
+def swfsvg(binaire, swf, dossier, scene=False, noms=(), image=None):
     os.makedirs(dossier, exist_ok=True)
     # Un swfsvg écrit en Python (faux swfsvg des tests) est lancé par cet interpréteur.
     lanceur = [sys.executable, binaire] if binaire.endswith(".py") else [binaire]
-    commande = lanceur + (["--scene", "--name", "scene"] if scene else []) + [swf, dossier] + list(noms)
+    commande = lanceur + (["--scene", "--name", "scene"] if scene else []) + (["--frame", str(image)] if image else []) + [swf, dossier] + list(noms)
     sortie = subprocess.run(commande, capture_output=True, text=True, timeout=300)
     if sortie.returncode != 0:
         raise RuntimeError("swfsvg %s : %s" % (os.path.basename(swf), (sortie.stderr or "").strip()[:300]))
@@ -441,9 +442,9 @@ def echelle_pour(ligne, echelle, maximum):
     return echelle
 
 
-def rendre(binaire, swf, travail, echelle, maximum=None, symbole=None, donnees=None, etiquette="r"):
-    """Rend la scène (symbole=None) ou un symbole exporté ; renvoie un Rendu, None si le rendu est
-    entièrement transparent, et lève SymboleVide si le SWF n'y dessine rien."""
+def rendre(binaire, swf, travail, echelle, maximum=None, symbole=None, donnees=None, etiquette="r", image=None):
+    """Rend la scène (symbole=None, à l'image `image` si elle est donnée) ou un symbole exporté ; renvoie un Rendu,
+    None si le rendu est entièrement transparent, et lève SymboleVide si le SWF n'y dessine rien."""
     dossier = tempfile.mkdtemp(prefix=etiquette + "-", dir=travail)
     try:
         source = swf
@@ -452,7 +453,7 @@ def rendre(binaire, swf, travail, echelle, maximum=None, symbole=None, donnees=N
             with open(source, "wb") as f:
                 f.write(donnees)
         lignes, _ = swfsvg(binaire, source, os.path.join(dossier, "svg"), scene=symbole is None,
-                           noms=() if symbole is None else (symbole,))
+                           noms=() if symbole is None else (symbole,), image=image)
         if not lignes:
             raise SwfInvalide("symbole %s absent" % symbole if symbole else "scène illisible")
         ligne = lignes[0]
@@ -545,12 +546,27 @@ SYMBOLES_UI = [
     "ButtonChatUp", "ButtonChatDown", "ButtonSitUp", "ButtonSitDown", "ButtonEmoteUp", "ButtonEmoteDown", "SmileysHighlight",
     # Carte, acteurs, combat
     "Star", "StarBorder", "UI_Party", "UI_Timeline", "TimelineItem", "TimelinePointer", "TimelineItemSummonedBg",
+    # Combat (lot F12b) : options d'équipe, drapeau, menu prêt / annuler, ligne d'un résultat
+    "UI_FightOptionBlockJoinerUp", "UI_FightOptionBlockJoinerDown",
+    "UI_FightOptionBlockJoinerExceptPartyMemberUp", "UI_FightOptionBlockJoinerExceptPartyMemberDown",
+    "UI_FightOptionBlockSpectatorUp", "UI_FightOptionBlockSpectatorDown", "UI_FightOptionNeedHelpUp", "UI_FightOptionNeedHelpDown",
+    "UI_FightOptionButtonCell", "UI_FightOptionTacticModeUp", "UI_FightOptionTacticModeDown", "UI_ChallengeMenu", "UI_GameResultPlayer",
+]
+# Scènes de clips/ rendues à une image donnée (symbole, SWF relatif au client, image, échelle) : le drapeau de combat
+# (`Gf`, `flag.swf` joué par `spriteLaunchVisualEffect`) est pris à l'image 30, flèche posée au-dessus du losange.
+SCENES_UI = [
+    ("FlagCell", "clips/flag.swf", 30, 1),
 ]
 # Calques : (symbole, suffixe, instance, garder) ; le rendu complet garde le nom du symbole.
 CALQUES_UI = [
     ("StarBorder", "_fill", "fill", True),        # étoile du groupe de monstres : partie teintée (STARS_COLORS)
     ("StarBorder", "_contour", "fill", False),    # bordure seule
     ("Heart", "_vide", "_mcRectangle", False),    # cœur sans le rectangle rouge des points de vie
+    ("TimelineItem", "_fond", "_mcHealth", False),  # case de la ligne de temps sans la barre de vie (teintée TEAMS_COLOR)
+    ("TimelineItem", "_vie", "_mcHealth", True),    # la barre de vie seule, dans le même cadre
+    ("UI_ChallengeMenu", "_fond", "_mcTick", False),  # menu prêt / annuler sans la coche
+    ("UI_ChallengeMenu", "_coche", "_mcTick", True),  # la coche seule
+    ("UI_GameResultPlayer", "_mort", "_mcDeadHead", True),  # tête de mort d'un combattant vaincu
 ]
 
 
@@ -653,6 +669,10 @@ def lister_taches(client, familles, sortie_racine, remplacer, ignores=None):
             for symbole in SYMBOLES_UI:
                 taches.append({"famille": "UI", "type": "symbole-calques" if any(c[0] == symbole for c in CALQUES_UI) else "symbole",
                                "swf": core, "symbole": symbole, "sortie": "Client/" + symbole, "echelle": 2})
+        for nom, relatif, image, echelle in SCENES_UI:
+            chemin = os.path.join(client, *relatif.split("/"))
+            if os.path.exists(chemin):
+                taches.append({"famille": "UI", "type": "scene", "swf": chemin, "sortie": "Client/" + nom, "echelle": echelle, "image": image})
     return taches
 
 
@@ -662,7 +682,7 @@ def executer(tache, binaire, sortie_racine, travail):
     try:
         cible = lambda suffixe="": os.path.join(sortie_racine, *(tache["sortie"] + suffixe + ".png").split("/"))
         if tache["type"] == "scene":
-            rendu = rendre(binaire, tache["swf"], travail, tache["echelle"], tache.get("max"), etiquette=tache["famille"])
+            rendu = rendre(binaire, tache["swf"], travail, tache["echelle"], tache.get("max"), etiquette=tache["famille"], image=tache.get("image"))
             if rendu is None:
                 resultat["erreur"] = "rendu vide"
                 return resultat
