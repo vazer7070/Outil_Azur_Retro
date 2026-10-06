@@ -343,7 +343,7 @@ namespace Tool_BotProtocol.Game.Alignement
             {
                 string[] fields = row.Split(',');
                 if (fields.Length < 5) continue;
-                zoneList.Add(new ConquestZone { Id = Int(fields[0]), Side = Math.Max(0, Int(fields[1])), Fighting = fields[2] == "1", PrismMapId = Math.Max(0, Int(fields[3])) });
+                zoneList.Add(new ConquestZone { Id = Int(fields[0]), Side = Math.Max(0, Int(fields[1])), Fighting = fields[2] == "1", PrismMapId = Math.Max(0, Int(fields[3])), Attackable = fields[4].Trim() == "1" });
             }
             var villageList = new List<ConquestVillage>();
             foreach (string row in villages.Split(';'))

@@ -321,6 +321,8 @@
     <Compile Include="Bot\Panels\FriendsPanel.cs" />
     <Compile Include="Bot\Panels\GuildPanel.cs" />
     <Compile Include="Bot\Panels\CollectorPanel.cs" />
+    <Compile Include="Bot\Panels\ConquestPanel.cs" />
+    <Compile Include="Bot\Panels\PrismTravelPanel.cs" />
     <Compile Include="Bot\Panels\CommandsHelpPanel.cs" />
     <Compile Include="Bot\Panels\InventoryPanel.cs" />
     <Compile Include="Bot\Controls\ItemSlot.cs">
@@ -362,6 +364,7 @@
     <Compile Include="Bot\Menus\FriendsMenuProvider.cs" />
     <Compile Include="Bot\Menus\GuildMenuProvider.cs" />
     <Compile Include="Bot\Menus\CollectorMenuProvider.cs" />
+    <Compile Include="Bot\Menus\PrismMenuProvider.cs" />
     <Compile Include="Bot\Menus\PlayerMenuProvider.cs" />
     <Compile Include="Bot\Menus\HouseDoorMenuProvider.cs" />
     <Compile Include="Bot\Menus\MerchantMenuProvider.cs" />

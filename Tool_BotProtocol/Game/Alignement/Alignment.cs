@@ -62,9 +62,37 @@ namespace Tool_BotProtocol.Game.Alignement
         public bool Fighting { get; internal set; }
         /// <summary>Carte du prisme (0 : aucun).</summary>
         public int PrismMapId { get; internal set; }
+        /// <summary>Cinquième champ (<c>_bAttackable</c> du client) ; StarLoco envoie toujours 1.</summary>
+        public bool Attackable { get; internal set; }
         public bool HasPrism => PrismMapId > 0;
         public string Name => AlignmentTexts.ZoneName(Id);
         public string SideName => AlignmentTexts.Name(Side);
+        /// <summary>Zone (<c>getMapSubAreaText(id).a</c>) de la sous-zone, ou -1.</summary>
+        public int AreaId => AlignmentTexts.AreaOfZone(Id);
+
+        /// <summary><c>isCapturable</c> du client : attaquable, d'un autre camp que le personnage, et voisine d'une sous-zone du camp du personnage.</summary>
+        public bool IsCapturable(ConquestWorld world, int mySide)
+        {
+            if (!Attackable || Side == mySide || world == null || mySide <= 0) return false;
+            foreach (int neighbour in AlignmentTexts.Neighbours(Id))
+            {
+                ConquestZone near = world.FindZone(neighbour);
+                if (near != null && near.Side == mySide) return true;
+            }
+            return false;
+        }
+
+        /// <summary><c>isVulnerable</c> du client : attaquable, du camp du personnage, et voisine d'une sous-zone d'un autre camp conquérant.</summary>
+        public bool IsVulnerable(ConquestWorld world, int mySide)
+        {
+            if (!Attackable || Side != mySide || world == null || mySide <= 0) return false;
+            foreach (int neighbour in AlignmentTexts.Neighbours(Id))
+            {
+                ConquestZone near = world.FindZone(neighbour);
+                if (near != null && near.Side != mySide && near.Side > 0) return true;
+            }
+            return false;
+        }
     }
 
     /// <summary>Zone (« village » du client) annoncée par <c>CW</c> : <c>id,camp,1,prisme</c>.</summary>
@@ -300,6 +328,21 @@ namespace Tool_BotProtocol.Game.Alignement
             string name = LangData.IsLoaded("maps") ? LangData.Map.SubAreaName(subAreaId) : null;
             if (string.IsNullOrEmpty(name) || name == subAreaId.ToString(CultureInfo.InvariantCulture)) return "Sous-zone " + subAreaId.ToString(CultureInfo.InvariantCulture);
             return name.StartsWith("//", StringComparison.Ordinal) ? name.Substring(2) : name;
+        }
+
+        /// <summary>Sous-zones voisines (<c>voisines</c> de <c>maps_fr</c>, <c>getNearZonesList</c> du client) ; vide sans textes.</summary>
+        public static int[] Neighbours(int subAreaId)
+        {
+            string raw = Attribute("maps", "sousZone", subAreaId, "voisines");
+            if (string.IsNullOrEmpty(raw)) return new int[0];
+            return raw.Split(',').Select(part => int.TryParse(part.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) ? value : -1).Where(value => value >= 0).ToArray();
+        }
+
+        /// <summary>Zone d'une sous-zone (<c>zone</c> de <c>maps_fr</c>) ; -1 sans textes.</summary>
+        public static int AreaOfZone(int subAreaId)
+        {
+            string raw = Attribute("maps", "sousZone", subAreaId, "zone");
+            return int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) ? value : -1;
         }
 
         /// <summary>Nom d'une zone (<c>getMapAreaText(id).n</c>) ; « Zone n » sans textes.</summary>
