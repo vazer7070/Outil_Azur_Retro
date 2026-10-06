@@ -220,6 +220,8 @@ namespace Outil_Azur_complet.Bot.Panels
 
         private void OnPanelShown(object sender, PanelEventArgs e)
         {
+            // Carte du monde ouverte : ses prismes viennent du dernier CW reçu (le volet carte ne lit pas CW lui-même).
+            if (e?.Panel is WorldMapPanel worldMap && bound != null) worldMap.SetPrisms(PrismHints(bound.World));
             if (!ReferenceEquals(e?.Panel, this) || bound == null || open) return;
             open = true;
             // initData du client : la balance, puis l'onglet courant.
@@ -265,7 +267,10 @@ namespace Outil_Azur_complet.Bot.Panels
             else if (previous == ConquestTab.Join)
             {
                 clock?.Stop();
-                if (bound != null && bound.PrismInfosJoined) _ = Run(a => a.LeavePrismInfosAsync());
+                if (bound == null || !bound.PrismInfosJoined) return;
+                // Après une erreur CIJ le client ne se désabonne pas : la fermeture locale n'est pas une erreur à signaler.
+                if (bound.Defense.IsJoinable) _ = Run(a => a.LeavePrismInfosAsync());
+                else _ = bound.LeavePrismInfosAsync();
             }
         }
 
