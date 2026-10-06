@@ -174,7 +174,9 @@ namespace Outil_Azur_complet.Bot.Panels
         {
             MerchantExchange shop = Game?.Interactions?.Merchant;
             if (shop == null) return "La session n’est plus disponible.";
-            InteractionResult result = await shop.AskMerchantModeAsync();
+            Task<InteractionResult> request = shop.AskMerchantModeAsync();
+            RefreshView(); // le bouton est grisé dès l'envoi de Eq, sans attendre la fin de l'envoi
+            InteractionResult result = await request;
             Feedback(result?.Message);
             if (result != null && !result.Sent) Account?.Logger?.LogError(Reference, result.Message);
             return result?.Message;

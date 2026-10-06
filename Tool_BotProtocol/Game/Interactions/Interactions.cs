@@ -111,6 +111,8 @@ namespace Tool_BotProtocol.Game.Interactions
         public Habitat.HouseActions House { get; private set; }
         /// <summary>Magasin d'un marchand hors ligne (type 4), organisation du sien (type 6) et mode marchand <c>Eq</c>/<c>EQ</c> (lot F8).</summary>
         public Exchanges.MerchantExchange Merchant { get; private set; }
+        /// <summary>Guilde du personnage : <c>g…</c>, percepteurs et collecte <c>ER8</c> (lot F3).</summary>
+        public Guildes.GuildActions Guild { get; private set; }
 
         internal InteractionsClass(Accounts.Accounts account)
         {
@@ -127,8 +129,9 @@ namespace Tool_BotProtocol.Game.Interactions
             Friends = new Social.FriendsActions(account);
             House = new Habitat.HouseActions(account);
             Merchant = Exchanges.Get<Exchanges.MerchantExchange>();
+            Guild = new Guildes.GuildActions(account);
         }
 
-        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); Party.Clear(); Friends.Clear(); House.Clear(); }
+        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); Party.Clear(); Friends.Clear(); House.Clear(); Guild.Clear(); }
     }
 }
