@@ -140,6 +140,7 @@
     <Compile Include="Frames\Jeu\ExchangeFrame.cs" />
     <Compile Include="Frames\Jeu\FightsFrame.cs" />
     <Compile Include="Frames\Jeu\FriendsFrame.cs" />
+    <Compile Include="Frames\Jeu\AlignmentFrame.cs" />
     <Compile Include="Frames\Jeu\GuildFrame.cs" />
     <Compile Include="Frames\Jeu\InteractionFrame.cs" />
     <Compile Include="Frames\Jeu\HouseFrame.cs" />
@@ -266,6 +267,9 @@
     <Compile Include="Game\Session\ServerMessage.cs" />
     <Compile Include="Game\Social\Friends.cs" />
     <Compile Include="Game\Social\FriendsActions.cs" />
+    <Compile Include="Game\Alignement\Alignment.cs" />
+    <Compile Include="Game\Alignement\AlignmentActions.cs" />
+    <Compile Include="Game\Alignement\PrismTravel.cs" />
     <Compile Include="Game\Guildes\Guild.cs" />
     <Compile Include="Game\Guildes\GuildActions.cs" />
     <Compile Include="Json\AccountsJson.cs" />
