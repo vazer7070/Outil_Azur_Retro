@@ -475,8 +475,11 @@ namespace Tool_BotProtocol.Game.Exchanges
                 bool removed;
                 lock (sync)
                 {
-                    removed = sales.Any(sale => sale.LineId == id);
-                    if (removed) sales = sales.Where(sale => sale.LineId != id).ToList();
+                    // Account.recoverItem retire la première entrée de cette ligne : une seule ligne est retirée ici aussi.
+                    var updated = sales.ToList();
+                    int index = updated.FindIndex(sale => sale.LineId == id);
+                    removed = index >= 0;
+                    if (removed) { updated.RemoveAt(index); sales = updated; }
                 }
                 if (removed) Log("Lot retiré de l'hôtel de vente ; l'objet revient dans le sac."); else Account?.Logger?.LogDebug(Reference, "EmK- pour une ligne inconnue (" + id + ").");
                 Notify();
