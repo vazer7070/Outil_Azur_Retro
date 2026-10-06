@@ -340,6 +340,8 @@
     <Compile Include="Bot\Panels\MerchantPanel.cs" />
     <Compile Include="Bot\Panels\HouseIndoorPanel.cs" />
     <Compile Include="Bot\Panels\WorldMapPanel.cs" />
+    <Compile Include="Bot\Panels\AuctionBuyPanel.cs" />
+    <Compile Include="Bot\Panels\AuctionSellPanel.cs" />
     <Compile Include="Bot\Controls\ActorMenuRegistry.cs" />
     <Compile Include="Bot\Controls\ActorContextMenu.cs" />
     <Compile Include="Bot\Controls\HudPanel.cs">
