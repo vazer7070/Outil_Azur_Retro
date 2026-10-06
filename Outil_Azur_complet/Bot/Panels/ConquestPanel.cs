@@ -569,7 +569,7 @@ namespace Outil_Azur_complet.Bot.Panels
             set { if (selected == value) return; selected = value; Invalidate(); }
         }
 
-        public static string Text(ConquestTab tab)
+        public static string TabText(ConquestTab tab)
         {
             switch (tab)
             {
@@ -599,7 +599,7 @@ namespace Outil_Azur_complet.Bot.Panels
                 bool active = tab == selected;
                 using (var fill = new SolidBrush(active ? BotUi.PaperLight : BotUi.FrameLight)) e.Graphics.FillRectangle(fill, area);
                 using (var border = new Pen(BotUi.Gold)) e.Graphics.DrawRectangle(border, area.X, area.Y, area.Width - 1, area.Height - (active ? 0 : 1));
-                TextRenderer.DrawText(e.Graphics, Text(tab), BotFonts.Get(8, active ? FontStyle.Bold : FontStyle.Regular), area,
+                TextRenderer.DrawText(e.Graphics, TabText(tab), BotFonts.Get(8, active ? FontStyle.Bold : FontStyle.Regular), area,
                     active ? BotUi.Ink : BotUi.PaperLight, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
             }
         }
