@@ -76,7 +76,8 @@ namespace Tool_BotProtocol.Game.Combats
         private bool pendingConfirmed;
         private DateTime pendingAt;
         private CombatPhase phase;
-        private bool spectator, ready;
+        private bool spectator, ready, canCancel, challengeMenu;
+        private int fightType = -1;
         private int actor, turn, turnDuration;
         private int lastActor, readyActor;
         private int? tableTurn;
@@ -92,6 +93,12 @@ namespace Tool_BotProtocol.Game.Combats
         public bool IsPlacement { get { lock (sync) return phase == CombatPhase.Placement; } }
         public bool IsSpectator { get { lock (sync) return spectator; } }
         public bool IsReady { get { lock (sync) return ready; } }
+        /// <summary>Deuxième champ de <c>GJK</c> : le menu de placement du client montre son bouton « Annuler » (StarLoco : défis seulement).</summary>
+        public bool CanCancel { get { lock (sync) return canCancel; } }
+        /// <summary>Troisième champ de <c>GJK</c> : le client affiche le menu de placement (<c>ChallengeMenu</c>, prêt / annuler).</summary>
+        public bool HasChallengeMenu { get { lock (sync) return challengeMenu; } }
+        /// <summary>Sixième champ de <c>GJK</c> : type du combat (0 défi, 1 agression, 4 monstres, 5 percepteur chez StarLoco) ; -1 hors combat.</summary>
+        public int FightType { get { lock (sync) return fightType; } }
         public bool IsMyTurn { get { lock (sync) return MyTurn; } }
         public bool IsActionPending { get { lock (sync) { ExpirePending(); return pendingKind != null; } } }
         public int CurrentActorId { get { lock (sync) return actor; } }
@@ -364,10 +371,15 @@ namespace Tool_BotProtocol.Game.Combats
             string[] fields = payload.Split('|'); int state, viewing;
             if (fields.Length < 4 || !int.TryParse(fields[0], out state) || state < 1 || state > 3 || !int.TryParse(fields[3], out viewing)) return;
             account.Game.Manager.Mouvements.CancelForMapChange(); Clear(false);
+            int cancel, menu, type;
             lock (sync)
             {
                 if (disposed) return;
                 phase = state >= 3 ? CombatPhase.Active : CombatPhase.Placement; spectator = viewing == 1;
+                // GJK<état>|<annuler>|<menu>|<spectateur>|<durée>|<type> (Game.onJoin) : champs lus tels quels, absents = valeurs du client.
+                canCancel = fields.Length > 1 && int.TryParse(fields[1], out cancel) && cancel == 1;
+                challengeMenu = fields.Length > 2 && int.TryParse(fields[2], out menu) && menu == 1;
+                fightType = fields.Length > 5 && int.TryParse(fields[5], out type) ? type : -1;
                 lastMessage = spectator ? "Combat observé en spectateur." : "Choisissez votre position puis indiquez que vous êtes prêt.";
             }
             account.AccountStates = AccountStates.FIGHTING; Changed(); CombatReady?.Invoke();
@@ -746,7 +758,7 @@ namespace Tool_BotProtocol.Game.Combats
             lock (sync)
             {
                 generation++; previous = cancellation; cancellation = disposed ? null : new CancellationTokenSource();
-                phase = CombatPhase.None; spectator = ready = false; actor = turn = turnDuration = 0; pa = pm = -1;
+                phase = CombatPhase.None; spectator = ready = canCancel = challengeMenu = false; fightType = -1; actor = turn = turnDuration = 0; pa = pm = -1;
                 lastActor = readyActor = 0; tableTurn = null; turnStartedUtc = DateTime.MinValue;
                 places = new short[0]; fighters.Clear(); lastSpellTurn.Clear(); castsThisTurn.Clear();
                 turnOrder.Clear(); effects.Clear(); states.Clear(); zones.Clear(); teamOptions.Clear(); journal.Clear();

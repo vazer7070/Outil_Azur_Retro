@@ -56,7 +56,7 @@ internal static class BotClientSkinSmoke
             // 2. Chargeur : cache, échelle des icônes, absence tolérée.
             var assets = typeof(LoginForm).Assembly.GetType("Outil_Azur_complet.Bot.ClientAssets");
             Check(assets != null, "ClientAssets type is missing");
-            var get = assets.GetMethod("Get", Any); var icon = assets.GetMethod("Icon", Any);
+            var get = assets.GetMethod("Get", Any, null, new[] { typeof(string) }, null); var icon = assets.GetMethod("Icon", Any);
             var logo = (Bitmap)get.Invoke(null, new object[] { "logo" });
             Check(logo != null && logo.Width > 300 && logo.Height > 300, "Logo not loaded from the shipped folder");
             Check(ReferenceEquals(logo, get.Invoke(null, new object[] { "logo" })), "Assets are reloaded instead of cached");
@@ -131,10 +131,10 @@ internal static class BotClientSkinSmoke
             using (var game = new GameClientFullform(account))
             {
                 game.Show(); Application.DoEvents();
-                var icons = All(game).OfType<Button>().Where(x => (string)x.Tag == "client-icon" && x.Image != null && x.Width == 33).ToArray();
+                var icons = All(game).OfType<Button>().Where(x => (string)x.Tag == "client-icon" && x.Image != null && x.Width == 26).ToArray();
                 Check(icons.Length == 9, "Expected nine HUD icon buttons, found " + icons.Length);
                 foreach (string name in new[] { "icone-caracteristiques", "icone-sorts", "icone-inventaire", "icone-quetes", "icone-carte", "icone-amis", "icone-guilde", "icone-monture", "icone-pvp" })
-                    Check(icons.Any(x => ReferenceEquals(x.Image, icon.Invoke(null, new object[] { name, 24 }))), "HUD does not use the client icon " + name);
+                    Check(icons.Any(x => ReferenceEquals(x.Image, icon.Invoke(null, new object[] { name, 18 }))), "HUD does not use the client icon " + name);
                 var send = All(game).OfType<Button>().First(x => x.Width == 32 && x.Image != null && x.GetType().Name == "ClientButton");
                 using (var image = new Bitmap(send.Width, send.Height)) {
                     send.DrawToBitmap(image, new Rectangle(Point.Empty, send.Size));

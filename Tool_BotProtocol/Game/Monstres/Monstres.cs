@@ -31,6 +31,11 @@ namespace Tool_BotProtocol.Game.Monstres
         public int GetAllMonster => MobsInGroupe.Count;
         public int MobsGroupelevel => MobsInGroupe.Sum(x => x.Level);
         public int Star { get; set; }
+        /// <summary>
+        /// Colonne <c>capturable</c> de la table <c>monsters</c> du serveur (élément <c>CAPTURABLE</c> de <c>BotMonsters</c>) :
+        /// null quand l'export ne la contient pas. Voir <see cref="SoulStones"/>.
+        /// </summary>
+        public bool? Capturable { get; set; }
 
         /// <summary>
         /// Nom des monstres fourni par les textes du client (<c>monsters_fr</c>) lorsqu'ils sont chargés ;
@@ -78,13 +83,22 @@ namespace Tool_BotProtocol.Game.Monstres
                 var loaded = new ConcurrentDictionary<int, Monstres>();
                 foreach (string file in Directory.EnumerateFiles(MonstersPath, "*.xml"))
                 {
-                    XElement xml = XElement.Load(file);
-                    var monster = new Monstres { TemplateID = int.Parse(xml.Element("ID").Value),
-                        Name = xml.Element("NAME").Value, GFX = int.Parse(xml.Element("GFX").Value) };
+                    Monstres monster = ParseTemplate(XElement.Load(file));
                     loaded[monster.TemplateID] = monster;
                 }
                 AllMonstersTemplate = loaded;
             });
+        }
+
+        /// <summary>Modèle lu dans une fiche <c>BotMonsters</c> : <c>ID</c>, <c>NAME</c>, <c>GFX</c> et, si présent, <c>CAPTURABLE</c> (0/1).</summary>
+        public static Monstres ParseTemplate(XElement xml)
+        {
+            if (xml == null) throw new ArgumentNullException(nameof(xml));
+            var monster = new Monstres { TemplateID = int.Parse(xml.Element("ID").Value),
+                Name = xml.Element("NAME").Value, GFX = int.Parse(xml.Element("GFX").Value) };
+            string capturable = xml.Element("CAPTURABLE")?.Value?.Trim();
+            if (capturable == "1" || capturable == "0") monster.Capturable = capturable == "1";
+            return monster;
         }
 
         public bool GroupHasThisMob(int id)

@@ -131,6 +131,12 @@ namespace Tool_BotProtocol.Game.Interactions
         /// <summary><c>EBK</c>/<c>EBE</c> : achat accepté ou refusé ; les objets et kamas arrivent par OAK/OQ/As.</summary>
         internal void OnBuy(bool accepted)
         {
+            if (!IsOpen)
+            {
+                // Lot F8 : EBK/EBE répondent aussi à l'achat d'un lot chez un marchand hors ligne (type 4).
+                var merchant = Account?.Game?.Interactions?.Exchanges?.Current as MerchantExchange;
+                if (merchant != null && merchant.IsOpen) { merchant.OnBuy(accepted); return; }
+            }
             IsPending = false;
             if (accepted) Log("Achat accepté par le serveur.");
             else LogError("Achat refusé par le serveur (article, quantité ou kamas).");

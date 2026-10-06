@@ -1,13 +1,14 @@
 ﻿using System;
 using Tool_BotProtocol.Frames.Messages;
+using Tool_BotProtocol.Game.Data;
 using Tool_BotProtocol.Game.Perso;
 using Tool_BotProtocol.Network;
 
 namespace Tool_BotProtocol.Frames.Jeu
 {
     /// <summary>
-    /// Inventaire : <c>OAK</c>, <c>OAE</c>, <c>OR</c>, <c>OQ</c>, <c>OC</c>, <c>OM</c>, <c>OS</c>, <c>OT</c>, <c>OK</c>.
-    /// Extrait de <c>CharacterFrame</c> sans changement de logique (lot S1) ; propriétaire : lot F13b.
+    /// Inventaire : <c>OAK</c>, <c>OAE</c>, <c>OR</c>, <c>OQ</c>, <c>OC</c>, <c>OM</c>, <c>OS</c>, <c>OT</c>, <c>OK</c>,
+    /// <c>OdE</c>, <c>ODE</c>. Extrait de <c>CharacterFrame</c> (lot S1) ; propriétaire : lot F13b.
     /// </summary>
     internal class InventoryFrame : Frame
     {
@@ -31,7 +32,10 @@ namespace Tool_BotProtocol.Frames.Jeu
             }
         }
 
-        /// <summary>OAE : refus d'ajout ou d'équipement, mêmes codes que le client (A déjà équipé, L niveau, F inventaire plein).</summary>
+        /// <summary>
+        /// OAE : refus d'ajout ou d'équipement, mêmes codes que <c>Items.onAdd</c> du client : A déjà équipé (<c>ALREADY_EQUIPED</c>),
+        /// L niveau (<c>TOO_LOW_LEVEL_FOR_ITEM</c>), F inventaire plein (<c>INVENTORY_FULL</c>). Textes du client (lot D4) s'ils sont chargés.
+        /// </summary>
         [MessageAttribution("OAE")]
         public void GetObjectsError(TcpClient client, string message)
         {
@@ -39,20 +43,43 @@ namespace Tool_BotProtocol.Frames.Jeu
             string reason;
             switch (code)
             {
-                case "A": reason = "Cet objet est déjà équipé."; break;
-                case "L": reason = "Votre niveau est trop bas pour cet objet."; break;
-                case "F": reason = "Votre inventaire est plein."; break;
+                case "A": reason = Text("ALREADY_EQUIPED", "Cet objet est déjà équipé."); break;
+                case "L": reason = Text("TOO_LOW_LEVEL_FOR_ITEM", "Votre niveau est trop bas pour cet objet."); break;
+                case "F": reason = Text("INVENTORY_FULL", "Votre inventaire est plein."); break;
                 default: reason = "Le serveur a refusé l'opération sur l'objet (" + message + ")."; break;
             }
             client.account.Logger.LogError("INVENTAIRE", reason);
             client.account.Game.character.Inventory.NotifyRefused(reason);
         }
 
+        /// <summary>OdE : StarLoco n'envoie ce paquet que lorsqu'une destruction (<c>Od</c>) échoue ; le client 1.34 n'affiche rien, le bot prévient.</summary>
+        [MessageAttribution("OdE")]
+        public void DestroyError(TcpClient client, string message)
+        {
+            const string reason = "Le serveur n'a pas pu détruire l'objet.";
+            client.account.Logger.LogError("INVENTAIRE", reason);
+            client.account.Game.character.Inventory.NotifyRefused(reason);
+        }
+
+        /// <summary>ODE : refus de jeter un objet, codes de <c>Items.onDrop</c> du client : F sol encombré (<c>DROP_FULL</c>), sinon <c>CANT_DROP_ITEM</c>.</summary>
+        [MessageAttribution("ODE")]
+        public void DropError(TcpClient client, string message)
+        {
+            string code = message.Length > 3 ? message.Substring(3, 1) : string.Empty;
+            string reason = code == "F"
+                ? Text("DROP_FULL", "Il y a trop d'objets au sol pour en jeter un autre.")
+                : Text("CANT_DROP_ITEM", "Cet objet ne peut pas être jeté.");
+            client.account.Logger.LogError("INVENTAIRE", reason);
+            client.account.Game.character.Inventory.NotifyRefused(reason);
+        }
+
+        private static string Text(string key, string fallback) => LangData.Text.Has(key) ? LangData.Text.Get(key) : fallback;
+
         [MessageAttribution("OR")]
         public void EliminateObject(TcpClient client, string message)
         {
             if (uint.TryParse(message.Substring(2), out uint inventoryId))
-                client.account.Game.character.Inventory.SuppItem(inventoryId, 0, false);
+                client.account.Game.character.Inventory.SuppItem(inventoryId, 0);
         }
 
         [MessageAttribution("OQ")]

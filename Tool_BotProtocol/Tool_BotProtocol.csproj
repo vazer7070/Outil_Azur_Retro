@@ -127,6 +127,8 @@
   <ItemGroup>
     <Compile Include="Config\AccountConfig.cs" />
     <Compile Include="Config\GlobalConfig.cs" />
+    <Compile Include="Config\BotOptions.cs" />
+    <Compile Include="Config\ChatCensorship.cs" />
     <Compile Include="Frames\Auth\AccountLoginFrame.cs" />
     <Compile Include="Frames\Auth\AuthFrame.cs" />
     <Compile Include="Frames\Frame.cs" />
@@ -136,8 +138,14 @@
     <Compile Include="Frames\Jeu\ChatFrame.cs" />
     <Compile Include="Frames\Jeu\EmoteFrame.cs" />
     <Compile Include="Frames\Jeu\ExchangeFrame.cs" />
+    <Compile Include="Frames\Jeu\FightsFrame.cs" />
+    <Compile Include="Frames\Jeu\FriendsFrame.cs" />
     <Compile Include="Frames\Jeu\GuildFrame.cs" />
     <Compile Include="Frames\Jeu\InteractionFrame.cs" />
+    <Compile Include="Frames\Jeu\HouseFrame.cs" />
+    <Compile Include="Frames\Jeu\MerchantFrame.cs" />
+    <Compile Include="Frames\Jeu\AuctionFrame.cs" />
+    <Compile Include="Frames\Jeu\InteractiveFrame.cs" />
     <Compile Include="Frames\Jeu\InventoryFrame.cs" />
     <Compile Include="Frames\Jeu\JobsFrame.cs" />
     <Compile Include="Frames\Jeu\MapFrame.cs" />
@@ -154,6 +162,9 @@
     <Compile Include="Game\Accounts\Accounts.cs" />
     <Compile Include="Game\Accounts\AccountStates.cs" />
     <Compile Include="Game\Actions\GameActionRouter.cs" />
+    <Compile Include="Game\Actions\MapActions.cs" />
+    <Compile Include="Game\Actions\MapActionTexts.cs" />
+    <Compile Include="Game\Actions\MapFights.cs" />
     <Compile Include="Game\Combats\FightActions.cs" />
     <Compile Include="Game\Combats\FightEffects.cs" />
     <Compile Include="Game\Combats\FightResult.cs" />
@@ -161,19 +172,31 @@
     <Compile Include="Game\Chat\ChatCommands.cs" />
     <Compile Include="Game\Chat\ChatMessage.cs" />
     <Compile Include="Game\Chat\ChatService.cs" />
+    <Compile Include="Game\Chat\PlayerPresence.cs" />
+    <Compile Include="Game\Chat\ServerCommands.cs" />
     <Compile Include="Game\Combats\Fights.cs" />
     <Compile Include="Game\Data\LangData.cs" />
     <Compile Include="Game\Combats\FightTimeline.cs" />
     <Compile Include="Game\GameClass.cs" />
+    <Compile Include="Game\Interactions\DocumentDialog.cs" />
     <Compile Include="Game\Interactions\Interactions.cs" />
+    <Compile Include="Game\Exchanges\CollectorExchange.cs" />
     <Compile Include="Game\Exchanges\ExchangeRegistry.cs" />
     <Compile Include="Game\Exchanges\IExchange.cs" />
     <Compile Include="Game\Exchanges\PlayerExchange.cs" />
     <Compile Include="Game\Exchanges\StorageExchange.cs" />
+    <Compile Include="Game\Exchanges\MerchantExchange.cs" />
+    <Compile Include="Game\Exchanges\AuctionHouse.cs" />
+    <Compile Include="Game\Habitat\House.cs" />
+    <Compile Include="Game\Habitat\HouseActions.cs" />
+    <Compile Include="Game\Interactions\InteractiveActions.cs" />
+    <Compile Include="Game\Interactions\KeyCodeDialog.cs" />
     <Compile Include="Game\Interactions\NpcDialog.cs" />
     <Compile Include="Game\Interactions\NpcShop.cs" />
     <Compile Include="Game\Interactions\ZaapDialog.cs" />
+    <Compile Include="Game\Interactions\ZaapiDialog.cs" />
     <Compile Include="Game\Groupes\Groupe.cs" />
+    <Compile Include="Game\Groupes\PartyActions.cs" />
     <Compile Include="Game\Groupes\Regroupement.cs" />
     <Compile Include="Game\Jobs\Jobs.cs" />
     <Compile Include="Game\Jobs\JobSkills.cs" />
@@ -181,8 +204,6 @@
     <Compile Include="Game\Managers\Mouvements\AnimType.cs" />
     <Compile Include="Game\Managers\recoltes\RecolteEnum.cs" />
     <Compile Include="Game\Managers\recoltes\RecoltesClass.cs" />
-    <Compile Include="Game\Managers\Teleport\Teleport.cs" />
-    <Compile Include="Game\Managers\Teleport\TeleportType.cs" />
     <Compile Include="Game\Maps\Combats\FightMoveNode.cs" />
     <Compile Include="Game\Maps\Combats\FightMoveStructs.cs" />
     <Compile Include="Game\Maps\Entities\ActorKind.cs" />
@@ -214,9 +235,11 @@
     <Compile Include="Game\Maps\Interfaces\Entites.cs" />
     <Compile Include="Game\Maps\Map.cs" />
     <Compile Include="Game\Maps\Map.Actors.cs" />
+    <Compile Include="Game\Maps\Map.Capabilities.cs" />
     <Compile Include="Game\Maps\GmParser.cs" />
     <Compile Include="Game\Maps\Mouvements\PathfinderUtils.cs" />
     <Compile Include="Game\Monstres\Monstres.cs" />
+    <Compile Include="Game\Monstres\SoulStones.cs" />
     <Compile Include="Game\NPC\PNJ.cs" />
     <Compile Include="Game\Perso\CharacterClass.cs" />
     <Compile Include="Game\Perso\Inventory\Enums\InventoryObjectsTypes.cs" />
@@ -224,7 +247,9 @@
     <Compile Include="Game\Perso\Inventory\InventoryClass.cs" />
     <Compile Include="Game\Perso\Inventory\InventoryObjects.cs" />
     <Compile Include="Game\Perso\Inventory\InventoryUtilities.cs" />
+    <Compile Include="Game\Perso\Inventory\ItemEffects.cs" />
     <Compile Include="Game\Perso\Inventory\ItemSets.cs" />
+    <Compile Include="Game\Perso\Inventory\SpecialItems.cs" />
     <Compile Include="Game\Perso\Personnages.cs" />
     <Compile Include="Game\Perso\PlayerRestrictions.cs" />
     <Compile Include="Game\Perso\Spells\Shaper.cs" />
@@ -239,6 +264,10 @@
     <Compile Include="Game\Perso\Stats\StatsEnum.cs" />
     <Compile Include="Game\Session\GameSession.cs" />
     <Compile Include="Game\Session\ServerMessage.cs" />
+    <Compile Include="Game\Social\Friends.cs" />
+    <Compile Include="Game\Social\FriendsActions.cs" />
+    <Compile Include="Game\Guildes\Guild.cs" />
+    <Compile Include="Game\Guildes\GuildActions.cs" />
     <Compile Include="Json\AccountsJson.cs" />
     <Compile Include="Json\Config.cs" />
     <Compile Include="Network\ByPass\ByPassLauncher.cs" />
@@ -254,7 +283,6 @@
     <Compile Include="Utils\Logger\BotPacketRedactor.cs" />
     <Compile Include="Utils\Logger\LogsEnums.cs" />
     <Compile Include="Utils\Logger\LogsMessages.cs" />
-    <Compile Include="Utils\Pics\PicturesManager.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

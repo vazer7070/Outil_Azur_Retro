@@ -39,9 +39,16 @@ Chaque fichier a pour racine `<BotLang famille="…" langue="fr" version="<numé
 | `titles.xml` | `titles_fr_7` | 206 titres | `titre` (`texte`, `couleur`, `typeParametre`) |
 | `quests.xml` | `quests_fr_411` | 480 quêtes, 824 étapes, 3 687 objectifs, 14 modèles | `quete`, `etape`, `objectif` (`type`, `parametres`), `modele` |
 
-Familles exportées telles quelles (`<entree table="…" id="…">` avec les clés d'origine), sans accesseur dédié, pour les fonctions à venir (alignement, maisons, montures, panoplies, recettes, carte du monde…) : `alignment` (147), `classes` (180), `effects` (266), `itemsets` (180), `crafts` (288), `hints` (116), `houses` (129), `rides` (117), `fightChallenge` (25), `states` (206, entrées `ST` seulement), `guilds` (109), `ranks` (108), `pvp` (103), `servers` (201), `dungeons` (120). Elles se lisent avec `LangData.Raw(famille, table, id)`.
+Familles exportées telles quelles (`<entree table="…" id="…">` avec les clés d'origine), sans accesseur dédié, pour les fonctions à venir (alignement, maisons, montures, panoplies, recettes, carte du monde…) : `alignment` (147), `classes` (180), `effects` (266), `itemsets` (180), `crafts` (288), `hints` (116), `houses` (129), `rides` (117), `fightChallenge` (25), `states` (206, entrées `ST` seulement), `guilds` (109), `ranks` (108), `pvp` (103), `servers` (201), `dungeons` (120), `shortcuts` (566). Elles se lisent avec `LangData.Raw(famille, table, id)`.
 
-Taille totale : 8,1 Mo (28 fichiers). Le projet copie `*.xml` de ce dossier vers `ressources/Bot/BotLang` à côté de l'exécutable (cible `CopyBotLangAssets` de `Outil_Azur_complet.csproj`) ; `LoadingBotForm` les charge hors du thread de l'interface avec `Tool_BotProtocol.Game.Data.LangData`.
+`shortcuts.xml` (`shortcuts_fr_228`) est la table des raccourcis clavier du client : jeux de touches `SST` (8, dont « Clavier français - France » = 1), catégories `SSC` (8), raccourcis `SH` (61, description `d`, catégorie `c`) et touches `SSK` (489, identifiant `<jeu>|<NOM>`, code de touche `k`, modificateurs `c` 0 aucun / 1 Ctrl / 2 Maj / 3 Ctrl + Maj, libellé `s`, seconde touche éventuelle `k2`/`c2`/`s2`). `Bot/Shortcuts.cs` en lit le jeu 1. Commande exacte, ajoutée après les autres familles :
+
+```sh
+python3 tools/client-analysis/lang2xml.py "<pack Lang>/dofus/lang/swf" Outil_Azur_complet/Resources/Bot/BotLang \
+    --familles shortcuts --avm1dump tools/client-analysis/avm1dump/target/release/avm1dump
+```
+
+Taille totale : 8,2 Mo (29 fichiers). Le projet copie `*.xml` de ce dossier vers `ressources/Bot/BotLang` à côté de l'exécutable (cible `CopyBotLangAssets` de `Outil_Azur_complet.csproj`) ; `LoadingBotForm` les charge hors du thread de l'interface avec `Tool_BotProtocol.Game.Data.LangData`.
 
 ## Droits
 

@@ -17,7 +17,6 @@ using Tool_BotProtocol.Game.Maps.Mouvements;
 using Tool_BotProtocol.Game.Managers.Mouvements;
 using Tool_BotProtocol.Game.Monstres;
 using Tool_BotProtocol.Utils.Crypto;
-using Tool_BotProtocol.Utils.Pics;
 using Outil_Azur_complet.Bot.Controls;
 using Outil_Azur_complet.Bot.Interfaces;
 
@@ -60,67 +59,48 @@ internal static class BotGameplaySmoke
         });
     }
 
-    private sealed class ArtworkCell : UserMapCell
-    {
-        public Bitmap DrawnImage;
-        public ArtworkCell(short id) : base(id) { }
-        public override void DrawZaapi(Bitmap image, Graphics graphics)
-        {
-            DrawnImage = image;
-            base.DrawZaapi(image, graphics);
-        }
-    }
-
+    /// <summary>
+    /// Sprites d'acteurs (lot M1, ActorSprites) : PNG décodé sur le pool en copie indépendante du fichier (ni verrou ni
+    /// flux gardé), PNG invalide → repère sans exception, même redessiné en boucle ; la vue dessine les acteurs de GM.
+    /// </summary>
     private static void CheckArtworkOwnership(Accounts account)
     {
-        string previousDirectory = Directory.GetCurrentDirectory();
-        string work = Path.Combine(TestPaths.Work, "bot-artwork");
-        string graphicsFolder = Path.Combine(work, "ressources", "Bot", "gfx");
-        Directory.CreateDirectory(graphicsFolder);
+        string folder = Path.Combine(TestPaths.Work, "bot-artwork-sprites");
+        Directory.CreateDirectory(folder);
+        string path = Path.Combine(folder, "1R.png");
+        using (var source = new Bitmap(12, 12))
+        {
+            source.SetPixel(0, 0, Color.Magenta); source.SetPixel(6, 11, Color.Magenta);
+            source.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+        }
+        File.WriteAllText(Path.Combine(folder, "2R.png"), "invalid PNG");
+        using (var sprites = new ActorSprites(folder))
+        {
+            sprites.Resolve(1, 1, false); sprites.Resolve(2, 1, false);
+            Check(sprites.WaitForPending(5000), "Sprite reads did not finish");
+            SpritePose pose = sprites.Resolve(1, 1, false);
+            Check(pose.State == SpriteLoadState.Ready && pose.Sheet.Image.GetPixel(0, 0).ToArgb() == Color.Magenta.ToArgb(), "Actor sprite was not decoded");
+            using (FileStream exclusive = File.Open(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+                Check(exclusive.Length > 0, "Decoded sprite retains its PNG file lock");
+            File.Delete(path);
+            Check(pose.Sheet.Image.GetPixel(0, 0).ToArgb() == Color.Magenta.ToArgb(), "Decoded sprite depends on a deleted file stream");
+            for (int index = 0; index < 40; index++)
+                Check(sprites.Resolve(2, 1, false).State == SpriteLoadState.Missing, "Invalid sprite PNG broke repeated resolutions");
+        }
         try
         {
-            Directory.SetCurrentDirectory(work);
-            string path = Path.Combine(graphicsFolder, "1.png");
-            using (var source = new Bitmap(12, 12))
-            {
-                source.SetPixel(0, 0, Color.Magenta);
-                source.Save(path, System.Drawing.Imaging.ImageFormat.Png);
-            }
-            using (Bitmap owned = PicturesManager.InteractivePicGfx(1, true))
-            {
-                Check(owned != null && owned.GetPixel(0, 0).ToArgb() == Color.Magenta.ToArgb(), "Missing reversed image did not use regular artwork");
-                using (FileStream exclusive = File.Open(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
-                    Check(exclusive.Length > 0, "Returned bitmap retains its PNG file lock");
-                File.Delete(path);
-                Check(owned.GetPixel(0, 0).ToArgb() == Color.Magenta.ToArgb(), "Owned bitmap depends on a deleted file stream");
-                owned.Save(path, System.Drawing.Imaging.ImageFormat.Png);
-            }
-            File.WriteAllText(Path.Combine(graphicsFolder, "1R.png"), "invalid PNG");
-            for (int index = 0; index < 40; index++)
-            {
-                using (Bitmap image = PicturesManager.InteractivePicGfx(1, true))
-                    Check(image != null && image.Width == 12, "Invalid reversed optional artwork broke repeated redraws");
-            }
-            using (var grid = new UserMapControl())
+            using (var grid = new UserMapControl(null, folder))
             using (var canvas = new Bitmap(400, 320))
             using (Graphics graphics = Graphics.FromImage(canvas))
             {
                 grid.SetAccount(account); grid.W = 3; grid.H = 4; grid.Size = canvas.Size;
-                grid.SetCellNum(); grid.DrawGrille();
-                var cell = new ArtworkCell(0) { Points = grid.Cells[0].Points, State = CellState.INTERACTIVE };
-                grid.DrawUniqueCell(graphics, cell);
-                Check(cell.DrawnImage != null, "Artwork ownership probe did not reach the draw caller");
-                bool disposed = false;
-                try { int ignored = cell.DrawnImage.Width; }
-                catch (ArgumentException) { disposed = true; }
-                Check(disposed, "Map repaint failed to dispose its owned bitmap");
+                grid.SetCellNum(); grid.DrawGrille(); grid.RefreshMap();
+                grid.WaitForActorSprites(5000);
+                grid.DrawCells(graphics);
+                Check(grid.GetActorVisualStates().Length > 0, "Map repaint lost the GM actors");
             }
         }
-        finally
-        {
-            Directory.SetCurrentDirectory(previousDirectory);
-            System.Threading.SynchronizationContext.SetSynchronizationContext(null);
-        }
+        finally { System.Threading.SynchronizationContext.SetSynchronizationContext(null); }
     }
 
     private static async Task Run()

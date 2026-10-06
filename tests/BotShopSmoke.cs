@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Outil_Azur_complet.Bot;
+using Outil_Azur_complet.Bot.Controls;
 using Outil_Azur_complet.Bot.Interfaces;
 using Outil_Azur_complet.Bot.Panels;
 using Tool_BotProtocol.Config;
@@ -34,7 +35,7 @@ internal static class BotShopSmoke
             if (!File.Exists(path)) path = Path.ChangeExtension(path, "exe");
             return File.Exists(path) ? Assembly.LoadFrom(path) : null;
         };
-        try { Application.EnableVisualStyles(); Run(); Console.WriteLine("OK: inventaire OAK/OAE/OQ/OR/OM/OC/OS/OT/OK hexadécimal, envois OM/OU/OD, boutique ER0/ECK0/EL/EB/ES/EV, volets Inventaire et Boutique"); }
+        try { Application.EnableVisualStyles(); Run(); Console.WriteLine("OK: inventaire OAK/OAE/OQ/OR/OM/OC/OS/OT/OK hexadécimal, envois OM/OU/OD, boutique ER0/ECK0/EL/EB/ES/EV, volets Inventaire (grille et plateau) et Boutique"); }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
     private static void Check(bool value, string message) { if (!value) throw new Exception(message); }
@@ -126,12 +127,12 @@ internal static class BotShopSmoke
 
                     // Envois selon Items.movement/use/drop ; l'état local attend la confirmation du serveur.
                     Check(Result(bag.Use_Item(potion)) && Read(peer) == "OU1000|" && potion.Qua == 5, "Use does not send OU<id>| or changed the quantity locally");
-                    Check(Result(bag.Desequip_Item(sword)) && Read(peer) == "OM1001|-1|1" && sword.IsEquipped(), "Unequip does not send OM<id>|-1|1 or changed the slot locally");
+                    Check(Result(bag.Desequip_Item(sword)) && Read(peer) == "OM1001|-1" && sword.IsEquipped(), "Unequip does not send OM<id>|-1 (Items.movement without quantity) or changed the slot locally");
                     Check(!Result(bag.Desequip_Item(ring)), "Unequip accepted for an item in the bag");
                     Feed(account, "OM1001|"); Check(!sword.IsEquipped(), "Server OM did not update the sword");
-                    Check(Result(bag.Equip_item(sword)) && Read(peer) == "OM1001|1|1", "Equip does not send the numeric slot");
+                    Check(Result(bag.Equip_item(sword)) && Read(peer) == "OM1001|1", "Equip does not send OM<id>|<slot> without quantity");
                     Feed(account, "OM1001|1"); Check(sword.IsEquipped(), "Server OM after the equip request did not equip the sword");
-                    Check(Result(bag.Equip_item(ring)) && Read(peer) == "OM1002|2|1", "Ring is not equipped on the first free ring slot");
+                    Check(Result(bag.Equip_item(ring)) && Read(peer) == "OM1002|2", "Ring is not equipped on the first free ring slot");
                     Check(!Result(bag.Equip_item(potion)), "Non-equipable item was equipped");
                     Check(!Result(bag.Drop_Item(potion, 9)) && !Result(bag.Drop_Item(potion, 0)), "Drop accepted an invalid quantity");
                     NoPacket(peer, "Refused inventory actions reached the server");
@@ -180,24 +181,27 @@ internal static class BotShopSmoke
                         form.ShowInTaskbar = false; form.Opacity = 0; form.Show(); Application.DoEvents();
                         var drawer = form.Panels; var bagPanel = drawer.Get<InventoryPanel>(); var shopPanel = drawer.Get<ShopPanel>();
                         drawer.Show(bagPanel); Application.DoEvents(); Check(drawer.Visible && drawer.Current == bagPanel, "Inventory panel did not open");
-                        var inventory = (ListView)Get(bagPanel, "inventory");
-                        Check(inventory.Items.Count == 3 && RowWithTag(inventory, 1000u) != null, "Inventory rows lack their inventory identifiers");
+                        // Lot F13b : le sac est une grille (ItemGrid) et les objets portés sont sur le plateau d'équipement.
+                        var inventory = (ItemGrid)Get(bagPanel, "inventory"); var plateau = (EquipmentPlateau)Get(bagPanel, "plateau");
+                        Check(inventory.Items.Count == 2 && inventory.IndexOf(1000u) >= 0 && inventory.IndexOf(1001u) < 0 && plateau[1].Item?.Inventory_ID == 1001u,
+                            "Inventory grid must list the bag only, the worn sword being on the equipment slot 1");
                         var equip = (Control)Get(bagPanel, "equipItem"); var unequip = (Control)Get(bagPanel, "unequipItem");
                         var use = (Control)Get(bagPanel, "useItem"); var drop = (Control)Get(bagPanel, "dropItem");
                         Check(!equip.Enabled && !unequip.Enabled && !use.Enabled && !drop.Enabled, "Inventory actions enabled without a selection");
-                        RowWithTag(inventory, 1000u).Selected = true; Application.DoEvents();
+                        Check(inventory.SelectItem(1000u), "Potion cell cannot be selected"); Application.DoEvents();
                         Check(!equip.Enabled && !unequip.Enabled && use.Enabled && drop.Enabled, "Potion actions are wrong (equip/unequip must stay disabled)");
                         ((Button)use).PerformClick(); Check(Read(peer) == "OU1000|", "Use button does not send OU");
                         ((NumericUpDown)Get(bagPanel, "inventoryQuantity")).Value = 2;
                         ((Button)drop).PerformClick(); Application.DoEvents();
                         NoPacket(peer, "Drop sent without confirmation"); Check(drop.Text == "Confirmer", "Drop does not ask for confirmation");
                         ((Button)drop).PerformClick(); Check(Read(peer) == "OD1000|2" && drop.Text == "Jeter", "Confirmed drop does not send OD<id>|<quantity>");
-                        RowWithTag(inventory, 1000u).Selected = false; RowWithTag(inventory, 1001u).Selected = true; Application.DoEvents();
-                        Check(unequip.Enabled && !equip.Enabled && !drop.Enabled, "Equipped sword actions are wrong");
-                        ((Button)unequip).PerformClick(); Check(Read(peer) == "OM1001|-1|1", "Unequip button does not send OM");
+                        plateau[1].Activate(); Application.DoEvents();
+                        Check(inventory.SelectedItem == null && plateau[1].Selected && unequip.Enabled && !equip.Enabled && !drop.Enabled, "Equipped sword actions are wrong");
+                        ((Button)unequip).PerformClick(); Check(Read(peer) == "OM1001|-1", "Unequip button does not send OM<id>|-1");
                         Feed(account, "OM1001|"); Application.DoEvents();
-                        Check(RowWithTag(inventory, 1001u).Selected && equip.Enabled && !unequip.Enabled, "Server OM lost the selection or the buttons");
-                        ((Button)equip).PerformClick(); Check(Read(peer) == "OM1001|1|1", "Equip button does not send OM with the slot");
+                        Check(inventory.Items.Count == 3 && inventory.SelectedItem?.Inventory_ID == 1001u && plateau[1].Item == null && equip.Enabled && !unequip.Enabled,
+                            "Server OM did not move the sword to the grid or lost the selection");
+                        ((Button)equip).PerformClick(); Check(Read(peer) == "OM1001|1", "Equip button does not send OM with the slot");
                         Feed(account, "OM1001|1"); Application.DoEvents();
                         var view = (MapControl)Get(form, "mapControl"); Check(view != null, "Map view missing for a loaded map");
                         Complete(view.Router.RouteAsync(9, MouseButtons.Right)); NoPacket(peer, "Right-click on an empty cell sent a packet");

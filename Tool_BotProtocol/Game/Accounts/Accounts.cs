@@ -33,9 +33,11 @@ namespace Tool_BotProtocol.Game.Accounts
         private Task _connectTask;
         public event Action AccountStateEvent;
         public event Action AccountDisconnectEvent;
-        public bool HasGroup => Groupe != null;
-        public bool IsGroupLeader => !HasGroup || Groupe.leader == this;
-        public Groupe Groupe { get; set; }
+        /// <summary>Vrai si le compte appartient à une équipe de comptes du bot (<see cref="Regroupement"/>), pas au groupe du jeu.</summary>
+        public bool HasGroup => Regroupement != null;
+        public bool IsGroupLeader => !HasGroup || Regroupement.IsLeader(this);
+        /// <summary>Équipe de comptes du bot (multi-compte), posée par <see cref="Regroupement"/> ; le groupe du jeu est <c>Game.Interactions.Party</c>.</summary>
+        public Regroupement Regroupement { get; internal set; }
         public bool CanUseMount = false;
         public ConcurrentDictionary<int, string> AccountCharactersInfo;
         // Remaining subscription time, in milliseconds on the Retro wire protocol.

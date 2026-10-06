@@ -118,7 +118,11 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
                 }
             }
         }
-        public async void Delete_Item(InventoryObjects I, int qua, bool DeleteMessage)
+        /// <summary>
+        /// Retire localement <paramref name="qua"/> exemplaires (0 = tout) après un paquet du serveur (<c>OR</c>, <c>OQ</c>).
+        /// Aucun paquet n'est émis : la destruction volontaire passe par <see cref="Destroy"/>, qui attend la confirmation du serveur.
+        /// </summary>
+        public void Delete_Item(InventoryObjects I, int qua)
         {
             if (I == null)
                 return;
@@ -135,20 +139,72 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
             {
                 PlayerItems.TryRemove(I.Inventory_ID, out InventoryObjects k);
             }
-            if (DeleteMessage)
-            {
-                await Account.Connexion.SendPacket($"Od{I.Inventory_ID}|{qua}");
-                Account.Logger.LogInfo("INVENTAIRE", $"{qua} {I.Name} retiré(s)");
-            }
 
             RefreshInventory?.Invoke(true);
         }
-        public void SuppItem(uint ID_inventory, int qua, bool DeleteMessage)
+        public void SuppItem(uint ID_inventory, int qua)
         {
             if (!PlayerItems.TryGetValue(ID_inventory, out InventoryObjects I))
                 return;
 
-            Delete_Item(I, qua, DeleteMessage);
+            Delete_Item(I, qua);
+        }
+        /// <summary>
+        /// Détruit des exemplaires d'un objet du sac : <c>Od&lt;id&gt;|&lt;quantité&gt;</c>, comme <c>Items.destroy</c> du client
+        /// après la confirmation <c>DO_U_DESTROY</c> (à demander par l'interface). Le serveur répond par <c>OR</c> (tout détruit)
+        /// ou <c>OQ</c> (quantité restante) ; <c>OdE</c> signale une erreur. StarLoco ignore en silence un objet équipé ou
+        /// inconnu : ces cas sont refusés localement pour ne pas laisser l'utilisateur sans réponse.
+        /// </summary>
+        public async Task<bool> Destroy(InventoryObjects item, int quantity)
+        {
+            if (!CanAct(item, out string reason)) { Account?.Logger?.LogError("INVENTAIRE", reason); return false; }
+            if (quantity <= 0 || quantity > item.Qua)
+            {
+                Account.Logger.LogError("INVENTAIRE", $"Quantité invalide pour détruire {item.Name} (1 à {item.Qua}).");
+                return false;
+            }
+            if (item.position != InventorySlots.NOT_EQUIPPED && (int)item.position < ItemSlots.ShortcutOffset)
+            {
+                Account.Logger.LogError("INVENTAIRE", $"{item.Name} est équipé : le serveur ignore la destruction d'un objet porté, retirez-le d'abord.");
+                return false;
+            }
+            await Account.Connexion.SendPacket($"Od{item.Inventory_ID}|{quantity}", true);
+            Account.Logger.LogInfo("INVENTAIRE", $"Destruction de {quantity} × {item.Name} demandée ; le serveur confirme par OR ou OQ.");
+            return true;
+        }
+        /// <summary>
+        /// Déplace un objet vers un emplacement : <c>OM&lt;id&gt;|&lt;position&gt;</c>, la quantité n'étant ajoutée
+        /// (<c>|&lt;quantité&gt;</c>) que lorsqu'elle est précisée, comme <c>Items.movement</c> du client. -1 range dans le sac,
+        /// 0 à 16 équipe (16 = monture), 34 et plus pose dans la barre de raccourcis. Un emplacement d'équipement doit accepter
+        /// le type de l'objet (<see cref="ItemSlots.Accepts"/>) ; le serveur confirme par <c>OM</c> ou refuse par <c>OAE</c>/<c>Im119</c>.
+        /// </summary>
+        public async Task<bool> MoveToSlot(InventoryObjects item, int position, int? quantity = null)
+        {
+            if (!CanAct(item, out string reason)) { Account?.Logger?.LogError("INVENTAIRE", reason); return false; }
+            if (position < -1 || (position > ItemSlots.MountPosition && position < ItemSlots.ShortcutOffset))
+            {
+                Account.Logger.LogError("INVENTAIRE", $"Emplacement {position} inconnu pour {item.Name}.");
+                return false;
+            }
+            if ((int)item.position == position)
+            {
+                Account.Logger.LogError("INVENTAIRE", $"{item.Name} est déjà à l'emplacement {ItemSlots.Name(position)}.");
+                return false;
+            }
+            if (position >= 0 && position <= ItemSlots.MountPosition && !ItemSlots.Accepts(position, item.Type))
+            {
+                Account.Logger.LogError("INVENTAIRE", $"{item.Name} ne peut pas être posé sur l'emplacement {ItemSlots.Name(position)}.");
+                return false;
+            }
+            if (quantity.HasValue && (quantity.Value <= 0 || quantity.Value > item.Qua))
+            {
+                Account.Logger.LogError("INVENTAIRE", $"Quantité invalide pour déplacer {item.Name} (1 à {item.Qua}).");
+                return false;
+            }
+            string packet = $"OM{item.Inventory_ID}|{position}" + (quantity.HasValue ? $"|{quantity.Value}" : string.Empty);
+            await Account.Connexion.SendPacket(packet, true);
+            Account.Logger.LogInfo("INVENTAIRE", $"Déplacement de {item.Name} vers {ItemSlots.Name(position)} demandé ; le serveur confirme par OM.");
+            return true;
         }
         private bool CanAct(InventoryObjects item, out string reason)
         {
@@ -160,7 +216,8 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
             return true;
         }
         /// <summary>
-        /// Demande au serveur d'équiper l'objet : <c>OM&lt;id&gt;|&lt;emplacement&gt;|1</c>, comme <c>Items.movement</c> du client.
+        /// Demande au serveur d'équiper l'objet : <c>OM&lt;id&gt;|&lt;emplacement&gt;</c>, comme <c>Items.movement</c> du client
+        /// (sans quantité : le client ne l'ajoute que lorsqu'elle est fournie).
         /// La position locale n'est modifiée qu'à la réception de <c>OM</c> ; un refus arrive en <c>OAE…</c>.
         /// </summary>
         public async Task<bool> Equip_item(InventoryObjects I)
@@ -171,13 +228,13 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
                 Account.Logger.LogError("INVENTAIRE", $"Le niveau de l'objet {I.Name} est supérieur à ton niveau");
                 return false;
             }
-            if(I.position != InventorySlots.NOT_EQUIPPED)
+            if(I.position != InventorySlots.NOT_EQUIPPED && (int)I.position < ItemSlots.ShortcutOffset)
             {
                 Account.Logger.LogError("INVENTAIRE", $"L'objet {I.Name} est déjà sur toi");
                 return false;
             }
-            List<InventorySlots> Possible_P = InventoryUtilities.GetPosition(I.Type);
-            if(Possible_P == null || Possible_P.Count == 0)
+            List<InventorySlots> Possible_P = ItemSlots.PositionsFor(I.Type).Where(p => p <= (int)InventorySlots.SHIELD).Select(p => (InventorySlots)p).ToList();
+            if(Possible_P.Count == 0)
             {
                 Account.Logger.LogError("INVENTAIRE", $"L'objet {I.Name} n'est pas un objet équipable");
                 return false;
@@ -185,20 +242,20 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
             // Premier emplacement libre, sinon le premier emplacement possible : le serveur gère l'échange ou le refus.
             InventorySlots slot = Possible_P.FirstOrDefault(candidate => GetObjetsPosition(candidate) == null);
             if (!Possible_P.Contains(slot) || GetObjetsPosition(slot) != null) slot = Possible_P[0];
-            await Account.Connexion.SendPacket($"OM{I.Inventory_ID}|{(int)slot}|1", true);
+            await Account.Connexion.SendPacket($"OM{I.Inventory_ID}|{(int)slot}", true);
             Account.Logger.LogInfo("INVENTAIRE", $"Demande d'équipement de {I.Name} envoyée ; le serveur confirme par OM.");
             return true;
         }
-        /// <summary>Demande au serveur de ranger l'objet dans le sac : <c>OM&lt;id&gt;|-1|1</c>.</summary>
+        /// <summary>Demande au serveur de ranger l'objet dans le sac : <c>OM&lt;id&gt;|-1</c>.</summary>
         public async Task<bool> Desequip_Item(InventoryObjects O)
         {
             if (!CanAct(O, out string reason)) { Account?.Logger?.LogError("INVENTAIRE", reason); return false; }
-            if(O.position == InventorySlots.NOT_EQUIPPED)
+            if(O.position == InventorySlots.NOT_EQUIPPED || (int)O.position >= ItemSlots.ShortcutOffset)
             {
                 Account.Logger.LogError("INVENTAIRE", $"{O.Name} n'est pas équipé");
                 return false;
             }
-            await Account.Connexion.SendPacket($"OM{O.Inventory_ID}|{(int)InventorySlots.NOT_EQUIPPED}|1", true);
+            await Account.Connexion.SendPacket($"OM{O.Inventory_ID}|{(int)InventorySlots.NOT_EQUIPPED}", true);
             Account.Logger.LogInfo("INVENTAIRE", $"Demande de retrait de {O.Name} envoyée ; le serveur confirme par OM.");
             return true;
         }
