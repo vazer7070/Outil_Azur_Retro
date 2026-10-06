@@ -211,6 +211,7 @@ namespace Tool_BotProtocol.Game.Exchanges
         public Task<InteractionResult> SwitchModeAsync()
         {
             if (!IsOpen) return Task.FromResult(Refuse("Aucun hôtel de vente ouvert."));
+            if (IsOpeningPending) return Task.FromResult(Refuse("Attendez la réponse du serveur au changement de mode précédent."));
             if (Account?.IsFighting() == true) return Task.FromResult(Refuse("Action impossible pendant un combat."));
             int type = IsBuying ? ExchangeTypes.AuctionSell : ExchangeTypes.AuctionBuy;
             IsOpeningPending = true;
@@ -330,6 +331,7 @@ namespace Tool_BotProtocol.Game.Exchanges
             return SendAsync("EV", "Fermeture de l'hôtel de vente demandée.");
         }
 
+        /// <summary>Une demande en attente ne bloque pas la suivante : sur une carte sans hôtel, StarLoco ne répond rien.</summary>
         private Task<InteractionResult> OpenAsync(int type, int npcId)
         {
             EnsureSessionSubscribed();
@@ -373,10 +375,10 @@ namespace Tool_BotProtocol.Game.Exchanges
                     LogError("Achat refusé par le serveur (Im172) : " + message.Text);
                     Notify();
                 }
-                else if (message.Kind == ServerMessageKind.Error && (code == 58 || code == 76) && IsSellPending)
+                else if (IsSellPending && ((message.Kind == ServerMessageKind.Info && code == 58) || (message.Kind == ServerMessageKind.Error && code == 76)))
                 {
                     IsSellPending = false;
-                    LogError("Mise en vente refusée par le serveur (Im1" + code.ToString(CultureInfo.InvariantCulture) + ") : " + message.Text);
+                    LogError("Mise en vente refusée par le serveur (Im" + (message.Kind == ServerMessageKind.Info ? "0" : "1") + code.ToString(CultureInfo.InvariantCulture) + ") : " + message.Text);
                     Notify();
                 }
                 else if (message.Kind == ServerMessageKind.Error && code == 83 && IsOpeningPending)
@@ -447,6 +449,7 @@ namespace Tool_BotProtocol.Game.Exchanges
                 list.Add(new AuctionSale { LineId = lineId, Quantity = Math.Max(0, quantity), TemplateId = template, Effects = fields[3], Price = Math.Max(0, price),
                     RemainingHours = hours, Name = InventoryObjects.DisplayName(template) });
             }
+            if (unreadable > 0 && list.Count == 0) { IsSellPending = false; Malformed("EL", payload); Notify(); return; }
             lock (sync) sales = list;
             SalesReceived = true;
             IsSellPending = false;
@@ -549,6 +552,7 @@ namespace Tool_BotProtocol.Game.Exchanges
                     AuctionLine line = ParseLine(template, parts[index].Split(';'), 0);
                     if (line == null) unreadable++; else list.Add(line);
                 }
+                if (unreadable > 0 && list.Count == 0) { Malformed("EHl", payload); return; }
                 lock (sync) { lines = list; if (!templates.Contains(template)) templates.Add(template); }
                 CurrentTemplate = template;
                 if (unreadable > 0) Account?.Logger?.LogError(Reference, unreadable + " ligne(s) illisible(s) ignorée(s) dans EHl.");
@@ -576,7 +580,7 @@ namespace Tool_BotProtocol.Game.Exchanges
                     return;
                 }
                 if (fields.Length < 3 || !TryInt(fields[1], out int template)) { Malformed("EHm", payload); return; }
-                AuctionLine moved = ParseLine(template, fields, 2);
+                AuctionLine moved = ParseLine(template, new[] { fields[0] }.Concat(fields.Skip(2)).ToArray(), 0);
                 if (moved == null) { Malformed("EHm", payload); return; }
                 lock (sync)
                 {
@@ -627,6 +631,7 @@ namespace Tool_BotProtocol.Game.Exchanges
             CurrentTemplate = -1;
             IsBuyPending = false;
             IsSellPending = false;
+            IsOpeningPending = false;
             SalesReceived = false;
             LastSearchFound = null;
         }
