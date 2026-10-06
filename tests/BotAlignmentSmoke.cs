@@ -422,6 +422,11 @@ internal static class BotAlignmentSmoke
                         FeedFromNetwork(account, "Ww"); PumpUntil(() => !prism.IsOpen && drawer.Current != prismPanel);
                         Check(Result(enemyEntries[1].Action(new ActorMenuContext(enemyPrism, null, -1, account, null, drawer, Keys.None))) != null && Read(peer) == "GA91271", "Attack entry does not send GA912<id>");
                         Check(Result(entries[1].Action(context)) != null, "Attack on own prism threw"); NoPacket(peer, "Attacking the own prism sent a packet");
+                        // Carte du monde ouverte après le CW : ses prismes sont reposés à l'ouverture (le volet carte envoie lui-même CWJ / CWV).
+                        mapView.SetPrisms(null); Check(mapView.Prisms.Count == 0, "SetPrisms(null) did not clear the prisms");
+                        drawer.Show(worldMap); PumpUntil(() => drawer.Current == worldMap);
+                        Check(Read(peer) == "CWJ" && mapView.Prisms.Count == 2, "Opening the world map does not restore the prisms of the last CW");
+                        drawer.CloseAll(); Check(Read(peer) == "CWV", "Closing the world map does not send CWV");
                         form.Close();
                     }
                     Check(BotDialogs.OpenDialogs.Count == 0, "A dialog survived the game window");

@@ -303,7 +303,8 @@ namespace Outil_Azur_complet.Bot.Panels
                     AlignmentTexts.Get("ASK_DISABLE_PVP", "Si tu désactives le mode joueur contre joueur, tu perdras {0} points d'honneur. Continuer ?", loss.ToString(CultureInfo.InvariantCulture)));
                 wingsDialog = BotDialogs.OpenDialogs.Except(before).LastOrDefault();
                 BotDialogResult result = await answer;
-                if (question == wingsQuestion) wingsDialog = null;
+                if (question != wingsQuestion) return; // boîte remplacée par un GIP plus récent : la nouvelle question tient
+                wingsDialog = null;
                 if (result == BotDialogResult.Yes) await ReportAsync(alignment.DisableWingsAsync);
                 else alignment.CancelWingsDisable();
             }
@@ -378,7 +379,6 @@ namespace Outil_Azur_complet.Bot.Panels
             dishonorLabel.Text = AlignmentTexts.Get("DISGRACE_POINTS", "Points de déshonneur") + " : " + me.Dishonor.ToString(CultureInfo.InvariantCulture) + " / " + maxDishonor.ToString(CultureInfo.InvariantCulture);
             dishonorGauge.Ratio = maxDishonor > 0 ? (double)me.Dishonor / maxDishonor : 0;
             ConquestBonus bonus = alignment.Bonus;
-            ConquestModifier[] bonusRows = bonus == null ? null : new[] { bonus.AlignBonus, bonus.AlignBonus, bonus.AlignBonus };
             for (int row = 0; row < 3; row++)
             {
                 if (bonus == null) { bonusCells[row, 0].Text = "-"; bonusCells[row, 1].Text = "-"; continue; }
