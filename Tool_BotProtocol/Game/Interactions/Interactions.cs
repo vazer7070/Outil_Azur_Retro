@@ -113,6 +113,8 @@ namespace Tool_BotProtocol.Game.Interactions
         public Exchanges.MerchantExchange Merchant { get; private set; }
         /// <summary>Guilde du personnage : <c>g…</c>, percepteurs et collecte <c>ER8</c> (lot F3).</summary>
         public Guildes.GuildActions Guild { get; private set; }
+        /// <summary>Hôtel de vente : achat (type 11, <c>EH…</c>) et vente (type 10, <c>EL</c>, <c>EMO±</c> avec prix) (lot F5).</summary>
+        public Exchanges.AuctionHouse Auction { get; private set; }
 
         internal InteractionsClass(Accounts.Accounts account)
         {
@@ -130,6 +132,7 @@ namespace Tool_BotProtocol.Game.Interactions
             House = new Habitat.HouseActions(account);
             Merchant = Exchanges.Get<Exchanges.MerchantExchange>();
             Guild = new Guildes.GuildActions(account);
+            Auction = Exchanges.Get<Exchanges.AuctionHouse>();
         }
 
         public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); Party.Clear(); Friends.Clear(); House.Clear(); Guild.Clear(); }
