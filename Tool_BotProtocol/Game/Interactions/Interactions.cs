@@ -117,6 +117,8 @@ namespace Tool_BotProtocol.Game.Interactions
         public Exchanges.AuctionHouse Auction { get; private set; }
         /// <summary>Alignement, ailes, conquête et prismes : <c>ZS</c>, <c>al</c>, <c>am</c>, <c>aM</c>, <c>GIP</c>, <c>C…</c>, <c>Wp</c>, <c>Ww</c> (lot F9).</summary>
         public Alignement.AlignmentActions Alignment { get; private set; }
+        /// <summary>Monture, enclos et étable : <c>Re</c>, <c>Rr</c>, <c>Rn</c>, <c>Rx</c>, <c>Rd</c>, <c>Rp</c>, <c>RD</c>, <c>Rv</c>, <c>Ee</c>, <c>Ef</c> ; sacoches <c>ER15|</c> (lot F7).</summary>
+        public Montures.MountActions Mount { get; private set; }
 
         internal InteractionsClass(Accounts.Accounts account)
         {
@@ -136,8 +138,9 @@ namespace Tool_BotProtocol.Game.Interactions
             Guild = new Guildes.GuildActions(account);
             Auction = Exchanges.Get<Exchanges.AuctionHouse>();
             Alignment = new Alignement.AlignmentActions(account);
+            Mount = new Montures.MountActions(account);
         }
 
-        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); Party.Clear(); Friends.Clear(); House.Clear(); Guild.Clear(); Alignment.Clear(); }
+        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); Party.Clear(); Friends.Clear(); House.Clear(); Guild.Clear(); Alignment.Clear(); Mount.Clear(); }
     }
 }
