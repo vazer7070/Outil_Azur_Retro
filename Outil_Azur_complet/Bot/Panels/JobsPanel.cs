@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Tool_BotProtocol.Game;
+using Tool_BotProtocol.Game.Interactions;
 using Tool_BotProtocol.Game.Jobs;
 using Tool_BotProtocol.Game.Perso;
 
@@ -33,7 +35,8 @@ namespace Outil_Azur_complet.Bot.Panels
         private CharacterClass character;
         private JobsActions actions;
         private int optionsJob = -1;
-        private bool optionsDirty, loadingOptions, refreshing;
+        private bool optionsDirty, optionsSent, loadingOptions, refreshing;
+        private JobOptions loadedOptions;
         private string recipesKey = string.Empty;
         private int recipesRequest;
         private IReadOnlyList<Recipe> shownRecipes = new Recipe[0];
@@ -70,11 +73,11 @@ namespace Outil_Azur_complet.Bot.Panels
         {
             var page = Page();
             strip = new JobStrip { Dock = DockStyle.Top, Name = "jobs-strip", AccessibleName = "Métiers du personnage" };
-            strip.SelectionChanged += (s, e) => { if (refreshing) return; optionsDirty = false; RefreshView(); };
+            strip.SelectionChanged += (s, e) => { if (!refreshing) RefreshView(); };
 
             jobName = MakeLabel(string.Empty, 10, true); jobName.Dock = DockStyle.Top; jobName.Height = 21; jobName.Name = "jobs-name";
             jobLevel = MakeLabel(string.Empty, 8.25f); jobLevel.Dock = DockStyle.Top; jobLevel.Height = 18; jobLevel.Name = "jobs-level";
-            gauge = new XpGauge { Dock = DockStyle.Top, Height = 14, Name = "jobs-xp" };
+            gauge = new XpGauge { Dock = DockStyle.Top, Height = 16, Name = "jobs-xp" };
             jobTool = MakeLabel(string.Empty, 8); jobTool.Dock = DockStyle.Top; jobTool.Height = 20; jobTool.ForeColor = BotUi.Muted; jobTool.Name = "jobs-tool";
             jobTool.TextAlign = ContentAlignment.MiddleLeft;
 
@@ -124,7 +127,7 @@ namespace Outil_Azur_complet.Bot.Panels
         {
             var tabPage = new Panel { Dock = DockStyle.Fill, BackColor = BotUi.Paper };
             var flow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, BackColor = BotUi.Paper };
-            optionsState = MakeLabel(string.Empty, 8); optionsState.AutoSize = false; optionsState.Width = 380; optionsState.Height = 32; optionsState.ForeColor = BotUi.Muted;
+            optionsState = MakeLabel(string.Empty, 8); optionsState.AutoSize = false; optionsState.Width = 350; optionsState.Height = 32; optionsState.ForeColor = BotUi.Muted;
             optionsState.Name = "jobs-options-state";
             notFree = Check("jobs-not-free", Text("NOT_FREE", "Payant"));
             freeIfFailed = Check("jobs-free-if-failed", Text("FREE_IF_FAILED", "Gratuit en cas d'échec"));
@@ -138,13 +141,13 @@ namespace Outil_Azur_complet.Bot.Panels
             saveOptions = MakeButton(Text("SAVE", "Sauvegarder"), async (s, e) => await SaveOptions(), true, 140); saveOptions.Name = "jobs-save";
             saveOptions.Margin = new Padding(0, 4, 0, 8);
 
-            var rule = new Panel { Height = 1, Width = 380, BackColor = BotUi.Gold, Margin = new Padding(0, 4, 0, 6) };
-            publicState = MakeLabel(string.Empty, 9, true); publicState.AutoSize = false; publicState.Width = 380; publicState.Height = 22; publicState.Name = "jobs-public-state";
+            var rule = new Panel { Height = 1, Width = 350, BackColor = BotUi.Gold, Margin = new Padding(0, 4, 0, 6) };
+            publicState = MakeLabel(string.Empty, 9, true); publicState.AutoSize = false; publicState.Width = 350; publicState.Height = 22; publicState.Name = "jobs-public-state";
             publicToggle = MakeButton(Text("ENABLE", "Activer"), async (s, e) => await TogglePublicMode(), false, 140); publicToggle.Name = "jobs-public-toggle";
             publicToggle.Margin = new Padding(0, 2, 0, 4);
             publicInfo = MakeLabel(Text("PUBLIC_MODE_INFOS", "En mode public, les autres joueurs voient vos métiers et peuvent vous demander de fabriquer leurs objets."), 8);
-            publicInfo.AutoSize = false; publicInfo.Width = 380; publicInfo.Height = 46; publicInfo.ForeColor = BotUi.Muted;
-            referenceState = MakeLabel(string.Empty, 8); referenceState.AutoSize = false; referenceState.Width = 380; referenceState.Height = 34;
+            publicInfo.AutoSize = false; publicInfo.Width = 350; publicInfo.Height = 46; publicInfo.ForeColor = BotUi.Muted;
+            referenceState = MakeLabel(string.Empty, 8); referenceState.AutoSize = false; referenceState.Width = 350; referenceState.Height = 34;
             referenceState.Name = "jobs-reference";
 
             flow.Controls.AddRange(new Control[] { optionsState, notFree, freeIfFailed, resourcesNeeded, slotsRow, saveOptions, rule, publicState, publicToggle, publicInfo, referenceState });
@@ -163,7 +166,7 @@ namespace Outil_Azur_complet.Bot.Panels
         private void MarkOptionsDirty()
         {
             if (loadingOptions) return;
-            optionsDirty = true;
+            optionsDirty = true; optionsSent = false;
             UpdateOptionControls(SelectedJob());
         }
 
@@ -181,7 +184,7 @@ namespace Outil_Azur_complet.Bot.Panels
             character = null;
             if (actions != null) actions.Changed -= OnJobsChanged;
             actions = null;
-            optionsJob = -1; optionsDirty = false; recipesKey = string.Empty; shownRecipes = new Recipe[0];
+            optionsJob = -1; optionsDirty = optionsSent = false; loadedOptions = null; recipesKey = string.Empty; shownRecipes = new Recipe[0];
             Interlocked.Increment(ref recipesRequest);
         }
 
@@ -293,13 +296,18 @@ namespace Outil_Azur_complet.Bot.Panels
                 : recipe.Name + " : " + string.Join(", ", recipe.Ingredients.Select(ingredient => ingredient.ToString())) + ".";
         }
 
+        /// <summary>
+        /// Recopie les options du métier dans les cases à cocher, sauf si l'utilisateur les a modifiées (ou envoyées) et que le serveur n'a pas
+        /// encore répondu : toute réponse <c>JO</c> remplace l'objet <see cref="JobOptions"/> du métier et recharge alors les cases.
+        /// </summary>
         private void LoadOptions(Jobs job)
         {
             int id = job?.ID ?? 0;
-            if (optionsDirty && id == optionsJob) return;
-            optionsJob = id;
-            optionsDirty = false;
             JobOptions options = job?.Options ?? JobOptions.Default;
+            if (id == optionsJob && (optionsDirty || optionsSent) && ReferenceEquals(options, loadedOptions)) return;
+            optionsJob = id;
+            optionsDirty = optionsSent = false;
+            loadedOptions = options;
             loadingOptions = true;
             try
             {
@@ -326,7 +334,8 @@ namespace Outil_Azur_complet.Bot.Panels
             saveOptions.Enabled = enabled;
             if (job == null) optionsState.Text = "Choisissez un métier.";
             else if (!craft) optionsState.Text = "Métier de récolte : pas d'options d'artisan.";
-            else optionsState.Text = Text("JOB_OPTIONS", "Options du métier") + " « " + JobDisplayName(job) + " »" + (optionsDirty ? " (modifiées, non sauvegardées)" : string.Empty);
+            else optionsState.Text = Text("JOB_OPTIONS", "Options du métier") + " « " + JobDisplayName(job) + " »"
+                + (optionsSent ? " (envoyées, en attente de la réponse du serveur)" : optionsDirty ? " (modifiées, non sauvegardées)" : string.Empty);
         }
 
         private void UpdatePublicMode(Jobs[] jobs)
@@ -341,15 +350,23 @@ namespace Outil_Azur_complet.Bot.Panels
                 : Text("CRAFTERS_LIST", "Livre des artisans") + " : " + string.Join(", ", referenced.Select(JobCatalog.JobName)) + ".";
         }
 
-        private Task SaveOptions()
+        /// <summary>« Sauvegarder » : <c>JO&lt;position&gt;|&lt;options&gt;|&lt;cases&gt;</c> ; les cases gardent les valeurs envoyées jusqu'à la réponse <c>JO</c>.</summary>
+        private async Task SaveOptions()
         {
-            Jobs job = SelectedJob();
-            JobsActions jobs = Game?.Interactions?.Jobs;
-            if (job == null || jobs == null) return Task.CompletedTask;
-            int flags = JobOptions.Compose(notFree.Checked, notFree.Checked && freeIfFailed.Checked, resourcesNeeded.Checked);
-            int slots = (int)minSlots.Value;
-            optionsDirty = false;
-            return ReportAsync(() => jobs.SetOptionsAsync(job.ID, flags, slots));
+            try
+            {
+                Jobs job = SelectedJob();
+                JobsActions jobs = Game?.Interactions?.Jobs;
+                if (job == null || jobs == null) return;
+                int flags = JobOptions.Compose(notFree.Checked, notFree.Checked && freeIfFailed.Checked, resourcesNeeded.Checked);
+                int slots = (int)minSlots.Value;
+                optionsSent = true; optionsDirty = false;
+                InteractionResult result = await jobs.SetOptionsAsync(job.ID, flags, slots);
+                Feedback(result.Message);
+                if (!result.Sent && optionsJob == job.ID && ReferenceEquals(job.Options, loadedOptions)) { optionsSent = false; optionsDirty = true; }
+                if (!IsDisposed) UpdateOptionControls(SelectedJob());
+            }
+            catch (Exception error) { Account?.Logger?.LogException("MÉTIERS", error); }
         }
 
         private Task TogglePublicMode()
@@ -591,9 +608,19 @@ namespace Outil_Azur_complet.Bot.Panels
             int filled = (int)Math.Round((bar.Width - 1) * percent / 100.0);
             if (filled > 0) using (var olive = new SolidBrush(BotUi.Olive)) graphics.FillRectangle(olive, bar.X + 1, bar.Y + 1, filled - 1 > 0 ? filled - 1 : 1, bar.Height - 1);
             using (var pen = new Pen(BotUi.Gold)) graphics.DrawRectangle(pen, bar);
-            if (caption.Length > 0)
-                TextRenderer.DrawText(graphics, caption, BotFonts.Get(7, FontStyle.Bold), bar, percent >= 50 ? BotUi.PaperLight : BotUi.Ink,
-                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
+            if (caption.Length == 0) return;
+            // Texte clair sur la partie remplie, foncé sur le reste : lisible quel que soit le pourcentage.
+            const TextFormatFlags centered = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
+            Font font = BotFonts.Get(7, FontStyle.Bold);
+            var done = new Rectangle(bar.X, bar.Y, Math.Max(0, filled), bar.Height + 1);
+            GraphicsState state = graphics.Save();
+            graphics.SetClip(done);
+            TextRenderer.DrawText(graphics, caption, font, bar, BotUi.PaperLight, centered);
+            graphics.Restore(state);
+            state = graphics.Save();
+            graphics.SetClip(new Rectangle(done.Right, bar.Y, Math.Max(0, bar.Right - done.Right + 1), bar.Height + 1));
+            TextRenderer.DrawText(graphics, caption, font, bar, BotUi.Ink, centered);
+            graphics.Restore(state);
         }
     }
 

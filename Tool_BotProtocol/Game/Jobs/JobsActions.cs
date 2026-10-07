@@ -93,13 +93,16 @@ namespace Tool_BotProtocol.Game.Jobs
                     string[] parts = data.Split(';');
                     if (!TryInt(parts[0], out int jobId) || jobId <= 0) { unreadable++; continue; }
                     var skills = new List<JobSkills>();
+                    bool readable = true;
                     if (parts.Length > 1)
                         foreach (string entry in parts[1].Split(','))
                         {
                             if (entry.Length == 0) continue;
                             JobSkills skill = JobSkills.Parse(entry);
-                            if (skill != null) skills.Add(skill); else unreadable++;
+                            if (skill != null) skills.Add(skill); else readable = false;
                         }
+                    // Une compétence illisible : ce métier garde sa liste précédente plutôt qu'une liste incomplète.
+                    if (!readable) { unreadable++; continue; }
                     Jobs job = character.Jobs.Find(x => x != null && x.ID == jobId);
                     if (job == null) { job = new Jobs(jobId); character.Jobs.Add(job); }
                     job.ReplaceSkills(skills);
@@ -283,24 +286,21 @@ namespace Tool_BotProtocol.Game.Jobs
         internal void OnCraft(bool success, string body)
         {
             if (Craft == null || !Craft.IsOpen) { account?.Logger?.LogDebug(Reference, "Ec" + (success ? "K" : "E") + body + " reçu sans atelier ouvert : ignoré."); return; }
-            Craft.OnCraft(success, body);
-            Inform(Craft.LastMessage, !success);
+            if (Craft.OnCraft(success, body)) Inform(Craft.LastMessage, !success);
         }
 
         /// <summary><c>EA&lt;n&gt;</c> : étape d'une série.</summary>
         internal void OnCraftLoop(string body)
         {
             if (Craft == null || !Craft.IsOpen) { account?.Logger?.LogDebug(Reference, "EA" + body + " reçu sans atelier ouvert : ignoré."); return; }
-            Craft.OnCraftLoop(body);
-            Inform(Craft.LastMessage, false);
+            if (Craft.OnCraftLoop(body)) Inform(Craft.LastMessage, false);
         }
 
         /// <summary><c>Ea&lt;code&gt;</c> : fin d'une série.</summary>
         internal void OnCraftLoopEnd(string body)
         {
             if (Craft == null || !Craft.IsOpen) { account?.Logger?.LogDebug(Reference, "Ea" + body + " reçu sans atelier ouvert : ignoré."); return; }
-            Craft.OnCraftLoopEnd(body);
-            Inform(Craft.LastMessage, Craft.LastLoopEnd != 1);
+            if (Craft.OnCraftLoopEnd(body)) Inform(Craft.LastMessage, Craft.LastLoopEnd != 1);
         }
 
         /// <summary><c>EJ±…</c> : livre des artisans.</summary>

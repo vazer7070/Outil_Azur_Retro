@@ -307,19 +307,16 @@ namespace Tool_BotProtocol.Game.Exchanges
         /// <c>EcK;&lt;modèle&gt;[;&lt;T|B&gt;&lt;nom&gt;;&lt;effets&gt;]</c> (<paramref name="success"/> vrai, corps après <c>EcK</c>), <c>EcEI</c> / <c>EcEF</c>
         /// (corps <c>I</c> / <c>F</c>). Comme <c>Exchange.onCraft</c>, les ingrédients posés sont oubliés hors série (le sac a déjà été mis à jour).
         /// </summary>
-        internal void OnCraft(bool success, string body)
+        /// <returns>Faux si le paquet est illisible (rien n'a changé).</returns>
+        internal bool OnCraft(bool success, string body)
         {
             body = body ?? string.Empty;
             string message;
-            lock (sync)
-            {
-                combinePending = false;
-                if (IsForgemagus || !looping) ingredients = new List<ExchangeItem>();
-            }
+            // Le paquet est lu avant toute modification : un paquet illisible laisse l'atelier tel quel.
             if (success)
             {
                 string[] fields = (body.StartsWith(";", StringComparison.Ordinal) ? body.Substring(1) : body).Split(';');
-                if (!TryInt(fields[0], out int template) || template <= 0) { Malformed("EcK", body); Notify(); return; }
+                if (!TryInt(fields[0], out int template) || template <= 0) { Malformed("EcK", body); return false; }
                 string name = JobCatalog.ItemName(template);
                 if (fields.Length > 1 && fields[1].Length > 0 && (fields[1][0] == 'T' || fields[1][0] == 'B'))
                 {
@@ -329,37 +326,49 @@ namespace Tool_BotProtocol.Game.Exchanges
                         : JobCatalog.Text("CRAFT_SUCCESS_OTHER", other + " t'a créé l'objet " + name + " !", other).Replace("°0", name);
                 }
                 else message = JobCatalog.Text("CRAFT_SUCCESS_SELF", "Vous avez créé l'objet '" + name + "' !", name);
-                lock (sync) { outcome = CraftOutcome.Success; resultTemplateId = template; }
+                lock (sync)
+                {
+                    combinePending = false;
+                    if (IsForgemagus || !looping) ingredients = new List<ExchangeItem>();
+                    outcome = CraftOutcome.Success; resultTemplateId = template;
+                }
                 Log(message);
             }
             else
             {
                 char code = body.Length > 0 ? body[0] : '?';
-                if (code != 'I' && code != 'F') { Malformed("EcE", body); Notify(); return; }
+                if (code != 'I' && code != 'F') { Malformed("EcE", body); return false; }
                 bool failed = code == 'F';
                 message = failed ? JobCatalog.Text("CRAFT_FAILED", "La recette est bonne mais a échoué !")
                     : JobCatalog.Text("NO_CRAFT_RESULT", "Cette recette ne donne rien !");
-                lock (sync) { outcome = failed ? CraftOutcome.Failed : CraftOutcome.NoResult; resultTemplateId = 0; result = null; }
+                lock (sync)
+                {
+                    combinePending = false;
+                    if (IsForgemagus || !looping) ingredients = new List<ExchangeItem>();
+                    outcome = failed ? CraftOutcome.Failed : CraftOutcome.NoResult; resultTemplateId = 0; result = null;
+                }
                 LogError(message);
             }
             Notify();
+            return true;
         }
 
         /// <summary><c>EA&lt;n&gt;</c> : objet en cours d'une série (<c>CRAFT_LOOP_PROCESS</c>, n = objets restant après lui).</summary>
-        internal void OnCraftLoop(string body)
+        internal bool OnCraftLoop(string body)
         {
-            if (!TryInt(body, out int remaining) || remaining < 0) { Malformed("EA", body); return; }
+            if (!TryInt(body, out int remaining) || remaining < 0) { Malformed("EA", body); return false; }
             int total;
             lock (sync) { loopRemaining = remaining; total = Math.Max(loopTotal, remaining); combinePending = false; }
             string current = (total - remaining + 1).ToString(CultureInfo.InvariantCulture), count = (total + 1).ToString(CultureInfo.InvariantCulture);
             Log(JobCatalog.Text("CRAFT_LOOP_PROCESS", "Fabrication de l'objet " + current + " sur " + count + "...", current, count));
             Notify();
+            return true;
         }
 
         /// <summary><c>Ea&lt;code&gt;</c> : fin de série — 1 réussie, 2 interrompue, 3 ressources épuisées, 4 recette invalide.</summary>
-        internal void OnCraftLoopEnd(string body)
+        internal bool OnCraftLoopEnd(string body)
         {
-            if (!TryInt(body, out int code)) { Malformed("Ea", body); return; }
+            if (!TryInt(body, out int code)) { Malformed("Ea", body); return false; }
             lock (sync)
             {
                 looping = false; loopTotal = 0; loopRemaining = -1; loopEndCode = code; combinePending = false;
@@ -374,6 +383,7 @@ namespace Tool_BotProtocol.Game.Exchanges
                 default: LogError("Fin de série de fabrication inconnue (Ea" + body + ")."); break;
             }
             Notify();
+            return true;
         }
 
         protected override void ResetState()
