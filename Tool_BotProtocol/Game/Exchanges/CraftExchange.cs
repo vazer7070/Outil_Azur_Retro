@@ -312,11 +312,11 @@ namespace Tool_BotProtocol.Game.Exchanges
         {
             body = body ?? string.Empty;
             string message;
-            // Le paquet est lu avant toute modification : un paquet illisible laisse l'atelier tel quel.
+            // Le paquet est lu avant toute modification : un paquet illisible laisse les cases telles quelles (seule la fabrication en attente est libérée).
             if (success)
             {
                 string[] fields = (body.StartsWith(";", StringComparison.Ordinal) ? body.Substring(1) : body).Split(';');
-                if (!TryInt(fields[0], out int template) || template <= 0) { Malformed("EcK", body); return false; }
+                if (!TryInt(fields[0], out int template) || template <= 0) { Malformed("EcK", body); ReleaseCombine(); return false; }
                 string name = JobCatalog.ItemName(template);
                 if (fields.Length > 1 && fields[1].Length > 0 && (fields[1][0] == 'T' || fields[1][0] == 'B'))
                 {
@@ -337,7 +337,7 @@ namespace Tool_BotProtocol.Game.Exchanges
             else
             {
                 char code = body.Length > 0 ? body[0] : '?';
-                if (code != 'I' && code != 'F') { Malformed("EcE", body); return false; }
+                if (code != 'I' && code != 'F') { Malformed("EcE", body); ReleaseCombine(); return false; }
                 bool failed = code == 'F';
                 message = failed ? JobCatalog.Text("CRAFT_FAILED", "La recette est bonne mais a échoué !")
                     : JobCatalog.Text("NO_CRAFT_RESULT", "Cette recette ne donne rien !");
@@ -351,6 +351,14 @@ namespace Tool_BotProtocol.Game.Exchanges
             }
             Notify();
             return true;
+        }
+
+        /// <summary>Le serveur a répondu à « Combiner », même illisiblement : « Combiner » redevient possible.</summary>
+        private void ReleaseCombine()
+        {
+            bool released;
+            lock (sync) { released = combinePending; combinePending = false; }
+            if (released) Notify();
         }
 
         /// <summary><c>EA&lt;n&gt;</c> : objet en cours d'une série (<c>CRAFT_LOOP_PROCESS</c>, n = objets restant après lui).</summary>

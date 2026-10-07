@@ -329,6 +329,9 @@ internal static class BotCraftSmoke
             Feed(account, packet);
         Check(craft.IsOpen && craft.Ingredients.Count == 2 && logs.Skip(before).Any(entry => entry.Contains("illisible")), "Malformed workshop packets changed the state");
         NoPacket(peer, "Malformed workshop packets sent a packet");
+        Check(Sent(craft.CombineAsync())); Expect(peer, "EK", "Combine before a malformed answer does not send EK");
+        Feed(account, "EcK;abc");
+        Check(!craft.IsCombinePending && craft.Ingredients.Count == 2 && craft.LastOutcome == CraftOutcome.NoResult, "Malformed Ec did not release the pending combine or changed the workshop");
 
         // EV : fermeture.
         Check(Sent(craft.LeaveAsync())); Expect(peer, "EV", "Leave does not send EV");

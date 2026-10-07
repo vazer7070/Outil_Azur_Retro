@@ -200,9 +200,11 @@ namespace Outil_Azur_complet.Bot.Panels
             recipesKey = key;
             if (key.Length == 0) return;
             int request = Volatile.Read(ref recipesRequest);
+            short skill = craft.SkillId;
+            int slots = craft.Slots > 0 ? craft.Slots : int.MaxValue;
             Task.Run(() =>
             {
-                IReadOnlyList<Recipe> read = craft.Recipes;
+                IReadOnlyList<Recipe> read = JobCatalog.Recipes(skill, slots);
                 var useful = new HashSet<int>(read.SelectMany(recipe => recipe.Ingredients).Select(ingredient => ingredient.TemplateId)) { JobCatalog.SigningRune };
                 return Tuple.Create(read, useful);
             }).ContinueWith(task =>
