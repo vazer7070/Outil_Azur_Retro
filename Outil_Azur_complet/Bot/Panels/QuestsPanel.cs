@@ -231,8 +231,11 @@ namespace Outil_Azur_complet.Bot.Panels
                 clickable: true)).ToArray(),
                 selectedId.HasValue ? IndexOf(visible, selectedId.Value) : -1);
 
+            // Quête choisie masquée par la case « terminées » : la vue des étapes se referme, comme showStepViewer(false) du client ;
+            // le choix est gardé (quests_lastID) et revient quand la quête est de nouveau affichée.
             QuestEntry selected = q.SelectedQuest;
-            QuestStep step = q.SelectedStep;
+            if (selected != null && IndexOf(visible, selected.Id) < 0) selected = null;
+            QuestStep step = selected != null ? q.SelectedStep : null;
             if (!ReferenceEquals(step, shownStep))
             {
                 // Nouvelle étape reçue (QS) : onglet « Étape courante », première étape de la hiérarchie choisie, comme setStep.

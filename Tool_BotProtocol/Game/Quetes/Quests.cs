@@ -168,7 +168,8 @@ namespace Tool_BotProtocol.Game.Quetes
             if (fields.Length < 3) { error = "champs manquants"; return false; }
             if (!TryId(fields[0], out int questId)) { error = "identifiant de quête illisible « " + fields[0] + " »"; return false; }
             int stepId = 0;
-            if (fields[1].Length > 0 && !TryId(fields[1], out stepId)) { error = "étape illisible « " + fields[1] + " »"; return false; }
+            // StarLoco laisse le champ vide sans étape courante ; « 0 » (Number du client) vaut de même « aucune étape ».
+            if (fields[1].Length > 0 && fields[1] != "0" && !TryId(fields[1], out stepId)) { error = "étape illisible « " + fields[1] + " »"; return false; }
             var objectives = new List<QuestObjective>();
             if (fields[2].Length > 0)
             {

@@ -213,6 +213,7 @@ internal static class BotQuestsSmoke
                         "Previous steps are not reversed like the client");
                     Feed(account, "QS1||||");
                     Check(!quests.StepOf(1).HasCurrentStep && quests.StepOf(1).Objectives.Count == 0 && quests.StepOf(1).Rewards.Count == 0, "QS without current step differs");
+                    Feed(account, "QS1|0|||"); Check(quests.StepOf(1).StepId == 0 && !quests.StepOf(1).HasCurrentStep, "QS with step 0 is not read as no current step");
                     Feed(account, "QS99|5|1,0||"); Check(quests.StepOf(99) == null && quests.LastMessage.Contains("absente"), "QS for a quest outside QL was stored");
 
                     // Paquets mal formés : journalisés, jamais propagés, état inchangé.
@@ -380,6 +381,16 @@ internal static class BotQuestsSmoke
                         FeedFromNetwork(account, "QS1|10|100,1;101,1|9|11;12|");
                         PumpUntil(() => panel.CurrentTab == QuestsPanel.CurrentStepTab && panel.ObjectiveList.Rows[0].Muted);
                         Check(!panel.DialogButton.Parent.Visible && panel.ObjectiveList.Rows[0].Clickable, "Step without question still shows the dialog button");
+
+                        // Quête terminée choisie puis masquée par la case : la vue se referme sans paquet ; recochée, elle est redemandée.
+                        Check(panel.ClickQuest(2) && Read(peer) == "QS2", "Clicking a finished quest does not send QS2");
+                        panel.FinishedBox.Checked = false;
+                        PumpUntil(() => !panel.ViewerShowsQuest && panel.QuestList.Rows.Count == 1);
+                        Check(quests.SelectedQuestId == 2 && panel.QuestList.SelectedIndex == -1, "Hiding the chosen quest lost the choice or kept the row");
+                        NoPacket(peer, "Hiding the chosen quest sent a packet");
+                        panel.FinishedBox.Checked = true;
+                        Check(Read(peer) == "QS2", "Showing the chosen quest again does not request it");
+                        PumpUntil(() => panel.ViewerShowsQuest && panel.ViewerTitle == "Quête fictive deux");
 
                         // × de la vue des étapes : plus de quête choisie, rien n'est envoyé.
                         panel.CloseStep();
