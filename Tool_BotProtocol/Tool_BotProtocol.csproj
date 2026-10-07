@@ -188,6 +188,8 @@
     <Compile Include="Game\Exchanges\StorageExchange.cs" />
     <Compile Include="Game\Exchanges\MerchantExchange.cs" />
     <Compile Include="Game\Exchanges\AuctionHouse.cs" />
+    <Compile Include="Game\Exchanges\CraftExchange.cs" />
+    <Compile Include="Game\Exchanges\CrafterBook.cs" />
     <Compile Include="Game\Habitat\House.cs" />
     <Compile Include="Game\Habitat\HouseActions.cs" />
     <Compile Include="Game\Interactions\InteractiveActions.cs" />
@@ -201,6 +203,7 @@
     <Compile Include="Game\Groupes\Regroupement.cs" />
     <Compile Include="Game\Jobs\JobCatalog.cs" />
     <Compile Include="Game\Jobs\Jobs.cs" />
+    <Compile Include="Game\Jobs\JobsActions.cs" />
     <Compile Include="Game\Jobs\JobSkills.cs" />
     <Compile Include="Game\Managers\Manager.cs" />
     <Compile Include="Game\Managers\Mouvements\AnimType.cs" />

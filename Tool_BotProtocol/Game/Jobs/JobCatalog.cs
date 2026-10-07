@@ -187,14 +187,17 @@ namespace Tool_BotProtocol.Game.Jobs
             return string.IsNullOrWhiteSpace(word) ? (count < 2 ? "case" : "cases") : word.Trim();
         }
 
-        /// <summary>Texte du client (<c>lang.xml</c>) avec ses paramètres <c>%1</c>…, ou le texte de repli du bot.</summary>
+        /// <summary>
+        /// Texte du client (<c>lang.xml</c>) avec ses paramètres <c>%1</c>…, sans HTML (<c>&lt;b&gt;</c>, saut de ligne <c>&amp;#10;</c> gardé),
+        /// ou le texte de repli du bot.
+        /// </summary>
         public static string Text(string key, string fallback, params string[] args)
         {
             try
             {
                 if (LangData.Text.Has(key))
                 {
-                    string value = LangData.Text.Get(key, args);
+                    string value = LangData.Text.Plain(LangData.Text.Get(key, args));
                     if (!string.IsNullOrWhiteSpace(value) && !value.StartsWith("!", StringComparison.Ordinal)) return value;
                 }
             }

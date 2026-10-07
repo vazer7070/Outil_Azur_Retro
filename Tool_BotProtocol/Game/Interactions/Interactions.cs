@@ -117,6 +117,8 @@ namespace Tool_BotProtocol.Game.Interactions
         public Exchanges.AuctionHouse Auction { get; private set; }
         /// <summary>Alignement, ailes, conquête et prismes : <c>ZS</c>, <c>al</c>, <c>am</c>, <c>aM</c>, <c>GIP</c>, <c>C…</c>, <c>Wp</c>, <c>Ww</c> (lot F9).</summary>
         public Alignement.AlignmentActions Alignment { get; private set; }
+        /// <summary>Métiers, options d'artisan, mode public, atelier (type 3) et livre des artisans (type 14) : <c>J…</c>, <c>Ec</c>, <c>EA</c>, <c>Ea</c>, <c>EJ</c>, <c>Ej</c>, <c>EW</c> (lot F6).</summary>
+        public Jobs.JobsActions Jobs { get; private set; }
 
         internal InteractionsClass(Accounts.Accounts account)
         {
@@ -136,8 +138,9 @@ namespace Tool_BotProtocol.Game.Interactions
             Guild = new Guildes.GuildActions(account);
             Auction = Exchanges.Get<Exchanges.AuctionHouse>();
             Alignment = new Alignement.AlignmentActions(account);
+            Jobs = new Jobs.JobsActions(account, Exchanges);
         }
 
-        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); Party.Clear(); Friends.Clear(); House.Clear(); Guild.Clear(); Alignment.Clear(); }
+        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); Party.Clear(); Friends.Clear(); House.Clear(); Guild.Clear(); Alignment.Clear(); Jobs.Clear(); }
     }
 }
