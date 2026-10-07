@@ -82,7 +82,7 @@ namespace Outil_Azur_complet.Bot.Panels
                 FlatStyle = FlatStyle.Flat, Name = "quests-finished", TextAlign = ContentAlignment.MiddleLeft, CheckAlign = ContentAlignment.MiddleLeft,
                 Text = QuestTexts.Get("DISPLAY_FINISHED_QUESTS", "Afficher les quêtes terminées") };
             finished.FlatAppearance.BorderColor = BotUi.Gold; finished.FlatAppearance.CheckedBackColor = BotUi.PaperLight;
-            finished.CheckedChanged += async (s, e) => { if (!filling) await Run(q => q.SetShowFinishedAsync(finished.Checked)); };
+            finished.CheckedChanged += async (s, e) => { if (!filling) await ToggleFinished(finished.Checked); };
 
             noticeBar = new Panel { Dock = DockStyle.Top, Height = 32, BackColor = BotUi.PaperLight, Padding = new Padding(4, 3, 3, 3), Visible = false,
                 Name = "quests-notice" };
@@ -359,6 +359,19 @@ namespace Outil_Azur_complet.Bot.Panels
         private async Task ShowInfo(string title, string text)
         {
             try { await BotDialogs.InfoAsync(Host, title, text); }
+            catch (Exception error) { Account?.Logger?.LogException(Reference, error); }
+        }
+
+        /// <summary>Case « terminées » : refiltrage local ; seul un <c>QS</c> réellement envoyé est signalé (sans quête choisie, rien ne part).</summary>
+        private async Task ToggleFinished(bool show)
+        {
+            QuestsActions q = Game?.Interactions?.Quests;
+            if (q == null) return;
+            try
+            {
+                InteractionResult result = await q.SetShowFinishedAsync(show);
+                if (result.Sent) Feedback(result.Message);
+            }
             catch (Exception error) { Account?.Logger?.LogException(Reference, error); }
         }
 

@@ -62,9 +62,14 @@ namespace Outil_Azur_complet.Bot.Controls
         private void Redraw()
         {
             if (IsDisposed) return;
-            if (!InvokeRequired && IsHandleCreated) { AccessibleName = DisplayText; Invalidate(); return; }
-            ExchangePanel.PostToForm(this, () => { if (!IsDisposed) { AccessibleName = DisplayText; Invalidate(); } });
+            if (!InvokeRequired && IsHandleCreated) { Apply(); return; }
+            // Sans poignée, rien à redessiner : la création de la poignée relit le titre (OnHandleCreated).
+            ExchangePanel.PostToForm(this, () => { if (!IsDisposed) Apply(); });
         }
+
+        private void Apply() { AccessibleName = DisplayText; Invalidate(); }
+
+        protected override void OnHandleCreated(EventArgs e) { base.OnHandleCreated(e); Apply(); }
 
         protected override void OnPaint(PaintEventArgs e)
         {
