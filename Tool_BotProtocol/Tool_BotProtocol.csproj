@@ -199,6 +199,7 @@
     <Compile Include="Game\Groupes\Groupe.cs" />
     <Compile Include="Game\Groupes\PartyActions.cs" />
     <Compile Include="Game\Groupes\Regroupement.cs" />
+    <Compile Include="Game\Jobs\JobCatalog.cs" />
     <Compile Include="Game\Jobs\Jobs.cs" />
     <Compile Include="Game\Jobs\JobSkills.cs" />
     <Compile Include="Game\Managers\Manager.cs" />

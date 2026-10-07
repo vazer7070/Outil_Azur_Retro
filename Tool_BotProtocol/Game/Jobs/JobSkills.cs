@@ -7,8 +7,8 @@ namespace Tool_BotProtocol.Game.Jobs
     /// <summary>
     /// Compétence d'un métier telle que <c>JS</c> la transmet : <c>&lt;id&gt;~&lt;p1&gt;~&lt;p2&gt;~&lt;p3&gt;~&lt;p4&gt;</c>
     /// (<c>dofus.datacenter.Skill</c> du client 1.34, <c>JobStat.parseJS</c> de StarLoco). Récolte : p1/p2 = quantités
-    /// minimale et maximale, p4 = durée en millisecondes. Artisanat : p1 = nombre de cases de l'atelier, p4 = chance en %.
-    /// Une instance n'est plus modifiée après sa publication (un nouveau <c>JS</c> remplace la liste entière).
+    /// minimale et maximale, p4 = durée en millisecondes. Artisanat : p1 = nombre de cases de l'atelier, p2 = 0, p4 = chance en %.
+    /// Une instance n'est plus modifiée après sa publication : un nouveau <c>JS</c> remplace la liste entière du métier.
     /// </summary>
     public class JobSkills
     {
@@ -17,13 +17,14 @@ namespace Tool_BotProtocol.Game.Jobs
         public byte QuaMini { get; private set; }
         /// <summary>Paramètre 2 : quantité maximale (récolte), 0 pour l'artisanat.</summary>
         public byte QuaMax { get; private set; }
-        /// <summary>Paramètre 3, envoyé à 0 par StarLoco.</summary>
+        /// <summary>Paramètre 3, toujours 0 chez StarLoco.</summary>
         public int Param3 { get; private set; }
+        /// <summary>Objet interactif connu du bot (<c>BotInteractives</c>) qui porte la compétence, ou <c>null</c>.</summary>
         public InteractivesParent Interactive { get; private set; }
         /// <summary>
         /// Vrai pour une compétence d'artisanat (atelier, <c>ECK3</c>), faux pour une récolte. Déterminé comme le client :
-        /// la compétence de <c>skills_fr</c> a une liste de recettes (<c>cl</c>) ou de forgemagie, ou produit un objet (<c>i</c>,
-        /// récolte) ; à défaut, par l'objet interactif connu du bot, puis par le format de StarLoco (maximum à 0 pour l'artisanat).
+        /// une compétence de <c>skills_fr</c> qui produit un objet (<c>i</c>) est une récolte, les autres sont des ateliers ;
+        /// sans les textes du client, par l'objet interactif connu du bot, puis par le format de StarLoco (maximum à 0).
         /// </summary>
         public bool CanCraft { get; private set; }
         public bool IsHarvest => !CanCraft;
@@ -38,6 +39,8 @@ namespace Tool_BotProtocol.Game.Jobs
         public int DurationMs => CanCraft ? 0 : (int)Time;
         /// <summary>Nom de la compétence (<c>skills_fr</c>), ou son numéro.</summary>
         public string Name => JobCatalog.SkillName(Id);
+        /// <summary>Objet interactif où s'exerce la compétence (texte du client), ou <c>null</c>.</summary>
+        public string Source => JobCatalog.SkillSource(Id);
 
         public JobSkills(short id, byte min, byte max, float T) : this(id, min, max, 0, T) { }
 
@@ -69,7 +72,8 @@ namespace Tool_BotProtocol.Game.Jobs
             if (!short.TryParse(fields[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out short id) || id <= 0) return null;
             int Field(int index) => index < fields.Length && int.TryParse(fields[index], NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) ? value : 0;
             float time = 0;
-            if (fields.Length > 4) float.TryParse(fields[4], NumberStyles.Float, CultureInfo.InvariantCulture, out time);
+            if (fields.Length > 4 && !float.TryParse(fields[4], NumberStyles.Float, CultureInfo.InvariantCulture, out time)) time = 0;
+            if (float.IsNaN(time) || float.IsInfinity(time)) time = 0;
             return new JobSkills(id, ToByte(Field(1)), ToByte(Field(2)), Field(3), Math.Max(0, time));
         }
 
@@ -97,5 +101,7 @@ namespace Tool_BotProtocol.Game.Jobs
                 : QuaMini.ToString(CultureInfo.CurrentCulture) + " " + JobCatalog.Text("TO_RANGE", "à").Trim() + " " + QuaMax.ToString(CultureInfo.CurrentCulture);
             return "(" + seconds.ToString("0.#", CultureInfo.CurrentCulture) + " s)  " + quantity;
         }
+
+        public override string ToString() => Name + " — " + Describe();
     }
 }
