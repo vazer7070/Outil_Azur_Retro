@@ -1,87 +1,75 @@
-﻿using System;
-using System.Globalization;
+using System;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Jobs;
-using Tool_BotProtocol.Game.Perso;
 using Tool_BotProtocol.Network;
 
 namespace Tool_BotProtocol.Frames.Jeu
 {
     /// <summary>
-    /// Métiers : compétences <c>JS</c> et expérience <c>JX</c>.
-    /// Extrait de <c>CharacterFrame</c> sans changement de logique (lot S1) ; propriétaire : lot F6.
+    /// Métiers et artisanat (propriétaire : lot F6) : <c>JS</c>, <c>JX</c>, <c>JN</c>, <c>JR</c>, <c>JO</c> (<c>dofus.aks.Job</c>) ; atelier
+    /// <c>EcK</c>, <c>EcE</c>, <c>EA</c>, <c>Ea</c> ; livre des artisans <c>EJ</c> ; référencement <c>Ej</c> ; mode public <c>EW</c>
+    /// (<c>dofus.aks.Exchange</c>). Les fenêtres d'échange elles-mêmes (<c>ECK3</c>, <c>ECK14</c>, <c>EMK</c>, <c>EmK</c>, <c>EV</c>) passent par
+    /// le registre des échanges. Un paquet mal formé est journalisé, jamais fatal.
     /// </summary>
     internal class JobsFrame : Frame
     {
+        private static void Run(TcpClient client, string message, Action<JobsActions> action)
+        {
+            JobsActions jobs = client?.account?.Game?.Interactions?.Jobs;
+            if (jobs == null) return;
+            try { action(jobs); }
+            catch (Exception error) when (!(error is OutOfMemoryException))
+            {
+                client.account?.Logger?.LogError("MÉTIERS", "Paquet ignoré (" + Preview(message) + ") : " + error.Message);
+            }
+        }
+
+        private static string Preview(string message) => message == null ? string.Empty : message.Length > 80 ? message.Substring(0, 80) + "…" : message;
+
         [MessageAttribution("JS")]
-        public void GetJobsSkills(TcpClient client, string message)
-        {
-            string[] separador_skill;
-            CharacterClass perso = client.account.Game.character;
-            Jobs job;
-            JobSkills skilljobs = null;
-            short Id_jobs, Id_skills;
-            byte Min, Max;
-            float Time;
+        public void GetJobsSkills(TcpClient client, string message) => Run(client, message, jobs => jobs.OnSkills(message.Substring(2)));
 
-            lock (perso.Jobs)
-            foreach(string data in message.Substring(3).Split('|'))
-            {
-                string[] jobParts = data.Split(';');
-                if (jobParts.Length < 2 || !short.TryParse(jobParts[0], out Id_jobs)) continue;
-                job = perso.Jobs.Find(x => x.ID == Id_jobs);
-
-                if (job == null)
-                {
-                    job = perso.Jobs.Find(x => x.ID == Id_jobs);
-                    job = new Jobs(Id_jobs);
-                    perso.Jobs.Add(job);
-                }
-
-
-                foreach (string skill in jobParts[1].Split(','))
-                {
-                    separador_skill = skill.Split('~');
-                    if (separador_skill.Length < 5 || !short.TryParse(separador_skill[0], out Id_skills)
-                        || !byte.TryParse(separador_skill[1], out Min) || !byte.TryParse(separador_skill[2], out Max)
-                        || !float.TryParse(separador_skill[4], NumberStyles.Float, CultureInfo.InvariantCulture, out Time)) continue;
-                    skilljobs = job.Skills.Find(x => x.Id == Id_skills);
-
-                    if (skilljobs != null)
-                        skilljobs.Actualise(Id_skills, Min, Max, Time);
-                    else
-                        job.Skills.Add(new JobSkills(Id_skills, Min, Max, Time));
-                }
-            }
-            perso.JobsRefreshEvent();
-        }
         [MessageAttribution("JX")]
-        public void GetExpInJob(TcpClient client, string message)
-        {
-            string pre_cut = message.Substring(3);
-            string[] separate_jobs_Exp = pre_cut.Split('|');
-            CharacterClass perso = client.account.Game.character;
-            uint actualExp, baseExp, nextlevelExp;
-            short Id;
-            byte level;
+        public void GetExpInJob(TcpClient client, string message) => Run(client, message, jobs => jobs.OnExperience(message.Substring(2)));
 
-            lock (perso.Jobs)
-            foreach (string jobs in separate_jobs_Exp)
-            {
-                var payload = jobs.Split(';');
-                if (payload.Length < 4)
-                    continue;
-                if (!short.TryParse(payload[0], out Id) || !byte.TryParse(payload[1], out level)
-                    || !uint.TryParse(payload[2], out baseExp) || !uint.TryParse(payload[3], out actualExp)) continue;
+        /// <summary><c>JN&lt;métier&gt;|&lt;niveau&gt;</c>.</summary>
+        [MessageAttribution("JN")]
+        public void JobLevel(TcpClient client, string message) => Run(client, message, jobs => jobs.OnLevel(message.Substring(2)));
 
-                if (level < 100 && payload.Length >= 5 && uint.TryParse(payload[4], out nextlevelExp)) { }
-                else
-                    nextlevelExp = 0;
-                Jobs job = perso.Jobs.Find(x => x.ID == Id);
-                if (job == null) { job = new Jobs(Id); perso.Jobs.Add(job); }
-                job.AcutalizeJob(level, baseExp, actualExp, nextlevelExp);
-            }
-            perso.JobsRefreshEvent();
-        }
+        /// <summary><c>JR&lt;métier&gt;</c>.</summary>
+        [MessageAttribution("JR")]
+        public void JobRemoved(TcpClient client, string message) => Run(client, message, jobs => jobs.OnRemove(message.Substring(2)));
+
+        /// <summary><c>JO&lt;position&gt;|&lt;options&gt;|&lt;cases minimum&gt;</c>.</summary>
+        [MessageAttribution("JO")]
+        public void JobOptionsChanged(TcpClient client, string message) => Run(client, message, jobs => jobs.OnOptions(message.Substring(2)));
+
+        /// <summary><c>EcK;&lt;modèle&gt;…</c> : objet créé.</summary>
+        [MessageAttribution("EcK")]
+        public void CraftSuccess(TcpClient client, string message) => Run(client, message, jobs => jobs.OnCraft(true, message.Substring(3)));
+
+        /// <summary><c>EcEI</c> / <c>EcEF</c> : recette inconnue ou échec.</summary>
+        [MessageAttribution("EcE")]
+        public void CraftError(TcpClient client, string message) => Run(client, message, jobs => jobs.OnCraft(false, message.Substring(3)));
+
+        /// <summary><c>EA&lt;n&gt;</c> : étape d'une série de fabrication.</summary>
+        [MessageAttribution("EA")]
+        public void CraftLoop(TcpClient client, string message) => Run(client, message, jobs => jobs.OnCraftLoop(message.Substring(2)));
+
+        /// <summary><c>Ea&lt;code&gt;</c> : fin d'une série de fabrication.</summary>
+        [MessageAttribution("Ea")]
+        public void CraftLoopEnd(TcpClient client, string message) => Run(client, message, jobs => jobs.OnCraftLoopEnd(message.Substring(2)));
+
+        /// <summary><c>EJ±…</c> : artisan ajouté ou retiré du livre des artisans.</summary>
+        [MessageAttribution("EJ")]
+        public void CrafterList(TcpClient client, string message) => Run(client, message, jobs => jobs.OnCrafterListChanged(message.Substring(2)));
+
+        /// <summary><c>Ej±&lt;métier&gt;</c> : référencement dans le livre des artisans.</summary>
+        [MessageAttribution("Ej")]
+        public void CrafterReference(TcpClient client, string message) => Run(client, message, jobs => jobs.OnCrafterReference(message.Substring(2)));
+
+        /// <summary><c>EW±[&lt;id&gt;|&lt;compétences&gt;]</c> : mode public.</summary>
+        [MessageAttribution("EW")]
+        public void PublicMode(TcpClient client, string message) => Run(client, message, jobs => jobs.OnPublicMode(message.Substring(2)));
     }
 }
