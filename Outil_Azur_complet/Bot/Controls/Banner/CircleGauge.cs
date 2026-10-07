@@ -4,6 +4,7 @@ using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Linq;
 using System.Windows.Forms;
+using Tool_BotProtocol.Game.Montures;
 using Tool_BotProtocol.Game.Perso;
 
 namespace Outil_Azur_complet.Bot.Controls.Banner
@@ -51,10 +52,13 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
         public string Mode { get; private set; } = "xp";
 
         /// <summary>Applique un mode de l'option <c>BannerGaugeMode</c> au personnage ; renvoie l'infobulle de la jauge.</summary>
-        public string Show(string mode, CharacterClass character)
+        public string Show(string mode, CharacterClass character) => Show(mode, character, null);
+
+        /// <summary>Comme <see cref="Show(string, CharacterClass)"/>, avec la monture équipée pour le mode <c>xpmount</c> (lot F7).</summary>
+        public string Show(string mode, CharacterClass character, Mount mount)
         {
             Mode = mode ?? "xp";
-            string tip = Compute(Mode, character, out double percent, out Color color);
+            string tip = Compute(Mode, character, mount, out double percent, out Color color);
             RingVisible = Mode != "none";
             GaugeColor = color; Value = percent;
             return tip;
@@ -69,6 +73,10 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
 
         /// <summary>Valeur et couleur d'un mode (<c>showGaugeMode</c>) ; 0 quand la donnée manque, comme le client.</summary>
         public static string Compute(string mode, CharacterClass character, out double percent, out Color color)
+            => Compute(mode, character, null, out percent, out color);
+
+        /// <summary>Comme ci-dessus ; <c>xpmount</c> suit l'expérience de la monture équipée (<c>Re+</c>, <c>Rx</c>).</summary>
+        public static string Compute(string mode, CharacterClass character, Mount mount, out double percent, out Color color)
         {
             percent = 0; color = XpColor;
             var stats = character?.stats;
@@ -85,7 +93,12 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
                     return BannerArt.Text("WORD_XP", "XP") + " " + (job.name ?? BannerArt.Text("JOB", "Métier")) + " : " + Percent(percent);
                 }
                 case "xpmount":
-                    return BannerArt.Text("WORD_XP", "XP") + " " + BannerArt.Text("MOUNT", "Monture") + " : aucune monture connue du bot";
+                {
+                    string label = BannerArt.Text("WORD_XP", "XP") + " " + BannerArt.Text("MOUNT", "Monture");
+                    if (mount == null || mount.XpMax <= mount.XpMin) return label + " : aucune monture équipée";
+                    percent = Math.Floor(100.0 * (mount.Xp - mount.XpMin) / (mount.XpMax - mount.XpMin));
+                    return label + " : " + BannerArt.Thousands(mount.Xp) + " / " + BannerArt.Thousands(mount.XpMax) + " (" + Percent(percent) + ")";
+                }
                 case "pods":
                 {
                     color = PodsColor;
