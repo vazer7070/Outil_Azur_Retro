@@ -23,6 +23,7 @@ namespace Outil_Azur_complet.Bot.Panels
         private Control boost;
         private bool boosting;
         private CharacterClass character;
+        private Controls.TitleBadge titleBadge; // titre porté (lot F10)
 
         public override string Title => "Caractéristiques";
         public override Image Icon => ClientAssets.Icon("icone-caracteristiques", 24);
@@ -44,18 +45,21 @@ namespace Outil_Azur_complet.Bot.Panels
             allocation.Controls.Add(boostStat); allocation.Controls.Add(selectLabel);
             allocation.Controls.Add(boostHelp); allocation.Controls.Add(BotUi.Actions(boost));
             page.Controls.Add(allocation);
+            page.Controls.Add(titleBadge = new Controls.TitleBadge { Dock = DockStyle.Top });
             return page;
         }
 
         protected override void OnBind(GameClass game)
         {
             character = game.character;
+            titleBadge?.Bind(game);
             if (character != null) { character.RefreshCaracteristiques += OnCharacterChanged; character.SeeLifeRegen += OnCharacterChanged; }
         }
         protected override void OnUnbind(GameClass game)
         {
             if (character != null) { character.RefreshCaracteristiques -= OnCharacterChanged; character.SeeLifeRegen -= OnCharacterChanged; }
             character = null;
+            titleBadge?.Bind(null);
         }
         private void OnCharacterChanged() => OnUi(RefreshView);
 

@@ -59,7 +59,7 @@ namespace Tool_BotProtocol.Game.Quetes
         public bool HasReceived { get { lock (sync) return received; } }
         /// <summary>Quêtes en cours (<c>setPendingCount</c> : non terminées).</summary>
         public int PendingCount { get { lock (sync) return quests.Count(quest => !quest.IsFinished); } }
-        /// <summary>Case « Afficher les quêtes terminées » (<c>_btnFinished</c>) ; décochée à l'ouverture comme dans le client.</summary>
+        /// <summary>Case « Afficher les quêtes terminées » (<c>_btnFinished</c>) ; décochée à l'ouverture (<see cref="OpenWindowAsync"/>) comme dans le client.</summary>
         public bool ShowFinished { get { lock (sync) return showFinished; } }
         /// <summary>
         /// Quêtes affichées : toutes, ou seulement celles en cours, triées par le troisième champ du client (<c>sortOn("sortOrder")</c>) ;
@@ -117,6 +117,21 @@ namespace Tool_BotProtocol.Game.Quetes
         }
 
         // ----- Envois (dofus.aks.Quests) -----
+
+        /// <summary>
+        /// Ouverture de la fenêtre (<c>Quests.initData</c>) : la case « Afficher les quêtes terminées » repart décochée, puis la liste
+        /// est demandée (<c>QL</c>) ; à sa réception, la dernière quête choisie est redemandée si elle est visible.
+        /// </summary>
+        public Task<InteractionResult> OpenWindowAsync()
+        {
+            lock (sync) showFinished = false;
+            windowOpen = true;
+            RaiseChanged();
+            return RefreshAsync();
+        }
+
+        /// <summary>Fermeture de la fenêtre : rien n'est envoyé, une liste reçue ensuite ne redemande plus d'étape.</summary>
+        public void CloseWindow() => windowOpen = false;
 
         /// <summary><c>QL</c> (<c>getList</c>) : demandé à chaque ouverture de la fenêtre et par « Actualiser ».</summary>
         public Task<InteractionResult> RefreshAsync()
