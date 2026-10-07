@@ -33,6 +33,8 @@ namespace Tool_BotProtocol.Game.Montures
         private readonly object sync = new object();
         private Mount current;
         private Mount viewed;
+        private int parkMapId = int.MinValue;
+        private Map watchedMap;
 
         internal MountActions(Accounts.Accounts account) : base(account) { }
 
@@ -54,8 +56,19 @@ namespace Tool_BotProtocol.Game.Montures
         public int ViewedSerial { get; private set; }
         /// <summary>Prix proposé par <c>RD</c> (prix courant de l'enclos) tant que la fenêtre de vente est ouverte.</summary>
         public int SaleDefaultPrice { get; private set; }
-        /// <summary>Enclos de la carte (<c>Rp</c>), partagé avec le menu des objets interactifs.</summary>
-        public MountParkInfo Park => Account?.Game?.Interactions?.Interactive?.MountPark;
+        /// <summary>
+        /// Enclos de la carte (<c>Rp</c>), partagé avec le menu des objets interactifs ; <c>null</c> sur une autre carte que
+        /// celle où il a été annoncé (StarLoco n'envoie <c>Rp</c> que sur les cartes à enclos).
+        /// </summary>
+        public MountParkInfo Park
+        {
+            get
+            {
+                MountParkInfo park = Account?.Game?.Interactions?.Interactive?.MountPark;
+                Map map = Account?.Game?.Map;
+                return park != null && map != null && map.MapID == parkMapId ? park : null;
+            }
+        }
         /// <summary>Étable ouverte (type 16).</summary>
         public ShedExchange Shed => Account?.Game?.Interactions?.Exchanges?.Get<ShedExchange>();
         /// <summary>Sacoches (type 15).</summary>
@@ -142,10 +155,13 @@ namespace Tool_BotProtocol.Game.Montures
             return SendAsync("ER" + ExchangeTypes.MountStorage.ToString(CultureInfo.InvariantCulture) + "|", "Ouverture des sacoches de la monture demandée.");
         }
 
-        /// <summary><c>Rp&lt;monture&gt;</c> : fiche d'une monture de l'enclos (<c>Mount.parkMountData</c>), réponse <c>Rd</c>.</summary>
+        /// <summary>
+        /// <c>Rp&lt;monture&gt;</c> : fiche d'une monture de l'enclos (<c>Mount.parkMountData</c>), réponse <c>Rd</c>. L'identifiant est
+        /// celui du sprite <c>-9</c>, tel quel : les montures de StarLoco ont des identifiants négatifs (<c>MIN(id) - 1</c>).
+        /// </summary>
         public Task<InteractionResult> ViewParkMountAsync(long mountId)
         {
-            if (mountId <= 0) return Task.FromResult(Refuse("Monture d'enclos inconnue."));
+            if (mountId == 0) return Task.FromResult(Refuse("Monture d'enclos inconnue."));
             return SendAsync("Rp" + mountId.ToString(CultureInfo.InvariantCulture), "Fiche de la monture d'enclos demandée.");
         }
 
@@ -315,7 +331,28 @@ namespace Tool_BotProtocol.Game.Montures
         internal void OnMountPark(string data)
         {
             if (!MountParkInfo.TryParse(data, out MountParkInfo info)) { LogError("Paquet Rp illisible ignoré : " + data); return; }
+            Map map = Account?.Game?.Map;
+            if (map != null && !ReferenceEquals(map, watchedMap))
+            {
+                if (watchedMap != null) watchedMap.RefreshMap -= OnMapRefreshed;
+                watchedMap = map;
+                map.RefreshMap += OnMapRefreshed;
+            }
+            parkMapId = map?.MapID ?? int.MinValue;
             Account?.Game?.Interactions?.Interactive?.SetMountPark(info);
+            Notify();
+        }
+
+        /// <summary>
+        /// Nouvelle carte (<c>GDM</c>) : l'enclos annoncé est oublié, comme les données de carte du client ; StarLoco renvoie
+        /// <c>Rp</c> à chaque arrivée sur une carte à enclos.
+        /// </summary>
+        private void OnMapRefreshed()
+        {
+            Map map = watchedMap;
+            if (map == null || parkMapId == int.MinValue || map.MapID == parkMapId) return;
+            parkMapId = int.MinValue;
+            Account?.Game?.Interactions?.Interactive?.SetMountPark(null);
             Notify();
         }
 
@@ -372,6 +409,7 @@ namespace Tool_BotProtocol.Game.Montures
             IsRiding = false;
             XpPercent = null;
             SaleDefaultPrice = 0;
+            parkMapId = int.MinValue;
             if (Account != null) Account.CanUseMount = false;
             var character = Account?.Game?.character;
             if (character != null) character.UseMount = false;

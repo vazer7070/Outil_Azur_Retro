@@ -83,6 +83,7 @@ namespace Outil_Azur_complet.Bot.Panels
                 ForeColor = BotUi.Ink, Margin = new Padding(0, 4, 6, 0), AccessibleName = "Nouveau nom de la monture", Name = "mount-name" };
             nameInput.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; await Rename(); } };
             rename = MakeButton(MountTexts.Get("MOUNT_RENAME_TOOLTIP", "Renommer la monture"), async (s, e) => await Rename(), false, 170);
+            nameInput.TextChanged += (s, e) => rename.Enabled = Connected && Game?.Interactions?.Mount?.HasMount == true && nameInput.Text.Length > 0;
             renameBar = BotUi.Actions(nameInput, rename);
             xpInput = new NumericUpDown { Minimum = 0, Maximum = Mount.MaxXpPercent, Value = 0, Width = 70, Height = 34, Font = BotFonts.Get(9), BackColor = BotUi.PaperLight,
                 ForeColor = BotUi.Ink, BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(2, 7, 6, 0), AccessibleName = "Part d'expérience donnée à la monture", Name = "mount-xp" };
