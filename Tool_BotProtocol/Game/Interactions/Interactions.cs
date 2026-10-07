@@ -115,6 +115,8 @@ namespace Tool_BotProtocol.Game.Interactions
         public Guildes.GuildActions Guild { get; private set; }
         /// <summary>Hôtel de vente : achat (type 11, <c>EH…</c>) et vente (type 10, <c>EL</c>, <c>EMO±</c> avec prix) (lot F5).</summary>
         public Exchanges.AuctionHouse Auction { get; private set; }
+        /// <summary>Alignement, ailes, conquête et prismes : <c>ZS</c>, <c>al</c>, <c>am</c>, <c>aM</c>, <c>GIP</c>, <c>C…</c>, <c>Wp</c>, <c>Ww</c> (lot F9).</summary>
+        public Alignement.AlignmentActions Alignment { get; private set; }
 
         internal InteractionsClass(Accounts.Accounts account)
         {
@@ -133,8 +135,9 @@ namespace Tool_BotProtocol.Game.Interactions
             Merchant = Exchanges.Get<Exchanges.MerchantExchange>();
             Guild = new Guildes.GuildActions(account);
             Auction = Exchanges.Get<Exchanges.AuctionHouse>();
+            Alignment = new Alignement.AlignmentActions(account);
         }
 
-        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); Party.Clear(); Friends.Clear(); House.Clear(); Guild.Clear(); }
+        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); Party.Clear(); Friends.Clear(); House.Clear(); Guild.Clear(); Alignment.Clear(); }
     }
 }
