@@ -309,7 +309,7 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
             // Jauge et illustration.
             string gaugeTip;
             if (inFight) { RefreshChrono(); gaugeTip = "Temps du tour"; }
-            else gaugeTip = Gauge.Show(options.BannerGaugeMode, character);
+            else gaugeTip = Gauge.Show(options.BannerGaugeMode, character, game.Interactions?.Mount?.Current);
             if (character != null && character.GFX > 0) Xtra.SetArtwork(character.GFX);
             Xtra.SetTime(game.Session?.EstimatedServerTime);
             var map = game.Map;
@@ -430,6 +430,7 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
             if (game.Map != null) game.Map.RefreshMap += RequestRefresh;
             if (game.Interactions?.MapActions != null) game.Interactions.MapActions.FightsChanged += RequestRefresh;
             if (game.Interactions?.Party != null) game.Interactions.Party.CompassChanged += OnCompass;
+            if (game.Interactions?.Mount != null) game.Interactions.Mount.Changed += RequestRefresh;
             options.OptionChanged += OnOption;
         }
 
@@ -451,6 +452,7 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
             if (game.Map != null) game.Map.RefreshMap -= RequestRefresh;
             if (game.Interactions?.MapActions != null) game.Interactions.MapActions.FightsChanged -= RequestRefresh;
             if (game.Interactions?.Party != null) game.Interactions.Party.CompassChanged -= OnCompass;
+            if (game.Interactions?.Mount != null) game.Interactions.Mount.Changed -= RequestRefresh;
             options.OptionChanged -= OnOption;
         }
 
