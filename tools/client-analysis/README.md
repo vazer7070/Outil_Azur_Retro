@@ -50,6 +50,7 @@ python3 exporter_sprites.py <client>/clips/sprites ../../Outil_Azur_complet/Reso
 | `exporter_icons.py` | Exporte les icônes et images que le client charge à l'exécution (objets, portraits, smileys, émotes, métiers, alignements, emblèmes, carte du monde, sorts manquants, symboles du bandeau et du chat de `core.swf`) vers `Outil_Azur_complet/Resources/Bot/<Famille>`, avec un `PROVENANCE.md` par famille. Voir la section « Icônes du client ». |
 | `exporter_groupe.py` | Exporte les petites illustrations `clips/artworks/mini` et les éléments du volet `Party` de `core.swf` (couronne, flèche du suivi, infobulle) vers `Outil_Azur_complet/Resources/Bot/{Artworks/Mini,Party}`. Voir la section « Volet Groupe ». |
 | `exporter_artworks.py` | Exporte les bustes des classes `clips/artworks/faces/<gfx>.swf` (scène principale, gfx = classe × 10 + sexe) vers `Outil_Azur_complet/Resources/Bot/Artworks/Faces` pour la fiche du conjoint du volet Amis ; commande et provenance dans son `PROVENANCE.md`, tests dans `tests/test_exporter_artworks.py`. |
+| `exporter_quetes.py` | Exporte de `modules/core.swf` les pièces de la fenêtre des quêtes (icône d'expérience, coche, marque en cours, flèche d'étape, boussole d'objectif) vers `Outil_Azur_complet/Resources/Bot/Client`, en réutilisant le rendu d'`exporter_icons.py` ; commande dans le `PROVENANCE.md` de ce dossier. |
 
 ## `swfsvg` : symboles, scène, images et index
 
