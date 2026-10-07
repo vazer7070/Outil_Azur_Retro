@@ -30,7 +30,7 @@ Chaque fichier a pour racine `<BotLang famille="…" langue="fr" version="<numé
 | `maps.xml` | `maps_fr_1047` | 9 199 cartes, 372 sous-zones, 47 zones, 2 super-zones | `carte` (`x`, `y`, `sousZone`, `episode`, `placementEquipe1/2`, `maxDefi`, `maxEquipe`, `donjon`), `sousZone`, `zone`, `superZone` |
 | `monsters.xml` | `monsters_fr_1051` | 1 380 monstres, 77 races, 20 super-races | `monstre` (`nom`, `gfx`, `race`, `alignement`, `expulsable`) et ses `grade` (`n`, `niveau`, `resistances`), `race`, `superRace` |
 | `items.xml` | `items_fr_1044` | 9 705 objets, 114 types | `objet` (`nom`, `type`, `gfx`, `niveau`, `pods`, `prix`, `description`, `conditions`, `panoplie`, `arme`…), `type`, `superType`, `emplacements`, `texteUnique` |
-| `spells.xml` | `spells_fr_350` | 2 477 sorts | `sort` (`nom`, `description` ; les niveaux restent ceux de `BotSorts`) |
+| `spells.xml` | `spells_fr_350` | 2 477 sorts | `sort` (`nom`, `description`, `niveau1`…`niveau6` en JSON : effets normaux et critiques, PA, portée, critiques, type, relances, zones, états, niveau requis) |
 | `emotes.xml` | `emotes_fr_112` | 20 émotes | `emote` (`nom`, `commande`) |
 | `lang.xml` | `lang_fr_807` | 2 207 textes, 82 réglages | `texte` (`cle`, `valeur` : `INFOS_54`, `ERROR_6`…), `config`, `entree` (`CSR`, `COM`, `CNS`, `ABR`) |
 | `interactiveobjects.xml` | `interactiveobjects_fr_198` | 109 objets, 189 gfx | `interactif` (`nom`, `type`, `competences`), `gfx` (`interactif`) |
@@ -48,7 +48,14 @@ python3 tools/client-analysis/lang2xml.py "<pack Lang>/dofus/lang/swf" Outil_Azu
     --familles shortcuts --avm1dump tools/client-analysis/avm1dump/target/release/avm1dump
 ```
 
-Taille totale : 8,2 Mo (29 fichiers). Le projet copie `*.xml` de ce dossier vers `ressources/Bot/BotLang` à côté de l'exécutable (cible `CopyBotLangAssets` de `Outil_Azur_complet.csproj`) ; `LoadingBotForm` les charge hors du thread de l'interface avec `Tool_BotProtocol.Game.Data.LangData`.
+Les niveaux des sorts (`l1`…`l6` du SWF) sont gardés depuis le lot F13a pour la fiche détaillée d'un sort (2,8 Mo de plus) ; `spells.xml` a été régénéré seul, avec l'`avm1dump` compilé hors du dépôt :
+
+```sh
+python3 tools/client-analysis/lang2xml.py "<pack Lang>/dofus/lang/swf" Outil_Azur_complet/Resources/Bot/BotLang \
+    --familles spells --avm1dump <dossier de compilation>/avm1dump/target/release/avm1dump
+```
+
+Taille totale : 11,0 Mo (29 fichiers). Le projet copie `*.xml` de ce dossier vers `ressources/Bot/BotLang` à côté de l'exécutable (cible `CopyBotLangAssets` de `Outil_Azur_complet.csproj`) ; `LoadingBotForm` les charge hors du thread de l'interface avec `Tool_BotProtocol.Game.Data.LangData`.
 
 ## Droits
 

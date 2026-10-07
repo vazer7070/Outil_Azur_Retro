@@ -302,7 +302,11 @@ FAMILLES = {
         Table("I.ss", "emplacements", valeur="emplacements"),
         Table("I.us", "texteUnique", valeur="texte"),
     ],
-    "spells": [Table("S", "sort", {"n": "nom", "d": "description"}, garder=("n", "d"))],
+    # Les niveaux `l1`…`l6` (effets, PA, portée, critiques, niveau requis…) sont gardés en JSON : la fiche
+    # détaillée d'un sort les affiche comme le client.
+    "spells": [Table("S", "sort", {"n": "nom", "d": "description", "l1": "niveau1", "l2": "niveau2",
+                                   "l3": "niveau3", "l4": "niveau4", "l5": "niveau5", "l6": "niveau6"},
+                     garder=("n", "d", "l1", "l2", "l3", "l4", "l5", "l6"))],
     "emotes": [Table("EM", "emote", {"n": "nom", "s": "commande"})],
     "interactiveobjects": [
         Table("IO.d", "interactif", {"n": "nom", "t": "type", "sk": "competences"}),
