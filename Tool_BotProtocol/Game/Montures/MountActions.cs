@@ -60,10 +60,23 @@ namespace Tool_BotProtocol.Game.Montures
         public ShedExchange Shed => Account?.Game?.Interactions?.Exchanges?.Get<ShedExchange>();
         /// <summary>Sacoches (type 15).</summary>
         public MountExchange Inventory => Account?.Game?.Interactions?.Exchanges?.Get<MountExchange>();
-        /// <summary>Guilde du personnage d'après son <c>GM</c> (<c>Player.guildInfos.name</c>).</summary>
-        public string OwnGuild => (Account?.Game?.Map?.Self as PlayerActor)?.GuildName;
+        /// <summary>Guilde du personnage (<c>Player.guildInfos.name</c>) : celle du lot des guildes, sinon celle de son <c>GM</c>.</summary>
+        public string OwnGuild
+        {
+            get
+            {
+                Guildes.Guild guild = Account?.Game?.Interactions?.Guild?.Guild;
+                if (guild != null && guild.HasGuild) return guild.Name;
+                return (Account?.Game?.Map?.Self as PlayerActor)?.GuildName;
+            }
+        }
         /// <summary>L'enclos de la carte appartient à la guilde du personnage (<c>MountPark.isMine</c>).</summary>
         public bool IsParkMine => Park?.IsMine(OwnGuild) == true;
+        /// <summary>
+        /// Condition du menu des montures d'enclos (<c>onSpriteRelease</c>) : enclos de la guilde du personnage et droit
+        /// « Gérer les montures des autres membres » (<c>canManageOtherMount</c>).
+        /// </summary>
+        public bool CanManageParkMounts => IsParkMine && Account?.Game?.Interactions?.Guild?.Guild?.CanDo(Guildes.GuildRight.ManageOtherMounts) == true;
 
         // ---- Envois du client -----------------------------------------------------------------------------
 
@@ -130,7 +143,7 @@ namespace Tool_BotProtocol.Game.Montures
         }
 
         /// <summary><c>Rp&lt;monture&gt;</c> : fiche d'une monture de l'enclos (<c>Mount.parkMountData</c>), réponse <c>Rd</c>.</summary>
-        public Task<InteractionResult> ViewParkMountAsync(int mountId)
+        public Task<InteractionResult> ViewParkMountAsync(long mountId)
         {
             if (mountId <= 0) return Task.FromResult(Refuse("Monture d'enclos inconnue."));
             return SendAsync("Rp" + mountId.ToString(CultureInfo.InvariantCulture), "Fiche de la monture d'enclos demandée.");
