@@ -156,11 +156,16 @@ namespace Tool_BotProtocol.Game.Jobs
         /// Recette correspondant exactement aux ingrédients posés (modèle → quantité), comme <c>GameManager.analyseReceipts</c> :
         /// chaque ingrédient de la recette présent avec la même quantité, rien d'autre sauf une rune de signature. <c>null</c> sinon.
         /// </summary>
-        public static Recipe Analyse(IReadOnlyDictionary<int, int> placed, short skillId, int slots)
+        public static Recipe Analyse(IReadOnlyDictionary<int, int> placed, short skillId, int slots) =>
+            placed == null || placed.Count == 0 ? null : Match(placed, Recipes(skillId, slots));
+
+        /// <summary>Comme <see cref="Analyse"/>, sur des recettes déjà lues (interface : recettes calculées hors du thread de l'interface).</summary>
+        public static Recipe Match(IReadOnlyDictionary<int, int> placed, IEnumerable<Recipe> recipes)
         {
-            if (placed == null || placed.Count == 0) return null;
-            foreach (Recipe recipe in Recipes(skillId, slots))
+            if (placed == null || placed.Count == 0 || recipes == null) return null;
+            foreach (Recipe recipe in recipes)
             {
+                if (recipe == null) continue;
                 if (!recipe.Ingredients.All(ingredient => placed.TryGetValue(ingredient.TemplateId, out int quantity) && quantity == ingredient.Quantity)) continue;
                 if (placed.Count == recipe.ItemsCount) return recipe;
                 if (placed.Count == recipe.ItemsCount + 1 && placed.ContainsKey(SigningRune)) return recipe;

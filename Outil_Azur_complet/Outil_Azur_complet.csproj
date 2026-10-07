@@ -337,6 +337,8 @@
     <Compile Include="Bot\Panels\StatsPanel.cs" />
     <Compile Include="Bot\Panels\SpellsPanel.cs" />
     <Compile Include="Bot\Panels\JobsPanel.cs" />
+    <Compile Include="Bot\Panels\CraftPanel.cs" />
+    <Compile Include="Bot\Panels\CrafterListPanel.cs" />
     <Compile Include="Bot\Panels\JournalPanel.cs" />
     <Compile Include="Bot\Panels\FightResultPanel.cs" />
     <Compile Include="Bot\Panels\MerchantPanel.cs" />
