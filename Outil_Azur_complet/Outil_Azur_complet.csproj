@@ -346,6 +346,8 @@
     <Compile Include="Bot\Panels\WorldMapPanel.cs" />
     <Compile Include="Bot\Panels\AuctionBuyPanel.cs" />
     <Compile Include="Bot\Panels\AuctionSellPanel.cs" />
+    <Compile Include="Bot\Panels\MountPanel.cs" />
+    <Compile Include="Bot\Panels\PaddockPanel.cs" />
     <Compile Include="Bot\Controls\ActorMenuRegistry.cs" />
     <Compile Include="Bot\Controls\ActorContextMenu.cs" />
     <Compile Include="Bot\Controls\HudPanel.cs">
@@ -372,6 +374,8 @@
     <Compile Include="Bot\Menus\PlayerMenuProvider.cs" />
     <Compile Include="Bot\Menus\HouseDoorMenuProvider.cs" />
     <Compile Include="Bot\Menus\MerchantMenuProvider.cs" />
+    <Compile Include="Bot\Menus\ParkMountMenuProvider.cs" />
+    <Compile Include="Bot\Menus\PaddockMenuProvider.cs" />
     <Compile Include="Bot\Shortcuts.cs" />
     <Compile Include="Bot\OptionsForm.cs">
       <SubType>Form</SubType>
