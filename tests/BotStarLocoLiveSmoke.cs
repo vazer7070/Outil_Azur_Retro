@@ -360,10 +360,36 @@ internal static partial class Live
         Say("---- scénario " + name + " (délai " + seconds + " s)");
         Task<string> run = body();
         Task finished = await Task.WhenAny(run, Task.Delay(TimeSpan.FromSeconds(seconds))).ConfigureAwait(false);
-        if (finished != run) { Record(name, "échec", "délai de " + seconds + " s dépassé"); return false; }
+        if (finished != run) { Record(name, "échec", "délai de " + seconds + " s dépassé"); await RecoverAsync().ConfigureAwait(false); return false; }
         try { Record(name, "ok", await run.ConfigureAwait(false)); return true; }
         catch (SkipScenario skip) { Record(name, "non joué", skip.Message); return false; }
-        catch (Exception error) { Record(name, "échec", error.GetType().Name + " : " + error.Message); Journal("!! " + error); return false; }
+        catch (Exception error) { Record(name, "échec", error.GetType().Name + " : " + error.Message); Journal("!! " + error); }
+        await RecoverAsync().ConfigureAwait(false);
+        return false;
+    }
+
+    /// <summary>Après un échec : abandonne un combat resté ouvert pour que les scénarios suivants partent de la carte.</summary>
+    private static async Task RecoverAsync()
+    {
+        foreach (LiveSession s in new[] { a, b })
+        {
+            PlayerExchange exchange = s?.Account?.Game?.Interactions?.Exchange;
+            if (exchange != null && (exchange.IsOpen || exchange.PendingRequest != null))
+            {
+                var left = await exchange.LeaveAsync().ConfigureAwait(false);
+                Journal(s.Label + " [test] fermeture de l'échange resté ouvert : " + left.Message);
+                await s.Until(() => !exchange.IsOpen, 10).ConfigureAwait(false);
+            }
+            if (s?.Account?.Game?.Fight == null || !s.Account.Game.Fight.IsInFight) continue;
+            try
+            {
+                var giveUp = await s.Account.Game.Fight.GiveUpAsync().ConfigureAwait(false);
+                Journal(s.Label + " [test] abandon du combat resté ouvert : " + giveUp.Message);
+                await s.Until(() => !s.Account.Game.Fight.IsInFight && !s.Account.IsFighting(), 20).ConfigureAwait(false);
+                await Task.Delay(800).ConfigureAwait(false);
+            }
+            catch (Exception error) { Journal(s.Label + " [test] abandon impossible : " + error.Message); }
+        }
     }
 
     internal sealed class SkipScenario : Exception { public SkipScenario(string message) : base(message) { } }
@@ -393,6 +419,7 @@ internal static partial class Live
     private const string TestPrefix = "Essai-";
     private static readonly Random random = new Random();
     private static int startMap;
+    private static readonly SemaphoreSlim creationGate = new SemaphoreSlim(1, 1);
 
     /// <summary>Nom accepté par GameClient.addCharacter de StarLoco : lettres et un tiret, jamais trois fois la même lettre.</summary>
     private static string NewCharacterName()
@@ -452,14 +479,21 @@ internal static partial class Live
         }
 
         // Création comme la fenêtre CreateCharacter : AA<nom>|<classe>|<sexe>|<c1>|<c2>|<c3>, puis retour à la liste.
+        // Une création à la fois : deux AA traités dans la même milliseconde reçoivent le même identifiant chez StarLoco
+        // (le second personnage n'est pas enregistré et AS<id> répond ASE au premier compte).
         s.CharacterName = NewCharacterName();
         int created = s.ReceivedCount;
-        s.Account.Game.Server.ExitCreationMenu = false;
-        s.Account.Game.Server.NameNewCharacter = s.CharacterName;
-        await s.Send("AA" + s.CharacterName + "|" + classId + "|" + sex + "|-1|-1|-1").ConfigureAwait(false);
-        string aa = await s.Expect(p => p.StartsWith("AAK") || p.StartsWith("AAE"), "réponse à la création AA", 15, created).ConfigureAwait(false);
-        Check(aa.StartsWith("AAK"), "Création refusée : " + aa);
-        await s.Expect(p => p.StartsWith("ALK") && p.Contains(";" + s.CharacterName + ";"), "ALK avec le nouveau personnage", 15, created).ConfigureAwait(false);
+        await creationGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            s.Account.Game.Server.ExitCreationMenu = false;
+            s.Account.Game.Server.NameNewCharacter = s.CharacterName;
+            await s.Send("AA" + s.CharacterName + "|" + classId + "|" + sex + "|-1|-1|-1").ConfigureAwait(false);
+            string aa = await s.Expect(p => p.StartsWith("AAK") || p.StartsWith("AAE"), "réponse à la création AA", 15, created).ConfigureAwait(false);
+            Check(aa.StartsWith("AAK"), "Création refusée : " + aa);
+            await s.Expect(p => p.StartsWith("ALK") && p.Contains(";" + s.CharacterName + ";"), "ALK avec le nouveau personnage", 15, created).ConfigureAwait(false);
+        }
+        finally { creationGate.Release(); }
         Check(await s.Until(() => s.Account.AccountCharactersInfo.Values.Any(v => v.StartsWith(s.CharacterName + "|")), 5).ConfigureAwait(false), "Le bot n'a pas lu le personnage créé dans ALK.");
         int id = s.Account.AccountCharactersInfo.First(c => c.Value.StartsWith(s.CharacterName + "|")).Key;
 
@@ -594,6 +628,15 @@ internal static partial class Live
     private static async Task<string> PartyAsync()
     {
         int markA = a.ReceivedCount, markB = b.ReceivedCount;
+        // B n'a pas de fenêtre : le test tient le rôle du joueur qui garde l'invitation pour y répondre (sinon le bot refuse par PR).
+        EventHandler<InvitationEventArgs> keep = (sender, e) => e.Handled = true;
+        b.Account.Game.Session.PartyInviteReceived += keep;
+        try { return await PartyCoreAsync(markA, markB).ConfigureAwait(false); }
+        finally { b.Account.Game.Session.PartyInviteReceived -= keep; }
+    }
+
+    private static async Task<string> PartyCoreAsync(int markA, int markB)
+    {
         var invite = await a.Account.Game.Interactions.Party.InviteAsync(b.CharacterName).ConfigureAwait(false);
         Check(invite.Sent, "Invitation refusée par le bot : " + invite.Message);
         string pik = await b.Expect("PIK", "PIK (invitation reçue)", 10, markB).ConfigureAwait(false);
@@ -618,6 +661,15 @@ internal static partial class Live
     private static async Task<string> ExchangeAsync()
     {
         long kamasA = a.Account.Game.character.Kamas, kamasB = b.Account.Game.character.Kamas;
+        // Comme pour le groupe : le test garde la demande d'échange de B pour l'accepter lui-même.
+        EventHandler<ExchangeRequestEventArgs> keep = (sender, e) => e.Handled = true;
+        b.Account.Game.Interactions.Exchange.RequestReceived += keep;
+        try { return await ExchangeCoreAsync(kamasA, kamasB).ConfigureAwait(false); }
+        finally { b.Account.Game.Interactions.Exchange.RequestReceived -= keep; }
+    }
+
+    private static async Task<string> ExchangeCoreAsync(long kamasA, long kamasB)
+    {
         int markA = a.ReceivedCount, markB = b.ReceivedCount;
         var request = await a.Account.Game.Interactions.Exchange.RequestAsync(b.Id).ConfigureAwait(false);
         Check(request.Sent, "Demande d'échange refusée par le bot : " + request.Message);
@@ -633,10 +685,12 @@ internal static partial class Live
         Check(kamas.Sent, "Kamas refusés par le bot : " + kamas.Message);
         string distant = await b.Expect(p => p.StartsWith("EmKG") || p.StartsWith("EMKG"), "EmKG (kamas proposés par A)", 10, markB).ConfigureAwait(false);
         Check(await b.Until(() => b.Account.Game.Interactions.Exchange.DistantKamas == amount, 5).ConfigureAwait(false), "B ne voit pas les kamas proposés : " + b.Account.Game.Interactions.Exchange.DistantKamas);
-        await Task.Delay(1200).ConfigureAwait(false); // le client grise « Valider » quelques instants après une modification
+        // Le client grise « Valider » 3 s après une modification (DELAY_BEFORE_VALIDATE) ; le bot applique la même règle.
+        Check(await a.Until(() => a.Account.Game.Interactions.Exchange.CanValidate, 6).ConfigureAwait(false), "A ne peut pas valider l'échange (délai du bouton)");
         var validateA = await a.Account.Game.Interactions.Exchange.ValidateAsync().ConfigureAwait(false);
         Check(validateA.Sent, "Validation de A refusée par le bot : " + validateA.Message);
         await b.Expect(p => p.StartsWith("EK1" + a.Id) || p.StartsWith("EK1"), "EK1 (A a validé, vu par B)", 10, markB).ConfigureAwait(false);
+        Check(await b.Until(() => b.Account.Game.Interactions.Exchange.CanValidate, 6).ConfigureAwait(false), "B ne peut pas valider l'échange (délai du bouton)");
         var validateB = await b.Account.Game.Interactions.Exchange.ValidateAsync().ConfigureAwait(false);
         Check(validateB.Sent, "Validation de B refusée par le bot : " + validateB.Message);
         string evA = await a.Expect(p => p.StartsWith("EVa") || p == "EV" || p.StartsWith("EV"), "EV (fin de l'échange, A)", 10, markA).ConfigureAwait(false);
@@ -742,7 +796,8 @@ internal static partial class Live
         }
         var ready = await fight.SetReadyAsync(true).ConfigureAwait(false);
         Check(ready.Sent, s.Label + " : « prêt » refusé par le bot : " + ready.Message);
-        await s.Expect("GR1" + s.Id, "GR1 (prêt)", 10, mark).ConfigureAwait(false);
+        // StarLoco lance le combat dès que le dernier joueur est prêt : son GR1 n'est alors pas envoyé (état déjà « combat »), GS le remplace.
+        await s.Expect(p => p == "GR1" + s.Id || p == "GS", "GR1 (prêt) ou GS (début du combat)", 10, mark).ConfigureAwait(false);
     }
 
     /// <summary>Tour du personnage : déplacement (facultatif) vers la cible, sort de dégâts s'il est possible, fin de tour.</summary>
