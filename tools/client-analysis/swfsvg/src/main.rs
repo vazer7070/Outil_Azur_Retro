@@ -4,12 +4,16 @@
 //!   swfsvg [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier> [nomExport ...]
 //!   swfsvg --scene [--name NOM] [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier>
 //!   swfsvg --list <fichier.swf>
+//!   (avec --instance NOM ou --sans-instance NOM pour les deux premières formes)
 //!
 //! Sans nom d'export, tous les symboles d'`ExportAssets` sont rendus. `--scene` rend la timeline
 //! principale (icônes d'objets, émotes, portraits : formes posées sur la scène, sans export).
 //! `--frame` choisit l'image de la timeline demandée, les clips imbriqués ayant joué depuis leur
 //! création comme à l'écran (cycles de marche) ; `--list` décrit les symboles sans rien rendre,
 //! avec la fin de chaque animation (colonne `fin` : boucle, arrêt, retour au repos ou suite).
+//! `--instance NOM` ne rend, de la timeline demandée, que l'enfant nommé NOM (nom d'instance du
+//! `PlaceObject`, sans tenir compte de la casse), dans le temps de cette timeline et à sa place ;
+//! `--sans-instance NOM` rend tout sauf lui. Les masques suivent leur contenu.
 use base64::Engine;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
@@ -19,7 +23,8 @@ use swf::{FillStyle, Matrix, ShapeRecord, Tag};
 
 const USAGE: &str = "usage : swfsvg [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier> [nomExport ...]
         swfsvg --scene [--name NOM] [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier>
-        swfsvg --list <fichier.swf>";
+        swfsvg --list <fichier.swf>
+        (--instance NOM : seul l'enfant nommé de la timeline demandée ; --sans-instance NOM : tout sauf lui)";
 
 /// Profondeur maximale d'imbrication suivie (clips dans des clips).
 const MAX_DEPTH: usize = 12;
@@ -177,6 +182,25 @@ struct Placed {
     clip_depth: Option<u16>,
     /// Image (base 0) de la timeline où cette instance a été créée.
     born: usize,
+    /// Nom d'instance (`PlaceObject` nommé), pour `--instance` et `--sans-instance`.
+    name: Option<String>,
+}
+
+/// Filtre des enfants de la timeline demandée (`--instance`, `--sans-instance`).
+#[derive(Clone, Debug, PartialEq)]
+enum Instance {
+    /// Seul l'enfant de ce nom est rendu.
+    Only(String),
+    /// Tout est rendu sauf l'enfant de ce nom.
+    Without(String),
+}
+
+impl Instance {
+    fn name(&self) -> &str {
+        match self {
+            Instance::Only(n) | Instance::Without(n) => n,
+        }
+    }
 }
 
 struct Exporter<'a> {
@@ -197,6 +221,10 @@ struct Exporter<'a> {
     /// Nombre de transformations de couleur englobantes qui remplacent la teinte (multiplicateurs
     /// RGB nuls, comme `Color.setRGB`) : sous elles, les aplats magenta prennent cette teinte.
     recolored: usize,
+    /// Filtre de la timeline demandée (`--instance`, `--sans-instance`).
+    instance: Option<Instance>,
+    /// Vrai dès qu'une image rendue de la cible a contenu l'instance filtrée.
+    instance_found: bool,
 }
 
 fn color_css(c: &swf::Color) -> (String, f64) {
@@ -321,6 +349,8 @@ impl<'a> Exporter<'a> {
             warnings: Vec::new(),
             clip_mode: false,
             recolored: 0,
+            instance: None,
+            instance_found: false,
         }
     }
 
@@ -904,13 +934,15 @@ impl<'a> Exporter<'a> {
                             let prev = display.get(&p.depth).cloned();
                             // Remplacer un caractère par lui-même garde l'instance (et son âge).
                             let kept = matches!(p.action, swf::PlaceObjectAction::Replace(_)) && prev.as_ref().is_some_and(|x| x.id == cid);
+                            let named = p.name.map(|n| n.to_str_lossy(ENC).to_string());
                             let placed = Placed {
                                 id: cid,
                                 matrix: pm.or(prev.as_ref().map(|x| x.matrix)).unwrap_or(M::identity()),
                                 ct: p.color_transform.or(prev.as_ref().and_then(|x| x.ct)),
                                 ratio: p.ratio.or(prev.as_ref().map(|x| x.ratio)).unwrap_or(0),
                                 clip_depth: p.clip_depth.or(prev.as_ref().and_then(|x| x.clip_depth)),
-                                born: if kept { prev.map_or(current_frame, |x| x.born) } else { current_frame },
+                                born: if kept { prev.as_ref().map_or(current_frame, |x| x.born) } else { current_frame },
+                                name: named.or(if kept { prev.and_then(|x| x.name) } else { None }),
                             };
                             display.insert(p.depth, placed);
                         }
@@ -944,13 +976,20 @@ impl<'a> Exporter<'a> {
                 _ => {}
             }
         }
-        let items: Vec<(u16, Placed, usize)> = display
+        let mut items: Vec<(u16, Placed, usize)> = display
             .into_iter()
             .map(|(d, p)| {
                 let child_age = child_age(age, frame, persistent, p.born);
                 (d, p, child_age)
             })
             .collect();
+        if root {
+            if let Some(filter) = self.instance.clone() {
+                let (kept, found) = filter_instances(items, &filter);
+                self.instance_found |= found;
+                items = kept;
+            }
+        }
         self.render_items(&items, m, depth);
     }
 
@@ -1018,6 +1057,45 @@ impl<'a> Exporter<'a> {
             _ => self.render_char(id, &M::identity(), None, 0, age, 0),
         }
     }
+}
+
+/// Applique `--instance` ou `--sans-instance` à la liste d'affichage d'une timeline (triée par
+/// profondeur). Seuls les objets ordinaires sont filtrés par leur nom ; un masque est gardé avec
+/// `--sans-instance`, et avec `--instance` s'il découpe l'enfant gardé. Rend aussi si le nom a été vu.
+fn filter_instances(items: Vec<(u16, Placed, usize)>, filter: &Instance) -> (Vec<(u16, Placed, usize)>, bool) {
+    let matches = |p: &Placed| p.clip_depth.is_none() && p.name.as_deref().is_some_and(|n| n.eq_ignore_ascii_case(filter.name()));
+    let found = items.iter().any(|(_, p, _)| matches(p));
+    let kept = match filter {
+        Instance::Without(_) => items.into_iter().filter(|(_, p, _)| !matches(p)).collect(),
+        Instance::Only(_) => {
+            let mut kept = Vec::new();
+            let mut i = 0;
+            while i < items.len() {
+                match items[i].1.clip_depth {
+                    Some(limit) => {
+                        let mut j = i + 1;
+                        while j < items.len() && items[j].0 <= limit {
+                            j += 1;
+                        }
+                        let inside: Vec<(u16, Placed, usize)> = items[i + 1..j].iter().filter(|(_, p, _)| matches(p)).cloned().collect();
+                        if !inside.is_empty() {
+                            kept.push(items[i].clone());
+                            kept.extend(inside);
+                        }
+                        i = j;
+                    }
+                    None => {
+                        if matches(&items[i].1) {
+                            kept.push(items[i].clone());
+                        }
+                        i += 1;
+                    }
+                }
+            }
+            kept
+        }
+    };
+    (kept, found)
 }
 
 /// Image affichée (base 0) d'une timeline `age` images après sa création, et si ses clips
@@ -1416,6 +1494,8 @@ struct Options {
     frames: Frames,
     /// Nom du rendu de la scène (`--name`) ; par défaut, le nom du fichier SWF.
     scene_name: Option<String>,
+    /// Enfant seul ou exclu de la timeline demandée (`--instance`, `--sans-instance`).
+    instance: Option<Instance>,
     file: String,
     dir: Option<String>,
     names: Vec<String>,
@@ -1442,7 +1522,8 @@ fn parse_frames(v: &str) -> Result<Frames, String> {
 }
 
 fn parse_args(args: &[String]) -> Result<Options, String> {
-    let mut o = Options { scene: false, list: false, append_index: false, frames: Frames::One(1), scene_name: None, file: String::new(), dir: None, names: Vec::new() };
+    let mut o = Options { scene: false, list: false, append_index: false, frames: Frames::One(1), scene_name: None, instance: None, file: String::new(), dir: None, names: Vec::new() };
+    let mut instances = 0;
     let mut positional = Vec::new();
     let mut i = 0;
     while i < args.len() {
@@ -1461,16 +1542,39 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
                 let v = args.get(i).ok_or("--name attend un nom")?;
                 o.scene_name = Some(v.clone());
             }
+            "--instance" | "--sans-instance" => {
+                i += 1;
+                let v = args.get(i).ok_or_else(|| format!("{} attend un nom d'instance", a))?;
+                o.instance = Some(if a == "--instance" { Instance::Only(v.clone()) } else { Instance::Without(v.clone()) });
+                instances += 1;
+            }
             "-h" | "--help" => return Err(String::new()),
             _ if a.starts_with("--frame=") => o.frames = parse_frames(&a["--frame=".len()..])?,
             _ if a.starts_with("--name=") => o.scene_name = Some(a["--name=".len()..].to_string()),
+            _ if a.starts_with("--instance=") => {
+                o.instance = Some(Instance::Only(a["--instance=".len()..].to_string()));
+                instances += 1;
+            }
+            _ if a.starts_with("--sans-instance=") => {
+                o.instance = Some(Instance::Without(a["--sans-instance=".len()..].to_string()));
+                instances += 1;
+            }
             _ if a.starts_with("--") => return Err(format!("option inconnue : {}", a)),
             _ => positional.push(a.clone()),
         }
         i += 1;
     }
+    if instances > 1 {
+        return Err("--instance et --sans-instance s'emploient une seule fois, l'un ou l'autre".into());
+    }
+    if o.instance.as_ref().is_some_and(|f| f.name().trim().is_empty()) {
+        return Err("--instance et --sans-instance attendent un nom d'instance non vide".into());
+    }
     let mut positional = positional.into_iter();
     o.file = positional.next().ok_or("fichier SWF manquant")?;
+    if o.list && o.instance.is_some() {
+        return Err("--list ne rend rien : --instance et --sans-instance n'y ont pas de sens".into());
+    }
     if o.list {
         if positional.next().is_some() {
             return Err("--list n'attend que le fichier SWF".into());
@@ -1515,6 +1619,7 @@ fn run(o: &Options) -> Result<String, String> {
         }
     }
     let mut exporter = Exporter::new(&movie.tags);
+    exporter.instance = o.instance.clone();
     let main_info = timeline_info(&movie.tags);
 
     if o.list {
@@ -1550,6 +1655,7 @@ fn run(o: &Options) -> Result<String, String> {
 
     let mut index = String::new();
     for target in &targets {
+        exporter.instance_found = false;
         let total = match target.id {
             None => exporter.cycle_of_timeline(&movie.tags, main_info, true, 0),
             Some(id) => match exporter.chars.get(&id).copied() {
@@ -1584,6 +1690,11 @@ fn run(o: &Options) -> Result<String, String> {
             let path = std::path::Path::new(dir).join(&file);
             std::fs::write(&path, svg_document(&defs, &body, &b)).map_err(|e| format!("{} : écriture impossible ({})", path.display(), e))?;
             let _ = writeln!(index, "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}", target.name, target.id.unwrap_or(0), fm(b.x0), fm(b.y0), fm(b.x1 - b.x0), fm(b.y1 - b.y0), warnings.join("; "), fm(b.x1), fm(b.y1), n, total, file);
+        }
+        if let Some(filter) = &o.instance {
+            if !exporter.instance_found {
+                let _ = writeln!(messages, "instance {} absente de {} ({})", filter.name(), target.name, o.file);
+            }
         }
     }
     let index_path = std::path::Path::new(dir).join("index.tsv");
@@ -1667,6 +1778,14 @@ mod tests {
         let o = parse_args(&args(&["--scene", "--name", "16_1234", "a.swf", "out"])).unwrap();
         assert_eq!(o.scene_name.as_deref(), Some("16_1234"));
         assert!(parse_args(&args(&["--name", "x", "a.swf", "out"])).is_err());
+        let o = parse_args(&args(&["--scene", "--instance", "rotate", "a.swf", "out"])).unwrap();
+        assert_eq!(o.instance, Some(Instance::Only("rotate".into())));
+        let o = parse_args(&args(&["--scene", "--sans-instance=rotate", "a.swf", "out"])).unwrap();
+        assert_eq!(o.instance, Some(Instance::Without("rotate".into())));
+        assert!(parse_args(&args(&["--instance", "a", "--sans-instance", "b", "a.swf", "out"])).is_err());
+        assert!(parse_args(&args(&["--scene", "--instance=", "a.swf", "out"])).is_err());
+        assert!(parse_args(&args(&["--list", "--instance", "rotate", "a.swf"])).is_err());
+        assert!(parse_args(&args(&["--scene", "a.swf", "out", "--instance"])).is_err());
     }
 
     #[test]

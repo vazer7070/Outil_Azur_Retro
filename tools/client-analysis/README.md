@@ -58,6 +58,7 @@ python3 exporter_sprites.py <client>/clips/sprites ../../Outil_Azur_complet/Reso
 swfsvg [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier> [nomExport ...]
 swfsvg --scene [--name NOM] [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier>
 swfsvg --list <fichier.swf>
+# les deux premières formes acceptent aussi --instance NOM ou --sans-instance NOM
 ```
 
 - **Sans option** (forme historique, inchangée) : l'image 1 de chaque symbole d'`ExportAssets`, ou des
@@ -96,6 +97,13 @@ swfsvg --list <fichier.swf>
   134 `static`, 121 `arret`, 18 `boucle`.
 - **`--append-index`** ajoute les lignes à un `index.tsv` existant au lieu de le réécrire, pour
   rassembler toute une famille de SWF dans un seul dossier.
+- **`--instance NOM`** (version 0.2.4) ne rend, de la timeline demandée (la scène avec `--scene`,
+  sinon le symbole), que l'enfant posé sous le nom d'instance `NOM` (casse ignorée), à sa place et
+  dans le temps de cette timeline : `--frame all` garde le nombre d'images de la timeline entière.
+  **`--sans-instance NOM`** rend tout sauf cet enfant. Les masques suivent leur contenu (gardés avec
+  `--instance` s'ils découpent l'enfant). Un nom absent de toutes les images rendues est signalé sur
+  la sortie d'erreur sans échec. Sert aux effets de sorts de types 20 et 21, dont l'enfant `rotate`
+  est tourné vers la cible par le client (`306.swf` : `--scene --instance rotate`).
 
 `index.tsv` (sans ligne d'en-tête) compte une ligne par SVG écrit, colonnes séparées par des
 tabulations ; les sept premières sont celles des versions précédentes :
