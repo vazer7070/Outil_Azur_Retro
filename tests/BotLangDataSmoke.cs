@@ -63,7 +63,7 @@ internal static class BotLangDataSmoke
             "<sousZone id=\"7\" nom=\"Clairière fictive\" zone=\"1\" />\n<sousZone id=\"8\" nom=\"//Caché\" zone=\"1\" />\n<zone id=\"1\" nom=\"Contrée fictive\" superZone=\"0\" />");
         Write(folder, "monsters.xml", "monsters",
             "<monstre id=\"9\" nom=\"Bestiole\" gfx=\"1500\" race=\"1\"><grade n=\"1\" niveau=\"2\" resistances=\"1,-2,3,4,5,6,7\" /><grade n=\"2\" niveau=\"4\" resistances=\"2,3,4,5,6,7,8\" /></monstre>");
-        Write(folder, "items.xml", "items", "<objet id=\"9\" nom=\"Épée #1\" type=\"6\" gfx=\"36\" niveau=\"5\" description=\"Lame #1.\" />\n<type id=\"6\" nom=\"Épée\" superType=\"2\" />\n<texteUnique id=\"0\" texte=\"fictive\" />");
+        Write(folder, "items.xml", "items", "<objet id=\"9\" nom=\"Épée #1\" type=\"6\" gfx=\"36\" niveau=\"5\" description=\"Lame #1.\" />\n<objet id=\"10\" nom=\"Blé \" type=\"6\" />\n<type id=\"6\" nom=\"Épée\" superType=\"2\" />\n<texteUnique id=\"0\" texte=\"fictive\" />");
         Write(folder, "jobs.xml", "jobs", "<metier id=\"2\" nom=\"Bûcheron fictif\" specialisation=\"0\" icone=\"1\" />");
         Write(folder, "spells.xml", "spells", "<sort id=\"3\" nom=\"Sort fictif\" description=\"Inflige des dégâts.\" />");
         Write(folder, "emotes.xml", "emotes", "<emote id=\"1\" nom=\"S'asseoir\" commande=\"sit\" />\n<emote id=\"3\" nom=\"Applaudir\" commande=\"appl\" />");
@@ -126,6 +126,7 @@ internal static class BotLangDataSmoke
         Check(grade != null && grade.Level == 4 && grade.Resistances.Length == 7 && grade.Resistances[0] == 2 && LangData.Monster.Grade(9, 6) == null, "grade de monstre");
         Check(LangData.Monster.Grade(9, 1).Resistances[1] == -2 && LangData.Monster.Gfx(9) == 1500, "résistance négative / gfx");
         Equal("Épée fictive", LangData.Item.Name(9), "nom d'objet (I.us)");
+        Equal("Blé", LangData.Item.Name(10), "nom d'objet sans l'espace finale d'items_fr");
         Equal("Lame fictive.", LangData.Item.Description(9), "description d'objet");
         Check(LangData.Item.Gfx(9) == 36 && LangData.Item.Type(9) == 6 && LangData.Item.TypeName(6) == "Épée", "objet : gfx/type");
         Equal("Arbre fictif", LangData.Interactive.Name(7500), "interactif par gfx");

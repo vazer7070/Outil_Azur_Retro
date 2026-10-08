@@ -318,11 +318,14 @@ namespace Tool_BotProtocol.Game.Data
         public static class Item
         {
             public static bool Has(int id) => Find("items", "objet", Key(id)) != null;
-            /// <summary>Nom d'objet comme le client l'affiche : marqueurs <c>#n</c> remplacés par <c>I.us</c>.</summary>
+            /// <summary>
+            /// Nom d'objet comme le client l'affiche : marqueurs <c>#n</c> remplacés par <c>I.us</c>, espaces de bord retirés (plusieurs
+            /// noms d'<c>items_fr</c> finissent par une espace, ce qui doublait l'espace des messages « x10 Blé  pour… »).
+            /// </summary>
             public static string Name(int id)
             {
                 string name = Attribute("items", "objet", Key(id), "nom");
-                return name == null ? Key(id) : Describe(Text.Fetch(name), UniqueStrings());
+                return name == null ? Key(id) : Describe(Text.Fetch(name), UniqueStrings()).Trim();
             }
             public static string Description(int id)
             {

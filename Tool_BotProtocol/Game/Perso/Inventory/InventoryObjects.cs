@@ -43,7 +43,7 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
         public static string DisplayName(int templateId)
         {
             InventoryObjects template = ReturnInventory(templateId);
-            if (template != null && !string.IsNullOrEmpty(template.Name)) return template.Name;
+            if (template != null && !string.IsNullOrWhiteSpace(template.Name)) return template.Name.Trim();
             return LangData.Item.Has(templateId) ? LangData.Item.Name(templateId) : "Objet n° " + templateId;
         }
         /// <summary>Catégorie de la fenêtre d'inventaire (filtres du client) pour le bot.</summary>
@@ -89,7 +89,7 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
             InventoryObjects metadata = ReturnInventory(template);
             if (metadata != null)
             {
-                item.Name = metadata.Name;
+                item.Name = metadata.Name?.Trim();
                 item.pods = metadata.pods;
                 item.Type = metadata.Type;
                 item.Level = metadata.Level;
