@@ -12,6 +12,8 @@ using System.Text.RegularExpressions;
 // cite la commande, et copie d'ancres.tsv à côté de l'exécutable. Fichiers seulement : passe sous Mono.
 // Lot AN1 : 7 ou 9 colonnes (ips, fin), noms hit/die/anim<n>/emote<n>/emoteStatic<n>/bonus en R ou L, bandes en grille
 // (colonnes = largeur du PNG / largeur d'image), aucun côté de PNG au-delà de 32 767 px.
+// Lot AN2 : sprites_animes.txt au format « <gfx> <famille>[:<pas>],... » (un gfx seul vaut walk,run), chaque
+// famille demandée a ses bandes, hit et die des 24 classes en R et L, part du budget (4 Mo).
 internal static class BotSpriteSheetsSmoke
 {
     private static readonly string[] Header = { "gfx", "anim", "xmin", "ymin", "largeur", "hauteur", "images" };
@@ -20,6 +22,10 @@ internal static class BotSpriteSheetsSmoke
         RegexOptions.CultureInvariant);
     private static readonly Regex End = new Regex("^(?:boucle|arret|static|suite:[A-Za-z0-9]+)$", RegexOptions.CultureInvariant);
     private const int MaxSide = 32767;
+    // Part du lot AN2 dans le budget des animations (plan, section 4) : hit et die des 24 classes, 3,5 Mo mesurés.
+    private const long HitDieBudget = 4L * 1024 * 1024;
+    private static readonly Regex AnimatedLine = new Regex("^([0-9]+)(?:[ \\t]+([A-Za-z][A-Za-z0-9]*(?::[0-9]+)?(?:,[A-Za-z][A-Za-z0-9]*(?::[0-9]+)?)*))?$",
+        RegexOptions.CultureInvariant);
 
     private sealed class Row
     {
@@ -73,6 +79,42 @@ internal static class BotSpriteSheetsSmoke
             rows.Add(row);
         }
         return rows;
+    }
+
+    /// <summary>
+    /// Lit sprites_animes.txt : « <gfx> [<famille>[:<pas>],...] », # pour un commentaire ; un gfx seul vaut walk,run
+    /// (format d'origine). Le pas divise 40 (ips = 40 / pas). Rend gfx → (famille → ips).
+    /// </summary>
+    private static Dictionary<int, Dictionary<string, int>> ParseAnimated(IEnumerable<string> lines)
+    {
+        var result = new Dictionary<int, Dictionary<string, int>>();
+        int number = 0;
+        foreach (string raw in lines)
+        {
+            number++;
+            string line = (raw.IndexOf('#') >= 0 ? raw.Substring(0, raw.IndexOf('#')) : raw).Trim();
+            if (line.Length == 0) continue;
+            Match m = AnimatedLine.Match(line);
+            Check(m.Success, "sprites_animes.txt line " + number + ": expected « <gfx> <famille>[:<pas>],... », got " + line);
+            int gfx = int.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+            Check(!result.ContainsKey(gfx), "sprites_animes.txt line " + number + ": gfx " + gfx + " listed twice");
+            var families = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (string part in (m.Groups[2].Success ? m.Groups[2].Value : "walk,run").Split(','))
+            {
+                string[] p = part.Split(':');
+                int step = p.Length > 1 ? int.Parse(p[1], System.Globalization.CultureInfo.InvariantCulture) : 1;
+                Check(step >= 1 && 40 % step == 0, "sprites_animes.txt line " + number + ": step of " + part + " does not divide 40");
+                Check(!families.ContainsKey(p[0]), "sprites_animes.txt line " + number + ": family " + p[0] + " listed twice");
+                families[p[0]] = 40 / step;
+            }
+            result[gfx] = families;
+        }
+        return result;
+    }
+
+    private static string Family(string anim)
+    {
+        return anim == "scene" ? "scene" : anim.Substring(0, anim.Length - 1);
     }
 
     private static bool Rejected(params string[] lines)
@@ -173,14 +215,36 @@ internal static class BotSpriteSheetsSmoke
             Check(byKey.ContainsKey(sword + "/scene"), "Fight sword " + sword + " (scene of clips/sprites/" + sword + ".swf) missing");
         foreach (string o in new[] { "R", "L" }) Check(byKey.ContainsKey("6000/static" + o), "Tax collector 6000 static" + o + " missing");
 
-        // 3. Bandes : chaque gfx de sprites_animes.txt a au moins un cycle walk ; les 24 classes ont walk et run dans les cinq orientations.
-        var animated = File.ReadAllLines(Path.Combine(source, "sprites_animes.txt"))
-            .Select(l => (l.IndexOf('#') >= 0 ? l.Substring(0, l.IndexOf('#')) : l).Trim()).Where(l => l.Length > 0).Select(l => int.Parse(l, System.Globalization.CultureInfo.InvariantCulture)).ToList();
+        // 3. Bandes : format de sprites_animes.txt (AN2) ; chaque famille demandée a au moins une bande, à son ips ;
+        // les 24 classes ont walk et run dans les cinq orientations, hit et die en R et L.
+        var parsed = ParseAnimated(new[] { "# commentaire", "10", "11 walk,run,hit,die:2   # fin de ligne", "", "12 anim0:4" });
+        Check(parsed.Count == 3 && parsed[10].Count == 2 && parsed[10]["walk"] == 40 && parsed[10]["run"] == 40
+            && parsed[11].Count == 4 && parsed[11]["die"] == 20 && parsed[12]["anim0"] == 10, "sprites_animes.txt sample misread");
+        foreach (string bad in new[] { "10 walk run", "10 walk:3", "10 walk,walk", "x walk", "10 2walk", "10 walk," })
+        {
+            bool refused = false;
+            try { ParseAnimated(new[] { bad }); } catch (Exception) { refused = true; }
+            Check(refused, "sprites_animes.txt line accepted: " + bad);
+        }
+        bool twice = false;
+        try { ParseAnimated(new[] { "10", "10 hit" }); } catch (Exception) { twice = true; }
+        Check(twice, "sprites_animes.txt: a gfx listed twice is accepted");
+
+        Dictionary<int, Dictionary<string, int>> animated = ParseAnimated(File.ReadAllLines(Path.Combine(source, "sprites_animes.txt")));
         int[] classes = Enumerable.Range(1, 12).SelectMany(c => new[] { c * 10, c * 10 + 1 }).ToArray();
-        Check(classes.All(c => animated.Contains(c)), "sprites_animes.txt must list the 24 class gfx: " + string.Join(",", animated));
-        foreach (int gfx in animated)
-            Check(rows.Any(r => r.Gfx == gfx && r.Anim.StartsWith("walk")), "No walk strip for animated gfx " + gfx);
+        Check(classes.All(c => animated.ContainsKey(c)), "sprites_animes.txt must list the 24 class gfx: " + string.Join(",", animated.Keys));
+        foreach (var entry in animated)
+            foreach (var family in entry.Value)
+            {
+                Row[] strips = rows.Where(r => r.Gfx == entry.Key && r.Images > 1 && Family(r.Anim) == family.Key).ToArray();
+                Check(strips.Length > 0, "No " + family.Key + " strip for animated gfx " + entry.Key);
+                foreach (Row strip in strips)
+                    Check(strip.Fps == family.Value, "Strip " + strip.File + " plays at " + strip.Fps + " fps, sprites_animes.txt asks " + family.Value);
+            }
         foreach (int gfx in classes)
+        {
+            foreach (string family in new[] { "walk", "run", "hit", "die" })
+                Check(animated[gfx].ContainsKey(family), "sprites_animes.txt: class gfx " + gfx + " lacks " + family);
             foreach (string cycle in new[] { "walk", "run" })
                 foreach (char o in "SRLFB")
                 {
@@ -188,7 +252,18 @@ internal static class BotSpriteSheetsSmoke
                     Check(byKey.TryGetValue(gfx + "/" + cycle + o, out strip), "Missing strip " + gfx + "_" + cycle + o);
                     Check(strip.Images >= 8, "Strip " + strip.File + " has only " + strip.Images + " frames");
                 }
-        Check(rows.Where(r => r.Images > 1).All(r => animated.Contains(r.Gfx)), "A strip belongs to a gfx not listed in sprites_animes.txt");
+            foreach (char o in "RL")
+            {
+                // hit : 24 images (600 ms) chez le client, retour à la pose de repos ; die : au moins 25 images, tenue ou boucle.
+                Row hit, die;
+                Check(byKey.TryGetValue(gfx + "/hit" + o, out hit), "Missing strip " + gfx + "_hit" + o);
+                Check(hit.Images >= 20 && hit.End == "static", "Strip " + hit.File + ": " + hit.Images + " frames, fin " + hit.End + " (expected about 24, static)");
+                Check(byKey.TryGetValue(gfx + "/die" + o, out die), "Missing strip " + gfx + "_die" + o);
+                Check(die.Images >= 20 && (die.End == "arret" || die.End == "boucle"), "Strip " + die.File + ": " + die.Images + " frames, fin " + die.End);
+            }
+        }
+        Check(rows.Where(r => r.Images > 1).All(r => animated.ContainsKey(r.Gfx) && animated[r.Gfx].ContainsKey(Family(r.Anim))),
+            "A strip belongs to a gfx or a family not listed in sprites_animes.txt");
 
         // 4. PNG : présents et de la taille annoncée (largeur x images, hauteur), si le dossier en contient.
         bool shippedPng = Directory.GetFiles(source, "*_static?.png").Length > 0;
@@ -217,16 +292,28 @@ internal static class BotSpriteSheetsSmoke
                 Check(image.GetPixel(0, 0).A == 0 || image.GetPixel(image.Width - 1, 0).A == 0, "Transparent margins lost in " + stand.File);
             }
             // Bande : chaque image occupe sa propre case (ligne par ligne pour une grille) et n'est pas vide.
-            Row walk = byKey["10/walkR"];
-            using (Bitmap strip = Load(Path.Combine(source, walk.File)))
+            // 60_dieR est la bande la plus large du dépôt (112 images, 6 832 px) ; le client n'en montre que les
+            // 60 premières (mort de 1 500 ms à 40 ips) et ses images 85 à 112 sont vides dans le SWF.
+            foreach (string key in new[] { "10/walkR", "10/hitR", "11/dieL", "60/dieR" })
             {
-                int perLine = Math.Max(1, strip.Width / walk.Width);
-                for (int k = 0; k < walk.Images; k++)
+                Row walk = byKey[key];
+                int shown = walk.Anim.StartsWith("die") ? Math.Min(walk.Images, 60) : walk.Images;
+                using (Bitmap strip = Load(Path.Combine(source, walk.File)))
                 {
-                    int x = k % perLine * walk.Width, y = k / perLine * walk.Height;
-                    Check(Opaque(strip, x, y, x + walk.Width, y + walk.Height), walk.File + ": frame " + (k + 1) + " is empty");
+                    int perLine = Math.Max(1, strip.Width / walk.Width);
+                    for (int k = 0; k < shown; k++)
+                    {
+                        int x = k % perLine * walk.Width, y = k / perLine * walk.Height;
+                        Check(Opaque(strip, x, y, x + walk.Width, y + walk.Height), walk.File + ": frame " + (k + 1) + " is empty");
+                    }
                 }
             }
+
+            // Budget (plan des animations, section 4) : hit et die des 24 classes restent dans la part du lot AN2.
+            Row[] hitDieRows = rows.Where(r => classes.Contains(r.Gfx) && (r.Anim.StartsWith("hit") || r.Anim.StartsWith("die"))).ToArray();
+            long hitDie = hitDieRows.Sum(r => new FileInfo(Path.Combine(source, r.File)).Length);
+            Check(hitDieRows.Length == 96 && hitDie <= HitDieBudget, "hit/die strips of the 24 classes: " + hitDieRows.Length + " files, " + hitDie + " bytes, AN2 budget is " + HitDieBudget);
+            Console.WriteLine("hit/die of the 24 classes: " + hitDieRows.Length + " strips, " + hitDie + " bytes (budget " + HitDieBudget + ")");
         }
 
         // 5. Les anciens <gfx><O>.png restent en place pour le chargeur actuel (UserMapControl.LoadSprite).
@@ -235,7 +322,7 @@ internal static class BotSpriteSheetsSmoke
 
         // 6. Provenance : source, outil et commande exacte de régénération.
         string provenance = File.ReadAllText(Path.Combine(source, "PROVENANCE.md"));
-        foreach (string needed in new[] { "exporter_sprites.py", "clips/sprites", "swfsvg", "--frame all", "ancres.tsv", "sprites_animes.txt", "cargo build --release" })
+        foreach (string needed in new[] { "exporter_sprites.py", "clips/sprites", "swfsvg", "--frame all", "ancres.tsv", "sprites_animes.txt", "cargo build --release", "--anims hit,die" })
             Check(provenance.Contains(needed), "PROVENANCE.md does not mention " + needed);
 
         // 7. Livraison : ancres.tsv est copié à côté de l'exécutable avec les PNG.
@@ -244,6 +331,6 @@ internal static class BotSpriteSheetsSmoke
         Check(File.ReadAllText(Path.Combine(shipped, "ancres.tsv")) == File.ReadAllText(anchors), "Shipped ancres.tsv differs from the source");
         if (shippedPng) Check(File.Exists(Path.Combine(shipped, "10_walkR.png")) && File.Exists(Path.Combine(shipped, "1001R.png")), "Sprite PNG are not copied next to the executable");
 
-        Console.WriteLine("OK: " + rows.Count + " sprite anchors (" + rows.Count(r => r.Images > 1) + " walk/run strips), PNG sizes, feet anchor, legacy sprites, provenance and delivery");
+        Console.WriteLine("OK: " + rows.Count + " sprite anchors (" + rows.Count(r => r.Images > 1) + " strips), sprites_animes.txt families, PNG sizes, feet anchor, hit/die budget, legacy sprites, provenance and delivery");
     }
 }

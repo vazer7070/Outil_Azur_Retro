@@ -256,14 +256,126 @@ fn list_reports_symbols_and_frame_counts_without_rendering() {
     let w = Work::new("list");
     let out = ok(&["--list", &w.swf()]);
     let rows: Vec<Vec<&str>> = out.lines().map(|l| l.split('\t').collect()).collect();
-    assert_eq!(rows[0], vec!["nom", "id", "type", "images", "images_timeline"]);
+    assert_eq!(rows[0], vec!["nom", "id", "type", "images", "images_timeline", "fin"]);
     let find = |n: &str| rows.iter().find(|r| r[0] == n).unwrap_or_else(|| panic!("{} absent : {}", n, out)).clone();
-    assert_eq!(find("scene"), vec!["scene", "0", "scene", "1", "1"]);
-    assert_eq!(find("anim"), vec!["anim", "10", "clip", "3", "3"]);
-    assert_eq!(find("walkR"), vec!["walkR", "11", "clip", "3", "1"]);
-    assert_eq!(find("etats"), vec!["etats", "12", "clip", "5", "5"]);
-    assert_eq!(find("etat"), vec!["etat", "13", "clip", "1", "1"]);
+    assert_eq!(find("scene"), vec!["scene", "0", "scene", "1", "1", "arret"]);
+    assert_eq!(find("anim"), vec!["anim", "10", "clip", "3", "3", "boucle"]);
+    assert_eq!(find("walkR"), vec!["walkR", "11", "clip", "3", "1", "boucle"]);
+    // Joué par le client, etats s'arrête sur le stop() de sa première image.
+    assert_eq!(find("etats"), vec!["etats", "12", "clip", "5", "5", "arret"]);
+    assert_eq!(find("etat"), vec!["etat", "13", "clip", "1", "1", "arret"]);
     assert!(!w.dir.join("out").exists(), "--list ne doit rien écrire");
+}
+
+/// Action `Push` d'une suite de valeurs (chaînes, ou entiers précédés de `#`).
+fn push(values: &[&str]) -> Vec<u8> {
+    let mut payload = Vec::new();
+    for v in values {
+        if let Some(n) = v.strip_prefix('#') {
+            payload.push(7);
+            payload.extend_from_slice(&n.parse::<i32>().unwrap().to_le_bytes());
+        } else {
+            payload.push(0);
+            payload.extend_from_slice(v.as_bytes());
+            payload.push(0);
+        }
+    }
+    let mut out = vec![0x96];
+    out.extend_from_slice(&(payload.len() as u16).to_le_bytes());
+    out.extend(payload);
+    out
+}
+
+/// Script `GAC.applyAnim(this, "<anim>")` des clips du client (dernière image de hitR, bonusR…).
+fn apply_anim(anim: &str) -> Vec<u8> {
+    let mut code = push(&[anim, "this"]);
+    code.push(0x1C); // GetVariable
+    code.extend(push(&["#2", "GAC"]));
+    code.push(0x1C);
+    code.extend(push(&["applyAnim"]));
+    code.extend([0x52, 0x17, 0x00]); // CallMethod, Pop, End
+    code
+}
+
+fn action(code: Vec<u8>) -> Tag<'static> {
+    Tag::DoAction(Box::leak(code.into_boxed_slice()))
+}
+
+/// Clip de `n` images (carré rouge) dont la dernière porte le script `last`.
+fn frames(n: usize, last: Option<Vec<u8>>) -> Vec<Tag<'static>> {
+    let mut tags = vec![tag(place(1, PlaceObjectAction::Place(1), None))];
+    for k in 0..n {
+        if k + 1 == n {
+            if let Some(code) = last.clone() {
+                tags.push(action(code));
+            }
+        }
+        tags.push(Tag::ShowFrame);
+    }
+    tags
+}
+
+/// SWF des fins d'animation : `hitR` (clip d'une image qui contient un clip de 3 images terminé
+/// par `GAC.applyAnim(this, "Static")`), `dieR` (4 images, `stop()` à la dernière), `suiteR`
+/// (`applyAnim(this, "anim18End")`), `condR` (le même appel sous un `If` : ignoré), `effet`
+/// (`_parent.removeMovieClip()` puis `stop()`), `boucle` (2 images sans script), `retourR`
+/// (`applyAnim(this, "StaticR")`) ; la scène pose `effet`.
+fn write_ends_swf(path: &Path) {
+    let mut conditional = push(&["#1"]);
+    conditional.extend([0x9D, 0x02, 0x00, 0x00, 0x00]); // If (saut nul) : la suite est sous condition
+    conditional.extend(apply_anim("anim18End"));
+    let mut remove = push(&["#0", "_parent"]);
+    remove.push(0x1C);
+    remove.extend(push(&["removeMovieClip"]));
+    remove.extend([0x52, 0x17, 0x07, 0x00]); // CallMethod, Pop, Stop, End
+    let tags = vec![
+        rect(1, 10.0, 10.0, 255, 0, 0),
+        sprite(50, frames(3, Some(apply_anim("Static")))),
+        sprite(51, vec![tag(place(1, PlaceObjectAction::Place(50), None)), Tag::ShowFrame]),
+        sprite(52, frames(4, Some(STOP.to_vec()))),
+        sprite(53, vec![tag(place(1, PlaceObjectAction::Place(52), None)), Tag::ShowFrame]),
+        sprite(54, frames(2, Some(apply_anim("anim18End")))),
+        sprite(55, frames(2, Some(conditional))),
+        sprite(56, frames(5, Some(remove))),
+        sprite(57, frames(2, None)),
+        sprite(58, frames(2, Some(apply_anim("StaticR")))),
+        Tag::ExportAssets(vec![
+            ExportedAsset { id: 51, name: SwfStr::from_utf8_str("hitR") },
+            ExportedAsset { id: 53, name: SwfStr::from_utf8_str("dieR") },
+            ExportedAsset { id: 54, name: SwfStr::from_utf8_str("suiteR") },
+            ExportedAsset { id: 55, name: SwfStr::from_utf8_str("condR") },
+            ExportedAsset { id: 56, name: SwfStr::from_utf8_str("effet") },
+            ExportedAsset { id: 57, name: SwfStr::from_utf8_str("boucle") },
+            ExportedAsset { id: 58, name: SwfStr::from_utf8_str("retourR") },
+        ]),
+        tag(place(1, PlaceObjectAction::Place(56), None)),
+        Tag::ShowFrame,
+    ];
+    let header = Header { compression: Compression::None, version: 8, stage_size: bounds(0.0, 0.0, 550.0, 400.0), frame_rate: Fixed8::from_f32(40.0), num_frames: 1 };
+    let mut out = Vec::new();
+    write_swf(&header, &tags, &mut out).expect("écriture du SWF de test");
+    std::fs::write(path, out).expect("SWF de test");
+}
+
+#[test]
+fn list_reports_how_each_animation_ends() {
+    let w = Work::new("ends");
+    let swf = w.dir.join("fins.swf").to_string_lossy().to_string();
+    write_ends_swf(Path::new(&swf));
+    let out = ok(&["--list", &swf]);
+    let rows: Vec<Vec<&str>> = out.lines().map(|l| l.split('\t').collect()).collect();
+    let find = |n: &str| rows.iter().find(|r| r[0] == n).unwrap_or_else(|| panic!("{} absent : {}", n, out)).clone();
+    // La fin vient du clip imbriqué qui fixe la durée (hitR, dieR), sinon de la timeline elle-même.
+    assert_eq!(find("hitR")[3..], ["3", "1", "static"]);
+    assert_eq!(find("dieR")[3..], ["4", "1", "arret"]);
+    assert_eq!(find("suiteR")[3..], ["2", "2", "suite:anim18End"]);
+    assert_eq!(find("condR")[3..], ["2", "2", "boucle"], "un appel sous condition ne compte pas");
+    assert_eq!(find("effet")[3..], ["5", "5", "static"], "removeMovieClip l'emporte sur stop()");
+    assert_eq!(find("boucle")[3..], ["2", "2", "boucle"]);
+    // « StaticR » + lettre n'existe pas : le client retombe sur static<lettre>.
+    assert_eq!(find("retourR")[3..], ["2", "2", "static"]);
+    // Ligne de la scène : elle porte aussi la fin de ce qu'elle joue (ici le clip effet).
+    assert_eq!(find("scene"), vec!["scene", "0", "scene", "5", "1", "static"]);
 }
 
 #[test]
