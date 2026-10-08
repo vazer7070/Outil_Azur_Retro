@@ -398,7 +398,7 @@ namespace Tool_BotProtocol.Game.Data
             public static int[] Items(int id) => Ints(Attribute("itemsets", "IS", Key(id), "i"));
         }
 
-        /// <summary>Sorts (<c>spells_fr</c> : nom et description ; les niveaux restent ceux de <c>BotSorts</c>).</summary>
+        /// <summary>Sorts (<c>spells_fr</c> : nom et description ; les niveaux <c>niveau1</c>…<c>niveau6</c> sont lus par <c>SpellBook</c>, avec <c>BotSorts</c> en repli).</summary>
         public static class Spell
         {
             public static bool Has(int id) => Find("spells", "sort", Key(id)) != null;

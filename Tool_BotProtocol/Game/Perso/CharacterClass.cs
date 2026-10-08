@@ -31,6 +31,10 @@ namespace Tool_BotProtocol.Game.Perso
         public Cell Cell { get; set; }
         private Accounts.Accounts Accounts { get; set; }
         public CharacterStats stats { get; set; }
+        /// <summary>Boutons « + » de la fiche : <c>AB&lt;code&gt;</c> (lot F13a).</summary>
+        public StatsActions StatsActions { get; private set; }
+        /// <summary>Amélioration, oubli, option « tous les sorts » et bonus d'objets : <c>SB</c>, <c>SF</c>, <c>SLo</c> (lot F13a).</summary>
+        public SpellBook SpellBook { get; private set; }
         public InventoryClass Inventory { get; set; }
         public ConcurrentDictionary<short, Spell> Spells { get; set; }
         public int Carac_Points { get; set; } = 0;
@@ -73,6 +77,8 @@ namespace Tool_BotProtocol.Game.Perso
             Regen_Timer = new Timer(RegenCallback, null, Timeout.Infinite, Timeout.Infinite);
             Spells = new ConcurrentDictionary<short, Spell>();
             stats = new CharacterStats();
+            StatsActions = new StatsActions(A, this);
+            SpellBook = new SpellBook(A, this);
             Jobs = new List<Jobs.Jobs>();
 
         }
@@ -126,97 +132,23 @@ namespace Tool_BotProtocol.Game.Perso
                 Accounts?.Logger?.LogError("[NO AFK TIMER]", $"{e.Message}");
             }
         }
-        public void RefreshCaracs(string msg)
+        /// <summary>
+        /// Paquet <c>As</c> complet (51 champs chez StarLoco) : la fiche est lue entièrement puis remplacée d'un coup ;
+        /// un paquet illisible est journalisé et laisse la fiche précédente intacte. Renvoie vrai si la fiche a changé.
+        /// </summary>
+        public bool RefreshCaracs(string msg)
         {
-            string[] loc = msg.Substring(2).Split('|');
-            string[] loc2 = loc[0].Split(',');
-            string[] loc3 = loc[5].Split(',');
-            string[] loc4 = loc[6].Split(',');
-
-            stats.ActualEXP = double.Parse(loc2[0]);
-            stats.MinExpNiv = double.Parse(loc2[1]);
-            stats.ExpNivNext = double.Parse(loc2[2]);
-            Kamas = int.Parse(loc[1]);
-            Carac_Points = int.Parse(loc[2]);
-            SpellPoints = int.Parse(loc[3]);
-            stats.Alignement = int.Parse(loc[4].Split('~')[0]);
-            stats.AlignLVL = int.Parse(loc[4].Split(',')[1]);
-            stats.GradeAli = int.Parse(loc[4].Split(',')[2]);
-            stats.Honor = int.Parse(loc[4].Split(',')[3]);
-            stats.Dishonor = int.Parse(loc[4].Split(',')[4]);
-            if (int.Parse(loc[4].Split(',')[5]) == 0)
-                stats.HasWings = false;
-            else
-                stats.HasWings = true;
-            stats.VitalityActual = int.Parse(loc3[0]);
-            stats.MaxVitality = int.Parse(loc3[1]);
-
-            stats.ActualEnergy = int.Parse(loc4[0]);
-            stats.EnergyMax = int.Parse(loc4[1]);
-
-            if (stats.Initiative != null)
-                stats.Initiative.BasePerso = int.Parse(loc[7]);
-            else
-                stats.Initiative = new StatsBase(int.Parse(loc[7]));
-
-            if (stats.Propec != null)
-                stats.Propec.BasePerso = int.Parse(loc[8]);
-            else
-                stats.Propec = new StatsBase(int.Parse(loc[8]));
-
-            for(int i = 9; i <= 18; i++)
+            if (!CharacterStats.TryParse(msg, out CharacterStats parsed, out string error))
             {
-                loc2 = loc[i].Split(',');
-                int BP = int.Parse(loc2[0]);
-                int Stuff = int.Parse(loc2[1]);
-                int gift = int.Parse(loc2[2]);
-                int boost = int.Parse(loc2[3]);
-
-                switch (i)
-                {
-                    case 9:
-                        stats.PA.RefreshStats(BP, Stuff, gift, boost);
-                        break;
-
-                   case 10:
-                        stats.PM.RefreshStats(BP, Stuff, gift, boost);
-                        break;
-                    
-                    case 11:
-                        stats.Force.RefreshStats(BP, Stuff, gift, boost);
-                        break;
-
-                    case 12:
-                        stats.Vita.RefreshStats(BP, Stuff, gift, boost);
-                        break;
-
-                    case 13:
-                        stats.Sagesse.RefreshStats(BP, Stuff, gift, boost);
-                        break;
-
-                    case 14:
-                        stats.Chance.RefreshStats(BP, Stuff, gift, boost);
-                        break;
-
-                    case 15:
-                        stats.Agility.RefreshStats(BP, Stuff, gift, boost);
-                        break;
-
-                    case 16:
-                        stats.Intell.RefreshStats(BP, Stuff, gift, boost);
-                        break;
-
-                    case 17:
-                        stats.Atteignable.RefreshStats(BP, Stuff, gift, boost);
-                        break;
-
-                    case 18:
-                        stats.Invoc.RefreshStats(BP, Stuff, gift, boost);
-                        break;
-
-                }
+                Accounts?.Logger?.LogDanger("CARACTÉRISTIQUES", "Paquet As illisible ignoré : " + error + ".");
+                return false;
             }
+            stats = parsed;
+            Kamas = parsed.Kamas;
+            Carac_Points = parsed.CapitalPoints;
+            SpellPoints = parsed.SpellPoints;
             RefreshCaracteristiques?.Invoke();
+            return true;
         }
 
         private void RegenCallback(object state)
@@ -246,6 +178,7 @@ namespace Tool_BotProtocol.Game.Perso
             GFX = 0; Orientation = 2; GraphicsScaleX = GraphicsScaleY = 100;
             Cell = null;
             stats = new CharacterStats();
+            SpellBook.Clear();
             Inventory.Clear();
             Spells.Clear();
             lock (Jobs) Jobs.Clear();

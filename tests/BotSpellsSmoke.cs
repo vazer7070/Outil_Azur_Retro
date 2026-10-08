@@ -76,6 +76,11 @@ internal static class BotSpellsSmoke
                 await MessagesReception.ReceptionAsync(first.Connexion, "SL7~1~a;7~3~c;bad;8~0~d;9~1~too-long;");
                 Check(first.Game.character.Spells.Count == 1 && first.Game.character.Spells[7].Level == 3 && first.Game.character.Spells[7].Position == "c",
                     "Repeated SL contained duplicate, stale or malformed spell entries");
+                // SLo (option « voir tous les sorts ») a son propre gestionnaire : il ne vide plus la liste.
+                await MessagesReception.ReceptionAsync(first.Connexion, "SLo+");
+                Check(first.Game.character.Spells.Count == 1 && first.Game.character.SpellBook.CanSeeAllSpells, "SLo+ was routed to SL");
+                await MessagesReception.ReceptionAsync(first.Connexion, "SLo-");
+                Check(first.Game.character.Spells.Count == 1 && !first.Game.character.SpellBook.CanSeeAllSpells, "SLo- was routed to SL");
                 await MessagesReception.ReceptionAsync(first.Connexion, "SL");
                 Check(first.Game.character.Spells.IsEmpty && second.Game.character.Spells.Count == 1, "Empty SL retained spells or cleared another account");
                 Check(refreshes >= 6, "Spell updates did not notify the UI");
@@ -93,6 +98,6 @@ internal static class BotSpellsSmoke
             }
         }
         finally { Spell.AllSpells = originalTemplates; }
-        Console.WriteLine("OK: StarLoco SL/SUK/SUE spell state, per-character metadata/effect isolation, unknown metadata, repeated/empty lists, malformed packets and concurrent UI snapshots");
+        Console.WriteLine("OK: StarLoco SL/SUK/SUE spell state, SLo kept apart from SL, per-character metadata/effect isolation, unknown metadata, repeated/empty lists, malformed packets and concurrent UI snapshots");
     }
 }

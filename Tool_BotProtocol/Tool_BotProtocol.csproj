@@ -262,11 +262,13 @@
     <Compile Include="Game\Perso\Spells\Shaper.cs" />
     <Compile Include="Game\Perso\Spells\Spell.cs" />
     <Compile Include="Game\Perso\Spells\SpellActionZone.cs" />
+    <Compile Include="Game\Perso\Spells\SpellBook.cs" />
     <Compile Include="Game\Perso\Spells\SpellEffect.cs" />
     <Compile Include="Game\Perso\Spells\SpellShape.cs" />
     <Compile Include="Game\Perso\Spells\SpellStats.cs" />
     <Compile Include="Game\Perso\Spells\Zones.cs" />
     <Compile Include="Game\Perso\Stats\CharacterStats.cs" />
+    <Compile Include="Game\Perso\Stats\StatsActions.cs" />
     <Compile Include="Game\Perso\Stats\StatsBase.cs" />
     <Compile Include="Game\Perso\Stats\StatsEnum.cs" />
     <Compile Include="Game\Session\GameSession.cs" />

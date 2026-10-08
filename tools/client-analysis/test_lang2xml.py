@@ -154,10 +154,11 @@ class Export(unittest.TestCase):
         o2 = racine.find("objectif[@id='2']")
         self.assertEqual((o2.get("type"), o2.get("parametres"), o2.get("x")), ("3", "5,6,1", None))
 
-    def test_sorts_sans_niveaux(self):
+    def test_sorts_avec_niveaux(self):
         racine, _ = convertir(DIVERS, "spells")
         s = racine.find("sort[@id='1']")
-        self.assertEqual(dict(s.attrib), {"id": "1", "nom": "Sort", "description": "Description"})
+        self.assertEqual(dict(s.attrib), {"id": "1", "nom": "Sort", "description": "Description",
+                                          "niveau1": '[[[100,2,6,null,0,0,"1d5+1"]],4,"PaPa"]'})
 
     def test_famille_generique_et_caracteres_invalides(self):
         lang2xml.FAMILLES["essai"] = ["HI", "T", "SRVC"]
