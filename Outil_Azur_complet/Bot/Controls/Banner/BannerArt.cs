@@ -16,7 +16,7 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
     /// </summary>
     internal static class BannerArt
     {
-        private static readonly NumberFormatInfo Spaced = new NumberFormatInfo { NumberGroupSeparator = " ", NumberGroupSizes = new[] { 3 } };
+        internal static readonly NumberFormatInfo Spaced = new NumberFormatInfo { NumberGroupSeparator = " ", NumberGroupSizes = new[] { 3 } };
 
         /// <summary>
         /// Image de la famille <paramref name="family"/> : tout de suite si elle est en cache, sinon lue sur le pool de threads

@@ -92,6 +92,7 @@ namespace Tool_BotProtocol.Game.Exchanges
         private readonly Dictionary<int, long> averagePrices = new Dictionary<int, long>();
         private List<AuctionSale> sales = new List<AuctionSale>();
         private bool sessionSubscribed;
+        private Chat.ChatService subscribedChat;
 
         internal AuctionHouse(Accounts.Accounts account) : base(account) { }
 
@@ -118,7 +119,7 @@ namespace Tool_BotProtocol.Game.Exchanges
         public IReadOnlyList<AuctionLine> Lines { get { lock (sync) return lines.Select(line => line.Copy()).ToArray(); } }
         /// <summary>Prix moyens reçus par <c>EHP</c>, par modèle.</summary>
         public IReadOnlyDictionary<int, long> AveragePrices { get { lock (sync) return new Dictionary<int, long>(averagePrices); } }
-        /// <summary>Vrai entre <c>EHB</c> et la réponse du serveur (<c>EHm</c>, <c>Im068</c> ou <c>Im172</c>).</summary>
+        /// <summary>Vrai entre <c>EHB</c> et la réponse du serveur (<c>EHm</c>, <c>Im068</c>, <c>Im172</c> ou un message <c>cs</c> de refus).</summary>
         public bool IsBuyPending { get; private set; }
         /// <summary>Résultat de la dernière recherche <c>EHS</c> : <c>true</c> trouvé, <c>false</c> introuvable, <c>null</c> sans recherche.</summary>
         public bool? LastSearchFound { get; private set; }
@@ -215,6 +216,7 @@ namespace Tool_BotProtocol.Game.Exchanges
             if (Account?.IsFighting() == true) return Task.FromResult(Refuse("Action impossible pendant un combat."));
             int type = IsBuying ? ExchangeTypes.AuctionSell : ExchangeTypes.AuctionBuy;
             IsOpeningPending = true;
+            Notify();
             return SendAsync("ER" + type.ToString(CultureInfo.InvariantCulture) + "|" + Info.NpcId.ToString(CultureInfo.InvariantCulture),
                 (type == ExchangeTypes.AuctionSell ? "Mode vente" : "Mode achat") + " demandé ; le serveur rouvre l'hôtel.");
         }
@@ -338,17 +340,39 @@ namespace Tool_BotProtocol.Game.Exchanges
             InteractionResult refused = CheckCanOpen();
             if (refused != null) return Task.FromResult(refused);
             IsOpeningPending = true;
+            Notify();
             string packet = "ER" + type.ToString(CultureInfo.InvariantCulture) + "|" + npcId.ToString(CultureInfo.InvariantCulture);
             return SendAsync(packet, "Hôtel de vente (" + (type == ExchangeTypes.AuctionBuy ? "achat" : "vente") + ") demandé (" + packet + ") ; sans hôtel sur cette carte, StarLoco ne répond rien.");
         }
 
         private void EnsureSessionSubscribed()
         {
+            if (subscribedChat == null)
+            {
+                Chat.ChatService chat = Account?.Game?.Chat;
+                if (chat != null) { chat.MessageReceived += OnChatMessage; subscribedChat = chat; }
+            }
             if (sessionSubscribed) return;
             GameSession session = Account?.Game?.Session;
             if (session == null) return;
             session.ServerMessageReceived += OnServerMessage;
             sessionSubscribed = true;
+        }
+
+        /// <summary>
+        /// <c>cs&lt;texte&gt;</c> pendant un achat : StarLoco refuse <c>EHB</c> par un simple message (ligne introuvable, lot déjà vendu ou prix
+        /// changé, lot sans propriétaire, « Tu ne peux pas acheter ton propre objet. ») sans <c>Im</c> ni <c>EHm</c> ; l'achat suivant est libéré.
+        /// </summary>
+        private void OnChatMessage(Chat.ChatMessage message)
+        {
+            try
+            {
+                if (message == null || message.Kind != Chat.ChatMessageKind.Server || !IsBuying || !IsBuyPending) return;
+                IsBuyPending = false;
+                LogError("Achat refusé par le serveur : " + message.Text);
+                Notify();
+            }
+            catch (Exception error) when (!(error is OutOfMemoryException)) { Account?.Logger?.LogException(Reference, error); }
         }
 
         // ---- Réceptions ------------------------------------------------------------------------------------

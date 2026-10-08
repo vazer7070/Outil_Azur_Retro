@@ -30,7 +30,7 @@ namespace Tool_BotProtocol.Game.Exchanges
 
     /// <summary>
     /// Magasin d'un marchand hors ligne (type 4, interface <c>PlayerShop</c> du client 1.34) et organisation de son propre
-    /// magasin (type 6, <c>PlayerShopModifier</c>). Ouverture par <c>ER4|&lt;marchand&gt;|&lt;cellule&gt;</c> (menu du marchand) ou <c>ER6</c>
+    /// magasin (type 6, <c>PlayerShopModifier</c>). Ouverture par <c>ER4|&lt;marchand&gt;|&lt;cellule&gt;</c> (menu du marchand) ou <c>ER6|</c>
     /// (menu de soi-même, <c>ORGANIZE_SHOP</c>) ; StarLoco répond <c>ECK4|&lt;marchand&gt;</c> ou <c>ECK6</c> puis la liste
     /// <c>EL&lt;exemplaire&gt;;&lt;quantité&gt;;&lt;modèle&gt;;&lt;effets&gt;;&lt;prix&gt;|…</c>, renvoyée en entier après chaque mouvement.
     /// Acheter envoie <c>EB&lt;exemplaire&gt;|&lt;quantité&gt;</c> (<c>EBK</c> ou <c>EBE</c>, objets et kamas par <c>OAK</c>/<c>OQ</c>/<c>As</c>) ;
@@ -107,13 +107,14 @@ namespace Tool_BotProtocol.Game.Exchanges
                 "Ouverture du magasin de " + merchant.DisplayName + " demandée.");
         }
 
-        /// <summary>Envoie <c>ER6</c> (<c>ORGANIZE_SHOP</c> du menu de soi-même).</summary>
+        /// <summary>Envoie <c>ER6|</c> (<c>ORGANIZE_SHOP</c> du menu de soi-même) : sans le « | », <c>request</c> de StarLoco lit
+        /// <c>substring(2, 4)</c> hors de la chaîne et le serveur expulse le client.</summary>
         public Task<InteractionResult> OrganizeAsync()
         {
             InteractionResult refused = CheckCanOpen();
             if (refused != null) return Task.FromResult(refused);
             if (!CanBeMerchant) return Task.FromResult(Refuse("Le mode marchand est interdit à ce personnage (restriction du serveur)."));
-            return SendAsync("ER" + ExchangeTypes.MyShop, "Organisation du magasin demandée.");
+            return SendAsync("ER" + ExchangeTypes.MyShop + "|", "Organisation du magasin demandée.");
         }
 
         /// <summary>Envoie <c>EB&lt;exemplaire&gt;|&lt;quantité&gt;</c> pour un lot du marchand.</summary>
@@ -129,6 +130,7 @@ namespace Tool_BotProtocol.Game.Exchanges
             if (total > kamas) return Task.FromResult(Refuse(ExchangeRegistry.Text("NOT_ENOUGH_RICH", "Tu n'as pas assez de kamas pour réaliser cette action.")
                 + " (" + total.ToString(CultureInfo.InvariantCulture) + " demandés, " + kamas.ToString(CultureInfo.InvariantCulture) + " disponibles)"));
             IsPending = true;
+            Notify();
             return SendAsync("EB" + itemId.ToString(CultureInfo.InvariantCulture) + "|" + quantity.ToString(CultureInfo.InvariantCulture),
                 "Achat de " + quantity + " × " + item.Name + " pour " + total + " kamas demandé ; le serveur confirme.");
         }
@@ -192,6 +194,7 @@ namespace Tool_BotProtocol.Game.Exchanges
             if (TaxRequested || PendingTax != null) return Task.FromResult(Refuse("La taxe du mode marchand a déjà été demandée."));
             if (shopKnownEmpty == true) return Task.FromResult(Refuse("Mettez au moins un objet en vente (Organiser mon magasin) avant de passer en mode marchand (Im123)."));
             TaxRequested = true;
+            Notify();
             return SendAsync("Eq", "Taxe du mode marchand demandée ; le serveur répond par Eq1 ou un refus Im.");
         }
 

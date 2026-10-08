@@ -818,8 +818,9 @@ namespace Outil_Azur_complet.Bot.Controls
                 case Keys.Right: MoveMap(1, 0); e.Handled = true; break;
                 case Keys.Up: MoveMap(0, -1); e.Handled = true; break;
                 case Keys.Down: MoveMap(0, 1); e.Handled = true; break;
-                case Keys.Add: case Keys.Oemplus: Zoom = zoom + ZoomStep; e.Handled = true; break;
-                case Keys.Subtract: case Keys.OemMinus: Zoom = zoom - ZoomStep; e.Handled = true; break;
+                // + et - du pavé numérique sont les raccourcis MAXI / MINI du chat, exécutés avant par le KeyPreview de la fenêtre.
+                case Keys.Oemplus: Zoom = zoom + ZoomStep; e.Handled = true; break;
+                case Keys.OemMinus: Zoom = zoom - ZoomStep; e.Handled = true; break;
             }
         }
 

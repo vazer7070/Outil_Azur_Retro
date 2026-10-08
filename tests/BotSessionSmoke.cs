@@ -138,6 +138,7 @@ internal static class BotSessionSmoke
                     Feed(account, "ASK|8|Second|120|2|1|20|0|0|0|");
                     Check(Read(peer) == "GC1", "ASK did not send GC1"); NoPacket(peer, "ASK sent more than GC1 (BYA/AF)");
                     Check(sent.SequenceEqual(new[] { "GC1" }), "PacketSent did not report GC1 alone");
+                    Check(account.ConnectionStatus == Accounts.LoadingMapStatus, "ASK did not announce the map loading: " + account.ConnectionStatus);
                     account.Game.Server.ExitCreationMenu = true; account.Game.Server.NameNewCharacter = "Nouveau";
                     Feed(account, "ALK8640000000|1|9;Nouveau;1;10;0;0;0;;0;601;0");
                     Check(Read(peer) == "AS9", "A created character was not selected"); NoPacket(peer, "AF followed AS after a creation");

@@ -925,6 +925,9 @@ namespace Outil_Azur_complet.Bot.Panels
         private readonly Button apply, kick;
         private readonly List<CheckBox> boxes = new List<CheckBox>();
         private GuildMember current;
+        /// <summary>Membre et valeurs (rang, % XP, droits) écrits dans les champs au dernier affichage ; <c>null</c> après <see cref="Clear"/>.</summary>
+        private long? shownId;
+        private int shownRank, shownXp, shownRights;
 
         public GuildMemberSheet()
         {
@@ -962,24 +965,19 @@ namespace Outil_Azur_complet.Bot.Panels
 
         private static Label Caption(string text) => new Label { Dock = DockStyle.Fill, Text = text, Font = BotFonts.Get(8.25f), ForeColor = BotUi.Muted, BackColor = BotUi.PaperLight, TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true };
 
-        /// <summary>Affiche la fiche d'un membre avec les droits du personnage (<paramref name="guild"/>.OwnRights) pour activer les champs.</summary>
+        /// <summary>
+        /// Affiche la fiche d'un membre avec les droits du personnage (<paramref name="guild"/>.OwnRights) pour activer les champs.
+        /// Le rang, le % XP et les cases ne sont réécrits que pour un autre membre ou quand le serveur a changé ces valeurs : un
+        /// rafraîchissement du volet ne défait pas une saisie en cours.
+        /// </summary>
         public void Show(GuildMember member, Guild guild, long selfId, bool connected)
         {
             if (member == null || guild == null) { Clear(); return; }
             current = member;
             bool self = member.Id == selfId;
             title.Text = member.Name + " — " + member.RankName + (member.IsBoss ? " (" + GuildTexts.RankName(1) + ")" : string.Empty);
-            rank.Items.Clear();
-            IReadOnlyList<KeyValuePair<int, string>> ranks = GuildTexts.Ranks();
-            bool listed = false;
-            foreach (KeyValuePair<int, string> pair in ranks)
-            {
-                rank.Items.Add(new RankItem { Id = pair.Key, Name = pair.Value });
-                if (pair.Key == member.Rank) { rank.SelectedIndex = rank.Items.Count - 1; listed = true; }
-            }
-            if (!listed) { rank.Items.Add(new RankItem { Id = member.Rank, Name = member.RankName }); rank.SelectedIndex = rank.Items.Count - 1; }
-            xp.Value = Math.Max(xp.Minimum, Math.Min(xp.Maximum, member.XpPercent));
-            foreach (CheckBox box in boxes) box.Checked = member.IsBoss || (member.Rights & (int)(GuildRight)box.Tag) != 0;
+            if (shownId != member.Id || shownRank != member.Rank || shownXp != member.XpPercent || shownRights != member.Rights || rank.Items.Count == 0)
+                ShowValues(member);
             bool canRanks = guild.CanDo(GuildRight.ManageRanks) && !member.IsBoss;
             bool canRights = guild.CanDo(GuildRight.ManageRights) && !member.IsBoss;
             bool canXp = guild.CanDo(GuildRight.ManageAllXp) || (self && guild.CanDo(GuildRight.ManageOwnXp));
@@ -992,7 +990,24 @@ namespace Outil_Azur_complet.Bot.Panels
             Visible = true;
         }
 
-        public void Clear() { current = null; Visible = false; }
+        /// <summary>Rang (liste de <c>ranks_fr</c>), % XP et cases des droits du membre.</summary>
+        private void ShowValues(GuildMember member)
+        {
+            shownId = member.Id; shownRank = member.Rank; shownXp = member.XpPercent; shownRights = member.Rights;
+            rank.Items.Clear();
+            IReadOnlyList<KeyValuePair<int, string>> ranks = GuildTexts.Ranks();
+            bool listed = false;
+            foreach (KeyValuePair<int, string> pair in ranks)
+            {
+                rank.Items.Add(new RankItem { Id = pair.Key, Name = pair.Value });
+                if (pair.Key == member.Rank) { rank.SelectedIndex = rank.Items.Count - 1; listed = true; }
+            }
+            if (!listed) { rank.Items.Add(new RankItem { Id = member.Rank, Name = member.RankName }); rank.SelectedIndex = rank.Items.Count - 1; }
+            xp.Value = Math.Max(xp.Minimum, Math.Min(xp.Maximum, member.XpPercent));
+            foreach (CheckBox box in boxes) box.Checked = member.IsBoss || (member.Rights & (int)(GuildRight)box.Tag) != 0;
+        }
+
+        public void Clear() { current = null; shownId = null; Visible = false; }
 
         private void RaiseApply()
         {

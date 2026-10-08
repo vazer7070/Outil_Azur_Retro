@@ -43,6 +43,7 @@ internal static class BotMapViewSmoke
         public void Down(Point point, MouseButtons button) { OnMouseDown(new MouseEventArgs(button, 1, point.X, point.Y, 0)); }
         public void Drag(Point point, MouseButtons button) { OnMouseMove(new MouseEventArgs(button, 0, point.X, point.Y, 0)); }
         public void Up(Point point, MouseButtons button) { OnMouseUp(new MouseEventArgs(button, 1, point.X, point.Y, 0)); }
+        public bool Key(Keys keys) { var message = new Message(); return ProcessCmdKey(ref message, keys); }
     }
 
     private static void Image(string path, int width, int height, Color color)
@@ -127,6 +128,9 @@ internal static class BotMapViewSmoke
                 Check(clicks == 0, "Panning accidentally issued a movement click");
                 view.Fit(); view.Size = new Size(560, 370);
                 Check(view.ZoomPercent == 100, "Fit did not restore full map");
+                // + et - du pavé numérique restent aux raccourcis MAXI / MINI du chat ; ceux du clavier principal zooment.
+                Check(!view.Key(Keys.Add) && !view.Key(Keys.Subtract) && view.ZoomPercent == 100, "Keypad + / - were taken by the map zoom");
+                Check(view.Key(Keys.Oemplus) && view.ZoomPercent > 100 && view.Key(Keys.Home) && view.ZoomPercent == 100, "Main keyboard + or Home does not zoom the map");
                 foreach (UserMapCell cell in view.Cells)
                     Check(view.ClientRectangle.Contains(cell.Centre) && view.GetCell(cell.Centre).id == cell.id, "Resize clipped or displaced cell " + cell.id);
                 Point click = view.Cells[10].Centre;

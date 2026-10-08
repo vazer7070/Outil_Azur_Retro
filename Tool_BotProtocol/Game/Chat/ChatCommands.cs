@@ -164,7 +164,7 @@ namespace Tool_BotProtocol.Game.Chat
             string usage = channel.Command + " <message>";
             Add(names, usage, "écrire dans le canal " + channel.Label + " (BM" + channel.Code + "|…|)", context =>
             {
-                // Comme le client, /p n'est envoyé que par un membre de groupe ; /g est laissé à StarLoco, la guilde (gS) n'étant pas encore lue.
+                // Comme le client, /p n'est envoyé que par un membre de groupe ; /g est laissé au serveur, qui connaît la guilde.
                 if (channel == ChatChannels.Party && !(context.Account?.Game?.character?.InGroupe ?? false))
                     return context.Error("Le personnage n'appartient à aucun groupe : message non envoyé.");
                 if (context.Text.Length == 0) return Task.FromResult(context.Chat.Refuse("Message vide : rien n'est envoyé.", false));

@@ -224,6 +224,9 @@ internal static class BotFightUiSmoke
                         PumpUntil(() => menu.Visible, "second placement");
                         Check(!menu.CancelButton.Visible && menu.Width < 200, "Cancel button shown although the second GJK field is 0");
                         Feed(account, "GS"); Feed(account, "GTS42|30000"); Feed(account, "GTF42"); Feed(account, "GTS42|30000"); Feed(account, "GTF42");
+                        // Drapeau armé quand le combat se termine : le mode est désarmé, le clic suivant n'est pas avalé.
+                        PumpUntil(() => options.FlagButton.Visible && options.FlagButton.Enabled, "flag button after GS");
+                        options.FlagButton.PerformClick(); Check(form.Map.FlagMode, "Flag mode not armed before GE");
                         Feed(account, "GE120000;15|42|0|2;42;Personnage de test;25;0;100;150;200;320;0;0;311~2,312~1;40|0;-7;101;4;1;;;;;;;;|zz;1");
                         PumpUntil(() => form.Panels.Current is FightResultPanel, "result panel");
                         var result = (FightResultPanel)form.Panels.Current;
@@ -237,6 +240,8 @@ internal static class BotFightUiSmoke
                             "Winner row differs: " + string.Join("|", winner.SubItems.Cast<ListViewItem.ListViewSubItem>().Select(cell => cell.Text)));
                         Check(loser.Text.EndsWith("Monstre #101") && ((FightResultEntry)loser.Tag).IsDead && loser.Cell(1) == "4", "Loser row differs: " + loser.Text);
                         Check(!combatTools.Visible && !fight.IsInFight, "Fight controls stay after GE");
+                        PumpUntil(() => !form.Map.FlagMode, "flag mode disarmed after GE");
+                        Check(map.Cursor == Cursors.Default, "Flag cursor stays after the end of the fight");
                         ((Button)result.CloseButton).PerformClick(); PumpUntil(() => !form.Panels.IsOpen(result), "result closed");
 
                         // ---------------------------------------------------------------- résultat PvP : colonnes d'honneur

@@ -66,7 +66,7 @@ Je vous présente les outils un à un, les fonctions peuvent changer au gré des
  Un outil permet de créer un compte avec le format de mot de passe attendu par le serveur : texte, MD5 ou SHA512. La création lit les colonnes réelles, initialise le pseudo avec le nom du compte et la date d'inscription avec la date du jour, puis relit la ligne avant de valider sa transaction. Le pseudo reste modifiable. `pass_no_crypt` reste vide ; un champ obligatoire inconnu ou un moteur différent d'InnoDB bloque la création avec un diagnostic. Le cache est actualisé après validation SQL.
 
  ### Éditeur de personnage
- *Il n'est pas possible depuis l'outil de créer un personnage sauf depuis le bot qui simule la page de création de personnage lors de la connexion à son compte (depuis officiel comme privé).*
+ *Il n'est pas possible depuis l'outil de créer un personnage, sauf depuis le bot, qui reprend la page de création de personnage du client lors de la connexion à un compte. Cette création n'a pas encore été validée sur un vrai serveur.*
 
 Cet outil recense tout les personnages du serveur ainsi que toute les informations qui les concernent, ça va de l'id à la liste de son inventaire et de ses sorts.
 
@@ -129,7 +129,25 @@ Le client est une re-création en C# du client Dofus Retro, qui parle directemen
 
 Ce qui est vérifié aujourd'hui l'est par des tests sur boucle locale avec des serveurs fictifs ; la connexion à un vrai StarLoco reste à valider. Le combat reste partiel ; les dialogues PNJ, les zaaps, la boutique PNJ et les actions d'inventaire (équiper, utiliser, jeter) sont vérifiés avec des paquets fictifs aux formats du client 1.34 et de StarLoco, sans validation en jeu réel.
 
-Les trois modes historiquement annoncés ne sont **pas disponibles** et ne sont pas proposés dans l'interface :
+#### Interface de jeu
+
+La fenêtre de jeu reprend celle du client 1.34 : la carte au centre, le bandeau en bas (chat, vie, PA et PM, boutons des volets, barre de raccourcis) et les volets dans un tiroir à droite. Les fonctions suivantes sont vérifiées par les tests cités, contre un serveur fictif local. Aucune n'a encore été rejouée sur un vrai StarLoco.
+
+* Carte : décor du client, joueurs, PNJ et groupes de monstres, survol, déplacements (`BotDecorAnchorsSmoke`, `BotActorRenderSmoke`, `BotMovementSmoke`).
+* Interactions : dialogues PNJ, zaaps, zaapis, récolte manuelle, codes de coffre, documents, menus des joueurs, duels et combats de la carte (`BotDialogsSmoke`, `BotNpcDialogTextsSmoke`, `BotInteractivesSmoke`, `BotMapActionsSmoke`).
+* Chat, canaux, smileys et émotes (`BotChatProtocolSmoke`, `BotChatUiSmoke`).
+* Bandeau, options et raccourcis du client (`BotBannerSmoke`).
+* Fiches des caractéristiques et des sorts, inventaire en grille (`BotStatsSheetSmoke`, `BotInventoryGridSmoke`).
+* Groupe, amis et guilde (`BotPartySmoke`, `BotFriendsSmoke`, `BotGuildSmoke`).
+* Échanges, coffre et banque, hôtel de vente, artisanat, montures, maisons et mode marchand (`BotExchangeSmoke`, `BotAuctionSmoke`, `BotCraftSmoke`, `BotMountSmoke`, `BotHouseMerchantSmoke`).
+* Alignement et conquête, quêtes, carte du monde, commandes du serveur (`BotAlignmentSmoke`, `BotQuestsSmoke`, `BotWorldMapSmoke`, `BotServerCommandsSmoke`).
+* Combat : placement, tours, sorts, ligne de temps, options, abandon et résultat (`BotCombatSmoke`, `BotFightProtocolSmoke`, `BotFightUiSmoke`). Les défis, l'attaque au corps à corps et le mode tactique ne sont pas faits.
+
+Le [guide du bot](docs/BOT_STARLOCO.md) décrit chaque fonction et ses limites. Le [plan de l'interface du bot](docs/PLAN_INTERFACE_BOT.md) donne la couverture des fonctions du client et ce qui reste à faire. Des [captures de la fenêtre de jeu](docs/captures/README.md) montrent l'interface contre un serveur fictif.
+
+#### Modes
+
+Des trois modes historiquement annoncés, seul le mode manuel existe ; les deux autres ne sont **pas disponibles** et ne sont pas proposés dans l'interface :
 
 * **Manuel** : jouer avec le client comme alternative au client officiel. C'est le mode actuel, en cours de validation.
 * **Admin** : moderer son serveur depuis le client (bannir, invoquer, modifier les joueurs) en le reliant aux bases d'Azur. Non réalisé.

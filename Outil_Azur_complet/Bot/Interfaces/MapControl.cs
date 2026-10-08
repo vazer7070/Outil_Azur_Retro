@@ -133,7 +133,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
         }
 
         private void RefreshEntities() => OnUi(() => { RefreshSpellTargets(); UserMap.Invalidate(); });
-        private void CombatChanged() => OnUi(RefreshSpellTargets);
+        private void CombatChanged() => OnUi(() => { RefreshSpellTargets(); DisarmFlagOutOfFight(); });
 
         public void SelectSpell(short? id)
         {
@@ -162,6 +162,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
             Map map = Account.Game?.Map;
             if (map == null) return;
             SelectSpell(null);
+            DisarmFlagOutOfFight();
             UserMap.W = map.MapWidth;
             UserMap.H = map.MapHeight;
             UserMap.SetCellNum();

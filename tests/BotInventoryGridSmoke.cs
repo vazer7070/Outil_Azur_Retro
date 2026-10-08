@@ -219,6 +219,8 @@ internal static class BotInventoryGridSmoke
                         var drop = (Control)Get(panel, "dropItem"); var destroy = (Control)Get(panel, "destroyItem");
                         Check(grid.Items.Count == 6 && plateau.Slots.Count == 17 && plateau.Slots.All(slot => slot.Item == null), "Grid must show the six bag items and the plateau be empty");
                         Check(kamas.Text == "1 234 kamas" && pods.Text.Contains("Ow"), "Header kamas or pods are wrong: " + kamas.Text + " / " + pods.Text);
+                        Control kamasIcon = kamas.Parent.Controls["inventory-kamas-icon"];
+                        Check(kamasIcon != null && kamasIcon.Right <= kamas.Left && kamas.Image == null, "The kamas icon overlaps the amount");
                         Feed(account, "Ow12|1000"); Application.DoEvents();
                         Check(pods.Text == "12 pods sur 1 000", "PLAYER_WEIGHT is not shown after Ow: " + pods.Text);
                         Check(!equip.Enabled && !unequip.Enabled && !use.Enabled && !drop.Enabled && !destroy.Enabled && sheet.Sheet == null, "Actions enabled without a selection");

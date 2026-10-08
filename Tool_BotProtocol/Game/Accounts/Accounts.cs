@@ -43,6 +43,10 @@ namespace Tool_BotProtocol.Game.Accounts
         // Remaining subscription time, in milliseconds on the Retro wire protocol.
         public long AboTime;
         public string ConnectionStatus { get; private set; } = "Déconnecté";
+        /// <summary>État de connexion posé à la sélection du personnage (<c>ASK</c>), jusqu'à la première carte chargée.</summary>
+        public const string LoadingMapStatus = "Chargement de la carte…";
+        /// <summary>État de connexion une fois la première carte chargée (<c>GDM</c>).</summary>
+        public const string InGameStatus = "En jeu";
 
         public Accounts(AccountConfig conf)
         {

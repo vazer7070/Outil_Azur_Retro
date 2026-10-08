@@ -14,6 +14,8 @@ python3 tools/client-analysis/exporter_decor.py "<kit>/04 - Dofus 1.34 - Qu'Tan 
 
 Outils : `swfsvg` du dépôt (état du commit 8b428d5), `exporter_png.py` inchangé (cairosvg 2.9.1, échelle 1, aplats magenta rendus transparents), Pillow 12.3.0 sous Python 3.11 ; `swfsvg` a été compilé avec `CARGO_TARGET_DIR` hors du dépôt. Durée mesurée sur 4 cœurs : 14 s de SVG, 185 s de PNG, 47 s de découpe et de palette.
 
+Réexportation (même commande, `--sans-pentes`) avec `swfsvg` 0.2.2 du dépôt (commit b132bdf), mêmes cairosvg, Pillow et Python : cette version applique les masques (`clipDepth`) que la première dessinait comme des aplats (gazon 1849 et 3626 en vert vif, arbre 7509, faisceaux cyan, socles jaunes…) et rend elle-même les dégradés minuscules. Seuls les PNG dont la taille, l'ancre ou plus de 0,5 % des pixels (écart ≥ 40) changent ont été remplacés, avec leur ligne d'`ancres.tsv` : 1 433 PNG (sols, fonds et objets, image 1) ; les autres gardent l'export d'origine. Les images d'état `objets/<id>_2.png` et `ancres-etats.tsv` ne changent pas.
+
 ## Contenu
 
 | Chemin | Nombre | Origine |
@@ -30,9 +32,9 @@ Outils : `swfsvg` du dépôt (état du commit 8b428d5), `exporter_png.py` inchan
 
 - Marges transparentes découpées ; l'ancre en tient compte.
 - Palette de 256 couleurs (Pillow, FASTOCTREE) quand elle est exacte (256 couleurs au plus) ou que l'écart reste faible : moyenne ≤ 1,5, 99e centile ≤ 6 et alpha au 99e centile ≤ 8 pour les sols et les fonds, 5,5 / 22 / 64 pour les objets ; sinon RGBA 32 bits. 4 929 PNG sur 5 649 sont en palette ; le dossier pèse 63,3 Mo (146 Mo en RGBA).
-- 12 SVG dont cairosvg ne pouvait pas rendre les dégradés (matrices arrondies presque nulles, `MemoryError`) ont été rendus après agrandissement de ces matrices à 0,01, 0,02 ou 0,05 : objets 2253, 2259, 2260, 2261, 1932, 2113, 2114, 2766, 2767, 2768, 6559 et 2843.
+- Premier export : 12 SVG dont cairosvg ne pouvait pas rendre les dégradés (matrices arrondies presque nulles, `MemoryError`) ont été rendus après agrandissement de ces matrices à 0,01, 0,02 ou 0,05 : objets 2253, 2259, 2260, 2261, 1932, 2113, 2114, 2766, 2767, 2768, 6559 et 2843 (la réexportation n'en a plus besoin).
 - 36 noms d'objets sont exportés plusieurs fois : 27 dans plusieurs bibliothèques (29 doublons), dont la première occurrence dans l'ordre o1… o11 est gardée et les autres journalisées, et 9 répétés dans une même bibliothèque avec le même symbole, exporté une fois.
-- 41 symboles entièrement transparents (11 sols, 30 objets) sont des PNG transparents de 1 px, ancrés : le client n'y dessine rien et le bot ne les remplace pas par une couleur à plat.
+- 43 symboles entièrement transparents après la réexportation (14 sols, 29 objets ; 41 au premier export) sont des PNG transparents de 1 px, ancrés : le client n'y dessine rien et le bot ne les remplace pas par une couleur à plat.
 
 ## Limites
 
@@ -53,6 +55,6 @@ Les gfx retenus sont ceux que `BotLang/interactiveobjects.xml` rattache à un ob
 Limites :
 
 - Les images 3 à 5 ne sont pas exportées (option `--images-max`, défaut 2). `swfsvg` rend une image comme si ses clips imbriqués venaient d'être créés, sans `onClipEvent(load)` ni la fin de leurs animations ; or le client y joue une animation qui s'achève sur une autre image (arbre : image 3 = chute puis image 4, souche ; image 5 = repousse puis image 1). Le bot garde donc l'image 1 pour ces états.
-- Dans les arbres (gfx 7500 à 7509) et les minerais, les parties de l'objet choisissent leur variante par script (`gotoAndStop(_parent._parent.n_arbre + 1)` ou `n + 1`, la variable valant 1 dès l'image 1) ; `swfsvg` ne l'exécute pas, si bien que `objets/<id>.png` (image 1, export d'`exporter_decor.py`) montre l'image de repli des parties (aplat vert) que le client ne dessine jamais, alors que `objets/<id>_2.png`, rendu un tour plus tard, montre la bonne variante.
+- Dans les arbres (gfx 7500 à 7509) et les minerais, les parties de l'objet choisissent leur variante par script (`gotoAndStop(_parent._parent.n_arbre + 1)` ou `n + 1`, la variable valant 1 dès l'image 1) ; `swfsvg` ne l'exécute pas, si bien que `objets/<id>.png` (image 1, export d'`exporter_decor.py`) montre la première variante des parties pour tous les arbres de 7500 à 7508 ; l'aplat vert de l'arbre 7509 était un masque, corrigé par la réexportation.
 
 Les illustrations conservent les droits de leurs titulaires d'origine, comme celles de `../Selection` et `../Client`.

@@ -30,6 +30,8 @@ namespace Outil_Azur_complet.Bot.Panels
         private PanelHost subscribedHost;
         private long? selectedFight;
         private bool filling;
+        /// <summary>Avance la colonne de durée chaque seconde sans reconstruire la liste (sélection et défilement gardés).</summary>
+        private Timer clock;
 
         public override string Title => MapActionTexts.CurrentFights;
         public override Image Icon => ClientAssets.Icon("icone-pvp", 24);
@@ -61,6 +63,9 @@ namespace Outil_Azur_complet.Bot.Panels
             close = MakeButton(MapActionTexts.Close, (s, e) => Host?.RequestClose(this), false, 84);
             page.Controls.Add(layout);
             page.Controls.Add(BotUi.Actions(refresh, spectate, close));
+            clock = new Timer { Interval = 1000 };
+            clock.Tick += (s, e) => UpdateDurations();
+            clock.Start();
             return page;
         }
 
@@ -135,6 +140,21 @@ namespace Outil_Azur_complet.Bot.Panels
             }
             finally { filling = false; }
             RefreshDetails();
+        }
+
+        /// <summary>Colonne « Durée » des lignes affichées, recalculée en place.</summary>
+        private void UpdateDurations()
+        {
+            MapActions current = actions;
+            if (current == null || fightList == null || fightList.IsDisposed || !fightList.Visible) return;
+            DateTime? now = Game?.Session?.EstimatedServerTime;
+            foreach (ListViewItem row in fightList.Items)
+            {
+                MapFightInfo fight = row.Tag is long id ? current.GetFight(id) : null;
+                if (fight == null || row.SubItems.Count < 3) continue;
+                string text = FormatDuration(fight, now);
+                if (row.SubItems[2].Text != text) row.SubItems[2].Text = text;
+            }
         }
 
         /// <summary>Équipes du combat sélectionné, texte d'état et boutons (sans reconstruire la liste).</summary>
@@ -229,6 +249,7 @@ namespace Outil_Azur_complet.Bot.Panels
         protected override void Dispose(bool disposing)
         {
             if (!disposing) return;
+            clock?.Stop(); clock?.Dispose(); clock = null;
             prompts?.Dispose(); prompts = null;
             if (subscribedHost != null) subscribedHost.PanelShown -= OnPanelShown;
             subscribedHost = null;

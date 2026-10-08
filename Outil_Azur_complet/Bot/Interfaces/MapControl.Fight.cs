@@ -111,9 +111,21 @@ namespace Outil_Azur_complet.Bot.Interfaces
             }
         }
 
+        /// <summary>
+        /// Fin du combat ou changement de carte : désarme le signalement sans message (le bandeau garde le résultat du combat),
+        /// sinon le premier clic hors combat serait avalé par <see cref="FlagClickAsync"/>.
+        /// </summary>
+        private void DisarmFlagOutOfFight()
+        {
+            if (!flagMode || Account?.Game?.Fight?.IsInFight == true) return;
+            flagMode = false; UserMap.Cursor = Cursors.Default;
+        }
+
         private async Task FlagClickAsync(object sender, MapClickEventArgs e)
         {
             if (!flagMode || e == null || e.Handled) return;
+            // Combat terminé avant le choix de la cellule : le clic continue vers le déplacement ou l'acteur.
+            if (Account?.Game?.Fight?.IsInFight != true) { flagMode = false; UserMap.Cursor = Cursors.Default; return; }
             e.Handled = true;
             flagMode = false; UserMap.Cursor = Cursors.Default; // sortie silencieuse : le message qui suit vient de l'envoi
             var fight = Account.Game?.Fight;

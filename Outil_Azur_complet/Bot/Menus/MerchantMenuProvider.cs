@@ -15,9 +15,9 @@ namespace Outil_Azur_complet.Bot.Menus
     /// <summary>
     /// Marchands hors ligne et magasin du personnage (<c>GameManager</c> du client 1.34) : sur un marchand de la carte,
     /// « Acheter » envoie <c>ER4|&lt;marchand&gt;|&lt;cellule&gt;</c> ; sur soi-même, si <c>Player.canBeMerchant</c> (bit 32 de <c>AR</c>
-    /// absent), « Organiser mon magasin » (<c>ORGANIZE_SHOP</c>, <c>ER6</c>) et « Passer en mode 'marchand' » (<c>MERCHANT_MODE</c>,
+    /// absent), « Organiser mon magasin » (<c>ORGANIZE_SHOP</c>, <c>ER6|</c>) et « Passer en mode 'marchand' » (<c>MERCHANT_MODE</c>,
     /// <c>Eq</c> puis la boîte <c>DO_U_OFFLINEEXCHANGE</c> posée par <see cref="MerchantPanel"/> à la réception de <c>Eq1</c>) ; ces deux entrées
-    /// sont grisées tant qu'un magasin est ouvert (StarLoco ignore <c>Eq</c> pendant un échange, <c>ER6</c> y est refusé).
+    /// sont grisées tant qu'un magasin est ouvert (StarLoco ignore <c>Eq</c> pendant un échange, <c>ER6|</c> y est refusé).
     /// </summary>
     [ActorMenuOrder(250)]
     public sealed class MerchantMenuProvider : IActorMenuProvider
@@ -38,7 +38,7 @@ namespace Outil_Azur_complet.Bot.Menus
             }
             if (!ActorClassifier.IsSelf(a, g) || !shop.CanBeMerchant) yield break;
             yield return new MenuEntry(HouseTexts.Text("ORGANIZE_SHOP", "Organiser mon magasin"), context => Run(context, m => m.OrganizeAsync()))
-            { Icône = ClientAssets.Icon("kamas", 16), Activé = !shop.IsOpen, Infobulle = "Ouvrir son magasin pour y mettre des objets en vente (ER6)" };
+            { Icône = ClientAssets.Icon("kamas", 16), Activé = !shop.IsOpen, Infobulle = "Ouvrir son magasin pour y mettre des objets en vente (ER6|)" };
             yield return new MenuEntry(HouseTexts.Text("MERCHANT_MODE", "Passer en mode 'marchand'"), AskMerchantMode)
             { Activé = !shop.IsOpen, Infobulle = "Demander la taxe du mode marchand (Eq) hors de toute fenêtre ; la boîte de confirmation s'ouvre à la réponse du serveur (Eq1)" };
         }

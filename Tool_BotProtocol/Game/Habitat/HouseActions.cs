@@ -108,6 +108,7 @@ namespace Tool_BotProtocol.Game.Habitat
             if (kamas < SalePrice) return Task.FromResult(Refuse(HouseTexts.Text("NOT_ENOUGH_RICH", "Tu n'as pas assez de kamas pour réaliser cette action.")
                 + " (" + SalePrice.ToString(CultureInfo.InvariantCulture) + " demandés, " + kamas.ToString(CultureInfo.InvariantCulture) + " disponibles)"));
             IsPending = true;
+            Notify();
             return SendAsync("hB" + SalePrice.ToString(CultureInfo.InvariantCulture),
                 "Achat de " + house.Name + " pour " + SalePrice.ToString(CultureInfo.InvariantCulture) + " kamas demandé ; le serveur ferme la fenêtre (hV) puis renvoie les propriétés (hP, hL).");
         }
@@ -121,6 +122,7 @@ namespace Tool_BotProtocol.Game.Habitat
             HouseInfo house = SaleHouse;
             if (!house.LocalOwner) return Task.FromResult(Refuse("Seul le propriétaire peut mettre cette maison en vente."));
             IsPending = true;
+            Notify();
             return SendAsync("hS" + price.ToString(CultureInfo.InvariantCulture), price == 0 ? "Annulation de la vente de " + house.Name + " demandée."
                 : "Mise en vente de " + house.Name + " à " + price.ToString(CultureInfo.InvariantCulture) + " kamas demandée ; le serveur confirme par hSK.");
         }
