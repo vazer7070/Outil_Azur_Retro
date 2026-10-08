@@ -181,12 +181,49 @@ namespace Tool_BotProtocol.Game.Maps
             }
             if (update.Data.Length < 10 || update.Data.Any(character => Array.IndexOf(Hash.caracteres_array, character) < 0)) return false;
             if (!int.TryParse(update.Mask, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out int mask)) mask = 0;
-            LazyInitializer.EnsureInitialized(ref originalCells).TryAdd(update.CellId, new CellSnapshot(cell.C_Types, cell.LineofSight));
+            // Instantané pris à la première modification ; il devient « permanent » dès qu'un GDC permanent touche la cellule
+            // (niveau 1 du client, que cleanMap(1) remet à l'état d'origine au début d'un combat : voir ClearForFight).
+            var snapshot = new CellSnapshot(cell.C_Types, cell.LineofSight, update.Permanent);
+            LazyInitializer.EnsureInitialized(ref originalCells).AddOrUpdate(update.CellId, snapshot,
+                (id, previous) => update.Permanent && !previous.Permanent ? previous.AsPermanent() : previous);
             int[] data = update.Data.Select(character => (int)Hash.get_Hash(character)).ToArray();
             if ((mask & 4096) != 0) cell.LineofSight = (data[0] & 1) == 1;
             if ((mask & 2048) != 0) cell.C_Types = (CellTypes)((data[2] & 56) >> 3);
             CellUpdated?.Invoke(update.CellId);
             return true;
+        }
+
+        /// <summary>
+        /// <c>GJK</c> : <c>Game.onJoin</c> du client appelle <c>cleanMap(1)</c>, sur la même carte. Les acteurs, les épées et les
+        /// objets au sol disparaissent ; les états <c>GDF</c> restent (le client ne fait que changer l'image de l'objet). Comme
+        /// <c>initializeMap(1)</c>, les cellules modifiées par un <c>GDC</c> permanent (troisième champ différent de 0, niveau 1
+        /// du client, celui des objets au sol) reprennent leur état d'origine ; celles d'un <c>GDC</c> non permanent gardent leur
+        /// modification et leur instantané, pour un <c>GDC&lt;cellule&gt;</c> de restauration ultérieur.
+        /// </summary>
+        public void ClearForFight()
+        {
+            bool any = (actors?.Count ?? 0) > 0 || (fightSwords?.Count ?? 0) > 0 || Self != null;
+            actors?.Clear();
+            fightSwords?.Clear();
+            Self = null;
+            var removedObjects = new List<int>();
+            if (groundObjects != null)
+                foreach (int cellId in groundObjects.Keys.ToArray())
+                    if (groundObjects.TryRemove(cellId, out GroundObject ignored)) removedObjects.Add(cellId);
+            var restoredCells = new List<int>();
+            if (originalCells != null)
+                foreach (KeyValuePair<int, CellSnapshot> entry in originalCells.ToArray())
+                {
+                    if (!entry.Value.Permanent || !originalCells.TryRemove(entry.Key, out CellSnapshot original)) continue;
+                    Cell cell = GetCellFromId((short)entry.Key);
+                    if (cell == null) continue;
+                    cell.C_Types = original.Movement;
+                    cell.LineofSight = original.LineOfSight;
+                    restoredCells.Add(entry.Key);
+                }
+            if (any) ActorsCleared?.Invoke();
+            foreach (int cellId in removedObjects) GroundObjectChanged?.Invoke(cellId);
+            foreach (int cellId in restoredCells) CellUpdated?.Invoke(cellId);
         }
 
         /// <summary>Retire acteurs, épées, objets au sol, états et modifications de cellules (changement de carte).</summary>
@@ -218,9 +255,12 @@ namespace Tool_BotProtocol.Game.Maps
 
         private struct CellSnapshot
         {
-            public CellSnapshot(CellTypes movement, bool lineOfSight) { Movement = movement; LineOfSight = lineOfSight; }
+            public CellSnapshot(CellTypes movement, bool lineOfSight, bool permanent) { Movement = movement; LineOfSight = lineOfSight; Permanent = permanent; }
             public CellTypes Movement { get; }
             public bool LineOfSight { get; }
+            /// <summary>Au moins un <c>GDC</c> permanent depuis l'instantané : la cellule revient à l'origine au début d'un combat.</summary>
+            public bool Permanent { get; }
+            public CellSnapshot AsPermanent() => new CellSnapshot(Movement, LineOfSight, true);
         }
     }
 }

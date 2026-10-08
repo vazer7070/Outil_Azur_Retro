@@ -376,8 +376,9 @@ namespace Tool_BotProtocol.Game.Combats
             account.Game.Manager.Mouvements.CancelForMapChange(); Clear(false);
             // Game.onJoin appelle cleanMap(1) : les acteurs de la carte (PNJ, joueurs, groupes, épées, objets au sol) disparaissent
             // et seuls les combattants reviennent par les GM qui suivent ; la carte complète revient avec GDM après GE puis GC1.
+            // Les états GDF de la carte restent, comme les cellules GDC non permanentes (Map.ClearForFight).
             account.Game.PersoInWorld.Clear();
-            account.Game.Map.ClearActors();
+            account.Game.Map.ClearForFight();
             account.Game.Map.GetEntitiesRefreshEvent();
             int cancel, menu, type;
             lock (sync)
