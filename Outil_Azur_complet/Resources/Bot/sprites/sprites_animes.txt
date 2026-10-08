@@ -1,30 +1,34 @@
-# Gfx dont tools/client-analysis/exporter_sprites.py exporte aussi les cycles de marche et de
-# course (<gfx>_walk<O>.png, <gfx>_run<O>.png). Un gfx par ligne ; # commence un commentaire.
-# Ajouter un gfx (monstre, PNJ, monture...) puis relancer l'export avec --gfx <id> pour lui
-# donner ses bandes : compter environ 0,3 à 0,6 Mo par gfx.
+# Familles animées que tools/client-analysis/exporter_sprites.py exporte en bandes, en plus des
+# poses static<O> : une ligne par gfx, « <gfx> <famille>[:<pas>],... » ; # commence un commentaire.
+# Un gfx seul vaut « walk,run » (format d'origine). Le pas garde une image sur N (ips = 40 / pas).
+# Familles : walk, run (marche, course, 5 orientations), hit, die (coup reçu, mort : R et L),
+# anim<n>, emote<n>, bonus... (tout symbole exporté <famille><O> du SWF).
+# Ajouter un gfx (monstre, PNJ, monture...) ou une famille puis relancer l'export avec
+# --gfx <id> [--anims <familles>] : compter environ 0,3 à 0,6 Mo par gfx pour walk et run.
 #
 # Personnages joueurs : gfx = classe x 10 + sexe (0 masculin, 1 féminin), classes 1 à 12.
-10
-11
-20
-21
-30
-31
-40
-41
-50
-51
-60
-61
-70
-71
-80
-81
-90
-91
-100
-101
-110
-111
-120
-121
+# hit et die (lot AN2) : 96 bandes, 3 444 images au pas 1.
+10 walk,run,hit,die
+11 walk,run,hit,die
+20 walk,run,hit,die
+21 walk,run,hit,die
+30 walk,run,hit,die
+31 walk,run,hit,die
+40 walk,run,hit,die
+41 walk,run,hit,die
+50 walk,run,hit,die
+51 walk,run,hit,die
+60 walk,run,hit,die
+61 walk,run,hit,die
+70 walk,run,hit,die
+71 walk,run,hit,die
+80 walk,run,hit,die
+81 walk,run,hit,die
+90 walk,run,hit,die
+91 walk,run,hit,die
+100 walk,run,hit,die
+101 walk,run,hit,die
+110 walk,run,hit,die
+111 walk,run,hit,die
+120 walk,run,hit,die
+121 walk,run,hit,die

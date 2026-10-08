@@ -8,7 +8,8 @@
 //! Sans nom d'export, tous les symboles d'`ExportAssets` sont rendus. `--scene` rend la timeline
 //! principale (icônes d'objets, émotes, portraits : formes posées sur la scène, sans export).
 //! `--frame` choisit l'image de la timeline demandée, les clips imbriqués ayant joué depuis leur
-//! création comme à l'écran (cycles de marche) ; `--list` décrit les symboles sans rien rendre.
+//! création comme à l'écran (cycles de marche) ; `--list` décrit les symboles sans rien rendre,
+//! avec la fin de chaque animation (colonne `fin` : boucle, arrêt, retour au repos ou suite).
 use base64::Engine;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
@@ -138,6 +139,34 @@ struct Timeline {
     stop: Option<usize>,
 }
 
+/// Fin d'une animation jouée par le client (colonne `fin` de `--list`), d'après le script de
+/// l'image où elle s'arrête : `boucle` (aucun script d'arrêt), `arret` (`stop()` : la dernière image
+/// reste affichée), `static` (`GAC.applyAnim(this, "static")` : retour à la pose de repos, ou
+/// `removeMovieClip` : le clip disparaît), `suite:<anim>` (`GAC.applyAnim(this, "<anim>")`).
+#[derive(Clone, Debug, PartialEq)]
+enum End {
+    Loop,
+    Stop,
+    Static,
+    Next(String),
+}
+
+impl End {
+    fn label(&self) -> String {
+        match self {
+            End::Loop => "boucle".into(),
+            End::Stop => "arret".into(),
+            End::Static => "static".into(),
+            End::Next(name) => format!("suite:{}", name),
+        }
+    }
+
+    /// Vrai pour un script qui remplace ou retire le clip (il l'emporte sur un `stop()`).
+    fn replaces(&self) -> bool {
+        matches!(self, End::Static | End::Next(_))
+    }
+}
+
 /// Objet de la liste d'affichage d'une timeline, à une profondeur donnée.
 #[derive(Clone)]
 struct Placed {
@@ -156,6 +185,8 @@ struct Exporter<'a> {
     bitmaps: HashMap<u16, Option<Bitmap>>,
     timelines: HashMap<u16, Timeline>,
     cycles: HashMap<u16, usize>,
+    /// Fin de chaque caractère joué comme clip (`--list`), mise en cache.
+    ends: HashMap<u16, End>,
     defs: String,
     body: String,
     bounds: Bounds,
@@ -282,6 +313,7 @@ impl<'a> Exporter<'a> {
             bitmaps: HashMap::new(),
             timelines: HashMap::new(),
             cycles: HashMap::new(),
+            ends: HashMap::new(),
             defs: String::new(),
             body: String::new(),
             bounds: Bounds::default(),
@@ -380,6 +412,93 @@ impl<'a> Exporter<'a> {
             best = best.max(born + self.cycle(cid, depth + 1));
         }
         best
+    }
+
+    /// Fin d'un caractère joué comme clip imbriqué (voir [`End`]).
+    fn end_of(&mut self, id: u16, depth: usize) -> End {
+        if depth > MAX_DEPTH {
+            return End::Stop;
+        }
+        if let Some(e) = self.ends.get(&id) {
+            return e.clone();
+        }
+        // Valeur provisoire : un clip qui se contient lui-même (fichier corrompu) ne boucle pas.
+        self.ends.insert(id, End::Stop);
+        let e = match self.chars.get(&id).copied() {
+            Some(Tag::DefineSprite(sp)) => {
+                let info = self.sprite_timeline(sp);
+                self.end_of_timeline(&sp.tags, info, false, depth + 1)
+            }
+            _ => End::Stop,
+        };
+        self.ends.insert(id, e.clone());
+        e
+    }
+
+    /// Fin d'une timeline jouée par le client depuis sa première image. La timeline qui fixe la
+    /// durée (`images`) décide : la sienne si elle est au moins aussi longue que ses clips (premier
+    /// script d'arrêt rencontré, sinon boucle), sinon celle du clip imbriqué qui finit le plus tard.
+    /// Une timeline d'une image sans clip plus long ne bouge pas : `arret`. Les conditions ne sont
+    /// pas évaluées.
+    fn end_of_timeline(&mut self, tags: &[Tag], info: Timeline, root: bool, depth: usize) -> End {
+        let own = if root { info.frames } else { info.stop.map(|s| s + 1).unwrap_or(info.frames) }.max(1);
+        let looping = info.frames > 1 && (root || info.stop.is_none());
+        let mut frame = 0usize;
+        let mut own_end: Option<(usize, End)> = None;
+        let mut children: Vec<(usize, u16)> = Vec::new();
+        for t in tags {
+            match t {
+                Tag::DoAction(code) => {
+                    if let Some(e) = script_end(code) {
+                        // Dans une même image, un script qui remplace le clip l'emporte sur stop().
+                        let better = match &own_end {
+                            None => true,
+                            Some((f, old)) => *f == frame && !old.replaces() && e.replaces(),
+                        };
+                        if better {
+                            own_end = Some((frame, e));
+                        }
+                    }
+                }
+                Tag::PlaceObject(p) => {
+                    if let swf::PlaceObjectAction::Place(cid) | swf::PlaceObjectAction::Replace(cid) = p.action {
+                        if frame < own && (!looping || frame == 0) {
+                            children.push((frame, cid));
+                        }
+                    }
+                }
+                Tag::ShowFrame => frame += 1,
+                _ => {}
+            }
+        }
+        let mut longest = 0usize;
+        let mut child_end: Option<End> = None;
+        for (born, cid) in children {
+            let finish = born + self.cycle(cid, depth + 1);
+            let e = self.end_of(cid, depth + 1);
+            let loops = child_end.as_ref().is_some_and(|c| *c == End::Loop);
+            if finish > longest || (finish == longest && loops && e != End::Loop) {
+                longest = finish;
+                child_end = Some(e);
+            }
+        }
+        let own_end = own_end.filter(|(f, _)| *f < info.frames).map(|(_, e)| e);
+        if longest > own {
+            return child_end.unwrap_or(End::Loop);
+        }
+        if let Some(e) = own_end {
+            return e;
+        }
+        if longest == own {
+            if let Some(e) = child_end.filter(|e| *e != End::Loop) {
+                return e;
+            }
+        }
+        if info.frames > 1 {
+            End::Loop
+        } else {
+            End::Stop
+        }
     }
 
     fn next_id(&mut self, prefix: &str) -> String {
@@ -969,6 +1088,142 @@ fn has_stop(code: &[u8]) -> bool {
     false
 }
 
+/// Valeur de la pile AVM1 suivie par [`script_end`].
+#[derive(Clone, Debug)]
+enum Val {
+    Str(String),
+    Num(f64),
+    Other,
+}
+
+/// Lit les valeurs d'une action `Push` (types 0 à 9 du format SWF).
+fn push_values(payload: &[u8], pool: &[String], stack: &mut Vec<Val>) {
+    let mut i = 0usize;
+    while i < payload.len() {
+        let kind = payload[i];
+        i += 1;
+        let rest = &payload[i..];
+        let (value, size) = match kind {
+            0 => {
+                let end = rest.iter().position(|b| *b == 0).unwrap_or(rest.len());
+                (Val::Str(String::from_utf8_lossy(&rest[..end]).to_string()), end + 1)
+            }
+            1 if rest.len() >= 4 => (Val::Num(f32::from_le_bytes([rest[0], rest[1], rest[2], rest[3]]) as f64), 4),
+            2 | 3 => (Val::Other, 0),
+            4 | 5 if !rest.is_empty() => (Val::Other, 1),
+            // Double AVM1 : les deux mots de 32 bits sont échangés.
+            6 if rest.len() >= 8 => (Val::Num(f64::from_le_bytes([rest[4], rest[5], rest[6], rest[7], rest[0], rest[1], rest[2], rest[3]])), 8),
+            7 if rest.len() >= 4 => (Val::Num(i32::from_le_bytes([rest[0], rest[1], rest[2], rest[3]]) as f64), 4),
+            8 if !rest.is_empty() => (pool.get(rest[0] as usize).map(|s| Val::Str(s.clone())).unwrap_or(Val::Other), 1),
+            9 if rest.len() >= 2 => (pool.get(u16::from_le_bytes([rest[0], rest[1]]) as usize).map(|s| Val::Str(s.clone())).unwrap_or(Val::Other), 2),
+            _ => return,
+        };
+        stack.push(value);
+        i += size;
+    }
+}
+
+/// Script d'arrêt d'un bloc AVM1 (une image) : `GAC.applyAnim(this, "<anim>")` (retour au repos ou
+/// animation suivante), `removeMovieClip` (le clip disparaît), sinon `stop()`. La pile n'est suivie
+/// que pour les actions utiles (`ConstantPool`, `Push`, `GetVariable`, `GetMember`, appels, `Pop`).
+/// Un appel placé après un branchement conditionnel (`If`) ne compte pas : `static<O>` n'enchaîne
+/// sur `anim18End` qu'après `anim18`. Un `stop()` compte toujours, comme pour [`has_stop`], et les
+/// corps de fonctions sont sautés.
+fn script_end(code: &[u8]) -> Option<End> {
+    let mut pool: Vec<String> = Vec::new();
+    let mut stack: Vec<Val> = Vec::new();
+    let mut stop = false;
+    let mut conditional = false;
+    let mut i = 0usize;
+    while i < code.len() {
+        let op = code[i];
+        if op == 0x00 {
+            break;
+        }
+        if op < 0x80 {
+            match op {
+                0x07 => stop = true,
+                0x17 => {
+                    stack.pop();
+                }
+                0x1C => {
+                    stack.pop();
+                    stack.push(Val::Other);
+                }
+                0x4E => {
+                    stack.pop();
+                    stack.pop();
+                    stack.push(Val::Other);
+                }
+                // RemoveSprite : removeMovieClip(cible).
+                0x25 if !conditional => return Some(End::Static),
+                // CallFunction, CallMethod : nom, (objet), nombre d'arguments, arguments dans l'ordre.
+                0x3D | 0x52 => {
+                    let name = match stack.pop() {
+                        Some(Val::Str(s)) => Some(s),
+                        _ => None,
+                    };
+                    if op == 0x52 {
+                        stack.pop();
+                    }
+                    let count = match stack.pop() {
+                        Some(Val::Num(n)) if (0.0..64.0).contains(&n) => n as usize,
+                        _ => 0,
+                    };
+                    let args: Vec<Val> = (0..count).map(|_| stack.pop().unwrap_or(Val::Other)).collect();
+                    if let Some(name) = name.filter(|_| !conditional) {
+                        if name.eq_ignore_ascii_case("applyAnim") {
+                            if let Some(Val::Str(anim)) = args.get(1) {
+                                // Le client ajoute la lettre d'orientation au nom : « StaticR » donne
+                                // « staticRR », absent, d'où la pose static<lettre> : retour au repos.
+                                let rest = anim.get(..6).filter(|p| p.eq_ignore_ascii_case("static")).map(|_| &anim[6..]);
+                                return Some(match rest {
+                                    Some(r) if r.is_empty() || r.chars().all(|c| "SRLFB".contains(c)) => End::Static,
+                                    _ => End::Next(anim.clone()),
+                                });
+                            }
+                        } else if name.eq_ignore_ascii_case("removeMovieClip") {
+                            return Some(End::Static);
+                        }
+                    }
+                    stack.push(Val::Other);
+                }
+                _ => {}
+            }
+            i += 1;
+            continue;
+        }
+        if i + 2 >= code.len() {
+            break;
+        }
+        let len = u16::from_le_bytes([code[i + 1], code[i + 2]]) as usize;
+        let next = (i + 3 + len).min(code.len());
+        let payload = &code[i + 3..next];
+        let mut body = 0usize;
+        match op {
+            0x88 if payload.len() >= 2 => {
+                let count = u16::from_le_bytes([payload[0], payload[1]]) as usize;
+                pool = payload[2..].split(|b| *b == 0).take(count).map(|s| String::from_utf8_lossy(s).to_string()).collect();
+            }
+            0x96 => push_values(payload, &pool, &mut stack),
+            // If : la condition est retirée ; ce qui suit peut ne pas s'exécuter.
+            0x9D => {
+                stack.pop();
+                conditional = true;
+            }
+            // DefineFunction et DefineFunction2 : le corps ne s'exécute pas avec l'image.
+            0x9B | 0x8E if payload.len() >= 2 => body = u16::from_le_bytes([payload[payload.len() - 2], payload[payload.len() - 1]]) as usize,
+            _ => {}
+        }
+        i = next + body;
+    }
+    if stop {
+        Some(End::Stop)
+    } else {
+        None
+    }
+}
+
 /// Document SVG d'un rendu : le cadre `bounds` est arrondi au pixel (le PNG commence au point
 /// (⌊xmin⌋, ⌊ymin⌋) du symbole).
 fn svg_document(defs: &str, body: &str, bounds: &Bounds) -> String {
@@ -1263,18 +1518,19 @@ fn run(o: &Options) -> Result<String, String> {
     let main_info = timeline_info(&movie.tags);
 
     if o.list {
-        let mut out = String::from("nom\tid\ttype\timages\timages_timeline\n");
+        let mut out = String::from("nom\tid\ttype\timages\timages_timeline\tfin\n");
         let scene_cycle = exporter.cycle_of_timeline(&movie.tags, main_info, true, 0);
-        let _ = writeln!(out, "scene\t0\tscene\t{}\t{}", scene_cycle, main_info.frames);
+        let scene_end = exporter.end_of_timeline(&movie.tags, main_info, true, 0);
+        let _ = writeln!(out, "scene\t0\tscene\t{}\t{}\t{}", scene_cycle, main_info.frames, scene_end.label());
         for (id, name) in &exports {
-            let (cycle, own) = match exporter.chars.get(id).copied() {
+            let (cycle, own, end) = match exporter.chars.get(id).copied() {
                 Some(Tag::DefineSprite(sp)) => {
                     let info = exporter.sprite_timeline(sp);
-                    (exporter.cycle_of_timeline(&sp.tags, info, true, 0), info.frames)
+                    (exporter.cycle_of_timeline(&sp.tags, info, true, 0), info.frames, exporter.end_of_timeline(&sp.tags, info, true, 0))
                 }
-                _ => (exporter.cycle(*id, 0), 1),
+                _ => (exporter.cycle(*id, 0), 1, exporter.end_of(*id, 0)),
             };
-            let _ = writeln!(out, "{}\t{}\t{}\t{}\t{}", name, id, exporter.kind(*id), cycle, own);
+            let _ = writeln!(out, "{}\t{}\t{}\t{}\t{}\t{}", name, id, exporter.kind(*id), cycle, own, end.label());
         }
         return Ok(out);
     }

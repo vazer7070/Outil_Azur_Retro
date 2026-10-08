@@ -242,6 +242,7 @@
     <Compile Include="Bot\Controls\FightVisualSequencer.cs" />
     <Compile Include="Bot\Controls\MapEffects.cs" />
     <Compile Include="Bot\Controls\BubbleLayer.cs" />
+    <Compile Include="Bot\Controls\PointsLayer.cs" />
     <Compile Include="Bot\Controls\OverheadImages.cs" />
     <Compile Include="Bot\Controls\OverheadLayer.cs" />
     <Compile Include="Bot\Controls\buttons\RoundedButton.cs">

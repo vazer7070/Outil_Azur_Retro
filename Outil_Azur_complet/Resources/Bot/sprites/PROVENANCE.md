@@ -9,6 +9,7 @@ de `Outil_Azur_complet.csproj`, pour les PNG et `ancres.tsv`).
 | --- | --- | --- |
 | `<gfx><O>.png` (2 304, ex. `1001R.png`) et les quelques `1.png`, `1381k.png`, `7029c.png`… | Arrivés avec la fusion du 3 octobre 2026, outil et réglages non documentés ; même contenu que la **première** image des symboles `static<O>`, recadrée, sans ancre. | Chargeur actuel (`UserMapControl.LoadSprite`). Conservés tels quels pour ne rien casser. |
 | `<gfx>_static<O>.png`, `<gfx>_scene.png`, `<gfx>_walk<O>.png`, `<gfx>_run<O>.png`, `ancres.tsv` | Générés par `tools/client-analysis/exporter_sprites.py` (commande ci-dessous). | Rendu des acteurs (lot M1) : nouveau nom d'abord, ancien nom en repli. |
+| `<gfx>_hit<O>.png`, `<gfx>_die<O>.png` (96, `O` = `R` ou `L`) | Même outil, export partiel du lot AN2 (section « Coups reçus et morts »). | Coup reçu et mort des personnages joueurs (lot AN2). |
 
 ## Source et commande exacte
 
@@ -39,11 +40,44 @@ UTF-8, tabulations, une ligne d'en-tête, une ligne par PNG (`<gfx>_<anim>.png`)
 | `anim` | `staticS` … `staticB`, `walkS` … `walkB`, `runS` … `runB`, ou `scene` |
 | `xmin`, `ymin` | position du coin haut-gauche du PNG par rapport au point d'ancrage du client (pied du personnage), en pixels ; le point d'ancrage est donc le pixel (`-xmin`, `-ymin`) de chaque image |
 | `largeur`, `hauteur` | taille d'**une** image |
-| `images` | nombre d'images de la bande (1 pour `static` et `scene`) ; l'image k (à partir de 0) occupe les colonnes `[k × largeur, (k + 1) × largeur)` |
+| `images` | nombre d'images de la bande (1 pour `static` et `scene`) ; l'image k (à partir de 0) occupe les colonnes `[k × largeur, (k + 1) × largeur)` (toutes les bandes actuelles tiennent sur une ligne ; au-delà de 32 767 px de large, l'outil range les images en grille, ligne par ligne) |
+| `ips` | images par seconde de la bande : 40 (cadence des clips du client, `DOUBLEFRAMERATE`) divisé par le pas d'export ; 40 partout aujourd'hui |
+| `fin` | ce que fait le client à la dernière image, d'après la colonne `fin` de `swfsvg --list` (0.2.3) : `boucle`, `arret` (dernière image tenue), `static` (retour à la pose de repos) ou `suite:<anim>` ; `arret` pour une image seule |
 
 Pour poser un sprite sur la cellule dont le point d'ancrage est (`ax`, `ay`) : coin du PNG en
 (`ax + xmin`, `ay + ymin`). Pour une orientation retournée, l'image retournée horizontalement se pose
 en (`ax - (xmin + largeur)`, `ay + ymin`).
+
+## Coups reçus et morts (lot AN2)
+
+Familles `hit` et `die` des 24 gfx de `sprites_animes.txt` (une ligne `<gfx> walk,run,hit,die` par
+classe et sexe). Le client n'exporte ces symboles qu'en `R` et `L` ; les directions 0, 2, 4, 6 prennent
+`R` ou `L` et le retournement (voir `docs/BOT_STARLOCO.md`). Outil : `swfsvg` 0.2.3 (colonne `fin` de
+`--list`) et `exporter_sprites.py` du même commit. Depuis la racine du dépôt :
+
+```sh
+(cd tools/client-analysis/swfsvg && cargo build --release)
+python3 tools/client-analysis/exporter_sprites.py "<client>/clips/sprites" \
+    Outil_Azur_complet/Resources/Bot/sprites \
+    --swfsvg tools/client-analysis/swfsvg/target/release/swfsvg \
+    --gfx $(grep -v '^#' Outil_Azur_complet/Resources/Bot/sprites/sprites_animes.txt | cut -d' ' -f1 | paste -sd,) \
+    --anims hit,die --jobs 4
+```
+
+Mesuré le 8 octobre 2026 (4 cœurs) : 28 s, 24 SWF, 96 PNG pour 3 540 281 octets (3,5 Mo), 3 444
+images, aucun message. Seules les lignes `hit`/`die` d'`ancres.tsv` ont été ajoutées ; les 2 556
+lignes existantes sont identiques sur leurs 7 premières colonnes et ont reçu `ips` 40 et leur `fin`.
+
+| bande | images | fin |
+| --- | --- | --- |
+| `hitR`, `hitL` | 24 (600 ms), 26 pour `90`, 28 pour `31_hitR` | `static` : le clip revient à la pose de repos |
+| `dieR`, `dieL` | 25 à 112 selon la classe ; la plus large, `60_dieR`, fait 6 832 px | `arret` (dernière image tenue), sauf `60_dieR` et `61_dieR` : `boucle` |
+
+Le client joue la mort pendant exactement 1 500 ms (60 images) puis retire le sprite (voir
+`docs/BOT_STARLOCO.md`) : une bande plus longue est coupée, une plus courte reste sur sa dernière image.
+Les variantes `_C` (personnage qui en porte un autre, par exemple `hit_CR`) existent dans 7 SWF :
+`120` et `121` (Pandawa, toutes les familles plus `carring*`), `110` (`static` et `walk` seulement),
+`1360`, `8006`, `8009` et `8026`. Le bot ne suit pas l'état « porte » : elles ne sont pas exportées.
 
 ## Orientations
 
@@ -83,7 +117,8 @@ des monstres n'ont que `R` et `L`.
   `9097` sont aussi ignorés, ces gfx ayant des `static<O>` simples. Les montures d'enclos envoyées par
   StarLoco utilisent `7002` ou `7005`, exportés.
 - Recoloration des personnages (couleurs de `GM`), accessoires (`clips/sprites/accessories`), montures
-  composées (`chevauchor`), auras, émotes, coups et morts : hors de portée de PNG statiques par symbole.
+  composées (`chevauchor`), auras, émotes : hors de portée de PNG statiques par symbole. Coups et morts
+  des monstres et PNJ : non exportés (familles à ajouter par gfx dans `sprites_animes.txt`).
 
 Les illustrations conservent les droits de leurs titulaires d'origine, comme celles de `../Client` et
 `../Selection` ; les SWF du client ne sont ni versionnés ni nécessaires à l'exécution.

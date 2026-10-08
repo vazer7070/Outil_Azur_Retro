@@ -13,13 +13,13 @@ namespace Outil_Azur_complet.Bot
     /// <c>KEYBORD_SHORTCUT</c>), dans la palette Retro. Chaque case écrit directement dans <see cref="BotOptions"/> : le fichier
     /// JSON est enregistré et la carte, le chat et le bandeau suivent l'événement <see cref="BotOptions.OptionChanged"/>.
     /// L'onglet Audio du client n'existe pas : le bot ne joue aucun son. Les options que le bot enregistre sans encore les
-    /// dessiner (transparence, infos au survol, portées, valeurs au-dessus des personnages) sont marquées « à venir ».
+    /// dessiner (transparence, infos au survol, portées) sont marquées « à venir ».
     /// </summary>
     public sealed class OptionsForm : Form
     {
         /// <summary>Options gardées et rendues, mais pas encore dessinées par la carte du bot.</summary>
         public static readonly IReadOnlyCollection<string> PendingOptions = new HashSet<string>(StringComparer.Ordinal)
-            { "Transparency", "SpriteInfos", "SpriteMove", "PointsOverHead" };
+            { "Transparency", "SpriteInfos", "SpriteMove" };
 
         private static readonly string[] GeneralOptions = { "BannerShortcuts", "ChatEffects", "TimestampInChat", "CensorshipFilter", "ViewAllMonsterInGroup" };
         private static readonly string[] DisplayOptions = { "Grid", "MapInfos", "Transparency", "SpriteInfos", "SpriteMove", "PointsOverHead" };
