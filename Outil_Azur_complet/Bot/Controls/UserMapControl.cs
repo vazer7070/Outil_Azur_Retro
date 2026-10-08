@@ -619,9 +619,10 @@ namespace Outil_Azur_complet.Bot.Controls
 
         protected override bool ProcessCmdKey(ref Message message, Keys keyData)
         {
+            // + et - du pavé numérique restent aux raccourcis MAXI / MINI du chat (Shortcuts) : ProcessCmdKey passe avant le KeyPreview.
             if (keyData == Keys.Home) { Fit(); return true; }
-            if (keyData == Keys.Add || keyData == Keys.Oemplus) { ZoomIn(); return true; }
-            if (keyData == Keys.Subtract || keyData == Keys.OemMinus) { ZoomOut(); return true; }
+            if (keyData == Keys.Oemplus) { ZoomIn(); return true; }
+            if (keyData == Keys.OemMinus) { ZoomOut(); return true; }
             return base.ProcessCmdKey(ref message, keyData);
         }
     }
