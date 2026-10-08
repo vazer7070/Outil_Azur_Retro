@@ -9,7 +9,9 @@ from PIL import Image
 ICI = os.path.dirname(os.path.abspath(__file__))
 EXPORTEUR = os.path.join(ICI, "..", "exporter_sprites.py")
 FAUX = os.path.join(ICI, "faux_swfsvg.py")
-EN_TETE = "gfx\tanim\txmin\tymin\tlargeur\thauteur\timages"
+EN_TETE = "gfx\tanim\txmin\tymin\tlargeur\thauteur\timages\tips\tfin"
+sys.path.insert(0, os.path.join(ICI, ".."))
+import exporter_sprites  # noqa: E402
 
 
 class ExporterSprites(unittest.TestCase):
@@ -21,37 +23,57 @@ class ExporterSprites(unittest.TestCase):
         os.makedirs(self.sortie)
         # 10 : classe animée ; 11 : mêmes cycles mais non listé ; 7 : épée (scène seule) ;
         # 8 : ni static ni scène ; 9 : static vide ; 12 : SWF illisible.
-        self.swf("10", {"staticR": 3, "StaticL": 1, "staticF": 2, "walkR": 4, "runR": 2, "hitR": 5}, vides_images={"staticF": [2]})
+        self.swf("10", {"staticR": 3, "StaticL": 1, "staticF": 2, "walkR": 4, "runR": 2, "hitR": 5, "hitL": 4, "dieR": 6},
+                 vides_images={"staticF": [2]}, fins={"hitR": "static", "hitL": "static", "dieR": "arret"})
         self.swf("11", {"staticR": 1, "walkR": 4})
         self.swf("7", {"circle": 1}, scene=True)
         self.swf("8", {"circle": 1}, scene=False)
         self.swf("9", {"staticB": 3}, vides=["staticB"])
         with open(os.path.join(self.sprites, "12.swf"), "w") as f:
             f.write("pas un SWF")
-        with open(os.path.join(self.sortie, "sprites_animes.txt"), "w", encoding="utf-8") as f:
-            f.write("# commentaire\n10  # classe\n")
+        self.animes("# commentaire\n10  # classe\n")
 
     def tearDown(self):
         shutil.rmtree(self.dossier, ignore_errors=True)
 
-    def swf(self, gfx, symboles, scene=False, vides=(), vides_images=None):
+    def swf(self, gfx, symboles, scene=False, vides=(), vides_images=None, fins=None, larges=None):
         with open(os.path.join(self.sprites, gfx + ".swf"), "w", encoding="utf-8") as f:
-            json.dump({"symboles": symboles, "scene": scene, "vides": list(vides), "vides_images": vides_images or {}}, f)
+            json.dump({"symboles": symboles, "scene": scene, "vides": list(vides), "vides_images": vides_images or {},
+                       "fins": fins or {}, "larges": larges or {}}, f)
 
-    def exporter(self, *options):
+    def animes(self, texte):
+        with open(os.path.join(self.sortie, "sprites_animes.txt"), "w", encoding="utf-8") as f:
+            f.write(texte)
+
+    def exporter(self, *options, ok=True):
         r = subprocess.run([sys.executable, EXPORTEUR, self.sprites, self.sortie, "--swfsvg", FAUX, "--jobs", "2"] + list(options),
                            capture_output=True, encoding="utf-8")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        return r.stdout
+        if ok:
+            self.assertEqual(r.returncode, 0, r.stderr)
+            return r.stdout
+        return r
 
     def ancres(self):
+        """{(gfx, anim): (xmin, ymin, largeur, hauteur, images, ips, fin)} ; neuf colonnes partout."""
         with open(os.path.join(self.sortie, "ancres.tsv"), encoding="utf-8") as f:
             lignes = f.read().splitlines()
         self.assertEqual(lignes[0], EN_TETE)
-        return {(c[0], c[1]): tuple(int(v) for v in c[2:]) for c in (l.split("\t") for l in lignes[1:])}
+        resultat = {}
+        for l in lignes[1:]:
+            c = l.split("\t")
+            self.assertEqual(len(c), 9, l)
+            resultat[(c[0], c[1])] = tuple(int(v) for v in c[2:8]) + (c[8],)
+        return resultat
 
     def png(self, nom):
         return Image.open(os.path.join(self.sortie, nom)).convert("RGBA")
+
+    def existe(self, nom):
+        return os.path.exists(os.path.join(self.sortie, nom))
+
+    def octets(self, nom):
+        with open(os.path.join(self.sortie, nom), "rb") as f:
+            return f.read()
 
     def test_export_complet(self):
         sortie = self.exporter()
@@ -61,27 +83,28 @@ class ExporterSprites(unittest.TestCase):
             ordre = [l.split("\t")[0] for l in f.read().splitlines()[1:]]
         self.assertEqual(ordre, ["7", "10", "10", "10", "10", "10", "11"], "tri numérique des gfx")
         # Statique : dernière image utile (3) ; rognage au rectangle, magenta effacé, pied en (0, 0).
-        self.assertEqual(a[("10", "staticR")], (-3, -25, 4, 25, 1))
-        self.assertEqual(a[("10", "staticL")], (-5, -25, 4, 25, 1), "StaticL (casse différente) exporté en staticL")
-        self.assertEqual(a[("10", "staticF")], (-5, -25, 4, 25, 1), "dernière image vide : image 1")
+        # Une image seule : 40 ips, fin « arret ».
+        self.assertEqual(a[("10", "staticR")], (-3, -25, 4, 25, 1, 40, "arret"))
+        self.assertEqual(a[("10", "staticL")][:5], (-5, -25, 4, 25, 1), "StaticL (casse différente) exporté en staticL")
+        self.assertEqual(a[("10", "staticF")][:5], (-5, -25, 4, 25, 1), "dernière image vide : image 1")
         self.assertIn("staticF vide à l'image 2, image 1 retenue", sortie)
         self.assertIn("9 : staticB vide, rien d'exporté", sortie)
         im = self.png("10_staticR.png")
         self.assertEqual(im.size, (4, 25))
         px = im.tobytes()
         self.assertFalse(any(px[i + 3] and px[i] > 235 and px[i + 1] < 25 and px[i + 2] > 235 for i in range(0, len(px), 4)), "magenta restant")
-        # Bande : 4 images de 7 pixels (union des cadres), le rectangle avance d'un pixel par image.
-        self.assertEqual(a[("10", "walkR")], (-5, -25, 7, 25, 4))
+        # Bande : 4 images de 7 pixels (union des cadres), le rectangle avance d'un pixel par image ; fin de --list.
+        self.assertEqual(a[("10", "walkR")], (-5, -25, 7, 25, 4, 40, "boucle"))
         bande = self.png("10_walkR.png")
         self.assertEqual(bande.size, (28, 25))
         for k in range(4):
             colonnes = [x for x in range(7) if bande.getpixel((k * 7 + x, 12))[3] > 0]
             self.assertEqual(colonnes, [k, k + 1, k + 2, k + 3], "image %d" % (k + 1))
         self.assertEqual(a[("10", "runR")][4], 2)
-        self.assertFalse(os.path.exists(os.path.join(self.sortie, "11_walkR.png")), "11 n'est pas dans sprites_animes.txt")
-        self.assertFalse(os.path.exists(os.path.join(self.sortie, "10_hitR.png")))
+        self.assertFalse(self.existe("11_walkR.png"), "11 n'est pas dans sprites_animes.txt")
+        self.assertFalse(self.existe("10_hitR.png"), "un gfx seul dans sprites_animes.txt vaut walk,run")
         # Scène quand aucun static<O> : l'épée ; rien pour 8, 9 et 12, avec un message chacun.
-        self.assertEqual(a[("7", "scene")], (-5, -25, 4, 25, 1))
+        self.assertEqual(a[("7", "scene")], (-5, -25, 4, 25, 1, 40, "arret"))
         for gfx in ("8 :", "9 :", "12 :"):
             self.assertIn(gfx, sortie)
 
@@ -96,18 +119,113 @@ class ExporterSprites(unittest.TestCase):
         self.exporter("--gfx", "7")
         apres = self.ancres()
         self.assertEqual(apres, avant, "les lignes des autres gfx sont gardées")
-        self.assertTrue(os.path.exists(os.path.join(self.sortie, "7R.png")))
-        self.assertFalse(os.path.exists(os.path.join(self.sortie, "7_staticR.png")))
-        self.assertTrue(os.path.exists(os.path.join(self.sortie, "11_staticB.png")), "un gfx non réexporté n'est pas nettoyé")
-        r = subprocess.run([sys.executable, EXPORTEUR, self.sprites, self.sortie, "--swfsvg", FAUX, "--gfx", "404"],
-                           capture_output=True, encoding="utf-8")
+        self.assertTrue(self.existe("7R.png"))
+        self.assertFalse(self.existe("7_staticR.png"))
+        self.assertTrue(self.existe("11_staticB.png"), "un gfx non réexporté n'est pas nettoyé")
+        r = self.exporter("--gfx", "404", ok=False)
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("404", r.stderr)
 
     def test_echelle_2(self):
         self.exporter("--echelle", "2", "--gfx", "10")
-        self.assertEqual(self.ancres()[("10", "staticR")], (-6, -50, 8, 50, 1))
+        self.assertEqual(self.ancres()[("10", "staticR")][:5], (-6, -50, 8, 50, 1))
         self.assertEqual(self.png("10_walkR.png").size, (56, 50))
+
+    def test_familles_du_fichier_et_pas(self):
+        # Format « gfx familles » : hit au pas 2 (images 1, 3, 5 : 20 ips), die au pas 1 ; fin de --list.
+        self.animes("10 walk,run,hit:2,die\n10 runR\n11\n")
+        sortie = self.exporter()
+        a = self.ancres()
+        self.assertEqual(a[("10", "hitR")][4:], (3, 20, "static"))
+        self.assertEqual(a[("10", "hitL")][4:], (2, 20, "static"), "4 images au pas 2")
+        self.assertEqual(a[("10", "dieR")][4:], (6, 40, "arret"))
+        self.assertIn(("11", "walkR"), a, "un gfx seul vaut walk,run")
+        self.assertIn("aucun symbole runR<O>", sortie, "famille absente signalée")
+        bande = self.png("10_hitR.png")
+        largeur = a[("10", "hitR")][2]
+        self.assertEqual(bande.size, (largeur * 3, 25))
+        # Image k de la bande = image 2k + 1 du symbole : bord gauche du rectangle en x = 2k + 1 - 6.
+        gauche = [min(x for x in range(largeur) if bande.getpixel((k * largeur + x, 12))[3] > 0) for k in range(3)]
+        self.assertEqual([g - gauche[0] for g in gauche], [0, 2, 4])
+
+    def test_anims_ne_remplace_que_ses_familles(self):
+        self.exporter()
+        avant = self.ancres()
+        walk = self.octets("10_walkR.png")
+        Image.new("RGBA", (2, 2)).save(os.path.join(self.sortie, "10_hitB.png"))  # reste d'un export précédent
+        sortie = self.exporter("--gfx", "10", "--anims", "hit,die")
+        a = self.ancres()
+        for cle, valeur in avant.items():
+            self.assertEqual(a[cle], valeur, "ligne gardée : %s" % (cle,))
+        self.assertEqual(a[("10", "hitR")][4:], (5, 40, "static"))
+        self.assertEqual(a[("10", "dieR")][4:], (6, 40, "arret"))
+        self.assertEqual(self.octets("10_walkR.png"), walk, "walkR non réécrit")
+        self.assertFalse(self.existe("10_hitB.png"), "ancien PNG de la famille réexportée retiré")
+        self.assertTrue(self.existe("10_staticR.png") and self.existe("7_scene.png"))
+        self.assertIn("3 PNG", sortie)
+        # --pas pour les familles de --anims sans pas ; un pas qui ne divise pas 40 est refusé.
+        self.exporter("--gfx", "10", "--anims", "hit", "--pas", "2")
+        self.assertEqual(self.ancres()[("10", "hitR")][4:], (3, 20, "static"))
+        self.assertNotEqual(self.exporter("--anims", "hit:3", ok=False).returncode, 0)
+        self.assertNotEqual(self.exporter("--anims", "hit-R", ok=False).returncode, 0)
+
+    def test_ancien_ancres_a_sept_colonnes(self):
+        # Ancres historiques (lot D2) : ips 40 et fin ajoutées aux lignes gardées.
+        self.exporter("--gfx", "10,11")
+        with open(os.path.join(self.sortie, "ancres.tsv"), encoding="utf-8") as f:
+            lignes = f.read().splitlines()
+        with open(os.path.join(self.sortie, "ancres.tsv"), "w", encoding="utf-8") as f:
+            f.write("gfx\tanim\txmin\tymin\tlargeur\thauteur\timages\n")
+            for l in lignes[1:]:
+                f.write("\t".join(l.split("\t")[:7]) + "\n")
+        self.swf("10", {"staticR": 3, "walkR": 4, "runR": 2, "hitR": 5}, fins={"hitR": "static", "walkR": "boucle", "runR": "suite:carring_C"})
+        sortie = self.exporter("--gfx", "10", "--anims", "hit")
+        a = self.ancres()
+        self.assertEqual(a[("10", "walkR")][4:], (4, 40, "boucle"))
+        self.assertEqual(a[("11", "staticR")][4:], (1, 40, "arret"))
+        self.assertEqual(a[("10", "runR")][6], "static", "nom de suite illisible par le bot")
+        self.assertIn("carring_C", sortie)
+        self.assertEqual(a[("10", "hitR")][4:], (5, 40, "static"))
+
+    def test_grille_au_dela_de_32767_px(self):
+        # 7 images de 9 000 px : une ligne ferait 63 000 px ; grille de 3 colonnes sur 3 lignes.
+        self.swf("13", {"staticR": 1, "dieR": 7}, larges={"dieR": 9000}, fins={"dieR": "arret"})
+        self.exporter("--gfx", "13", "--anims", "die")
+        a = self.ancres()
+        largeur, hauteur = a[("13", "dieR")][2], a[("13", "dieR")][3]
+        self.assertEqual((largeur, a[("13", "dieR")][4]), (9000, 7))
+        grille = self.png("13_dieR.png")
+        self.assertEqual(grille.size, (3 * 9000, 3 * hauteur))
+        for k in range(7):
+            # Repère vert de l'image k (x = k + 1 dans sa case), ligne par ligne.
+            x0, y0 = k % 3 * largeur, k // 3 * hauteur
+            vert = [x for x in range(12) if grille.getpixel((x0 + x, y0))[1] > 200 and grille.getpixel((x0 + x, y0))[0] < 50]
+            self.assertEqual(vert, [k + 1], "image %d" % (k + 1))
+        self.assertEqual(grille.getpixel((2 * largeur + 5, 2 * hauteur + 5))[3], 0, "case vide après la dernière image")
+
+    def test_disposition(self):
+        self.assertEqual(exporter_sprites.disposition(10, 100, 50), (10, 1))
+        self.assertEqual(exporter_sprites.disposition(100, 400, 300), (50, 2))
+        self.assertEqual(exporter_sprites.disposition(7, 9000, 28), (3, 3))
+        colonnes, lignes = exporter_sprites.disposition(240, 150, 120)
+        self.assertLessEqual(colonnes * 150, 32767)
+        self.assertEqual(lignes, -(-240 // colonnes))
+        with self.assertRaises(RuntimeError):
+            exporter_sprites.disposition(2, 30000, 600)  # 36 Mpx
+        with self.assertRaises(RuntimeError):
+            exporter_sprites.disposition(1, 40000, 10)
+
+    def test_liste_animes(self):
+        chemin = os.path.join(self.dossier, "liste.txt")
+        with open(chemin, "w", encoding="utf-8") as f:
+            f.write("# commentaire\n10\n1001 walk:2,run:2, hit,die  # monstre\n1001 anim0\n")
+        self.assertEqual(exporter_sprites.lire_liste_animes(chemin),
+                         {"10": [("walk", 1), ("run", 1)], "1001": [("walk", 2), ("run", 2), ("hit", 1), ("die", 1), ("anim0", 1)]})
+        for faux in ("abc walk\n", "10 hit:3\n", "10 hit:0\n", "10 h!t\n"):
+            with open(chemin, "w", encoding="utf-8") as f:
+                f.write(faux)
+            with self.assertRaises(ValueError, msg=faux):
+                exporter_sprites.lire_liste_animes(chemin)
 
 
 if __name__ == "__main__":
