@@ -69,12 +69,14 @@ namespace Outil_Azur_complet.Bot.Panels
             // En-tête : kamas à gauche, « %1 pods sur %2 » et sa jauge à droite.
             var header = new Panel { Dock = DockStyle.Top, Height = 32, Margin = Padding.Empty, BackColor = BotUi.Paper };
             kamasLabel = MakeLabel("0 kamas", 9, true); kamasLabel.Dock = DockStyle.Left; kamasLabel.Width = 150;
-            kamasLabel.TextAlign = ContentAlignment.MiddleLeft; kamasLabel.ImageAlign = ContentAlignment.MiddleLeft; kamasLabel.Padding = new Padding(22, 0, 0, 0);
-            BannerArt.RequestIcon(kamasLabel, "kamas", 18, image => { if (!kamasLabel.IsDisposed) kamasLabel.Image = image; });
+            kamasLabel.TextAlign = ContentAlignment.MiddleLeft;
+            // Icône à part : le Padding d'un Label décale aussi son image, qui recouvrait alors les premiers chiffres.
+            var kamasIcon = new PictureBox { Dock = DockStyle.Left, Width = 22, Margin = Padding.Empty, SizeMode = PictureBoxSizeMode.CenterImage, BackColor = BotUi.Paper, Name = "inventory-kamas-icon" };
+            BannerArt.RequestIcon(kamasIcon, "kamas", 18, image => { if (!kamasIcon.IsDisposed) kamasIcon.Image = image; });
             podsLabel = MakeLabel(string.Empty, 8); podsLabel.Dock = DockStyle.Fill; podsLabel.TextAlign = ContentAlignment.MiddleRight; podsLabel.ForeColor = BotUi.Muted;
             podsGauge = new Panel { Dock = DockStyle.Bottom, Height = 5, Margin = Padding.Empty, BackColor = BotUi.Paper };
             podsGauge.Paint += PaintPodsGauge;
-            header.Controls.Add(podsLabel); header.Controls.Add(kamasLabel); header.Controls.Add(podsGauge);
+            header.Controls.Add(podsLabel); header.Controls.Add(kamasLabel); header.Controls.Add(kamasIcon); header.Controls.Add(podsGauge);
 
             plateau = new EquipmentPlateau { Dock = DockStyle.Top, Margin = Padding.Empty };
             plateau.Resolve = id => Game?.character?.Inventory?.GetByInventoryId((uint)id);
