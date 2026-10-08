@@ -16,8 +16,9 @@ versionné.
   une fois convertis en WAV, le seul format que lisent `SoundPlayer` et Mono (× 12,3).
 - StarLoco n’envoie rien de propre au son : tout se déduit de paquets que le bot lit déjà (`GA`, `GS`,
   `GTS`, `GE`, chat) et des animations jouées.
-- Sous Windows, `SoundPlayer` ne joue qu’un son à la fois. Sous Mono, il ne lit que le WAV PCM, se tait
-  sans erreur sur un MP3 et **ne rend jamais la main** sur une machine sans carte son.
+- Sous Windows, `SoundPlayer` ne joue qu’un son à la fois (comportement documenté, non essayé ici).
+  Sous Mono (essayé), il ne lit que le WAV PCM, se tait sans erreur sur un MP3 et **ne rend jamais la
+  main** sur une machine sans carte son.
 - **Recommandation : pas de lot son pour l’instant.** Les bruitages des animations n’ont de sens
   qu’après les lots AN2 à AN4. Si un lot est ouvert ensuite, il versionne les MP3 tels quels et les
   joue sous Windows seulement (détails au dernier paragraphe).
@@ -72,8 +73,9 @@ pas le focus, sauf ceux de la liste ci-dessous marqués « toujours ».
 Ces dix sons pèsent 0,01 Mo en MP3 et 0,14 Mo en WAV.
 
 **Animations.** Les SWF de sorts et de sprites appellent le gestionnaire depuis une image de leur
-animation, avec un nom : la clé en majuscules dans `AUEC` d’abord, le nom exporté d’`effects.swf`
-ensuite. Un nom qui ne se trouve dans aucun des deux ne joue rien.
+animation, avec un nom. Le client cherche ce nom, mis en majuscules, parmi les clés de `AUEC`, et
+joue aussi le son exporté d’`effects.swf` sous ce nom s’il existe ; aucun nom relevé ne se trouve
+dans les deux. Un nom qui ne se trouve dans aucun des deux ne joue rien.
 
 | Dossier | SWF qui appellent un son | Appels | Noms | Résolus par la langue / par le nom / introuvables | Sons distincts | MP3 | Durée |
 |---|---|---|---|---|---|---|---|
@@ -89,7 +91,8 @@ les animations `anim<n>` (585 gfx), `hit` (687 gfx), `die` (529 gfx), `walk` (18
 première image de leur clip (182 sur 372 pour les sorts, 6 469 sur 9 706 pour les sprites), et la
 plupart sont dans des clips imbriqués : pour savoir quand jouer un son, il faut résoudre la timeline
 comme `swfsvg` le fait pour les images. Un son trouvé par la langue suit la règle du focus ; un son
-trouvé par son nom exporté (les sons des 35 monstres) est joué même sans le focus.
+trouvé par son nom exporté (sons au nom d’un monstre, ou `fx_<n>.mp3` appelé directement) est joué
+même sans le focus.
 
 Avec les dix sons de l’interface, l’ensemble des sons réellement appelés compte **793 sons,
 2,64 Mo de MP3 et 949 s**.
@@ -97,10 +100,9 @@ Avec les dix sons de l’interface, l’ensemble des sons réellement appelés c
 **Ambiances et musiques.** À l’arrivée sur une carte, le client lance l’ambiance et la musique dont
 les numéros sont dans le SWF de la carte (`ambianceId`, `musicId`). Au début d’un combat (`GS`), il
 tire au hasard une musique de la sous-zone ; quand il quitte le combat, il reprend celle de la
-carte. Les
-musiques des sous-zones sont déjà dans `BotLang/maps.xml` (attribut `musiques`) ; `ambianceId` et
-`musicId` ne sont pas exportés dans `BotMaps`. Les 20 ambiances utilisent 49 sons (7,74 Mo de MP3,
-458 s).
+carte. Les musiques des sous-zones sont déjà dans `BotLang/maps.xml` (attribut `musiques`) ;
+`ambianceId` et `musicId` ne sont pas exportés dans `BotMaps`. Les 20 ambiances utilisent 49 sons
+(7,74 Mo de MP3, 458 s).
 
 ## Taille selon le format
 
@@ -113,9 +115,9 @@ de 44 octets ; « zlib » est la taille compressée au niveau 9, proche de ce qu
 | tout `effects.swf` | 904 | 10,68 Mo | 87,62 Mo | 63,06 Mo | × 8,2 |
 | musiques (calcul, non converties) | 36 | 72,15 Mo | 636,4 Mo | — | × 8,8 |
 
-Des WAV 8 bits diviseraient ces tailles par deux, avec une perte audible. Le budget des animations
-(150 Mo, dont ≈ 135 Mo prévus par AN1 à AN8) n’a pas la place des WAV ; il a celle des MP3 des sons
-appelés.
+Des WAV 8 bits, que Mono accepte aussi, diviseraient ces tailles par deux, au prix de la qualité.
+Le budget des animations (150 Mo, dont ≈ 135 Mo prévus par AN1 à AN8) n’a pas la place des WAV ; il
+a celle des MP3 des sons appelés.
 
 ## Lire un son depuis le bot
 
@@ -129,8 +131,9 @@ Essais avec Mono 6.8.0.105 dans le conteneur, qui n’a pas de carte son :
 - Un MP3 est refusé (« incorrect format ») ; un WAV de `ffmpeg` qui garde son bloc `LIST` aussi
   (« incorrect format (data/fact chunck) »). `PlaySync` avale l’exception : aucun son, aucune erreur.
 - Sans périphérique ALSA, Mono se rabat sur un périphérique muet qui n’accepte aucune image : avec
-  un WAV valide, `PlaySync` ne rend **jamais** la main (arrêté au bout de 30 s par `timeout`), et
-  `Play` laisserait un fil tourner sans fin. C’est le cas des tests sous Xvfb.
+  un WAV valide, `PlaySync` ne rend **jamais** la main (arrêté au bout de 30 s par `timeout`).
+  D’après le code désassemblé, `Play` fait la même chose sur un fil du pool, qui tournerait sans
+  fin. C’est la situation des tests sous Xvfb dans le conteneur.
 - Avec un périphérique ALSA (essai sur un fichier, par `ALSA_CONFIG_PATH`), les données arrivent,
   sauf le dernier bloc incomplet : 16 536 octets reçus sur 20 736 pour un son de 0,235 s, 41 340 sur
   41 472 pour un son de 0,940 s.
@@ -183,7 +186,7 @@ Si un lot son est décidé après les animations, il devrait :
    (plusieurs sons à la fois, volume, alias refermés), sur un fil dédié et jamais sur le fil de
    l’interface ; sous Mono, ne rien jouer et ne jamais appeler `SoundPlayer` ;
 4. commencer par les dix sons de l’interface et du combat, puis les 147 sons des sorts (avec AN4),
-   puis les 696 sons des sprites (avec AN2 et AN3) ;
+   puis les 696 sons des sprites (avec AN2 à AN4) ;
 5. reprendre les options du client (`AudioEffectVol`, `AudioEffectMute`, `StartTurnSound`) et sa
    règle du focus ;
 6. vérifier la chronologie par un test avec une sortie audio fictive (quel son, à quel moment), qui
