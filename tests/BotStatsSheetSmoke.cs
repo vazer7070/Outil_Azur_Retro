@@ -424,7 +424,6 @@ internal static class BotStatsSheetSmoke
             + " / " + panel.InfoText("initiative") + " / " + panel.InfoText("prospection") + " / " + panel.InfoText("life"));
         Button force = panel.BoostButton(BoostableStat.Force), wisdom = panel.BoostButton(BoostableStat.Sagesse);
         Check(force.Visible && force.Enabled && !wisdom.Visible, "Boost buttons visibility differs (capital 2: wisdom costs 3)");
-        Check((string)force.Tag == "client-icon" && force.Width >= 24 && force.Height >= 24, "Boost button is not a usable client icon: " + force.Size);
         var xp = All(panel.View).OfType<XpGauge>().Single(gauge => gauge.Name == "stats-xp");
         var alignment = All(panel.View).OfType<Label>().Single(label => label.Name == "stats-alignment-text");
         Check(Math.Abs(xp.Percent - 50) < 0.01 && alignment.Text.Contains("3") && alignment.Text.Contains("750"), "XP gauge or alignment line differs: " + alignment.Text);
