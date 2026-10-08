@@ -126,11 +126,19 @@ internal static class BotFightProtocolSmoke
                     await Feed(account, "GTL|1|2"); await Feed(account, "GTR42");
                     Check(fight.TurnOrder.Count == 0 && peer.Available == 0, "Turn packets applied or answered outside a fight");
 
-                    // Placement: options, kick, flag.
+                    // Placement: options, kick, flag. GJK empties the map like Game.onJoin (cleanMap(1)): only the fighters' GM come back.
+                    await Feed(account, "GM|+2;4;0;-1;555;-4;9001^80x120;1;ff;-1;-1;2a,,,;2;3|+6;1;0;77;Passerby;1;10^100;0");
+                    await Feed(account, "Gc+88;0|43;6;0;-1|-1;7;1;-1"); await Feed(account, "GDO+5;7655;0");
+                    Check(account.Game.Map.GetActor(-1) != null && account.Game.Map.GetActor(77) != null && account.Game.Map.FightSwords.Count == 1
+                        && account.Game.Map.GroundObjects.Count == 1, "Map actors before GJK not known");
                     await Feed(account, "GJK2|1|1|0|30000|0");
+                    Check(!account.Game.Map.AllActors.Any() && account.Game.Map.Self == null && account.Game.Map.FightSwords.Count == 0
+                        && account.Game.Map.GroundObjects.Count == 0, "GJK kept the actors of the map (NPC, players, swords, ground objects)");
                     await Feed(account, "GP" + Hash.Get_Cell_Char(0) + Hash.Get_Cell_Char(3) + "|" + Hash.Get_Cell_Char(9) + "|0");
                     Check(fight.IsPlacement && fight.TeamOptions.Count == 0, "Join keeps options of another fight");
-                    await Feed(account, "GM|+3;1;0;43;Ally;1;10^100;0"); await Feed(account, "GIC|42;3;1");
+                    await Feed(account, "GM|+0;1;0;42;Synthetic;1;10^100;0|+3;1;0;43;Ally;1;10^100;0"); await Feed(account, "GIC|42;3;1");
+                    Check(account.Game.Map.AllActors.Select(actor => actor.Id).OrderBy(id => id).SequenceEqual(new long[] { 43 })
+                        && account.Game.Map.Self != null && account.Game.Map.Self.Id == 42, "Fighters' GM after GJK did not rebuild the map actors");
                     Check(fight.Fighters.ContainsKey(43) && account.Game.character.Cell.CellID == 3, "Placement fighters not known");
                     Check((await fight.ToggleOptionAsync(FightOptions.BlockJoiner)).Sent && await Within(Read(peer)) == "fN", "fN wire");
                     Check((await fight.ToggleOptionAsync(FightOptions.BlockSpectators)).Sent && await Within(Read(peer)) == "fS", "fS wire");

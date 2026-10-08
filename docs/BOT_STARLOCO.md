@@ -217,6 +217,8 @@ Limites : aucune image de sol en pente n'est encore exportée (`swfsvg` 0.2.2 sa
 
 `Fights` suit le combat d’après les paquets de StarLoco, lus comme le fait le client 1.34. Aucun paquet mal formé n’interrompt la lecture : il est journalisé (`COMBAT`) puis ignoré. Les événements (`CombatChanged`, `CombatResultReceived`, `FlagReceived`, `FightOptionChanged`, `JournalEntryAdded`) sont levés sur le fil réseau, après la mise à jour de l’état et hors du verrou.
 
+Entrée en combat : comme `Game.onJoin` du client (`cleanMap(1)`), `GJK` vide la carte de ses acteurs (PNJ, joueurs, groupes de monstres, épées, objets au sol) ; seuls les combattants reviennent, par les `GM` qui suivent, et la carte complète revient avec `GDM` après `GE` puis `GC1`. Sur un vrai StarLoco, les PNJ et les joueurs restés sur la carte du combat s’affichaient sinon entre les combattants.
+
 Tours :
 
 - `GTL|<id>|<id>…` donne l’ordre de jeu des combattants vivants (`TurnOrder`, `Timeline.Order`). La forme sans `|` initial (`GTL1|2|3`) est aussi lue. StarLoco le renvoie souvent dans `GA;999` après une invocation ou une mort.

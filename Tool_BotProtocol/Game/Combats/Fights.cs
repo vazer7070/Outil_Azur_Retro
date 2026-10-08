@@ -374,6 +374,11 @@ namespace Tool_BotProtocol.Game.Combats
             string[] fields = payload.Split('|'); int state, viewing;
             if (fields.Length < 4 || !int.TryParse(fields[0], out state) || state < 1 || state > 3 || !int.TryParse(fields[3], out viewing)) return;
             account.Game.Manager.Mouvements.CancelForMapChange(); Clear(false);
+            // Game.onJoin appelle cleanMap(1) : les acteurs de la carte (PNJ, joueurs, groupes, épées, objets au sol) disparaissent
+            // et seuls les combattants reviennent par les GM qui suivent ; la carte complète revient avec GDM après GE puis GC1.
+            account.Game.PersoInWorld.Clear();
+            account.Game.Map.ClearActors();
+            account.Game.Map.GetEntitiesRefreshEvent();
             int cancel, menu, type;
             lock (sync)
             {
