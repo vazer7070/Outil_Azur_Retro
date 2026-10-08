@@ -51,8 +51,9 @@ namespace Outil_Azur_complet.Bot.Panels
         {
             get
             {
+                // Icône du métier dès qu'elle est lue, sinon celle du volet des métiers (titre jamais sans icône).
                 Jobs job = bound?.Job;
-                return job == null ? null : JobIcons.TryGet(job.ID);
+                return (job == null ? null : JobIcons.TryGet(job.ID)) ?? ClientAssets.Icon("icone-caracteristiques", 24);
             }
         }
         public override bool IsModal => true;
@@ -117,7 +118,8 @@ namespace Outil_Azur_complet.Bot.Panels
             bagList.Name = "craft-bag"; bagList.Columns[0].Width = 300; bagList.Columns[1].Width = 60;
             bagList.SelectedIndexChanged += (s, e) => UpdateButtons();
             bagList.DoubleClick += async (s, e) => await PlaceSelected();
-            usefulOnly = new CheckBox { Name = "craft-useful", Text = Text("CRAFT_SLOT_FILTER", "Ingrédients des recettes seulement"), Checked = true, AutoSize = true,
+            // Texte propre au bot : CRAFT_SLOT_FILTER du client (« Affiche/Cache les recettes à %1 ingrédient(s) ») filtre les recettes, pas le sac.
+            usefulOnly = new CheckBox { Name = "craft-useful", Text = "Ingrédients des recettes seulement", Checked = true, AutoSize = true,
                 Dock = DockStyle.Top, Font = BotFonts.Get(8), ForeColor = BotUi.Ink, BackColor = BotUi.Paper, Padding = new Padding(0, 0, 0, 2) };
             usefulOnly.CheckedChanged += (s, e) => { bagDirty = true; RefreshView(); };
             placeQuantity = InventoryPanel.Quantity(); placeQuantity.Name = "craft-place-quantity";

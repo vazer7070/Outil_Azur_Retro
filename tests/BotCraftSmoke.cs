@@ -458,6 +458,7 @@ internal static class BotCraftSmoke
             Check(slots.SlotCount == 8 && slots.CellCount == 8 && slots.Items.Count == 0 && ((Label)Get(craftPanel, "heading")).Text.Contains("Cuire fictif")
                 && ((Label)Get(craftPanel, "heading")).Text.Contains("8") && ((Label)Get(craftPanel, "subheading")).Text.Contains("Boulanger fictif")
                 && craftPanel.KnownRecipes.Count == 2 && recipeList.Items.Count == 2 && !combine.Enabled && replay.Enabled && leave.Enabled && !stop.Enabled, "Craft panel content differs");
+            Check(!useful.Text.Contains("%"), "Craft filter shows a raw placeholder: " + useful.Text);
             Check(slots.CellBounds(7).Bottom <= slots.ClientSize.Height && slots.CellBounds(7).Right < slots.ResultBounds.Left, "The 8 cells do not fit beside the result cell");
             Check(bagList.Items.Count == 3 && RowWithTag(bagList, 1000u) != null && RowWithTag(bagList, 1004u) == null && RowWithTag(bagList, 1003u) == null, "Useful filter differs");
             Check(recipeList.Items.Cast<ListViewItem>().First(row => row.Text == "Pain fictif").SubItems[2].Text == "× 5"
