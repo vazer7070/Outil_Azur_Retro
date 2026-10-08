@@ -181,6 +181,7 @@ namespace Outil_Azur_complet.Bot.Panels
                 Dock = DockStyle.Right, Width = 26, FlatStyle = FlatStyle.Flat, BackColor = BotUi.Paper, Name = "boost-" + code,
                 Image = ClientAssets.Icon("plus", 18), Text = ClientAssets.Get("plus") == null ? "+" : string.Empty,
                 Cursor = Cursors.Hand, TabStop = true, AccessibleName = "Augmenter " + StatsActions.Name(stat), Visible = false,
+                Tag = "client-icon", // bouton d'icône du client (24 × 24 au moins), comme le bouton de fermeture des volets
             };
             plus.FlatAppearance.BorderSize = 0;
             plus.FlatAppearance.MouseOverBackColor = BotUi.PaperLight;
