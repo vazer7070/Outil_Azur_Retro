@@ -455,22 +455,24 @@ namespace Outil_Azur_complet.Bot
         protected override void OnPaint(PaintEventArgs e)
         {
             var graphics = e.Graphics; var area = ClientRectangle;
+            // Désactivé, l'action principale perd son orange : simplement voilée, elle semblait encore cliquable.
+            bool primary = Primary && Enabled;
             using (var parent = new SolidBrush(Parent?.BackColor ?? BotUi.Paper)) graphics.FillRectangle(parent, area);
-            var pill = ClientAssets.Get(Primary ? "bouton-principal-haut" : (pressed ? "bouton-bas" : "bouton-haut"));
-            Color text = Primary ? Color.FromArgb(45, 35, 15) : BotUi.Ink;
+            var pill = ClientAssets.Get(primary ? "bouton-principal-haut" : (pressed ? "bouton-bas" : "bouton-haut"));
+            Color text = primary ? Color.FromArgb(45, 35, 15) : BotUi.Ink;
             if (pill != null) {
-                ClientAssets.DrawPill(graphics, pill, area, Primary ? 26 : 30);
-                if (pressed && Primary) using (var veil = new SolidBrush(Color.FromArgb(70, 40, 20, 0))) graphics.FillRectangle(veil, area);
+                ClientAssets.DrawPill(graphics, pill, area, primary ? 26 : 30);
+                if (pressed && primary) using (var veil = new SolidBrush(Color.FromArgb(70, 40, 20, 0))) graphics.FillRectangle(veil, area);
                 else if (hover && Enabled) using (var veil = new SolidBrush(Color.FromArgb(45, Color.White))) graphics.FillRectangle(veil, area);
             } else {
                 graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 using (var shape = Rounded(Rectangle.Inflate(area, -1, -1), 6))
-                using (var fill = new SolidBrush(Primary ? (pressed ? Color.FromArgb(69, 80, 40) : hover ? Color.FromArgb(125, 139, 75) : BotUi.Olive)
+                using (var fill = new SolidBrush(primary ? (pressed ? Color.FromArgb(69, 80, 40) : hover ? Color.FromArgb(125, 139, 75) : BotUi.Olive)
                     : (pressed ? BotUi.Gold : hover ? Color.FromArgb(249, 240, 203) : BotUi.PaperLight)))
-                using (var border = new Pen(Primary ? Color.FromArgb(69, 80, 40) : BotUi.Gold)) {
+                using (var border = new Pen(primary ? Color.FromArgb(69, 80, 40) : BotUi.Gold)) {
                     graphics.FillPath(fill, shape); graphics.DrawPath(border, shape);
                 }
-                if (Primary) text = Color.White;
+                if (primary) text = Color.White;
             }
             if (!Enabled) {
                 using (var veil = new SolidBrush(Color.FromArgb(120, BotUi.PaperLight))) graphics.FillRectangle(veil, area);
