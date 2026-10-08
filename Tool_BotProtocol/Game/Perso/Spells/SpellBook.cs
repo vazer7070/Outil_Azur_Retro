@@ -135,10 +135,37 @@ namespace Tool_BotProtocol.Game.Perso.Spells
             string zones = Zones ?? string.Empty;
             if (zones.Length >= 2 * (index + 1))
             {
-                try { return Spells.Zones.Parse(zones.Substring(index * 2, 2)); }
-                catch (Exception) { /* zone illisible : effet sur une seule cellule */ }
+                string pair = zones.Substring(index * 2, 2);
+                try { return Spells.Zones.Parse(pair); }
+                catch (Exception) { ReportUnreadableZone(SpellId, Level, index, pair); }
             }
             return new Spells.Zones(SpellActionZone.SOLO, 0);
+        }
+
+        private const int MaxZoneWarnings = 200;
+        // Une entrée par sort et niveau (clé sort × 8 + niveau) : une zone illisible n'est signalée qu'une fois par processus.
+        private static readonly ConcurrentDictionary<int, string> zoneWarnings = new ConcurrentDictionary<int, string>();
+
+        /// <summary>
+        /// Zones d'effet illisibles rencontrées dans <c>spells.xml</c>, une ligne par sort et niveau (au plus 200), comme les
+        /// <c>LoadWarnings</c> des chargeurs. L'effet concerné est alors appliqué sur sa seule cellule cible.
+        /// </summary>
+        public static string[] ZoneWarnings => zoneWarnings.OrderBy(entry => entry.Key).Select(entry => entry.Value).ToArray();
+
+        /// <summary>Levé une seule fois par sort et niveau, à la première zone illisible, avec la ligne ajoutée à <see cref="ZoneWarnings"/>.</summary>
+        public static event Action<string> ZoneWarning;
+
+        private static void ReportUnreadableZone(short spellId, int level, int index, string pair)
+        {
+            if (zoneWarnings.Count >= MaxZoneWarnings) return;
+            string message = "Sort " + spellId.ToString(CultureInfo.InvariantCulture) + " niveau " + level.ToString(CultureInfo.InvariantCulture)
+                + " : zone d'effet « " + pair + " » illisible (paire n° " + (index + 1).ToString(CultureInfo.InvariantCulture)
+                + " des zones) dans spells.xml, effet appliqué sur une seule cellule.";
+            if (!zoneWarnings.TryAdd(spellId * 8 + level, message)) return;
+            Action<string> subscribers = ZoneWarning;
+            if (subscribers == null) return;
+            foreach (Action<string> subscriber in subscribers.GetInvocationList())
+                try { subscriber(message); } catch { /* Un journal fermé ne doit pas empêcher le calcul des caractéristiques. */ }
         }
 
         private static byte ToByte(int value) => (byte)Math.Max(0, Math.Min(byte.MaxValue, value));
