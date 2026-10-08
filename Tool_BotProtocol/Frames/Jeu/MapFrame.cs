@@ -309,6 +309,7 @@ namespace Tool_BotProtocol.Frames.Jeu
             {
                 map.SetRefreshMap(message.Substring(3).TrimStart('|'));
                 if (!map.HasMapData) account.Logger?.LogError("CARTE", map.LoadError ?? "Carte sans cellules.");
+                else if (account.ConnectionStatus == Accounts.LoadingMapStatus) account.SetConnectionStatus(Accounts.InGameStatus);
             }
             catch (Exception error) when (error is FormatException || error is ArgumentException
                 || error is IndexOutOfRangeException || error is OverflowException)

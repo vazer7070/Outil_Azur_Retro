@@ -143,8 +143,10 @@ internal static class BotGameplaySmoke
                 {
                     peer.ReceiveTimeout = 5000;
                     account.Game.character.id = 42;
+                    account.SetConnectionStatus(Accounts.LoadingMapStatus);
                     await MessagesReception.ReceptionAsync(account.Connexion, "GDM|900001|date|key");
                     Check(await Within(Read(peer)) == "GI" && account.Game.Map.HasMapData, "GDM did not load before requesting GI");
+                    Check(account.ConnectionStatus == Accounts.InGameStatus, "The loaded map left the status on " + account.ConnectionStatus);
                     await MessagesReception.ReceptionAsync(account.Connexion, "GM|+0;1;0;42;Synthetic;1;100^100;0"
                         + "|+3;1;0;43;Other;2;200^100;1|+4;1;30;-7;101,102;-3;1^100,2^100;5,6"
                         + "|+5;1;0;-8;100;-4;1^100;0|+bad;entry");

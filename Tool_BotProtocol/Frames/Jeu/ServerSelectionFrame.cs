@@ -115,7 +115,7 @@ namespace Tool_BotProtocol.Frames.Jeu
             }
             account.Game.character.PersoSelectedEvent();
             account.Game.character.AFK_Timer.Change(1200000, 1200000);
-            account.SetConnectionStatus("Chargement de la carte…");
+            account.SetConnectionStatus(Accounts.LoadingMapStatus);
             account.AccountStates = AccountStates.CONNECTED_INACTIVE;
             // Comme le client 1.34 : GC1 seul. « BYA » est la bascule « absent » (Basics.away) : StarLoco marquerait
             // le personnage absent et répondrait Im037 (matrice §2 n° 35).
