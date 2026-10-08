@@ -170,6 +170,7 @@
     <Compile Include="Game\Combats\FightActions.cs" />
     <Compile Include="Game\Combats\FightEffects.cs" />
     <Compile Include="Game\Combats\FightResult.cs" />
+    <Compile Include="Game\Combats\FightVisuals.cs" />
     <Compile Include="Game\Chat\ChatChannels.cs" />
     <Compile Include="Game\Chat\ChatCommands.cs" />
     <Compile Include="Game\Chat\ChatMessage.cs" />
@@ -242,6 +243,7 @@
     <Compile Include="Game\Maps\Map.cs" />
     <Compile Include="Game\Maps\Map.Actors.cs" />
     <Compile Include="Game\Maps\Map.Capabilities.cs" />
+    <Compile Include="Game\Maps\Map.Visuals.cs" />
     <Compile Include="Game\Maps\GmParser.cs" />
     <Compile Include="Game\Maps\Mouvements\PathfinderUtils.cs" />
     <Compile Include="Game\Monstres\Monstres.cs" />

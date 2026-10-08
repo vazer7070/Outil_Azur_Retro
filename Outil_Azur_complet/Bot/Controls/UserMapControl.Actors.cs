@@ -51,8 +51,15 @@ namespace Outil_Azur_complet.Bot.Controls
             public bool IsMirrored;
             /// <summary>Survolé (teinte de sélection et surtête).</summary>
             public bool IsHovered;
-            /// <summary>Animation affichée : <c>static</c>, <c>walk</c>, <c>run</c>, <c>scene</c> ou <c>emote&lt;n&gt;</c>.</summary>
+            /// <summary>Animation affichée : <c>static</c>, <c>walk</c>, <c>run</c>, <c>scene</c>, <c>emote&lt;n&gt;</c>, <c>hit</c>…</summary>
             public string Animation = "static";
+            /// <summary>
+            /// Nom complet de l'animation affichée, lettre d'orientation comprise (<c>staticF</c>, <c>hitR</c>, <c>scene</c>) :
+            /// condition <c>xtraClipTopAnimations</c> des clips du dessus (lot AN1).
+            /// </summary>
+            public string AnimationName = "staticS";
+            /// <summary>Fantôme : acteur sorti du modèle (mort) dessiné d'après son instantané, ni cliquable ni survolable.</summary>
+            public bool IsGhost;
             /// <summary>Image de la bande affichée (0 pour une pose fixe).</summary>
             public int Frame;
             /// <summary>-1 pour le sprite principal, sinon rang du membre lié (groupe, suiveur) ou de l'équipe (épées).</summary>
@@ -228,7 +235,7 @@ namespace Outil_Azur_complet.Bot.Controls
         public double Now => animationClock();
 
         private ActorVisualState MainState(long actorId) =>
-            GetActorVisualStates().FirstOrDefault(state => state.ActorId == actorId && state.MemberIndex < 0 && !(state.Entity is FightSwordsActor));
+            GetActorVisualStates().FirstOrDefault(state => state.ActorId == actorId && state.MemberIndex < 0 && !state.IsGhost && !(state.Entity is FightSwordsActor));
 
         // ---------------------------------------------------------------- états visuels
 
@@ -277,11 +284,34 @@ namespace Outil_Azur_complet.Bot.Controls
                 if (main != null) AddFollowers(states, main, actor, map, mapCells);
             }
             foreach (FightSwordsActor swords in map.FightSwords.Values.ToArray()) AddSwords(states, swords);
+            AddGhosts(states, live);
             foreach (int id in Anim.Keys.Where(id => !live.Contains(id)).ToArray()) CancelAnimation(id);
             ActorVisualState[] ordered = states.Select((state, index) => new { state, index }).OrderBy(item => item.state.Depth)
                 .ThenBy(item => item.index).Select(item => item.state).ToArray();
-            foreach (ActorVisualState state in ordered) state.IsHovered = state.MemberIndex < 0 && hoveredKey != null && RootKey(state) == hoveredKey;
+            foreach (ActorVisualState state in ordered)
+                state.IsHovered = state.MemberIndex < 0 && !state.IsGhost && hoveredKey != null && RootKey(state) == hoveredKey;
             return ordered;
+        }
+
+        /// <summary>
+        /// Fantômes de <see cref="ActorAnimationQueue"/> : acteurs sortis du modèle, dessinés d'après leur instantané sur leur
+        /// dernière cellule (animation sans boucle, dernière image tenue), tant qu'ils ne sont pas revenus sur la carte.
+        /// </summary>
+        private void AddGhosts(List<ActorVisualState> states, HashSet<int> live)
+        {
+            if (animationQueue.GhostCount == 0) return;
+            double now = animationClock();
+            foreach (ActorAnimationQueue.Ghost ghost in animationQueue.GhostsAt(now))
+            {
+                Tool_BotProtocol.Game.Combats.ActorSnapshot snapshot = ghost.Snapshot;
+                if (live.Contains(unchecked((int)snapshot.Id)) || snapshot.CellId < 0 || snapshot.CellId >= worldPolygons.Length) continue;
+                ActorVisualState state = NewState(null, snapshot.Id, snapshot.Kind, snapshot.Gfx, snapshot.Direction, snapshot.NoFlip,
+                    snapshot.ScaleX, snapshot.ScaleY, snapshot.CellId, WorldCenter(snapshot.CellId), snapshot.IsSelf, KindColor(snapshot.Kind), snapshot.Name, -1);
+                state.IsGhost = true;
+                SpritePose requested = Resolve(state, ghost.Animation, ghost.Elapsed(now), false);
+                if (!ghost.Shown.HasValue && requested.State == SpriteLoadState.Ready) ghost.Shown = now;
+                states.Add(state);
+            }
         }
 
         private static Color KindColor(ActorKind kind)
@@ -310,11 +340,29 @@ namespace Outil_Azur_complet.Bot.Controls
             if (cell < 0 || cell >= worldPolygons.Length) return null;
             PointF position = Animate(unchecked((int)actorId), cell, self, ref orientation, out int shownCell, out bool moving, out double elapsed, out MoveMode? mode);
             if (moving && emote > 0) { bubbles.RemoveEmote(actorId); staleEntryEmotes.Add(actorId); emote = 0; }
-            string animation = moving ? (mode == MoveMode.Walk ? "walk" : "run") : emote > 0 ? "emote" + emote.ToString(CultureInfo.InvariantCulture) : "static";
-            if (!moving) elapsed = animationClock();
+            double now = animationClock();
+            string animation;
+            bool loop = true, overriding = false;
+            if (moving)
+            {
+                // Comme moveSprite du client : le déplacement remplace l'animation ponctuelle en cours.
+                animation = mode == MoveMode.Walk ? "walk" : "run";
+                animationQueue.Cancel(actorId);
+            }
+            else if (animationQueue.Override(actorId, now, out string single, out double singleElapsed, out bool singleLoop))
+            {
+                // Animation ponctuelle (hit, anim<n>…) : temps écoulé depuis sa première image, pas l'horloge globale.
+                animation = single; elapsed = singleElapsed; loop = singleLoop; overriding = true;
+            }
+            else
+            {
+                animation = emote > 0 ? "emote" + emote.ToString(CultureInfo.InvariantCulture) : "static";
+                elapsed = now;
+            }
             ActorVisualState state = NewState(entity, actorId, kind, gfx, orientation, noFlip, scaleX, scaleY, shownCell, position, self, color, name, -1);
             state.IsMoving = moving;
-            Resolve(state, animation, elapsed);
+            SpritePose requested = Resolve(state, animation, elapsed, loop);
+            if (overriding) animationQueue.Observe(actorId, animation, requested.State, requested.Sheet, now);
             if (emote > 0 && !moving && !(state.HasSprite && state.Animation.StartsWith("emote", StringComparison.Ordinal))) state.EmoteIcon = emote;
             states.Add(state);
             return state;
@@ -349,20 +397,32 @@ namespace Outil_Azur_complet.Bot.Controls
         /// <summary>
         /// Pose de l'état : l'animation demandée si sa bande est prête, sinon la pose fixe (ou la scène pour les épées) ;
         /// silhouette (<see cref="ActorVisualState.HasSprite"/> faux) tant que l'image est en lecture ou si elle manque.
+        /// <paramref name="loop"/> faux : passe unique, dernière image tenue. Rend la pose de l'animation demandée (prête,
+        /// en lecture ou absente), pour <see cref="ActorAnimationQueue.Observe"/>.
         /// </summary>
-        private void Resolve(ActorVisualState state, string animation, double elapsed)
+        private SpritePose Resolve(ActorVisualState state, string animation, double elapsed, bool loop = true)
         {
             state.Animation = animation;
-            if (!state.IsVisible) { state.SpriteReason = "Personnage masqué par le serveur (taille nulle)."; return; }
-            SpritePose pose = null;
+            if (!state.IsVisible)
+            {
+                state.SpriteReason = "Personnage masqué par le serveur (taille nulle).";
+                return new SpritePose(null, false, SpriteLoadState.Missing, state.SpriteReason, animation);
+            }
+            SpritePose requested = null, pose = null;
             if (animation != "static" && animation != "scene")
             {
-                pose = sprites.Resolve(state.GFX, state.Orientation, state.NoFlip, animation);
-                if (pose.State != SpriteLoadState.Ready) pose = null;
+                requested = sprites.Resolve(state.GFX, state.Orientation, state.NoFlip, animation);
+                if (requested.State == SpriteLoadState.Ready) pose = requested;
             }
-            if (pose == null) pose = sprites.Resolve(state.GFX, state.Orientation, state.NoFlip, animation == "scene" ? "scene" : "static");
+            if (pose == null)
+            {
+                pose = sprites.Resolve(state.GFX, state.Orientation, state.NoFlip, animation == "scene" ? "scene" : "static");
+                loop = true;
+            }
+            requested = requested ?? pose;
             state.Pose = pose;
             state.Animation = pose.Animation;
+            state.AnimationName = pose.FullName;
             state.IsMirrored = pose.Mirrored;
             state.HasSprite = pose.State == SpriteLoadState.Ready && pose.Sheet != null;
             state.SpriteReason = pose.State == SpriteLoadState.Loading
@@ -372,11 +432,13 @@ namespace Outil_Azur_complet.Bot.Controls
             if (state.HasSprite)
             {
                 SpriteSheet sheet = pose.Sheet;
-                state.Frame = sheet.Frames > 1 ? (int)(Math.Max(0, elapsed) * ActorSprites.FramesPerSecond / 1000.0 % sheet.Frames) : 0;
+                // Cadence de la bande (colonne ips, 40 par défaut) ; image bloquée sur la dernière hors boucle.
+                state.Frame = sheet.FrameAt(elapsed, loop);
                 state.WorldBounds = sheet.Destination(state.WorldPosition, sx, sy, state.IsMirrored);
             }
             else state.WorldBounds = new RectangleF(state.WorldPosition.X - 9 * sx, state.WorldPosition.Y - 30 * sy, 18 * sx, 30 * sy);
             state.SpriteBounds = ToScreen(state.WorldBounds);
+            return requested;
         }
 
         private void RecordMissing(int gfx, string reason)
@@ -523,7 +585,7 @@ namespace Outil_Azur_complet.Bot.Controls
             for (int index = states.Length - 1; index >= 0; index--)
             {
                 ActorVisualState state = states[index];
-                if (!state.IsVisible || !state.SpriteBounds.Contains(point)) continue;
+                if (state.IsGhost || !state.IsVisible || !state.SpriteBounds.Contains(point)) continue;
                 if (!state.HasSprite) return state;
                 SpriteSheet sheet = state.Pose.Sheet;
                 float sx = state.ScaleX / 100f * viewScale, sy = state.ScaleY / 100f * viewScale;
@@ -552,25 +614,13 @@ namespace Outil_Azur_complet.Bot.Controls
             PointF foot = actor.WorldPosition;
             if (actor.HasSprite)
             {
-                SpriteSheet sheet = actor.Pose.Sheet;
-                RectangleF target = actor.WorldBounds;
-                Rectangle source = sheet.Source(actor.Frame);
-                GraphicsState saved = graphics.Save();
-                try
+                // Image posée en pixels du PNG dans un repère translaté et mis à l'échelle (retourné pour le miroir), case de
+                // la bande (ligne par ligne pour une grille), bords répétés en miroir : pas de liseré pris sur l'image voisine.
+                using (ImageAttributes attributes = actor.IsHovered ? OverheadLayer.SelectionTint() : new ImageAttributes())
                 {
-                    // Image posée en pixels du PNG dans un repère translaté et mis à l'échelle (retourné pour le miroir) :
-                    // libgdiplus ignore la transformation de la vue avec DrawImage(PointF[]…), pas avec un rectangle.
-                    graphics.TranslateTransform(actor.IsMirrored ? target.Right : target.Left, target.Top);
-                    graphics.ScaleTransform((actor.IsMirrored ? -1 : 1) * target.Width / source.Width, target.Height / source.Height);
-                    var destination = new Rectangle(0, 0, source.Width, source.Height);
-                    using (ImageAttributes attributes = actor.IsHovered ? OverheadLayer.SelectionTint() : new ImageAttributes())
-                    {
-                        // Bords de l'image répétés en miroir : pas de liseré pris sur l'image voisine de la bande.
-                        attributes.SetWrapMode(WrapMode.TileFlipXY);
-                        graphics.DrawImage(sheet.Image, destination, source.X, source.Y, source.Width, source.Height, GraphicsUnit.Pixel, attributes);
-                    }
+                    attributes.SetWrapMode(WrapMode.TileFlipXY);
+                    SpritePainter.Draw(graphics, actor.Pose.Sheet, actor.Frame, actor.WorldBounds, actor.IsMirrored, attributes);
                 }
-                finally { graphics.Restore(saved); }
                 return;
             }
             if (actor.Pose?.State == SpriteLoadState.Loading) return; // l'image arrive : rien plutôt qu'un repère éphémère
@@ -610,7 +660,7 @@ namespace Outil_Azur_complet.Bot.Controls
             Rectangle view = ClientRectangle;
             foreach (ActorVisualState actor in actors)
             {
-                if (actor.MemberIndex >= 0 || !actor.IsVisible) continue;
+                if (actor.MemberIndex >= 0 || !actor.IsVisible || actor.IsGhost) continue;
                 bool showText = actor.IsHovered || (showMonstersTooltip && actor.Kind == ActorKind.MonsterGroup);
                 int? smiley = bubbles.SmileyOf(actor.ActorId);
                 int emote = actor.EmoteIcon;

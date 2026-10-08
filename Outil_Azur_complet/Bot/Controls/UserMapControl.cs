@@ -32,7 +32,15 @@ namespace Outil_Azur_complet.Bot.Controls
         public MapQuality MQ;
         private ConcurrentDictionary<int, Animations> Anim;
         private System.Windows.Forms.Timer AnimTimer;
-        private readonly Func<double> animationClock;
+        private Func<double> animationClock;
+        private readonly Func<double> defaultClock;
+        // Lot AN1 : séquenceur visuel, animations ponctuelles et fantômes, effets ; tous menés par la minuterie de 33 ms.
+        private readonly ActorAnimationQueue animationQueue = new ActorAnimationQueue();
+        private readonly FightVisualSequencer sequencer = new FightVisualSequencer();
+        private readonly MapEffectSet effects = new MapEffectSet();
+        private readonly MapView effectView;
+        /// <summary>États des acteurs du dernier dessin (ancres des effets), ou <c>null</c>.</summary>
+        private ActorVisualState[] frameStates;
         private bool ShowAnim;
         private bool ShowCell;
         private readonly ToolTip hoverTip = new ToolTip();
@@ -123,12 +131,15 @@ namespace Outil_Azur_complet.Bot.Controls
         public UserMapControl(Func<double> movementClock, string actorSpriteDirectory = null, string overheadDirectory = null)
         {
             Stopwatch elapsed = Stopwatch.StartNew();
-            animationClock = movementClock ?? (() => elapsed.Elapsed.TotalMilliseconds);
+            defaultClock = () => elapsed.Elapsed.TotalMilliseconds;
+            animationClock = movementClock ?? defaultClock;
             sprites = new ActorSprites(actorSpriteDirectory);
             sprites.SheetsLoaded += AssetsArrived;
             overheadImages = new OverheadImages(overheadDirectory);
             overheadImages.Loaded += AssetsArrived;
-            bubbles = new BubbleLayer(animationClock);
+            // L'horloge peut être remplacée ensuite (Clock) : les bulles la relisent à chaque appel.
+            bubbles = new BubbleLayer(() => animationClock());
+            effectView = new MapView(this);
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
             InitializeComponent();
             MQ = MapQuality.HAUT;
@@ -157,6 +168,7 @@ namespace Outil_Azur_complet.Bot.Controls
                     AnimTimer.Dispose();
                 }
                 StopAnimations();
+                ClearVisuals();
                 hoverTip.Dispose();
                 artwork?.Dispose();
                 // Après le dernier Paint, sur le fil de l'interface : les images ne sont plus dessinées.
@@ -209,6 +221,8 @@ namespace Outil_Azur_complet.Bot.Controls
             artwork?.Dispose(); artwork = null;
             StopAnimations();
             // Nouvelle carte : les sprites retournent à la bibliothèque partagée, bulles et survol sont oubliés.
+            ClearVisuals();
+            frameStates = null;
             sprites.ReleaseAll();
             missingSprites.Clear(); bubbles.Clear(); staleEntryEmotes.Clear();
             hoveredKey = null; pathPreview = null;
@@ -296,12 +310,151 @@ namespace Outil_Azur_complet.Bot.Controls
             if (AnimTimer != null && !AnimTimer.Enabled && !IsDisposed) AnimTimer.Start();
         }
 
-        /// <summary>Minuterie de 33 ms : redessine pendant les déplacements, retire les bulles expirées, s'arrête sinon.</summary>
+        /// <summary>
+        /// Minuterie de 33 ms, seule de la vue : redessine pendant les déplacements, retire les bulles expirées, fait avancer
+        /// le séquenceur visuel, les effets et les animations ponctuelles (<see cref="TickAnimations"/>), s'arrête sinon.
+        /// </summary>
         private void OnAnimationTick(object sender, EventArgs e)
         {
             bool expired = bubbles.Prune();
-            if (Anim.Count > 0 || expired) Invalidate();
-            if (Anim.Count == 0 && !bubbles.HasTimedItems) AnimTimer.Stop();
+            bool busy = TickAnimations();
+            if (Anim.Count > 0 || expired || busy) Invalidate();
+            if (Anim.Count == 0 && !bubbles.HasTimedItems && !busy) AnimTimer.Stop();
+        }
+
+        // ---------------------------------------------------------------- animations du lot AN1
+
+        /// <summary>
+        /// Horloge (ms) des déplacements, bulles, animations et effets : celle du constructeur, remplaçable avant usage
+        /// (tests, <c>MapControl</c>) ; <c>null</c> rend l'horloge interne.
+        /// </summary>
+        [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public Func<double> Clock
+        {
+            get => animationClock;
+            set { animationClock = value ?? defaultClock; Invalidate(); }
+        }
+
+        /// <summary>Animations ponctuelles et fantômes des acteurs.</summary>
+        [Browsable(false)]
+        public ActorAnimationQueue AnimationQueue => animationQueue;
+        /// <summary>Séquenceur visuel (une file par séquenceur du client).</summary>
+        [Browsable(false)]
+        public FightVisualSequencer Sequencer => sequencer;
+        /// <summary>Effets dessinés sur la carte (couches Ground, Depth, Screen).</summary>
+        [Browsable(false)]
+        public MapEffectSet Effects => effects;
+        /// <summary>Accès des effets à la vue (horloge, repères, sprites, ancres des acteurs).</summary>
+        [Browsable(false)]
+        public MapView EffectView => effectView;
+        internal float ViewScale => viewScale;
+        internal PointF ViewOrigin => origin;
+        internal ActorSprites Sprites => sprites;
+
+        /// <summary>
+        /// Un tick d'animation : <see cref="FightVisualSequencer.Pump"/>, <see cref="MapEffectSet.Update"/> et
+        /// <see cref="ActorAnimationQueue.Purge"/> à l'heure de l'horloge ; vrai si l'un d'eux travaille encore (la minuterie
+        /// reste active). Appelé par la minuterie, et par les tests avec une horloge injectée.
+        /// </summary>
+        public bool TickAnimations()
+        {
+            double now = animationClock();
+            bool busy = sequencer.Pump(now);
+            busy |= effects.Update(now, effectView);
+            busy |= animationQueue.Purge(now);
+            return busy;
+        }
+
+        /// <summary>Relance la minuterie commune (travail ajouté) et redessine.</summary>
+        public void WakeAnimations()
+        {
+            if (IsDisposed) return;
+            StartTimer();
+            Invalidate();
+        }
+
+        /// <summary>Ajoute une étape à la file <paramref name="queueId"/> et la lance aussitôt si la file était libre.</summary>
+        public void EnqueueVisual(long queueId, VisualStep step)
+        {
+            if (step == null || IsDisposed) return;
+            sequencer.Enqueue(queueId, step);
+            sequencer.Pump(animationClock());
+            WakeAnimations();
+        }
+
+        /// <summary>Ajoute un effet à la carte (libéré à sa fin, au changement de carte ou à la fermeture).</summary>
+        public void AddEffect(IMapEffect effect)
+        {
+            if (effect == null) return;
+            if (IsDisposed) { (effect as IDisposable)?.Dispose(); return; }
+            effects.Add(effect);
+            WakeAnimations();
+        }
+
+        /// <summary>
+        /// Joue une animation ponctuelle sur un acteur dessiné (<see cref="ActorAnimationQueue.Play"/>) : faux si l'acteur
+        /// n'est pas sur la carte ou si son gfx n'a pas cette bande (rien n'est inventé à la place). La lecture de la bande
+        /// est lancée si besoin ; sa première image est l'heure où elle est prête.
+        /// </summary>
+        public bool PlayActorAnimation(long actorId, string animation, ActorAnimationMode mode, double? durationMs = null)
+        {
+            if (string.IsNullOrEmpty(animation) || IsDisposed) return false;
+            ActorVisualState state = MainState(actorId);
+            if (state == null || !state.IsVisible) return false;
+            SpritePose pose = sprites.Resolve(state.GFX, state.Orientation, state.NoFlip, animation);
+            if (pose.State == SpriteLoadState.Missing) return false;
+            animationQueue.Play(actorId, animation, animationClock(), mode, durationMs, pose.State == SpriteLoadState.Ready ? pose.Sheet : null);
+            WakeAnimations();
+            return true;
+        }
+
+        /// <summary>Fantôme d'un acteur sorti du modèle (mort), dessiné jusqu'à <paramref name="until"/> (heure de l'horloge).</summary>
+        public void AddGhost(Tool_BotProtocol.Game.Combats.ActorSnapshot snapshot, string animation, double until)
+        {
+            if (snapshot == null || IsDisposed) return;
+            sprites.Prefetch(snapshot.Gfx, snapshot.Direction, string.IsNullOrEmpty(animation) ? "static" : animation);
+            animationQueue.AddGhost(snapshot, animation, animationClock(), until);
+            WakeAnimations();
+        }
+
+        /// <summary>Oublie étapes, effets, animations ponctuelles et fantômes (changement de carte, carte cachée, fermeture).</summary>
+        public void ClearVisuals()
+        {
+            sequencer.Clear();
+            effects.Clear();
+            animationQueue.Clear();
+        }
+
+        internal bool TryGetCellCenter(int cellId, out PointF world)
+        {
+            world = PointF.Empty;
+            if (worldPolygons == null || cellId < 0 || cellId >= worldPolygons.Length) return false;
+            world = WorldCenter(cellId);
+            return true;
+        }
+
+        /// <summary>
+        /// Ancre de l'acteur (ou de son fantôme) tel qu'il a été dessiné au dernier passage : pied, cadre, profondeur et
+        /// nom complet de l'animation affichée. Faux s'il n'est pas sur la carte.
+        /// </summary>
+        public bool TryGetActorAnchor(long actorId, out ActorAnchor anchor)
+        {
+            anchor = default(ActorAnchor);
+            ActorVisualState[] states = frameStates ?? GetActorVisualStates();
+            ActorVisualState found = null;
+            foreach (ActorVisualState state in states)
+            {
+                if (state.ActorId != actorId || state.MemberIndex >= 0 || state.Entity is Tool_BotProtocol.Game.Maps.Entities.FightSwordsActor) continue;
+                if (found == null || (found.IsGhost && !state.IsGhost)) found = state;
+            }
+            if (found == null) return false;
+            anchor = new ActorAnchor
+            {
+                ActorId = actorId, CellId = found.CellId, WorldFoot = found.WorldPosition, WorldBounds = found.WorldBounds, Depth = found.Depth,
+                BaseAnimation = found.Animation, Animation = found.AnimationName, Kind = found.Kind, ScaleX = found.ScaleX, ScaleY = found.ScaleY,
+                IsMirrored = found.IsMirrored, IsVisible = found.IsVisible, IsMoving = found.IsMoving, IsGhost = found.IsGhost, HasSprite = found.HasSprite
+            };
+            return true;
         }
 
         protected void OnCellclicked(UserMapCell cell, MouseButtons buttons, bool G) => CellClicked?.Invoke(cell, buttons, G);
@@ -340,6 +493,7 @@ namespace Outil_Azur_complet.Bot.Controls
             if (map == null || !map.HasMapData || Cells == null || Cells.Length == 0)
             {
                 StopAnimations();
+                frameStates = null;
                 DrawWaiting(G, map?.LoadError);
                 return;
             }
@@ -373,12 +527,18 @@ namespace Outil_Azur_complet.Bot.Controls
                 if (spellTargets?.Contains(cell.id) == true)
                     using (var target = new SolidBrush(Color.FromArgb(65, 70, 146, 207))) G.FillPolygon(target, worldPolygons[cell.id]);
             }
+            // Couche Ground des effets (lot AN1) : après les cellules, sous tout le reste.
+            effects.Draw(G, effectView, EffectLayer.Ground);
             DrawPathPreview(G);
             ActorVisualState[] actors = GetActorVisualStates();
-            // Profondeur du client : objets à cellule × 100, sprites à cellule × 100 + 30 (dessinés après l'objet de leur cellule).
-            if (artwork != null) artwork.DrawDepthScene(G, actors.Where(actor => actor.IsVisible).Select(actor =>
-                new BotMapArtwork.DepthLayer { Depth = actor.Depth, Order = 3, Draw = graphics => DrawActor(graphics, actor) }));
-            else foreach (ActorVisualState actor in actors) DrawActor(G, actor);
+            frameStates = actors;
+            // Profondeur du client : objets à cellule × 100, sprites à cellule × 100 + 30 (dessinés après l'objet de leur cellule) ;
+            // effets de la couche Depth intercalés (Order 2 derrière l'acteur de la cellule, 4 devant).
+            IEnumerable<BotMapArtwork.DepthLayer> layers = actors.Where(actor => actor.IsVisible).Select(actor =>
+                new BotMapArtwork.DepthLayer { Depth = actor.Depth, Order = 3, Draw = graphics => DrawActor(graphics, actor) })
+                .Concat(effects.DepthLayers(effectView));
+            if (artwork != null) artwork.DrawDepthScene(G, layers);
+            else foreach (BotMapArtwork.DepthLayer layer in layers.OrderBy(layer => layer.Depth).ThenBy(layer => layer.Order)) layer.Draw?.Invoke(G);
             G.Restore(saved);
             if (ShowCellId)
                 foreach (UserMapCell cell in Cells)
@@ -388,6 +548,8 @@ namespace Outil_Azur_complet.Bot.Controls
                     cell.DrawCell_ID(this, G);
                 }
             DrawOverheads(G, actors);
+            // Couche Screen (chiffres, bulles d'échec critique) : repère de l'écran, après les surtêtes.
+            effects.Draw(G, effectView, EffectLayer.Screen);
             DrawMapLegend(G);
         }
 

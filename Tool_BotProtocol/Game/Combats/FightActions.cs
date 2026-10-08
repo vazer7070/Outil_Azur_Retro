@@ -288,6 +288,7 @@ namespace Tool_BotProtocol.Game.Combats
             string name = fight.NameOf(target);
             fight.Report(context.ActionId, context.ActorId, target, delta < 0 ? name + " perd " + Amount(delta) + " PV."
                 : delta > 0 ? name + " gagne " + Amount(delta) + " PV." : name + " ne perd aucun PV.");
+            fight.Visual(context, target, value: delta);
         }
 
         /// <summary>
@@ -313,6 +314,7 @@ namespace Tool_BotProtocol.Game.Combats
             }
             if (context.ActionId != 102 && delta != 0)
                 fight.Report(context.ActionId, context.ActorId, target, fight.NameOf(target) + (delta < 0 ? " perd " : " gagne ") + Amount(delta) + " PA.");
+            fight.Visual(context, target, value: delta);
         }
 
         /// <summary>PM : même format. <c>129</c> = PM utilisés, <c>127</c>/<c>169</c> retrait, <c>78</c>/<c>128</c> gain.</summary>
@@ -331,6 +333,7 @@ namespace Tool_BotProtocol.Game.Combats
             }
             if (context.ActionId != 129 && delta != 0)
                 fight.Report(context.ActionId, context.ActorId, target, fight.NameOf(target) + (delta < 0 ? " perd " : " gagne ") + Amount(delta) + " PM.");
+            fight.Visual(context, target, value: delta);
         }
 
         /// <summary>
@@ -343,6 +346,8 @@ namespace Tool_BotProtocol.Game.Combats
             int target, child = 0; short childCell = -1;
             if (!context.TryArgument(0, out target)) { Invalid(context); return; }
             Fights fight = context.Fight;
+            // Apparence et cellule figées avant le retrait : la carte dessine le corps (die) après que le modèle l'a oublié.
+            ActorSnapshot snapshot = fight.Snapshot(target);
             lock (fight.sync)
             {
                 if (!fight.InFight) return;
@@ -363,6 +368,7 @@ namespace Tool_BotProtocol.Game.Combats
             fight.UpdateMapCell(target, -1);
             if (child != 0) fight.UpdateMapCell(child, childCell);
             fight.Report(103, context.ActorId, target, fight.NameOf(target) + " est hors de combat.");
+            fight.Visual(context, target, snapshot?.CellId ?? -1, snapshot: snapshot);
         }
 
         /// <summary><c>132</c> : <c>&lt;cible&gt;</c>, l'acteur retire tous les effets de la cible (<c>terminateAllEffects</c>).</summary>
@@ -481,18 +487,41 @@ namespace Tool_BotProtocol.Game.Combats
         }
 
         /// <summary>
-        /// Animations sans état à mémoriser : <c>165</c>, <c>208</c>, <c>228</c> (effets visuels) et <c>501</c>
-        /// (<c>&lt;cellule&gt;,&lt;durée&gt;[,&lt;animation&gt;]</c>, animation d'outil).
+        /// Animations sans état à mémoriser, transmises à la carte (<see cref="Fights.VisualEvent"/>) : <c>165</c> (lu sans
+        /// effet par le client), <c>208</c> et <c>228</c> (<c>&lt;cellule&gt;,&lt;fichier&gt;,&lt;type&gt;,&lt;animation&gt;,&lt;niveau&gt;</c>)
+        /// et <c>501</c> (<c>&lt;cellule&gt;,&lt;durée&gt;[,&lt;animation&gt;]</c>, animation d'outil).
         /// </summary>
         [FightActionHandler(165, 208, 228, 501)]
-        private static void OnVisualOnly(FightActionContext context) { }
+        private static void OnVisualOnly(FightActionContext context)
+        {
+            short cell = -1; int? duration = null;
+            switch (context.ActionId)
+            {
+                case 208:
+                case 228:
+                    if (!TryCell(context, 0, out cell)) { Invalid(context); return; }
+                    break;
+                case 501:
+                    int value;
+                    if (!TryCell(context, 0, out cell) || !context.TryArgument(1, out value) || value < 0) { Invalid(context); return; }
+                    duration = value;
+                    break;
+            }
+            context.Fight.Visual(context, 0, cell, durationMs: duration);
+        }
 
-        /// <summary><c>300</c> : sort lancé (<c>&lt;sort&gt;,&lt;cellule&gt;,…</c>) ; <c>302</c> : échec critique (<c>&lt;sort&gt;</c>).</summary>
+        /// <summary>
+        /// <c>300</c> : sort lancé (<c>&lt;sort&gt;,&lt;cellule&gt;,&lt;fichier&gt;,&lt;niveau&gt;,&lt;type&gt;,&lt;animation&gt;,&lt;devant&gt;</c>,
+        /// voir <see cref="SpellLaunch"/>) ; <c>302</c> : échec critique (<c>&lt;sort&gt;</c>).
+        /// </summary>
         [FightActionHandler(300, 302)]
         private static void OnSpellCast(FightActionContext context)
         {
             int spell;
             if (!context.TryArgument(0, out spell) || spell < short.MinValue || spell > short.MaxValue) { Invalid(context); return; }
+            SpellLaunch launch = null;
+            if (context.ActionId == 300 && !SpellLaunch.TryParseSpell(context.Arguments, out launch))
+                context.Fight.account.Logger?.LogDebug("COMBAT", "GA;300 sans cellule lisible : effet du sort non affiché.");
             Fights fight = context.Fight;
             lock (fight.sync)
             {
@@ -512,6 +541,7 @@ namespace Tool_BotProtocol.Game.Combats
             string actor = fight.NameOf(context.ActorId);
             fight.Report(context.ActionId, context.ActorId, 0, context.ActionId == 300 ? actor + " lance " + SpellName(spell) + "."
                 : actor + " rate " + SpellName(spell) + " (échec critique).");
+            fight.Visual(context, 0, launch?.CellId ?? -1, spell);
         }
 
         /// <summary>Actions affichées seulement dans le journal de combat du client (<c>INFO_FIGHT_CHAT</c>).</summary>
@@ -568,6 +598,16 @@ namespace Tool_BotProtocol.Game.Combats
             }
             if (text == null) { Invalid(context); return; }
             fight.Report(context.ActionId, context.ActorId, target, text);
+            // Effets à l'écran : coup reçu (104), clip critique (301, 304), bulle d'échec (305), attaque à l'arme (303),
+            // piège et glyphe déclenchés (306, 307 : sort, cellule, fichier, niveau, devant, cible).
+            short cell;
+            switch (context.ActionId)
+            {
+                case 104: fight.Visual(context, context.ActorId); break;
+                case 301: case 304: case 305: fight.Visual(context); break;
+                case 303: fight.Visual(context, 0, TryCell(context, 0, out cell) ? cell : (short)-1); break;
+                case 306: case 307: fight.Visual(context, target, TryCell(context, 1, out cell) ? cell : (short)-1); break;
+            }
         }
 
         /// <summary>

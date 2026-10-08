@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Game.Actions;
+using Tool_BotProtocol.Game.Combats;
 using Tool_BotProtocol.Game.Data;
 using Tool_BotProtocol.Game.Managers.Mouvements;
 using Tool_BotProtocol.Game.Maps;
@@ -180,6 +181,11 @@ namespace Tool_BotProtocol.Game.Interactions
         public event Action<long, int> QuantityReceived;
         /// <summary><c>IO</c> : sprite, réussite, modèle d'objet.</summary>
         public event Action<long, bool, int> ObjectResultReceived;
+        /// <summary>
+        /// Effet à l'écran (lot AN1), levé sur le fil réseau après la mise à jour du modèle : quantité <c>IQ</c>
+        /// (<see cref="VisualSource.Quantity"/>) et action 501 hors combat (animation d'outil pendant la durée annoncée).
+        /// </summary>
+        public event Action<VisualEvent> VisualEvent;
 
         protected override string Reference => "INTERACTIF";
         protected override AccountStates OpenState => AccountStates.GATHERING;
@@ -385,6 +391,8 @@ namespace Tool_BotProtocol.Game.Interactions
                 GameActionId = packet.GameActionId ?? string.Empty, ActorId = actor, IsSelf = actor == character.id,
                 CellId = cellId, DurationMs = duration, StartedAtMs = clock.NowMs
             };
+            VisualEvents.Raise(VisualEvent, new VisualEvent(VisualSource.GameAction, 501, actor, 0, cellId, parameters,
+                durationMs: duration, gameActionId: packet.GameActionId), Account, Reference);
             if (!info.IsSelf)
             {
                 Raise(ActionStarted, info);
@@ -457,6 +465,7 @@ namespace Tool_BotProtocol.Game.Interactions
             }
             try { QuantityReceived?.Invoke(sprite, quantity); }
             catch (Exception error) { Account?.Logger?.LogException(Reference, error); }
+            VisualEvents.Raise(VisualEvent, new VisualEvent(VisualSource.Quantity, 0, sprite, sprite, -1, fields, quantity), Account, Reference);
         }
 
         /// <summary>

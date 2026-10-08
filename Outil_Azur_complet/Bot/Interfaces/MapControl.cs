@@ -48,9 +48,14 @@ namespace Outil_Azur_complet.Bot.Interfaces
         public void ZoomIn() => UserMap.ZoomIn();
         public void ZoomOut() => UserMap.ZoomOut();
         public void Fit() => UserMap.Fit();
-        public MapControl(Accounts account)
+        public MapControl(Accounts account) : this(account, null) { }
+
+        /// <param name="clock">Horloge (ms) des déplacements, bulles, animations et effets de la carte, relayée à
+        /// <see cref="UserMapControl.Clock"/> (tests) ; <c>null</c> : horloge interne.</param>
+        public MapControl(Accounts account, Func<double> clock)
         {
             InitializeComponent();
+            if (clock != null) UserMap.Clock = clock;
             Account = account ?? throw new ArgumentNullException(nameof(account));
             UserMap.SetAccount(Account);
             BackColor = Color.FromArgb(211, 204, 169);
@@ -90,6 +95,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
                 Account.Game.character.MoveMinimapPathfinding += GetPathfinding;
                 Account.Game.Manager.Mouvements.FinalizeMove += MovementFinished;
                 Account.Game.Fight.CombatChanged += CombatChanged;
+                SubscribeVisuals();
                 subscribed = true;
             }
             MapChange();
@@ -109,6 +115,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
             // La fenêtre libère le compte avant ses contrôles : la partie peut être déjà libérée (gestionnaires à null).
             var game = Account.Game;
             if (game == null) return;
+            UnsubscribeVisuals(game);
             if (game.Map != null)
             {
                 game.Map.RefreshMap -= MapChange; game.Map.RefreshEntities -= RefreshEntities; game.Map.EntityMovement -= EntityMovement;
