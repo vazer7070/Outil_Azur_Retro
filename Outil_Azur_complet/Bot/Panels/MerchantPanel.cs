@@ -19,13 +19,13 @@ namespace Outil_Azur_complet.Bot.Panels
     /// <c>EB&lt;lot&gt;|&lt;quantité&gt;</c>, Mettre en vente <c>EMO+&lt;objet&gt;|&lt;quantité&gt;|&lt;prix&gt;</c>, Retirer <c>EMO-&lt;lot&gt;|&lt;quantité&gt;</c>,
     /// Modifier le prix <c>EMO+&lt;lot&gt;|&lt;quantité du lot&gt;|&lt;prix&gt;</c>, Fermer (ou ×/Échap) <c>EV</c>. « Mode marchand » envoie <c>Eq</c> ;
     /// à la réponse <c>Eq1</c>, la boîte <c>DO_U_OFFLINEEXCHANGE</c> (Oui / Non) précède <c>EQ</c>, avec l'avertissement que StarLoco
-    /// déconnecte alors le client. Hors magasin, le volet (menu global) propose <c>ER6</c> et <c>Eq</c> ; « Mode marchand » reste grisé tant
+    /// déconnecte alors le client. Hors magasin, le volet (menu global) propose <c>ER6|</c> et <c>Eq</c> ; « Mode marchand » reste grisé tant
     /// qu'une fenêtre est ouverte, StarLoco ignorant <c>Eq</c> pendant un échange.
     /// </summary>
     public sealed class MerchantPanel : GamePanel
     {
         private const string Reference = "MARCHAND";
-        private const string NoShopText = "Clic sur un marchand de la carte (« Acheter », ER4|marchand|cellule) ou clic droit sur votre personnage (« Organiser mon magasin », ER6).\nLe magasin s'ouvre lorsque le serveur l'annonce (ECK4 ou ECK6 puis EL).";
+        private const string NoShopText = "Clic sur un marchand de la carte (« Acheter », ER4|marchand|cellule) ou clic droit sur votre personnage (« Organiser mon magasin », ER6|).\nLe magasin s'ouvre lorsque le serveur l'annonce (ECK4 ou ECK6 puis EL).";
         private Label merchantHeading, merchantTotal, merchantStatus, lotsTitle;
         private ListView merchantList, merchantBag;
         private NumericUpDown merchantQuantity, merchantPrice, bagQuantity, bagPrice;

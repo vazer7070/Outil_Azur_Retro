@@ -33,7 +33,7 @@ using Tool_BotProtocol.Utils.Crypto;
 // StarLoco, sur un serveur fictif local avec des textes du client synthétiques : hP, hL±, hCK, hSK, hG, hV et paquets mal formés ;
 // menu de la porte (titre « <objet> <maison> », ligne Chez X / Chez moi !, états O/S/L des compétences) ; hB<prix> après le contrôle
 // des kamas, hS<prix>, GA507<compétence> chez soi, hG±, hQ ; magasin d'un marchand (ER4|id|cellule, ECK4, EL, EB, EBK/EBE), son
-// propre magasin (ER6, ECK6, EMO+ avec prix, modification du prix, EMO-), Eq refusé fenêtre ouverte ou magasin vide, Eq → Im125 / Eq1|1|<taxe> → EQ → Im176, restriction AR bit 32 ; puis les
+// propre magasin (ER6|, ECK6, EMO+ avec prix, modification du prix, EMO-), Eq refusé fenêtre ouverte ou magasin vide, Eq → Im125 / Eq1|1|<taxe> → EQ → Im176, restriction AR bit 32 ; puis les
 // volets Magasin (boîte DO_U_OFFLINEEXCHANGE : Non n'envoie rien, Oui envoie EQ) et Maison (vente, DO_U_BUY_HOUSE, menu intérieur)
 // dans une fenêtre de jeu invisible, et les menus des acteurs (marchand, soi-même).
 internal static class BotHouseMerchantSmoke
@@ -60,7 +60,7 @@ internal static class BotHouseMerchantSmoke
             Application.EnableVisualStyles();
             Run();
             Check(uiErrors.Count == 0, "Interface errors: " + string.Join(" / ", uiErrors.Select(e => e.GetType().Name + " " + e.Message)));
-            Console.WriteLine("OK: maisons hP/hL/hCK/hSK/hG/hV, hB/hS/hQ/GA507, menu de la porte, magasin ER4/ECK4/EL/EB, ER6/EMO±, Eq/Eq1/EQ, volets Magasin et Maison, menus marchand et soi-même");
+            Console.WriteLine("OK: maisons hP/hL/hCK/hSK/hG/hV, hB/hS/hQ/GA507, menu de la porte, magasin ER4/ECK4/EL/EB, ER6|/EMO±, Eq/Eq1/EQ, volets Magasin et Maison, menus marchand et soi-même");
         }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
         finally { LangData.Clear(); }
@@ -300,7 +300,7 @@ internal static class BotHouseMerchantSmoke
 
     private static string SelfGmLine() => "GM|" + SelfGm;
 
-    /// <summary>Magasins : ER4|id|cellule, ECK4, EL, EB, EBK/EBE, EV ; ER6, ECK6, EMO+ avec prix, prix modifié, EMO- ; Eq, Eq1, EQ ; AR bit 32 ; Ei ; Clear.</summary>
+    /// <summary>Magasins : ER4|id|cellule, ECK4, EL, EB, EBK/EBE, EV ; ER6|, ECK6, EMO+ avec prix, prix modifié, EMO- ; Eq, Eq1, EQ ; AR bit 32 ; Ei ; Clear.</summary>
     private static void Merchant(Accounts account, Socket peer, ConcurrentQueue<string> logs)
     {
         MerchantExchange shop = account.Game.Interactions.Merchant;
@@ -337,8 +337,8 @@ internal static class BotHouseMerchantSmoke
         Check(!shop.IsOpen && shop.ExchangeType == -1 && shop.Items.Count == 0 && shop.MerchantId == -1 && registry.Current == null && account.AccountStates == AccountStates.CONNECTED_INACTIVE,
             "EV did not close the merchant shop");
 
-        // Son propre magasin : ER6, ECK6 + EL vide ; Eq refusé fenêtre ouverte (StarLoco l'ignore pendant un échange) puis, après EV, refusé magasin vide (Im123).
-        Check(Sent(shop.OrganizeAsync())); Expect(peer, "ER6", "Organize does not send ER6");
+        // Son propre magasin : ER6| (sans « | », StarLoco lit substring(2, 4) hors de la chaîne et expulse le client), ECK6 + EL vide ; Eq refusé fenêtre ouverte (StarLoco l'ignore pendant un échange) puis, après EV, refusé magasin vide (Im123).
+        Check(Sent(shop.OrganizeAsync())); Expect(peer, "ER6|", "Organize does not send ER6| (StarLoco kicks on a bare ER6)");
         Feed(account, "ECK6"); Feed(account, "EL");
         Check(shop.IsOrganizing && !shop.IsBuying && shop.MerchantId == 42 && shop.ContentReceived && shop.Items.Count == 0 && account.AccountStates == AccountStates.SELLING, "ECK6 + empty EL did not open the own shop");
         Check(!Sent(shop.AddToShopAsync(3, 6, 10)) && !Sent(shop.AddToShopAsync(3, 1, 0)) && !Sent(shop.AddToShopAsync(1001, 1, 10)) && !Sent(shop.AddToShopAsync(4242, 1, 10)) && !Sent(shop.BuyAsync(3, 1)),
@@ -350,7 +350,7 @@ internal static class BotHouseMerchantSmoke
         InteractionResult empty = Result(shop.AskMerchantModeAsync());
         Check(!empty.Sent && empty.Message.Contains("Im123"), "Merchant mode with an empty shop was requested");
         NoPacket(peer, "Eq was sent for an empty shop");
-        Check(Sent(shop.OrganizeAsync())); Expect(peer, "ER6", "Second ER6 was not sent");
+        Check(Sent(shop.OrganizeAsync())); Expect(peer, "ER6|", "Second ER6| was not sent");
         Feed(account, "ECK6"); Feed(account, "EL");
         Check(shop.IsOrganizing && shop.ContentReceived && shop.Items.Count == 0, "Second ECK6 + EL did not reopen the own shop");
         // EMO+ avec prix, prix modifié avec la quantité du lot, EMO-, EiK± ; puis EV et le mode marchand hors fenêtre : Eq, Im125, Eq, Eq1, refus, accord, EQ, Im176.
