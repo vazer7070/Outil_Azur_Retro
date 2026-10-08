@@ -10,14 +10,21 @@ using System.Text.RegularExpressions;
 // (Resources/Bot/sprites) : syntaxe d'ancres.tsv, PNG présents et de la taille annoncée, bandes de
 // marche/course des gfx de sprites_animes.txt, anciens <gfx><O>.png conservés, PROVENANCE.md qui
 // cite la commande, et copie d'ancres.tsv à côté de l'exécutable. Fichiers seulement : passe sous Mono.
+// Lot AN1 : 7 ou 9 colonnes (ips, fin), noms hit/die/anim<n>/emote<n>/emoteStatic<n>/bonus en R ou L, bandes en grille
+// (colonnes = largeur du PNG / largeur d'image), aucun côté de PNG au-delà de 32 767 px.
 internal static class BotSpriteSheetsSmoke
 {
     private static readonly string[] Header = { "gfx", "anim", "xmin", "ymin", "largeur", "hauteur", "images" };
-    private static readonly Regex Anim = new Regex("^(?:(?:static|walk|run)[SRLFB]|scene)$", RegexOptions.CultureInvariant);
+    private static readonly string[] LongHeader = Header.Concat(new[] { "ips", "fin" }).ToArray();
+    private static readonly Regex Anim = new Regex("^(?:(?:static|walk|run)[SRLFB]|(?:hit|die|anim[0-9]+|emote[0-9]+|emote[Ss]tatic[0-9]+|bonus)[RL]|scene)$",
+        RegexOptions.CultureInvariant);
+    private static readonly Regex End = new Regex("^(?:boucle|arret|static|suite:[A-Za-z0-9]+)$", RegexOptions.CultureInvariant);
+    private const int MaxSide = 32767;
 
     private sealed class Row
     {
         public int Gfx; public string Anim; public int XMin, YMin, Width, Height, Images; public int Line;
+        public int Fps = 40; public string End = "boucle";
         public string File { get { return Gfx + "_" + Anim + ".png"; } }
     }
 
@@ -30,15 +37,21 @@ internal static class BotSpriteSheetsSmoke
 
     private static void Check(bool ok, string message) { if (!ok) throw new Exception(message); }
 
-    /// <summary>Lecture stricte d'ancres.tsv : en-tête, sept colonnes entières (sauf anim), clé gfx/anim unique.</summary>
+    /// <summary>
+    /// Lecture stricte d'ancres.tsv : en-tête à sept colonnes, ou à neuf avec ips (entier de 1 à 1000) et fin (boucle, arret,
+    /// static, suite:&lt;anim&gt;), même nombre de colonnes sur chaque ligne, entiers (sauf anim), clé gfx/anim unique.
+    /// </summary>
     private static List<Row> Parse(string[] lines)
     {
-        Check(lines.Length > 0 && lines[0] == string.Join("\t", Header), "ancres.tsv header must be: " + string.Join(" ", Header));
+        bool wide = lines.Length > 0 && lines[0] == string.Join("\t", LongHeader);
+        Check(lines.Length > 0 && (wide || lines[0] == string.Join("\t", Header)),
+            "ancres.tsv header must be: " + string.Join(" ", Header) + " [ips fin]");
+        int columns = wide ? LongHeader.Length : Header.Length;
         var rows = new List<Row>(); var keys = new HashSet<string>();
         for (int i = 1; i < lines.Length; i++)
         {
             string[] c = lines[i].Split('\t');
-            Check(c.Length == Header.Length, "ancres.tsv line " + (i + 1) + ": " + c.Length + " columns");
+            Check(c.Length == columns, "ancres.tsv line " + (i + 1) + ": " + c.Length + " columns, header has " + columns);
             var row = new Row { Anim = c[1], Line = i + 1 };
             int[] values = new int[6];
             for (int k = 0; k < 6; k++)
@@ -48,7 +61,14 @@ internal static class BotSpriteSheetsSmoke
             Check(row.Gfx >= 0, "ancres.tsv line " + row.Line + ": negative gfx");
             Check(Anim.IsMatch(row.Anim), "ancres.tsv line " + row.Line + ": unknown animation " + row.Anim);
             Check(row.Width > 0 && row.Height > 0 && row.Images > 0, "ancres.tsv line " + row.Line + ": empty frame");
-            Check(row.Images == 1 || row.Anim.StartsWith("walk") || row.Anim.StartsWith("run"), "ancres.tsv line " + row.Line + ": a static image has one frame");
+            if (wide)
+            {
+                Check(int.TryParse(c[7], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out row.Fps)
+                    && row.Fps >= 1 && row.Fps <= 1000, "ancres.tsv line " + row.Line + ": ips must be an integer from 1 to 1000: " + c[7]);
+                Check(End.IsMatch(c[8]), "ancres.tsv line " + row.Line + ": unknown fin " + c[8]);
+                row.End = c[8];
+            }
+            Check(row.Images == 1 || !(row.Anim.StartsWith("static") || row.Anim == "scene"), "ancres.tsv line " + row.Line + ": a static image has one frame");
             Check(keys.Add(row.Gfx + "/" + row.Anim), "ancres.tsv line " + row.Line + ": duplicate " + row.Gfx + "/" + row.Anim);
             rows.Add(row);
         }
@@ -58,6 +78,21 @@ internal static class BotSpriteSheetsSmoke
     private static bool Rejected(params string[] lines)
     {
         try { Parse(lines); return false; } catch (Exception) { return true; }
+    }
+
+    /// <summary>
+    /// Taille de PNG admise pour une ligne : bande d'une ligne (largeur × images), ou grille de colonnes = largeur du PNG /
+    /// largeur d'image, lignes juste suffisantes ; jamais plus de 32 767 px de côté.
+    /// </summary>
+    private static string SizeError(Row row, Size size)
+    {
+        if (size.Width > MaxSide || size.Height > MaxSide) return row.File + " is " + size + ": a PNG side above " + MaxSide + " px crashes libgdiplus, export a grid";
+        if (size.Width == row.Width * row.Images && size.Height == row.Height) return null;
+        if (size.Width < row.Width || size.Width % row.Width != 0) return row.File + " is " + size + ", not a whole number of " + row.Width + " px frames";
+        int columns = size.Width / row.Width, lines = (row.Images + columns - 1) / columns;
+        if (lines < 2 || columns >= row.Images) return row.File + " is " + size + ", ancres.tsv says " + row.Width + "x" + row.Images + " by " + row.Height;
+        return size.Height == row.Height * lines ? null
+            : row.File + " is a " + columns + "-column grid of " + size + ", expected " + lines + " lines of " + row.Height + " px";
     }
 
     /// <summary>Taille d'un PNG lue dans l'en-tête IHDR, sans décoder l'image.</summary>
@@ -99,6 +134,31 @@ internal static class BotSpriteSheetsSmoke
         Check(Rejected(header, "10\tstaticR\t-8\t-39\t16\t43\t3"), "Static strip accepted");
         Check(Rejected(header, "10\tstaticR\t-8\t-39\t16\t43\t1", "10\tstaticR\t-8\t-39\t16\t43\t1"), "Duplicate gfx/anim accepted");
         Check(Rejected(header, "10\twalkR\t-8\t-37\t0\t43\t30"), "Empty frame accepted");
+        // Lot AN1 : colonnes ips et fin, nouveaux noms, grille.
+        string wideHeader = string.Join("\t", LongHeader);
+        List<Row> wide = Parse(new[] { wideHeader, "10\tstaticR\t-8\t-39\t16\t43\t1\t40\tboucle", "10\thitR\t-8\t-39\t30\t45\t12\t40\tstatic",
+            "10\tdieL\t-8\t-39\t30\t45\t20\t20\tarret", "10\temote1R\t-8\t-39\t30\t45\t9\t40\tsuite:emoteStatic1",
+            "10\temoteStatic1R\t-8\t-39\t30\t45\t4\t40\tboucle", "10\tanim0L\t-8\t-39\t30\t45\t15\t40\tstatic", "10\tbonusR\t-8\t-39\t30\t45\t6\t40\tstatic" });
+        Check(wide.Count == 7 && wide[2].Fps == 20 && wide[2].End == "arret", "A valid nine-column ancres.tsv is rejected or misread");
+        foreach (Row row in wide)
+        {
+            Outil_Azur_complet.Bot.Controls.SpriteEnd end; string next;
+            Check(Outil_Azur_complet.Bot.Controls.ActorSprites.TryParseEnd(row.End, out end, out next), "The bot does not read fin " + row.End);
+        }
+        Check(Rejected(wideHeader, "10\tstaticR\t-8\t-39\t16\t43\t1"), "Seven columns accepted under a nine-column header");
+        Check(Rejected(header, "10\tstaticR\t-8\t-39\t16\t43\t1\t40\tboucle"), "Nine columns accepted under a seven-column header");
+        Check(Rejected(wideHeader, "10\thitR\t-8\t-39\t30\t45\t12\t0\tstatic"), "Zero ips accepted");
+        Check(Rejected(wideHeader, "10\thitR\t-8\t-39\t30\t45\t12\t40\tfige"), "Unknown fin accepted");
+        Check(Rejected(header, "10\thitF\t-8\t-39\t30\t45\t12"), "hit outside R/L accepted (the bot uses direction | 1)");
+        Check(Rejected(header, "10\tsceneR\t-8\t-39\t30\t45\t1"), "Oriented scene accepted");
+        var grid = new Row { Gfx = 10, Anim = "dieR", Width = 20, Height = 30, Images = 5 };
+        Check(SizeError(grid, new Size(100, 30)) == null, "One-line strip refused");
+        Check(SizeError(grid, new Size(60, 60)) == null, "Two-line grid (3 columns) refused");
+        Check(SizeError(grid, new Size(60, 30)) != null && SizeError(grid, new Size(60, 90)) != null && SizeError(grid, new Size(50, 60)) != null,
+            "Inconsistent grid accepted");
+        var wideStrip = new Row { Gfx = 10, Anim = "anim0R", Width = 400, Height = 300, Images = 100 };
+        Check(SizeError(wideStrip, new Size(40000, 300)) != null, "A 40 000 px line accepted");
+        Check(SizeError(wideStrip, new Size(32400, 600)) == null, "Grid under 32 767 px refused");
 
         // 2. Ancres livrées avec le dépôt.
         string source = Path.GetFullPath(Path.Combine(TestPaths.ApplicationBin, "..", "..", "Resources", "Bot", "sprites"));
@@ -139,8 +199,8 @@ internal static class BotSpriteSheetsSmoke
             {
                 string path = Path.Combine(source, row.File);
                 Check(File.Exists(path), "ancres.tsv line " + row.Line + " points to a missing PNG: " + row.File);
-                Size size = PngSize(path);
-                Check(size.Width == row.Width * row.Images && size.Height == row.Height, row.File + " is " + size + ", ancres.tsv says " + row.Width + "x" + row.Images + " by " + row.Height);
+                string error = SizeError(row, PngSize(path));
+                Check(error == null, "ancres.tsv line " + row.Line + ": " + error);
             }
             var listed = new HashSet<string>(rows.Select(r => r.File));
             foreach (string file in Directory.GetFiles(source, "*_*.png").Select(f => Path.GetFileName(f)))
@@ -156,11 +216,17 @@ internal static class BotSpriteSheetsSmoke
                 Check(Opaque(image, ax - 4, ay - 8, ax + 5, ay + 1), "No body pixel just above the anchor of " + stand.File);
                 Check(image.GetPixel(0, 0).A == 0 || image.GetPixel(image.Width - 1, 0).A == 0, "Transparent margins lost in " + stand.File);
             }
-            // Bande : chaque image occupe sa propre colonne et n'est pas vide.
+            // Bande : chaque image occupe sa propre case (ligne par ligne pour une grille) et n'est pas vide.
             Row walk = byKey["10/walkR"];
             using (Bitmap strip = Load(Path.Combine(source, walk.File)))
+            {
+                int perLine = Math.Max(1, strip.Width / walk.Width);
                 for (int k = 0; k < walk.Images; k++)
-                    Check(Opaque(strip, k * walk.Width, 0, (k + 1) * walk.Width, walk.Height), walk.File + ": frame " + (k + 1) + " is empty");
+                {
+                    int x = k % perLine * walk.Width, y = k / perLine * walk.Height;
+                    Check(Opaque(strip, x, y, x + walk.Width, y + walk.Height), walk.File + ": frame " + (k + 1) + " is empty");
+                }
+            }
         }
 
         // 5. Les anciens <gfx><O>.png restent en place pour le chargeur actuel (UserMapControl.LoadSprite).
