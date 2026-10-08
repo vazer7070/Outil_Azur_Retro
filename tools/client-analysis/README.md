@@ -152,21 +152,35 @@ les exports d'un sprite sur dix (93 SWF, 260 s) : aucun échec, aucune panique.
 
 ```text
 exporter_sprites.py <client>/clips/sprites <sortie> [--swfsvg CHEMIN] [--animes FICHIER]
-                    [--gfx 10,11,...] [--echelle 1] [--jobs N] [--sans-palette]
+                    [--gfx 10,11,...] [--anims hit,die[:pas],...] [--pas N]
+                    [--echelle 1] [--jobs N] [--sans-palette]
 ```
 
-Requiert swfsvg 0.2.1 ou plus (`--swfsvg`, sinon `$SWFSVG`, le `PATH` ou `swfsvg/target/release`),
-cairosvg et Pillow. Pour chaque `<gfx>.swf` :
+Requiert swfsvg 0.2.3 ou plus (colonne `fin` de `--list` ; `--swfsvg`, sinon `$SWFSVG`, le `PATH` ou
+`swfsvg/target/release`), cairosvg et Pillow. Pour chaque `<gfx>.swf` :
 
 - `<gfx>_static<O>.png` (`O` = `S`, `R`, `L`, `F`, `B`, casse du nom d'export ignorée) : la **dernière
   image utile** du symbole (`--list`), celle où le client s'arrête après l'animation de repos ;
 - `<gfx>_scene.png` quand le SWF n'exporte aucun `static<O>` (épées de combat 0-5, tombes) : image 1
   de la scène ;
-- pour les gfx du fichier `--animes` (par défaut `<sortie>/sprites_animes.txt`, un gfx par ligne) :
-  `<gfx>_walk<O>.png` et `<gfx>_run<O>.png`, bandes horizontales de toutes les images utiles rendues
-  dans un même cadre (`--frame all`) ;
-- `<sortie>/ancres.tsv` : `gfx anim xmin ymin largeur hauteur images` (en-tête compris), où le point
-  d'ancrage du client est le pixel (`-xmin`, `-ymin`) de chaque image.
+- familles animées (`walk`, `run`, `hit`, `die`, `anim<n>`, `emote<n>`, `bonus`…) :
+  `<gfx>_<famille><O>.png` pour chaque orientation exportée par le SWF, bande de toutes les images
+  utiles rendues dans un même cadre (`--frame all`), une image sur « pas ». L'image k occupe la case k,
+  rangée ligne par ligne : une seule ligne tant qu'elle tient dans 32 767 px de large, sinon une grille
+  équilibrée (au-delà, libgdiplus ne décode plus le PNG sous Mono) ; une bande de plus de 16 Mpx est
+  refusée avec un message ;
+- `<sortie>/ancres.tsv` : `gfx anim xmin ymin largeur hauteur images ips fin` (en-tête compris), où le
+  point d'ancrage du client est le pixel (`-xmin`, `-ymin`) de chaque image, `ips` vaut 40 / pas et
+  `fin` reprend la colonne `fin` de `--list` (`boucle`, `arret`, `static`, `suite:<anim>` ; `arret`
+  pour une image seule). Un ancien fichier à 7 colonnes est relu et complété (`ips` 40, `fin` lue par
+  `--list` pour les bandes conservées).
+
+Familles exportées : sans `--anims`, `static` plus celles que `--animes` (par défaut
+`<sortie>/sprites_animes.txt`) donne au gfx ; avec `--anims`, exactement celles-là (ajouter `static`
+pour refaire les poses), et seules leurs lignes et leurs PNG sont remplacés. Format du fichier
+`--animes`, une ligne par gfx, `#` pour un commentaire : `<gfx> [<famille>[:<pas>],...]` ; un gfx seul
+vaut `walk,run` (format d'origine) ; `--pas` donne le pas des familles de `--anims` qui n'en ont pas.
+Le pas divise 40.
 
 Les marges transparentes sont rognées (cadre commun pour une bande), le magenta est effacé comme dans
 `exporter_png.py`, la palette 8 bits n'est retenue que si elle ne change presque rien aux pixels
@@ -178,9 +192,12 @@ la série continue. Le détail des conventions et la commande utilisée pour le 
 | Commande | Durée (4 cœurs) | Sortie |
 |---|---|---|
 | tous les sprites, `--jobs 4`, 24 gfx animés | 3 min 10 s | 2 556 PNG, 16,1 Mo, `ancres.tsv` de 2 556 lignes |
+| `--gfx <24 classes> --anims hit,die --jobs 4` (lot AN2) | 28 s | 96 PNG, 3,5 Mo, 3 444 images ; `ancres.tsv` de 2 652 lignes |
 
 Tests : `python3 tests/test_exporter_sprites.py` (faux `swfsvg` écrit en Python dans `tests/`, aucun
-fichier du client) : image de repos, casse, scène, bandes, magenta, rognage, échelle, `--gfx`.
+fichier du client) : image de repos, casse, scène, bandes, magenta, rognage, échelle, `--gfx`,
+`--anims` et pas, colonnes `ips` et `fin`, relecture d'un ancien `ancres.tsv`, grille au-delà de
+32 767 px.
 
 ## Limites connues
 
