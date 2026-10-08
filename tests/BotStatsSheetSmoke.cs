@@ -552,6 +552,8 @@ internal static class BotStatsSheetSmoke
         FeedFromNetwork(account, "SUK3~1");
         FeedFromNetwork(account, "SF+"); PumpUntil(() => panel.IsServerWindowOpen);
         Click(Get(panel, "cancelForget")); Expect(peer, "SF-1", "« Annuler » does not send SF-1");
+        // CancelForgetAsync ferme la fenêtre après l'envoi : attendre cette fermeture avant le SF+ suivant, sinon elle peut l'écraser.
+        PumpUntil(() => !book.ForgetWindowOpen);
         FeedFromNetwork(account, "SF+"); PumpUntil(() => panel.IsServerWindowOpen);
         drawer.CloseAll(); Application.DoEvents();
         Check(drawer.IsOpen(panel), "CloseAll removed the open forget window");
