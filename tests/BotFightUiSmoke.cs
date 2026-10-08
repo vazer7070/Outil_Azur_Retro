@@ -61,6 +61,8 @@ internal static class BotFightUiSmoke
     }
     private static void Complete(Task task) { PumpUntil(() => task.IsCompleted, "task"); task.GetAwaiter().GetResult(); }
     private static void Feed(Accounts account, string packet) { Complete(MessagesReception.ReceptionAsync(account.Connexion, packet)); }
+    /// <summary>Paquet traité sur un autre fil, comme ceux du serveur : les contrôles créés masqués doivent quand même se mettre à jour.</summary>
+    private static void FeedFromNetwork(Accounts account, string packet) { Complete(Task.Run(() => MessagesReception.ReceptionAsync(account.Connexion, packet))); }
     private static string Read(Socket socket)
     {
         PumpUntil(() => socket.Available > 0, "packet");
@@ -127,7 +129,8 @@ internal static class BotFightUiSmoke
                         Check(form.Panels.Get<FightResultPanel>() != null && !form.Panels.Visible, "Result panel is not registered or the drawer is open");
 
                         // ---------------------------------------------------------------- placement : menu, options, drapeau
-                        Feed(account, "GJK2|1|1|0|30000|0");
+                        FeedFromNetwork(account, "GJK2|1|1|0|30000|0");
+                        PumpUntil(() => menu.Visible && options.Visible, "placement menu and options after GJK received on the network thread");
                         Feed(account, "GP" + Hash.Get_Cell_Char(0) + Hash.Get_Cell_Char(3) + "|" + Hash.Get_Cell_Char(9) + "|0");
                         Feed(account, "GM|+0;1;0;42;Personnage de test;1;10^100;0|+3;1;0;43;Allié de test;1;10^100;0"); Feed(account, "GIC|42;3;1");
                         PumpUntil(() => menu.Visible && options.Visible && combatTools.Visible, "placement controls");
@@ -170,8 +173,8 @@ internal static class BotFightUiSmoke
                         Check(!options.ButtonFor(FightOptions.NeedHelp).Visible && options.ButtonFor(FightOptions.BlockSpectators).Visible && options.FlagButton.Visible
                             && options.TacticButton.Visible && !options.TacticButton.Enabled, "Running fight keeps only spectators, flag and (disabled) tactic mode");
                         Check(!timeline.Visible && timeline.Entries.Count == 0, "Timeline shown before GTL");
-                        Feed(account, "GTL|42|43|-7");
-                        PumpUntil(() => timeline.Visible && timeline.Entries.Count == 3, "GTL portraits");
+                        FeedFromNetwork(account, "GTL|42|43|-7");
+                        PumpUntil(() => timeline.Visible && timeline.Entries.Count == 3, "GTL portraits (packet received on the network thread)");
                         IReadOnlyList<TimelineEntry> entries = timeline.Entries;
                         Check(entries[0].FighterId == 42 && entries[1].FighterId == 43 && entries[2].FighterId == -7, "Timeline order differs from GTL");
                         Check(entries[0].Name == "Personnage de test" && entries[1].Name == "Allié de test" && entries[2].Life == 60 && entries[2].Team == 1,
