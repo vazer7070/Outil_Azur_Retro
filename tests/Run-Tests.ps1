@@ -86,6 +86,7 @@ try {
     # Bot sur un vrai StarLoco local (deux comptes inventés, sans base de test) : réussi sans rien lancer si AZUR_STARLOCO_LOGIN
     # n'est pas défini ; avec le serveur, prévoir -TestTimeoutSeconds 300 (voir tests/README.md).
     $azurTests += 'BotStarLocoLiveSmoke'
+    $azurTests += 'BotAnimationQueueSmoke'
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'
