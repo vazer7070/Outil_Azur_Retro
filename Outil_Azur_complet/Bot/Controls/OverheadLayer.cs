@@ -135,7 +135,8 @@ namespace Outil_Azur_complet.Bot.Controls
                 case FightMonsterActor monster:
                     return new OverheadContent
                     {
-                        Text = monster.DisplayName + (fightRunning && monster.Life.HasValue ? " (" + Int(monster.Life.Value) + ")" : " (" + Int(monster.Level) + ")"),
+                        Text = monster.DisplayName + (fightRunning && monster.Life.HasValue ? " (" + Int(monster.Life.Value) + ")"
+                            : monster.Level > 0 ? " (" + Int(monster.Level) + ")" : string.Empty),
                         Color = AlignmentColor(MonsterAlignment(monster.TemplateId))
                     };
                 case MerchantActor merchant:

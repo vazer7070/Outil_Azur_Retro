@@ -125,6 +125,9 @@ internal static class BotLangDataSmoke
         LangData.MonsterGrade grade = LangData.Monster.Grade(9, 2);
         Check(grade != null && grade.Level == 4 && grade.Resistances.Length == 7 && grade.Resistances[0] == 2 && LangData.Monster.Grade(9, 6) == null, "grade de monstre");
         Check(LangData.Monster.Grade(9, 1).Resistances[1] == -2 && LangData.Monster.Gfx(9) == 1500, "résistance négative / gfx");
+        var fighter = (Tool_BotProtocol.Game.Maps.Entities.FightMonsterActor)Tool_BotProtocol.Game.Maps.GmParser
+            .Parse("GM|+6;1;0;-8;9;-2;1500^100;2;-1;-1;-1;0,0,0,0;50;6;3;1", true).Entries.Single().Actor;
+        Check(fighter.Grade == 2 && fighter.Level == 4, "niveau d'un monstre en combat (grade 2) : " + fighter.Level);
         Equal("Épée fictive", LangData.Item.Name(9), "nom d'objet (I.us)");
         Equal("Blé", LangData.Item.Name(10), "nom d'objet sans l'espace finale d'items_fr");
         Equal("Lame fictive.", LangData.Item.Description(9), "description d'objet");

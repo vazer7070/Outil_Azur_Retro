@@ -243,6 +243,8 @@ namespace Tool_BotProtocol.Game.Maps
             if (!TryInt(f[4], out int template)) { error = "modèle de monstre illisible"; return null; }
             var monster = new FightMonsterActor(0, template) { IsCreature = type == -1 };
             monster.Grade = OptionalInt(Field(f, 7)) ?? 0;
+            // Le GM de combat ne porte que le grade : comme le client (Level = monsters_fr[id].g<grade>.l), le niveau vient du grade.
+            monster.Level = Tool_BotProtocol.Game.Data.LangData.Monster.Grade(template, monster.Grade)?.Level ?? 0;
             monster.Color1 = Field(f, 8, "-1"); monster.Color2 = Field(f, 9, "-1"); monster.Color3 = Field(f, 10, "-1");
             monster.AccessoriesRaw = Field(f, 11);
             monster.Accessories = ActorAccessory.ParseList(monster.AccessoriesRaw);
