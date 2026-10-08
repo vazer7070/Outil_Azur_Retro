@@ -452,6 +452,8 @@ namespace Tool_BotProtocol.Game.Data
         public static class Text
         {
             public static bool Has(string key) => key != null && Find("lang", "texte", key) != null;
+            /// <summary><c>Lang.getConfigText</c> : valeur brute d'une entrée <c>&lt;config&gt;</c> de <c>lang.xml</c>, null si elle manque.</summary>
+            public static string Config(string key) => key == null ? null : Attribute("lang", "config", key, "valeur");
             /// <summary>
             /// <c>Lang.getText</c> : valeur de la clé avec <c>%1</c>…<c>%n</c> remplacés dans l'ordre ; « !CLÉ! » si la clé
             /// manque comme dans le client ; la clé (suivie des paramètres) si <c>lang.xml</c> n'est pas chargé.

@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Tool_BotProtocol.Game.Accounts;
+using Tool_BotProtocol.Game.Data;
 using Tool_BotProtocol.Game.Exchanges;
 using Tool_BotProtocol.Game.Maps.Interfaces;
 using Tool_BotProtocol.Game.NPC;
@@ -15,7 +17,11 @@ namespace Tool_BotProtocol.Game.Interactions
     {
         public int TemplateId { get; internal set; }
         public string Stats { get; internal set; } = string.Empty;
-        /// <summary>Prix transmis en troisième champ ; null lorsque le serveur ne l'envoie pas (StarLoco omet un prix nul).</summary>
+        /// <summary>
+        /// Prix unitaire affiché par le client 1.34 : prix du modèle (<c>items.xml</c>, attribut <c>prix</c>) multiplié par
+        /// <c>BUY_PRICE_MULTIPLICATOR</c> (<c>Item.price</c>, le troisième champ de <c>EL</c> n'étant pas lu). Sans fichiers de
+        /// langue, prix transmis en troisième champ ; null si aucun des deux n'est connu (StarLoco n'envoie pas ce champ).
+        /// </summary>
         public int? Price { get; internal set; }
         /// <summary>Nom depuis <c>BotObjets</c>, sinon « Objet n° X ».</summary>
         public string Name { get; internal set; } = string.Empty;
@@ -122,12 +128,28 @@ namespace Tool_BotProtocol.Game.Interactions
                 if (!int.TryParse(fields[0], out int templateId)) continue;
                 var article = new ShopArticle { TemplateId = templateId, Stats = fields.Length > 1 ? fields[1] : string.Empty,
                     Name = InventoryObjects.DisplayName(templateId) };
-                if (fields.Length > 2 && int.TryParse(fields[2], out int price)) article.Price = price;
+                article.Price = ClientPrice(templateId);
+                if (!article.Price.HasValue && fields.Length > 2 && int.TryParse(fields[2], out int price)) article.Price = price;
                 list.Add(article);
             }
             articles = list;
             Log(list.Count + " article(s) en boutique.");
             Notify();
+        }
+
+        /// <summary>
+        /// <c>Item.price</c> du client pour une boutique PNJ : <c>Math.round(p × BUY_PRICE_MULTIPLICATOR)</c>, positif ou nul ;
+        /// null sans prix du modèle dans les fichiers de langue (multiplicateur 1 s'il manque).
+        /// </summary>
+        internal static int? ClientPrice(int templateId)
+        {
+            int? unit = LangData.Item.Price(templateId);
+            if (!unit.HasValue) return null;
+            double multiplicator = 1;
+            string configured = LangData.Text.Config("BUY_PRICE_MULTIPLICATOR");
+            if (configured != null && double.TryParse(configured, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed)) multiplicator = parsed;
+            double value = Math.Floor(unit.Value * multiplicator + 0.5);
+            return value <= 0 ? 0 : value >= int.MaxValue ? int.MaxValue : (int)value;
         }
 
         /// <summary><c>EBK</c>/<c>EBE</c> : achat accepté ou refusé ; les objets et kamas arrivent par OAK/OQ/As.</summary>
