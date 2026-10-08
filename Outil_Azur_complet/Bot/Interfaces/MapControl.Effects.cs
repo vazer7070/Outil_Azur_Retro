@@ -45,7 +45,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
 
         /// <summary>
         /// Condition « carte affichée », injectable (tests : la carte se dessine dans un Bitmap, hors de toute fenêtre).
-        /// Par défaut : poignée créée, contrôle visible et fenêtre non réduite.
+        /// Par défaut : poignée créée, contrôle visible dans une fenêtre affichée et non réduite.
         /// </summary>
         public Func<bool> MapShown
         {
@@ -76,8 +76,9 @@ namespace Outil_Azur_complet.Bot.Interfaces
         private bool DefaultMapShown()
         {
             if (IsDisposed || !IsHandleCreated || !Visible) return false;
+            // Contrôle détaché de toute fenêtre (Mono crée parfois la poignée dès la construction) : rien n'est affiché.
             Form form = FindForm();
-            return form == null || form.WindowState != FormWindowState.Minimized;
+            return form != null && form.Visible && form.WindowState != FormWindowState.Minimized;
         }
 
         /// <summary>Famille d'un événement visuel (aiguillage de <see cref="ShowVisual"/>).</summary>

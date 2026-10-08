@@ -92,6 +92,9 @@ namespace Outil_Azur_complet.Bot.Controls
                 // libgdiplus ignore la transformation de la vue avec DrawImage(PointF[]…), pas avec un rectangle.
                 graphics.TranslateTransform(mirrored ? target.Right : target.Left, target.Top);
                 graphics.ScaleTransform((mirrored ? -1 : 1) * target.Width / source.Width, target.Height / source.Height);
+                // Avec TileFlipXY, libgdiplus dessine la bande depuis la case jusqu'au bord de l'image (images suivantes
+                // comprises) : le dessin est limité au cadre de la case.
+                graphics.IntersectClip(new RectangleF(0, 0, source.Width, source.Height));
                 graphics.DrawImage(sheet.Image, new Rectangle(0, 0, source.Width, source.Height), source.X, source.Y, source.Width, source.Height,
                     GraphicsUnit.Pixel, attributes);
             }
