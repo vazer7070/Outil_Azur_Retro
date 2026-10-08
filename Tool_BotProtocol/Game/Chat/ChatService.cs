@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Tool_BotProtocol.Game.Accounts;
+using Tool_BotProtocol.Game.Combats;
 using Tool_BotProtocol.Utils.Interfaces;
 
 namespace Tool_BotProtocol.Game.Chat
@@ -115,6 +116,11 @@ namespace Tool_BotProtocol.Game.Chat
         public event Action<long, int> SmileyReceived;
         /// <summary>Émote jouée par un acteur (<c>eUK&lt;acteur&gt;|&lt;émote&gt;</c>, 0 = aucune).</summary>
         public event Action<long, int> EmoteReceived;
+        /// <summary>
+        /// Même paquet <c>eUK</c> pour l'affichage (lot AN1) : <see cref="VisualEvent.Value"/> = émote,
+        /// <see cref="VisualEvent.DurationMs"/> = troisième champ facultatif (absent chez StarLoco, donc <c>null</c>).
+        /// </summary>
+        public event Action<VisualEvent> EmoteVisualReceived;
         /// <summary>Liste des émotes disponibles modifiée (<c>eL</c>, <c>eA</c>, <c>eR</c>).</summary>
         public event Action EmotesChanged;
         /// <summary>Message serveur en fenêtre (<c>M1</c>).</summary>
@@ -516,6 +522,11 @@ namespace Tool_BotProtocol.Game.Chat
                 else if (account.AccountStates == AccountStates.REGENERATION) account.AccountStates = AccountStates.CONNECTED_INACTIVE;
             }
             Raise(EmoteReceived, handler => handler(actor, emote));
+            int duration;
+            int? durationMs = parts.Length > 2 && int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out duration) ? duration : (int?)null;
+            bool inFight = (account?.Game?.Fight?.IsInFight ?? false) || (account?.IsFighting() ?? false);
+            var visual = new VisualEvent(VisualSource.Emote, 0, actor, actor, -1, parts, emote, durationMs, inFight: inFight);
+            Raise(EmoteVisualReceived, handler => handler(visual));
         }
 
         /// <summary><c>eUE</c> : refus d'émote du client (jamais envoyé par StarLoco).</summary>
