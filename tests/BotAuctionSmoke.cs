@@ -26,7 +26,7 @@ using Tool_BotProtocol.Game.Session;
 // Hôtel de vente (lot F5) selon BigStoreBuy / BigStoreSell / Exchange du client 1.34 et GameClient.bigStore, request,
 // movementItemOrKamas de StarLoco, sur un serveur fictif local avec des textes du client synthétiques : ouverture par le menu du PNJ
 // (ER11|<pnj>, ER10|<pnj>), Im183, ECK11 (quantités, catégories, taxe, niveau et lots max, pnj -1, durée), EHT → EHL, EHP, EHl → lignes
-// et prix x1/x10/x100, EHB avec ses refus locaux (ligne, lot, prix, kamas) et les réponses EHm-/EHm+/Im068/Im172, EHS/EHSK, EHM±,
+// et prix x1/x10/x100, EHB avec ses refus locaux (ligne, lot, prix, kamas) et les réponses EHm-/EHm+/Im068/Im172/cs, EHS/EHSK, EHM±,
 // changement de mode ER10|-1 → ECK10 + EL, EMO+ avec ses refus locaux (type, niveau, équipé, quantité, prix, lots max, taxe) et les
 // réponses EmK+ puis EL, Im058/Im176, EMO- → EmK-, paquets mal formés sans exception, EV, Clear ; puis les volets Hôtel de vente
 // (achat et vente) dans une fenêtre de jeu invisible : catégories, modèles, lignes, boîtes DO_U_BUY_ITEM_BIGSTORE et
@@ -239,6 +239,12 @@ internal static class BotAuctionSmoke
         Check(Sent(hdv.BuyAsync(502, 2, 1500))); Expect(peer, "EHB502|2|1500", "Third buy was not sent");
         Feed(account, "Im172"); Check(!hdv.IsBuyPending && hdv.LastMessage.Contains("Im172") && hdv.LastMessage.Contains("Plus disponible à ce prix (texte de test)"), "Im172 did not release the purchase");
         Feed(account, "Im068"); Check(hdv.LastMessage.Contains("Im172"), "Im068 without a pending purchase changed the message");
+        // StarLoco refuse aussi EHB par un simple cs (lot déjà vendu, prix changé, propre objet) : l'achat suivant est libéré.
+        Check(Sent(hdv.BuyAsync(502, 2, 1500))); Expect(peer, "EHB502|2|1500", "Fourth buy was not sent");
+        Feed(account, "cs<font color=\"#C10000\">Tu ne peux pas acheter ton propre objet.</font>");
+        Check(!hdv.IsBuyPending && hdv.LastMessage.Contains("Tu ne peux pas acheter ton propre objet."), "A cs refusal did not release the purchase: " + hdv.LastMessage);
+        Feed(account, "cs<font color=\"#C10000\">Annonce du serveur</font>");
+        Check(!hdv.LastMessage.Contains("Annonce"), "A cs without a pending purchase was taken as a refusal");
         Feed(account, "EHm+777|2007||5||"); Check(hdv.Lines.Count == 2, "EHm+ of another template was added to the current lines");
 
         // EHS : catégorie absente refusée ; EHS (introuvable) puis EHSK suivi de EHL, EHP, EHl ; EHM- retire un modèle, EHM+ l'ajoute.
