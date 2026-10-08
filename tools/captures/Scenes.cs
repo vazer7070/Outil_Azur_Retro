@@ -33,7 +33,13 @@ internal static partial class Scenes
         foreach (string warning in LangData.LoadWarnings.Take(5)) BotCaptures.Note("textes du client : " + warning);
         string spells = Path.Combine(BotCaptures.Bin, "ressources", "Bot", "BotSorts");
         if (Directory.Exists(spells)) LoadSpells(spells);
-        Tool_BotProtocol.Game.Monstres.Monstres.ClientNameResolver =id => LangData.Monster.Has(id) ? LangData.Monster.Name(id) : null;
+        Tool_BotProtocol.Game.Monstres.Monstres.ClientNameResolver = id => LangData.Monster.Has(id) ? LangData.Monster.Name(id) : null;
+        // Messages Im du serveur traduits par les textes du client, comme à l'étape « Textes du client » du chargement.
+        Tool_BotProtocol.Game.Session.ServerMessages.Resolver = (type, id, args) =>
+        {
+            string text = LangData.Text.Im(type, id, args);
+            return string.IsNullOrEmpty(text) || (text.StartsWith("!") && text.EndsWith("!")) ? null : text;
+        };
         // PNJ : noms inventés (le menu reprend les actions des textes du client pour ces modèles).
         PNJ.AllPNJ[546] = new NamedNpc(546, "Marchande des ressources");
         PNJ.AllPNJ[23] = new NamedNpc(23, "Gardien du puits");

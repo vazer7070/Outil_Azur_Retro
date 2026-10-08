@@ -55,6 +55,10 @@ internal static class BotCaptures
             return File.Exists(path) ? Assembly.LoadFrom(path) : null;
         };
         Console.OutputEncoding = new UTF8Encoding(false);
+        // Nombres et dates comme sur un Windows français, quelle que soit la langue du système qui fait les captures.
+        CultureInfo french = CultureInfo.GetCultureInfo("fr-FR");
+        CultureInfo.DefaultThreadCurrentCulture = CultureInfo.DefaultThreadCurrentUICulture = french;
+        Thread.CurrentThread.CurrentCulture = Thread.CurrentThread.CurrentUICulture = french;
         if (args.Length == 0) { Console.Error.WriteLine("Usage : BotCaptures.exe <dossier de sortie> [vue…]"); return 2; }
         output = Path.GetFullPath(args[0]); Directory.CreateDirectory(output);
         only = args.Length > 1 ? new HashSet<string>(args.Skip(1), StringComparer.OrdinalIgnoreCase) : null;

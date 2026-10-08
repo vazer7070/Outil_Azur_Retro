@@ -71,9 +71,11 @@ internal static partial class Scenes
             try
             {
                 BotCaptures.Place(form, BotCaptures.WindowSize); form.Show(); BotCaptures.Pump(300);
+                Cursor.Position = new Point(1275, 1020); // souris hors de la fenêtre (pas de cellule survolée)
                 Feed(account, Stats()); Feed(account, Spells); Feed(account, "Ow642|1450");
                 Feed(account, "GDM|" + MapId + "|0711291819|cle");
                 Feed(account, Actors());
+                Feed(account, "GDK");
                 Feed(account, "fC1");
                 BotCaptures.PumpUntil(() => form.Map != null && !form.Map.ArtworkStatus.StartsWith("Chargement", StringComparison.Ordinal), 30);
                 BotCaptures.Pump(2500); // sprites des acteurs lus sur le pool de fils
@@ -109,7 +111,7 @@ internal static partial class Scenes
             "cMKT|4203|Herboriste-Demo|Oui, une douzaine.",
             "cMK!|5003|Milicien-Demo|Prisme attaqué en [5,-17] !",
             "cMK|4202|Sentinelle-Demo|*salue*",
-            "Im0153;Herboriste-Demo",
+            "Im0143;Herboriste-Demo", // « %1 est en ligne. » (textes du client)
         }) Feed(account, packet);
         form.Chat.Expanded = true; BotCaptures.Pump(600);
         BotCaptures.Shot("05-chat", form);
@@ -133,5 +135,7 @@ internal static partial class Scenes
         BotCaptures.Pump(300);
         BotCaptures.Shot("07-menu-pnj", form);
         menu.Close(); BotCaptures.Pump(200);
+        // Souris hors de la fenêtre : ni survol de cellule, ni chemin prévisualisé, ni infobulle sur les vues suivantes.
+        Cursor.Position = new Point(1275, 1020); BotCaptures.Pump(300);
     }
 }
