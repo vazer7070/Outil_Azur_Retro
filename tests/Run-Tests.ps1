@@ -83,6 +83,9 @@ try {
     $azurTests += 'BotMountSmoke'
     $azurTests += 'BotQuestsSmoke'
     $azurTests += 'BotStatsSheetSmoke'
+    # Bot sur un vrai StarLoco local (deux comptes inventés, sans base de test) : réussi sans rien lancer si AZUR_STARLOCO_LOGIN
+    # n'est pas défini ; avec le serveur, prévoir -TestTimeoutSeconds 300 (voir tests/README.md).
+    $azurTests += 'BotStarLocoLiveSmoke'
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'

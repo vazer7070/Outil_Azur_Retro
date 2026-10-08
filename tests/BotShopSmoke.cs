@@ -154,6 +154,23 @@ internal static class BotShopSmoke
                         "EL article with price was not read");
                     Check(shop.Articles[1].Price == null && shop.Articles[1].Name == "Épée fictive" && shop.Articles[2].Name == "Objet n° 2004" && shop.Articles[2].Price == 30,
                         "EL without price or without BotObjets metadata was not read");
+                    // Comme Item.price du client (troisième champ de EL non lu) : prix du modèle × BUY_PRICE_MULTIPLICATOR ;
+                    // StarLoco n'envoie pas ce champ. Le prix transmis ne sert que pour un modèle absent des textes du client.
+                    string shopLang = Path.Combine(TestPaths.Work, "bot-shop-lang-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(shopLang);
+                    File.WriteAllText(Path.Combine(shopLang, "lang.xml"), "<?xml version='1.0' encoding='utf-8'?>\n<BotLang famille=\"lang\" langue=\"fr\" version=\"1\" source=\"lang_fr_1.swf\">\n"
+                        + "<config cle=\"BUY_PRICE_MULTIPLICATOR\" valeur=\"1.5\" />\n</BotLang>\n", new UTF8Encoding(false));
+                    File.WriteAllText(Path.Combine(shopLang, "items.xml"), "<?xml version='1.0' encoding='utf-8'?>\n<BotLang famille=\"items\" langue=\"fr\" version=\"1\" source=\"items_fr_1.swf\">\n"
+                        + "<objet id=\"2001\" nom=\"Potion fictive\" type=\"12\" prix=\"41\" />\n</BotLang>\n", new UTF8Encoding(false));
+                    try
+                    {
+                        Check(Tool_BotProtocol.Game.Data.LangData.Load(shopLang) == 2, "Synthetic shop lang files not loaded");
+                        Feed(account, "EL2001;;50|2004;;30|2002;;|");
+                        Check(shop.Articles.Count == 3 && shop.Articles[0].Price == 62 && shop.Articles[1].Price == 30 && shop.Articles[2].Price == null,
+                            "EL prices do not follow the client rule (template price × BUY_PRICE_MULTIPLICATOR, transmitted price as fallback)");
+                    }
+                    finally { Tool_BotProtocol.Game.Data.LangData.Clear(); }
+                    Feed(account, "EL2001;7d#5#0#0#;50|2002;;|2004;;30|bad|");
+                    Check(shop.Articles.Count == 3 && shop.Articles[0].Price == 50 && shop.Articles[1].Price == null, "EL after unloading the client texts");
                     Check(!Result(shop.BuyAsync(9999, 1)).Sent && !Result(shop.BuyAsync(2001, 0)).Sent && !Result(shop.BuyAsync(2001, 100)).Sent,
                         "Buy accepted an unlisted article, an empty quantity or more than the character's kamas");
                     NoPacket(peer, "Refused purchases reached the server");

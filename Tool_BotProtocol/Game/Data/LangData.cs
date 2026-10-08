@@ -35,6 +35,8 @@ namespace Tool_BotProtocol.Game.Data
         /// <summary>Familles chargées (<c>dialog</c>, <c>npc</c>, <c>maps</c>…).</summary>
         public static string[] Families => Volatile.Read(ref current).Families.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray();
         public static bool IsLoaded(string family) => family != null && Volatile.Read(ref current).Families.ContainsKey(family);
+        /// <summary>Jeu de textes chargé : change à chaque <see cref="Load"/> ou <see cref="Clear"/> (clé des caches dérivés).</summary>
+        internal static object CurrentSnapshot => Volatile.Read(ref current);
         /// <summary>Numéro du SWF de langue d'origine (attribut <c>version</c>), ou <c>null</c>.</summary>
         public static string Version(string family) => Volatile.Read(ref current).Families.TryGetValue(family ?? string.Empty, out FamilyData data) ? data.Version : null;
         /// <summary>Identifiants d'une table (ordre ordinal), vide si la famille ou la table est absente.</summary>
@@ -450,6 +452,8 @@ namespace Tool_BotProtocol.Game.Data
         public static class Text
         {
             public static bool Has(string key) => key != null && Find("lang", "texte", key) != null;
+            /// <summary><c>Lang.getConfigText</c> : valeur brute d'une entrée <c>&lt;config&gt;</c> de <c>lang.xml</c>, null si elle manque.</summary>
+            public static string Config(string key) => key == null ? null : Attribute("lang", "config", key, "valeur");
             /// <summary>
             /// <c>Lang.getText</c> : valeur de la clé avec <c>%1</c>…<c>%n</c> remplacés dans l'ordre ; « !CLÉ! » si la clé
             /// manque comme dans le client ; la clé (suivie des paramètres) si <c>lang.xml</c> n'est pas chargé.

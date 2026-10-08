@@ -126,11 +126,19 @@ internal static class BotFightProtocolSmoke
                     await Feed(account, "GTL|1|2"); await Feed(account, "GTR42");
                     Check(fight.TurnOrder.Count == 0 && peer.Available == 0, "Turn packets applied or answered outside a fight");
 
-                    // Placement: options, kick, flag.
+                    // Placement: options, kick, flag. GJK empties the map like Game.onJoin (cleanMap(1)): only the fighters' GM come back.
+                    await Feed(account, "GM|+2;4;0;-1;555;-4;9001^80x120;1;ff;-1;-1;2a,,,;2;3|+6;1;0;77;Passerby;1;10^100;0");
+                    await Feed(account, "Gc+88;0|43;6;0;-1|-1;7;1;-1"); await Feed(account, "GDO+5;7655;0");
+                    Check(account.Game.Map.GetActor(-1) != null && account.Game.Map.GetActor(77) != null && account.Game.Map.FightSwords.Count == 1
+                        && account.Game.Map.GroundObjects.Count == 1, "Map actors before GJK not known");
                     await Feed(account, "GJK2|1|1|0|30000|0");
+                    Check(!account.Game.Map.AllActors.Any() && account.Game.Map.Self == null && account.Game.Map.FightSwords.Count == 0
+                        && account.Game.Map.GroundObjects.Count == 0, "GJK kept the actors of the map (NPC, players, swords, ground objects)");
                     await Feed(account, "GP" + Hash.Get_Cell_Char(0) + Hash.Get_Cell_Char(3) + "|" + Hash.Get_Cell_Char(9) + "|0");
                     Check(fight.IsPlacement && fight.TeamOptions.Count == 0, "Join keeps options of another fight");
-                    await Feed(account, "GM|+3;1;0;43;Ally;1;10^100;0"); await Feed(account, "GIC|42;3;1");
+                    await Feed(account, "GM|+0;1;0;42;Synthetic;1;10^100;0|+3;1;0;43;Ally;1;10^100;0"); await Feed(account, "GIC|42;3;1");
+                    Check(account.Game.Map.AllActors.Select(actor => actor.Id).OrderBy(id => id).SequenceEqual(new long[] { 43 })
+                        && account.Game.Map.Self != null && account.Game.Map.Self.Id == 42, "Fighters' GM after GJK did not rebuild the map actors");
                     Check(fight.Fighters.ContainsKey(43) && account.Game.character.Cell.CellID == 3, "Placement fighters not known");
                     Check((await fight.ToggleOptionAsync(FightOptions.BlockJoiner)).Sent && await Within(Read(peer)) == "fN", "fN wire");
                     Check((await fight.ToggleOptionAsync(FightOptions.BlockSpectators)).Sent && await Within(Read(peer)) == "fS", "fS wire");
@@ -152,7 +160,11 @@ internal static class BotFightProtocolSmoke
 
                     // Turn order and timeline.
                     await Feed(account, "GS");
+                    // A monster fighter (type -2) is named from monsters.xml like the client, not by its template id.
+                    Tool_BotProtocol.Game.Monstres.Monstres.ClientNameResolver = template => template == 101 ? "Bouftou synthétique" : null;
                     await Feed(account, "GM|+9;1;0;-7;101;-2;1100^100;1;-1;-1;-1;0,0,0,0;60;4;2;1");
+                    Tool_BotProtocol.Game.Monstres.Monstres.ClientNameResolver = null;
+                    Check(fight.Fighters[-7].Name == "Bouftou synthétique", "Monster fighter not named from the client texts: " + fight.Fighters[-7].Name);
                     await Feed(account, "GTL|1|2|3"); Check(fight.TurnOrder.SequenceEqual(new[] { 1, 2, 3 }), "GTL|1|2|3 order");
                     await Feed(account, "GTL1|2|3"); Check(fight.TurnOrder.SequenceEqual(new[] { 1, 2, 3 }), "GTL1|2|3 order");
                     await Feed(account, "GTL|42|-7|43"); await Feed(account, "GTL|42|x");
@@ -275,6 +287,8 @@ internal static class BotFightProtocolSmoke
                     Check(giveUp.Sent && await Within(Read(peer)) == "GQ" && giveUp.Message.Contains("mort"), "GQ in an active fight");
                     int journalBeforeEnd = fight.Journal.Count;
                     await Feed(account, "GE12000;1|42|0|2;42;Synthetic;10;0;1000;1500;2000;500;0;0;311~2,312~1;150|0;-7;101;5;1;;;;;;;;");
+                    // Comme GameManager.terminateFight du client : GE → Game.onLeave → create() ; StarLoco renvoie alors la carte.
+                    Check(await Within(Read(peer)) == "GC1", "GE is not followed by GC1");
                     FightResult pvm = fight.LastResult;
                     Check(pvm != null && pvm.DurationMilliseconds == 12000 && pvm.StarBonus == 1 && pvm.InitiatorId == 42 && pvm.FightType == 0
                         && pvm.Winners.Count == 1 && pvm.Losers.Count == 1 && pvm.IsWinner(42) && !pvm.IsWinner(-7), "GE header/categories");
@@ -287,6 +301,7 @@ internal static class BotFightProtocolSmoke
                     // PvP result (type 1: honour then experience), no star bonus.
                     await Feed(account, "GJK2|1|1|0|30000|1"); Check(fight.LastResult == null && fight.Journal.Count == 0, "New fight keeps the previous result");
                     await Feed(account, "GE5000|42|1|2;42;Synthetic;10;0;0;100;200;10;1;0;0;;0;1000;1500;2000;50");
+                    Check(await Within(Read(peer)) == "GC1", "PvP GE is not followed by GC1");
                     FightResult pvp = fight.LastResult; FightResultEntry pvpOwn = pvp?.Find(42);
                     Check(pvp != null && pvp.FightType == 1 && pvp.StarBonus == null && pvpOwn.WonHonour == 10 && pvpOwn.Rank == 1 && pvpOwn.Honour == 100
                         && pvpOwn.WonExperience == 50 && pvpOwn.Items.Count == 0 && pvpOwn.Kamas == 0, "GE PvP line");
@@ -294,6 +309,8 @@ internal static class BotFightProtocolSmoke
                     // A malformed GE still ends the fight (the client always leaves the fight screen).
                     await Feed(account, "GJK2|1|1|0|30000|0"); await Feed(account, "GEabc");
                     Check(!fight.IsInFight && fight.Phase == CombatPhase.Finished && fight.LastResult == null && results == 2, "Malformed GE");
+                    Check(await Within(Read(peer)) == "GC1", "Malformed GE is not followed by GC1");
+                    await Feed(account, "GE5000|42|1|"); Check(peer.Available == 0, "GE outside a fight sent GC1");
 
                     // GQ during placement, then GV.
                     await Feed(account, "GJK2|1|1|0|30000|0");

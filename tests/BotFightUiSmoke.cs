@@ -61,6 +61,8 @@ internal static class BotFightUiSmoke
     }
     private static void Complete(Task task) { PumpUntil(() => task.IsCompleted, "task"); task.GetAwaiter().GetResult(); }
     private static void Feed(Accounts account, string packet) { Complete(MessagesReception.ReceptionAsync(account.Connexion, packet)); }
+    /// <summary>Paquet traité sur un autre fil, comme ceux du serveur : les contrôles créés masqués doivent quand même se mettre à jour.</summary>
+    private static void FeedFromNetwork(Accounts account, string packet) { Complete(Task.Run(() => MessagesReception.ReceptionAsync(account.Connexion, packet))); }
     private static string Read(Socket socket)
     {
         PumpUntil(() => socket.Available > 0, "packet");
@@ -127,7 +129,8 @@ internal static class BotFightUiSmoke
                         Check(form.Panels.Get<FightResultPanel>() != null && !form.Panels.Visible, "Result panel is not registered or the drawer is open");
 
                         // ---------------------------------------------------------------- placement : menu, options, drapeau
-                        Feed(account, "GJK2|1|1|0|30000|0");
+                        FeedFromNetwork(account, "GJK2|1|1|0|30000|0");
+                        PumpUntil(() => menu.Visible && options.Visible, "placement menu and options after GJK received on the network thread");
                         Feed(account, "GP" + Hash.Get_Cell_Char(0) + Hash.Get_Cell_Char(3) + "|" + Hash.Get_Cell_Char(9) + "|0");
                         Feed(account, "GM|+0;1;0;42;Personnage de test;1;10^100;0|+3;1;0;43;Allié de test;1;10^100;0"); Feed(account, "GIC|42;3;1");
                         PumpUntil(() => menu.Visible && options.Visible && combatTools.Visible, "placement controls");
@@ -170,8 +173,8 @@ internal static class BotFightUiSmoke
                         Check(!options.ButtonFor(FightOptions.NeedHelp).Visible && options.ButtonFor(FightOptions.BlockSpectators).Visible && options.FlagButton.Visible
                             && options.TacticButton.Visible && !options.TacticButton.Enabled, "Running fight keeps only spectators, flag and (disabled) tactic mode");
                         Check(!timeline.Visible && timeline.Entries.Count == 0, "Timeline shown before GTL");
-                        Feed(account, "GTL|42|43|-7");
-                        PumpUntil(() => timeline.Visible && timeline.Entries.Count == 3, "GTL portraits");
+                        FeedFromNetwork(account, "GTL|42|43|-7");
+                        PumpUntil(() => timeline.Visible && timeline.Entries.Count == 3, "GTL portraits (packet received on the network thread)");
                         IReadOnlyList<TimelineEntry> entries = timeline.Entries;
                         Check(entries[0].FighterId == 42 && entries[1].FighterId == 43 && entries[2].FighterId == -7, "Timeline order differs from GTL");
                         Check(entries[0].Name == "Personnage de test" && entries[1].Name == "Allié de test" && entries[2].Life == 60 && entries[2].Team == 1,
@@ -186,6 +189,7 @@ internal static class BotFightUiSmoke
                         Check(entries[1].IsHighlighted && !entries[1].IsCurrent && !entries[0].IsHighlighted, "GTR did not frame the announced fighter");
                         Feed(account, "GTS43|30000");
                         PumpUntil(() => timeline.CurrentFighterId == 43, "GTS current");
+                        PumpUntil(() => ((Label)Get(form, "summary")).Text.StartsWith("Tour de Allié de test"), "status bar names the fighter whose turn it is");
                         entries = timeline.Entries;
                         Check(entries[1].IsCurrent && entries[1].IsHighlighted && timeline.RemainingMilliseconds > 20000 && timeline.RemainingMilliseconds <= 30000,
                             "GTS43|30000 (two fields) did not start the chrono");
@@ -228,6 +232,7 @@ internal static class BotFightUiSmoke
                         PumpUntil(() => options.FlagButton.Visible && options.FlagButton.Enabled, "flag button after GS");
                         options.FlagButton.PerformClick(); Check(form.Map.FlagMode, "Flag mode not armed before GE");
                         Feed(account, "GE120000;15|42|0|2;42;Personnage de test;25;0;100;150;200;320;0;0;311~2,312~1;40|0;-7;101;4;1;;;;;;;;|zz;1");
+                        Expect(peer, "GC1", "GE is not followed by GC1");
                         PumpUntil(() => form.Panels.Current is FightResultPanel, "result panel");
                         var result = (FightResultPanel)form.Panels.Current;
                         Check(result.Result != null && result.Result.StarBonus == 15 && result.Result.Rejected.Count == 1, "Result not handed to the panel");
@@ -247,6 +252,7 @@ internal static class BotFightUiSmoke
                         // ---------------------------------------------------------------- résultat PvP : colonnes d'honneur
                         Feed(account, "GJK2|0|1|0|30000|1"); Feed(account, "GS");
                         Feed(account, "GE5000|42|1|2;42;Personnage de test;25;0;0;120;500;20;3;0;0;;10;100;150;200;80|0;43;Allié de test;30;1;0;50;500;-20;2;5;5;;0;0;0;0;0");
+                        Expect(peer, "GC1", "PvP GE is not followed by GC1");
                         PumpUntil(() => form.Panels.Current is FightResultPanel, "pvp result panel");
                         result = (FightResultPanel)form.Panels.Current; winner = result.Winners.Items[0]; loser = result.Losers.Items[0];
                         Check(result.Winners.Columns.Count == 8 && result.Winners.Columns[3].Text == "Points d'honneur" && result.Winners.Columns[6].Text == "Points de déshonneur",
@@ -266,6 +272,7 @@ internal static class BotFightUiSmoke
 
                         // ---------------------------------------------------------------- GE illisible : fin sans volet
                         Feed(account, "GJK2|0|1|0|30000|0"); Feed(account, "GS"); Feed(account, "GEabc|1|0"); Application.DoEvents();
+                        Expect(peer, "GC1", "Unreadable GE is not followed by GC1");
                         Check(!fight.IsInFight && !(form.Panels.Current is FightResultPanel), "Unreadable GE opened the result panel or kept the fight");
                         form.Close();
                         Check(BotDialogs.OpenDialogs.Count == 0, "Dialogs stayed open after the window closed");

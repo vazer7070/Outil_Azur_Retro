@@ -374,6 +374,11 @@ namespace Tool_BotProtocol.Game.Combats
             string[] fields = payload.Split('|'); int state, viewing;
             if (fields.Length < 4 || !int.TryParse(fields[0], out state) || state < 1 || state > 3 || !int.TryParse(fields[3], out viewing)) return;
             account.Game.Manager.Mouvements.CancelForMapChange(); Clear(false);
+            // Game.onJoin appelle cleanMap(1) : les acteurs de la carte (PNJ, joueurs, groupes, épées, objets au sol) disparaissent
+            // et seuls les combattants reviennent par les GM qui suivent ; la carte complète revient avec GDM après GE puis GC1.
+            account.Game.PersoInWorld.Clear();
+            account.Game.Map.ClearActors();
+            account.Game.Map.GetEntitiesRefreshEvent();
             int cancel, menu, type;
             lock (sync)
             {
@@ -553,8 +558,11 @@ namespace Tool_BotProtocol.Game.Combats
 
         /// <summary><c>GV</c> : sortie du combat sans résultat (abandon, spectateur, exclusion).</summary>
         internal void Finish() { Finish(null); }
-        /// <summary><c>GE…</c> : fin du combat ; le résultat est conservé dans <see cref="LastResult"/>.</summary>
-        internal void Finish(string resultPayload)
+        /// <summary>
+        /// <c>GE…</c> : fin du combat ; le résultat est conservé dans <see cref="LastResult"/>. Renvoie vrai si un combat
+        /// en cours vient de se terminer (faux hors combat ou après fermeture du compte).
+        /// </summary>
+        internal bool Finish(string resultPayload)
         {
             FightResult result = resultPayload == null ? null : FightResult.Parse(resultPayload);
             if (resultPayload != null && result == null) Malformed("GE", resultPayload);
@@ -562,11 +570,11 @@ namespace Tool_BotProtocol.Game.Combats
                 account.Logger?.LogDanger("COMBAT", result.Rejected.Count + " ligne(s) du résultat de combat illisible(s), ignorée(s).");
             int self = account.Game.character.id;
             FightLogEntry[] kept;
-            lock (sync) { if (!InFight) return; kept = journal.ToArray(); }
+            lock (sync) { if (!InFight) return false; kept = journal.ToArray(); }
             Clear(false);
             lock (sync)
             {
-                if (disposed) return;
+                if (disposed) return false;
                 phase = CombatPhase.Finished; lastResult = result; journal.AddRange(kept);
                 FightResultEntry own = result?.Find(self);
                 lastMessage = own == null ? "Combat terminé." : own.Kind == FightResultKind.Winner ? "Combat terminé : victoire."
@@ -576,6 +584,7 @@ namespace Tool_BotProtocol.Game.Combats
             Changed();
             if (result != null) CombatResultReceived?.Invoke(result);
             CombatFinished?.Invoke();
+            return true;
         }
         public void UpdateFighterFromMap(string[] info)
         {
@@ -584,8 +593,10 @@ namespace Tool_BotProtocol.Game.Combats
             lock (sync)
             {
                 if (!InFight) return;
-                CombatFighter fighter = GetFighter(id); fighter.Name = info[4]; fighter.Type = type; fighter.CellId = cell; fighter.IsDead = false;
+                CombatFighter fighter = GetFighter(id); fighter.Type = type; fighter.CellId = cell; fighter.IsDead = false;
                 int value;
+                // Monstre (type -2) : le cinquième champ est son modèle ; le client affiche le nom de monsters.xml (getMonstersText).
+                fighter.Name = type == -2 && int.TryParse(info[4], out value) ? Monstres.Monstres.ResolveName(value) : info[4];
                 if (int.TryParse(info[6].Split('^')[0], out value)) fighter.Gfx = value;
                 if (int.TryParse(info[1], out value)) fighter.Orientation = value;
                 int lifeIndex = type > 0 ? 14 : type == -2 ? 12 : -1;

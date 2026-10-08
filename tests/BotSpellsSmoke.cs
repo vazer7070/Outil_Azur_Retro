@@ -3,11 +3,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Security;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
+using Tool_BotProtocol.Game.Data;
 using Tool_BotProtocol.Game.Perso.Spells;
 
 internal static class BotSpellsSmoke
@@ -96,8 +99,35 @@ internal static class BotSpellsSmoke
                     await MessagesReception.ReceptionAsync(first.Connexion, index % 2 == 0 ? "SL7~1~a;999~1~null;" : "SL7~2~b;");
                 await reader;
             }
+            LangLevels();
         }
-        finally { Spell.AllSpells = originalTemplates; }
-        Console.WriteLine("OK: StarLoco SL/SUK/SUE spell state, SLo kept apart from SL, per-character metadata/effect isolation, unknown metadata, repeated/empty lists, malformed packets and concurrent UI snapshots");
+        finally { Spell.AllSpells = originalTemplates; LangData.Clear(); }
+        Console.WriteLine("OK: StarLoco SL/SUK/SUE spell state, SLo kept apart from SL, per-character metadata/effect isolation, unknown metadata, repeated/empty lists, malformed packets, concurrent UI snapshots and combat stats from spells.xml before BotSorts");
+    }
+
+    /// <summary>
+    /// Comme le client 1.34 (<c>Spell.getSpellLevelText</c>), PA, portée, limites, effets et zones d'un niveau viennent de
+    /// <c>spells.xml</c> ; <c>BotSorts</c> (synthétique ici : 3 PA, portée 1-6) ne sert qu'aux niveaux absents ou sans textes.
+    /// </summary>
+    private static void LangLevels()
+    {
+        string lang = Path.Combine(TestPaths.Work, "bot-spells-lang-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(lang);
+        string level = "[[[99,9,11,null,0,0,\"1d3+8\"],[320,1,null,null,1,0,\"0d0+1\"]],[[99,11,13,null,0,0,\"1d3+10\"]],4,1,7,30,100,false,true,false,true,0,1,2,3,\"PaCbPb\",[],[],1,false]";
+        File.WriteAllText(Path.Combine(lang, "spells.xml"), "<?xml version='1.0' encoding='utf-8'?>\n<BotLang famille=\"spells\" langue=\"fr\" version=\"1\" source=\"spells_fr_1.swf\">\n"
+            + "<sort id=\"7\" nom=\"Flèche de test\" description=\"Sort fictif.\" niveau2=\"" + SecurityElement.Escape(level) + "\" />\n</BotLang>\n", new UTF8Encoding(false));
+        Check(LangData.Load(lang) == 1, "Synthetic spells.xml not loaded: " + string.Join(" / ", LangData.LoadWarnings));
+        SpellStats fromLang = Spell.ForCharacter(7, 2).GetStats();
+        Check(fromLang != null && fromLang.PA == 4 && fromLang.Min_portee == 1 && fromLang.Max_portee == 7 && !fromLang.IsInLine && fromLang.AvecLigneDeVue
+            && !fromLang.EmptyCell && fromLang.portee_modifiable && fromLang.PerTurn == 1 && fromLang.PerObjective == 2 && fromLang.Interval == 3,
+            "spells.xml did not replace the BotSorts PA, range or limits");
+        Check(fromLang.NormalEffect.Select(e => e.Id).SequenceEqual(new[] { 99, 320 }) && fromLang.CriticalEffect.Select(e => e.Id).SequenceEqual(new[] { 99 }),
+            "spells.xml effects were not split into normal and critical effects");
+        Check(fromLang.NormalEffect[0].ZoneEffet.Type == SpellActionZone.SOLO && fromLang.NormalEffect[1].ZoneEffet.Type == SpellActionZone.CERCLE
+            && fromLang.NormalEffect[1].ZoneEffet.taille == 1 && fromLang.CriticalEffect[0].ZoneEffet.Type == SpellActionZone.SOLO && fromLang.CriticalEffect[0].ZoneEffet.taille == 1,
+            "Effect zones do not follow the client order (normal effects, then critical effects)");
+        Check(Spell.ForCharacter(7, 3).GetStats().PA == 3, "A level missing from spells.xml did not fall back to BotSorts");
+        LangData.Clear();
+        Check(Spell.ForCharacter(7, 2).GetStats().PA == 3, "Combat stats kept the unloaded spells.xml values");
     }
 }

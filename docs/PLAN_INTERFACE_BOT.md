@@ -15,7 +15,7 @@ Règles suivies par tous les lots :
 - aucun compte, personnage, nom ou texte des dumps SQL dans le code ou les tests : les tests construisent des cartes, des acteurs et des textes synthétiques ;
 - chaque lot a son test autonome `tests/<Nom>Smoke.cs`, joué contre un serveur fictif local (boucle locale), et met à jour le guide du bot.
 
-**Limite commune à tout le chantier** : chaque fonction n’est vérifiée qu’avec un serveur fictif local qui envoie des paquets aux formats du client 1.34 et des sources StarLoco. Rien n’a encore été rejoué sur un vrai serveur StarLoco.
+**Limite commune à tout le chantier** : chaque fonction est vérifiée avec un serveur fictif local qui envoie des paquets aux formats du client 1.34 et des sources StarLoco. Seul `BotStarLocoLiveSmoke` rejoue une partie du jeu sur un vrai StarLoco local, avec deux comptes : connexion, création et entrée en jeu, même carte et déplacements vus par l’autre, changement de carte, chat général et privé, groupe, échange de kamas, ami, défi (placement, tours, déplacements, sort, dégâts, abandon, `GE`), combat contre un groupe de monstres, dialogue PNJ, achat en boutique et zaap.
 
 Les priorités étaient : P0 données, P1 carte, déplacements et interactions, P2 chat et petits menus, P3 autres fonctions de l’émulateur. Le plan compte 33 lots ; le travail de départ (B0 ci-dessous), fait avant le plan, est décrit avec eux pour que la liste soit complète. Une relecture de fin de chantier a ensuite corrigé des défauts d’intégration et produit les captures.
 
@@ -114,11 +114,11 @@ Après la fusion des 33 lots du plan, une relecture a corrigé les défauts d’
 - le décor est réexporté avec `swfsvg` 0.2.2, qui applique les masques des symboles (1 433 PNG remplacés) ;
 - défauts visibles corrigés : la barre du haut passe à « En jeu » après la première carte, icône des kamas séparée du montant, noms d’objets sans espaces de bord, filtre et icône de l’atelier, niveau des monstres tiré de leur grade, séparateur des milliers des caractéristiques, noms de personnages trop longs réduits, bouton « Jouer » sans rectangle gris, croix de fermeture des quêtes, étiquettes des raccourcis, bande du menu de placement, bouton principal désactivé sans orange, cellules de placement rouges et bleues des deux équipes.
 
-L’outil `tools/captures` produit 18 captures de la fenêtre de jeu sous Mono et Xvfb, contre un serveur fictif local : [docs/captures](captures/README.md).
+L’outil `tools/captures` produit 18 captures de la fenêtre de jeu sous Mono et Xvfb, contre un serveur fictif local, et `BotStarLocoLiveSmoke` deux captures `19-reel-*` contre un vrai StarLoco local : [docs/captures](captures/README.md).
 
 ## Couverture des fonctions
 
-Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par le test cité contre un serveur fictif local), **partiel** (une partie seulement), **absent**. Aucune ligne n’est encore vérifiée sur un vrai StarLoco. La colonne « Client 1.34 » nomme la fenêtre ou les paquets du client ; la colonne « StarLoco » dit ce que le serveur du kit en fait.
+Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par le test cité contre un serveur fictif local), **partiel** (une partie seulement), **absent**. Les fonctions rejouées par `BotStarLocoLiveSmoke` sont aussi vérifiées sur un vrai StarLoco local ; les autres lignes ne le sont pas encore. La colonne « Client 1.34 » nomme la fenêtre ou les paquets du client ; la colonne « StarLoco » dit ce que le serveur du kit en fait.
 
 ### Connexion et session
 
@@ -234,7 +234,7 @@ Liste consolidée des points non faits relevés par les lots et par la relecture
 
 ### À rejouer sur un vrai serveur StarLoco
 
-Préalable : une copie isolée d’un vrai StarLoco, avec des comptes et des personnages de test. Puis rejouer :
+Préalable : une copie isolée d’un vrai StarLoco, avec des comptes et des personnages de test. `BotStarLocoLiveSmoke` en rejoue déjà la connexion et la création, la carte de départ et un changement de carte, le chat général et privé, un groupe, un échange de kamas, un ami, un défi et un combat contre des monstres (placement, tours, déplacement, un sort, résultat), un dialogue, un achat en boutique et un zaap. Puis rejouer le reste :
 
 - la connexion, la création et la suppression de personnages, la réponse secrète ;
 - les cartes, les déplacements, les changements de carte et les formats `GM` des marchands, percepteurs, prismes, montures d’enclos et portes (`GDC`) ;

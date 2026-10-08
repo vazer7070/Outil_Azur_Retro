@@ -118,6 +118,7 @@ internal static class BotCombatUiSmoke
                         Feed(account,"GTF42");Feed(account,"GTS43|30000");slots[0].PerformClick();
                         Check(view.SelectedSpellId==null&&peer.Available==0,"Another actor's turn allows casting");
                         Feed(account,"GE0|0");Check(!((Control)Get(form,"combatTools")).Visible,"Combat actions stay visible after GE");
+                        Check(Read(peer)=="GC1","GE is not followed by GC1");
                         // Lot F12b : GE ouvre le volet de résultat, refermé ici pour laisser la carte libre aux captures.
                         Application.DoEvents();Check(form.Panels.Current is FightResultPanel,"GE did not open the result panel");
                         ((Button)((FightResultPanel)form.Panels.Current).CloseButton).PerformClick();Application.DoEvents();

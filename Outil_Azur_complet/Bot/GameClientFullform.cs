@@ -571,6 +571,13 @@ namespace Outil_Azur_complet.Bot
         /// rafraîchi ici (il suit ses propres événements et <see cref="RefreshState"/>) : le reconstruire chaque seconde défaisait les
         /// saisies en cours et remontait les listes.
         /// </summary>
+        /// <summary>Nom du combattant dont c'est le tour (nom du joueur, nom du monstre), sinon son identifiant.</summary>
+        private static string TurnName(Tool_BotProtocol.Game.Combats.Fights fight)
+        {
+            int id = fight.CurrentActorId;
+            return fight.Fighters.TryGetValue(id, out var fighter) && !string.IsNullOrEmpty(fighter?.Name) ? fighter.Name : id.ToString(CultureInfo.InvariantCulture);
+        }
+
         private void RefreshStatus()
         {
             if(ActualCompte.Game==null||uiReleased||InvokeRequired)return;
@@ -596,7 +603,7 @@ namespace Outil_Azur_complet.Bot
                 + " · " + (map.LoadError ?? ("Carte " + map.MapID + " " + map.GetCoordinates + " · Cellule " + (c.Cell == null ? "?" : c.Cell.CellID.ToString(CultureInfo.InvariantCulture))));
             if (mapControl != null && mapControl.MissingAssetCount > 0) text += " · " + mapControl.MissingAssetCount + " ressource(s) absente(s)";
             if (fight.IsInFight) text = fight.IsPlacement ? "Placement · choisissez votre cellule · " + nextTurn + " : prêt" :
-                (fight.IsMyTurn ? "Votre tour" : "Tour de " + fight.CurrentActorId) + " · " + fight.ActionPoints + " PA · " + fight.MovementPoints + " PM";
+                (fight.IsMyTurn ? "Votre tour" : "Tour de " + TurnName(fight)) + " · " + fight.ActionPoints + " PA · " + fight.MovementPoints + " PM";
             if (mapControl?.SelectedSpellId != null) {
                 Spell selected; if (c.Spells.TryGetValue(mapControl.SelectedSpellId.Value, out selected)) text = selected.Name + " · choisissez une cible · Échap : annuler";
             }

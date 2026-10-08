@@ -44,9 +44,15 @@ namespace Tool_BotProtocol.Frames.Jeu
         /// <summary><c>Gf&lt;combattant&gt;|&lt;cellule&gt;</c> : cellule signalée par un coéquipier.</summary>
         [MessageAttribution("Gf")]
         public void Flag(TcpClient client, string message) => client.account.Game.Fight.ShowFlag(message.Substring(2));
-        /// <summary><c>GE&lt;durée&gt;[;&lt;étoiles&gt;]|&lt;initiateur&gt;|&lt;type&gt;|&lt;ligne&gt;…</c> : fin du combat et résultat (matrice §2 n° 23).</summary>
+        /// <summary>
+        /// <c>GE&lt;durée&gt;[;&lt;étoiles&gt;]|&lt;initiateur&gt;|&lt;type&gt;|&lt;ligne&gt;…</c> : fin du combat et résultat (matrice §2 n° 23).
+        /// Comme <c>GameManager.terminateFight</c> du client (<c>cleanMap</c> puis <c>Game.onLeave</c> → <c>create()</c>), le bot
+        /// redemande ensuite la partie par <c>GC1</c> : StarLoco n'envoie ni carte ni acteurs après <c>GE</c>, il répond à
+        /// <c>GC1</c> par <c>GCK</c>, <c>As</c> et <c>GDM</c> (et applique là l'action de fin de combat de la carte).
+        /// </summary>
         [MessageAttribution("GE")]
-        public void End(TcpClient client, string message) => client.account.Game.Fight.Finish(message.Substring(2));
+        public Task End(TcpClient client, string message)
+            => client.account.Game.Fight.Finish(message.Substring(2)) ? client.SendPacket("GC1") : Task.CompletedTask;
         [MessageAttribution("Im1170")]
         public void InsufficientPa(TcpClient client, string message) => client.account.Game.Fight.Refuse("PA insuffisants.");
         [MessageAttribution("Im1171")]

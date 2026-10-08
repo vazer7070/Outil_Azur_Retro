@@ -136,14 +136,20 @@ namespace Outil_Azur_complet.Bot
                 HeaderStyle = ColumnHeaderStyle.Nonclickable };
             foreach (var column in columns) list.Columns.Add(column, 160); return list;
         }
+        /// <summary>
+        /// Exécute <paramref name="action"/> sur le fil de l'interface. Un contrôle créé masqué (ligne de temps, menu de placement,
+        /// options de combat) n'a pas encore de handle : le fil se juge alors sur le premier parent qui en a un. Sinon l'événement
+        /// du fil réseau était perdu (Windows) ou exécuté sur ce fil (Mono, où le handle naissait sur un fil sans boucle de
+        /// messages et le contrôle ne se dessinait plus).
+        /// </summary>
         internal static void OnUi(Control control, Action action)
         {
             if (control.IsDisposed || control.Disposing) return;
-            if (control.InvokeRequired) {
-                if (control.IsHandleCreated)
-                    try { control.BeginInvoke((Action)(() => { if (!control.IsDisposed) action(); })); }
-                    catch (InvalidOperationException) { }
-            } else action();
+            Control target = control;
+            while (target != null && !target.IsHandleCreated) target = target.Parent;
+            if (target == null || !target.InvokeRequired) { action(); return; }
+            try { target.BeginInvoke((Action)(() => { if (!control.IsDisposed && !control.Disposing) action(); })); }
+            catch (InvalidOperationException) { }
         }
         internal static void Append(RichTextBox box, string message, string color = null)
         {

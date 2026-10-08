@@ -300,10 +300,12 @@ namespace Tool_BotProtocol.Network
                 currentAccount = account;
                 disconnectAccount = notifyAccount && currentAccount != null &&
                     ReferenceEquals(currentAccount.Connexion, this);
-                if (disconnectAccount) _disconnectingAccount = true;
             }
             CloseSession(session);
             ReportInformation("Socket déconnecté de l'hôte");
+            // Ticket éconduit par le serveur de jeu avant ATK : le compte se reconnecte avec ce même client.
+            if (disconnectAccount && currentAccount.TryRetryTicket(this)) return;
+            if (disconnectAccount) lock (_sync) _disconnectingAccount = true;
             if (disconnectAccount)
             {
                 // Identity is checked by Accounts; its UI events run outside transport locks.
