@@ -160,7 +160,11 @@ internal static class BotFightProtocolSmoke
 
                     // Turn order and timeline.
                     await Feed(account, "GS");
+                    // A monster fighter (type -2) is named from monsters.xml like the client, not by its template id.
+                    Tool_BotProtocol.Game.Monstres.Monstres.ClientNameResolver = template => template == 101 ? "Bouftou synthétique" : null;
                     await Feed(account, "GM|+9;1;0;-7;101;-2;1100^100;1;-1;-1;-1;0,0,0,0;60;4;2;1");
+                    Tool_BotProtocol.Game.Monstres.Monstres.ClientNameResolver = null;
+                    Check(fight.Fighters[-7].Name == "Bouftou synthétique", "Monster fighter not named from the client texts: " + fight.Fighters[-7].Name);
                     await Feed(account, "GTL|1|2|3"); Check(fight.TurnOrder.SequenceEqual(new[] { 1, 2, 3 }), "GTL|1|2|3 order");
                     await Feed(account, "GTL1|2|3"); Check(fight.TurnOrder.SequenceEqual(new[] { 1, 2, 3 }), "GTL1|2|3 order");
                     await Feed(account, "GTL|42|-7|43"); await Feed(account, "GTL|42|x");

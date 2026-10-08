@@ -189,6 +189,7 @@ internal static class BotFightUiSmoke
                         Check(entries[1].IsHighlighted && !entries[1].IsCurrent && !entries[0].IsHighlighted, "GTR did not frame the announced fighter");
                         Feed(account, "GTS43|30000");
                         PumpUntil(() => timeline.CurrentFighterId == 43, "GTS current");
+                        PumpUntil(() => ((Label)Get(form, "summary")).Text.StartsWith("Tour de Allié de test"), "status bar names the fighter whose turn it is");
                         entries = timeline.Entries;
                         Check(entries[1].IsCurrent && entries[1].IsHighlighted && timeline.RemainingMilliseconds > 20000 && timeline.RemainingMilliseconds <= 30000,
                             "GTS43|30000 (two fields) did not start the chrono");

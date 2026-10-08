@@ -593,8 +593,10 @@ namespace Tool_BotProtocol.Game.Combats
             lock (sync)
             {
                 if (!InFight) return;
-                CombatFighter fighter = GetFighter(id); fighter.Name = info[4]; fighter.Type = type; fighter.CellId = cell; fighter.IsDead = false;
+                CombatFighter fighter = GetFighter(id); fighter.Type = type; fighter.CellId = cell; fighter.IsDead = false;
                 int value;
+                // Monstre (type -2) : le cinquième champ est son modèle ; le client affiche le nom de monsters.xml (getMonstersText).
+                fighter.Name = type == -2 && int.TryParse(info[4], out value) ? Monstres.Monstres.ResolveName(value) : info[4];
                 if (int.TryParse(info[6].Split('^')[0], out value)) fighter.Gfx = value;
                 if (int.TryParse(info[1], out value)) fighter.Orientation = value;
                 int lifeIndex = type > 0 ? 14 : type == -2 ? 12 : -1;
