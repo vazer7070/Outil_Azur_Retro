@@ -44,6 +44,8 @@ namespace Outil_Azur_complet.Bot.Interfaces
     {
         private Func<bool> mapShown;
         private bool visualsHooked;
+        /// <summary>Combat en cours au dernier <c>CombatChanged</c> vu par la carte.</summary>
+        private bool visualsInFight;
 
         /// <summary>
         /// Condition « carte affichée », injectable (tests : la carte se dessine dans un Bitmap, hors de toute fenêtre).
@@ -114,6 +116,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
             GameClass game = Account.Game;
             if (game == null) return;
             visualsHooked = true;
+            visualsInFight = game.Fight?.IsInFight == true;
             if (game.Fight != null) { game.Fight.VisualEvent += OnProtocolVisual; game.Fight.CombatChanged += ResetVisualsOnCombat; }
             if (game.Map != null) game.Map.VisualEvent += OnProtocolVisual;
             if (game.Interactions?.Interactive != null) game.Interactions.Interactive.VisualEvent += OnProtocolVisual;
@@ -136,8 +139,18 @@ namespace Outil_Azur_complet.Bot.Interfaces
             if (visual != null) OnUi(() => ShowVisual(visual));
         }
 
-        /// <summary>Début ou fin de combat : le client vide ses séquenceurs et ses effets ; la carte fait de même.</summary>
-        private void ResetVisualsOnCombat() => OnUi(UserMap.ClearVisuals);
+        /// <summary>
+        /// Début ou fin de combat : le client vide ses séquenceurs et ses effets ; la carte fait de même. <c>CombatChanged</c> est
+        /// levé à chaque changement de l'état du combat (après chaque GA, à chaque tour) : seule l'entrée dans un combat ou sa
+        /// sortie vide les files, sinon les chiffres, coups et morts d'un GA seraient effacés aussitôt ajoutés (lot AN2).
+        /// </summary>
+        private void ResetVisualsOnCombat() => OnUi(() =>
+        {
+            bool inFight = Account.Game?.Fight?.IsInFight == true;
+            if (inFight == visualsInFight) return;
+            visualsInFight = inFight;
+            UserMap.ClearVisuals();
+        });
 
         /// <summary>
         /// Aiguille un événement visuel vers sa famille (fil de l'interface ; utilisable par les tests). Les PV perdus ou
