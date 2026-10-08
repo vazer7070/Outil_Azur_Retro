@@ -560,12 +560,17 @@ namespace Outil_Azur_complet.Bot
             BotUi.OnUi(this,()=> {
                 if(ActualCompte.Game==null||uiReleased)return;
                 RefreshStatus();
+                drawer.RefreshVisible();
                 chatPanel?.RefreshState();
                 banner?.Shortcuts.RefreshContent();
             });
         }
 
-        /// <summary>Barre d'état (chaque seconde) : session, retour d'action, visée, combat ou carte et cellule.</summary>
+        /// <summary>
+        /// Barre d'état (chaque seconde) : session, retour d'action, visée, combat ou carte et cellule. Le volet affiché n'est pas
+        /// rafraîchi ici (il suit ses propres événements et <see cref="RefreshState"/>) : le reconstruire chaque seconde défaisait les
+        /// saisies en cours et remontait les listes.
+        /// </summary>
         private void RefreshStatus()
         {
             if(ActualCompte.Game==null||uiReleased||InvokeRequired)return;
@@ -598,7 +603,6 @@ namespace Outil_Azur_complet.Bot
             if (!string.IsNullOrEmpty(actionFeedback) && DateTime.UtcNow < actionFeedbackUntil) text = actionFeedback;
             summary.Text = text;
             toolTips.SetToolTip(summary, summary.Text);
-            drawer.RefreshVisible();
         }
         private static string StateName(AccountStates value)
         {

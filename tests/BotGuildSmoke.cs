@@ -429,6 +429,10 @@ internal static class BotGuildSmoke
                             "Member sheet is not filled from the row");
                         sheet.RankBox.SelectedIndex = Enumerable.Range(0, sheet.RankBox.Items.Count).First(index => sheet.RankBox.Items[index].ToString() == "Trésorier");
                         sheet.XpBox.Value = 50; sheet.RightBoxes.Single(check => (GuildRight)check.Tag == GuildRight.Ban).Checked = false;
+                        // La minuterie de la fenêtre (1 s) et un rafraîchissement du volet ne défont pas la saisie en cours.
+                        DateTime settled = DateTime.UtcNow.AddMilliseconds(1300); PumpUntil(() => DateTime.UtcNow > settled); panel.RefreshView();
+                        Check(sheet.XpBox.Value == 50 && sheet.RankBox.Text == "Trésorier" && !sheet.RightBoxes.Single(check => (GuildRight)check.Tag == GuildRight.Ban).Checked,
+                            "A refresh overwrote the member sheet being edited: xp=" + sheet.XpBox.Value + " rank=" + sheet.RankBox.Text);
                         sheet.ApplyButton.PerformClick(); Check(Read(peer) == "gP42|3|50|750", "Apply does not send gP<id>|<rank>|<xp>|<rights>");
                         Check(list.ClickRow("Meneur fictif") && !sheet.KickButton.Enabled && !sheet.RankBox.Enabled && sheet.RightBoxes.All(check => check.Checked && !check.Enabled), "Boss sheet is editable");
                         Check(list.ClickRow("Absent fictif") && sheet.KickButton.Text == "Exclure" && sheet.KickButton.Enabled, "Kick button is not offered");
