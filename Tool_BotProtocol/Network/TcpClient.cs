@@ -288,30 +288,56 @@ namespace Tool_BotProtocol.Network
             if (current != null) DisconnectSession(current, false);
         }
 
-        private void DisconnectSession(SocketSession session, bool notifyAccount)
+        /// <summary>
+        /// <c>ATE</c> reçu du serveur de jeu : si un ticket est en cours et qu'il reste des essais, ferme la session comme le fait
+        /// StarLoco juste après (<c>kick</c>) et renvoie le ticket sur une nouvelle connexion. Faux, sans rien fermer, si le refus
+        /// est définitif : l'appelant fait alors échouer la connexion.
+        /// </summary>
+        internal bool RetryTicketAfterRefusal()
+        {
+            SocketSession current;
+            lock (_sync) current = _session;
+            return current != null && EndSession(current, true, true);
+        }
+
+        private void DisconnectSession(SocketSession session, bool notifyAccount) => EndSession(session, notifyAccount, false);
+
+        /// <summary>Ferme la session ; vrai si un nouvel essai du ticket a été lancé à la place de la déconnexion du compte.</summary>
+        private bool EndSession(SocketSession session, bool notifyAccount, bool ticketRefused)
         {
             Accounts currentAccount;
-            bool disconnectAccount;
+            bool disconnectAccount, retry = false;
+            string host = null;
+            int port = 0, attempt = 0;
             lock (_sync)
             {
-                if (!ReferenceEquals(_session, session)) return;
-                _session = null;
-                session.Decoder.Reset();
+                if (!ReferenceEquals(_session, session)) return false;
                 currentAccount = account;
                 disconnectAccount = notifyAccount && currentAccount != null &&
                     ReferenceEquals(currentAccount.Connexion, this);
+                // Ticket éconduit par le serveur de jeu avant ATK : le compte se reconnecte avec ce même client. La décision est
+                // prise sous le verrou qui remet la session à zéro : aucun ConnectToServer concurrent ne peut ouvrir une session
+                // entre les deux sur un transport que la déconnexion du compte va jeter.
+                if (disconnectAccount) retry = currentAccount.ReserveTicketRetry(this, out host, out port, out attempt);
+                if (ticketRefused && !retry) return false;
+                _session = null;
+                session.Decoder.Reset();
+                if (disconnectAccount && !retry) _disconnectingAccount = true;
             }
             CloseSession(session);
             ReportInformation("Socket déconnecté de l'hôte");
-            // Ticket éconduit par le serveur de jeu avant ATK : le compte se reconnecte avec ce même client.
-            if (disconnectAccount && currentAccount.TryRetryTicket(this)) return;
-            if (disconnectAccount) lock (_sync) _disconnectingAccount = true;
+            if (retry)
+            {
+                currentAccount.StartTicketRetry(this, host, port, attempt, ticketRefused);
+                return true;
+            }
             if (disconnectAccount)
             {
                 // Identity is checked by Accounts; its UI events run outside transport locks.
                 try { currentAccount.Disconnect(this); }
                 finally { Dispose(); }
             }
+            return false;
         }
 
         private static void CloseSession(SocketSession session)

@@ -31,7 +31,7 @@ namespace Tool_BotProtocol.Game.Accounts
         private readonly object _connectionSync = new object();
         private TaskCompletionSource<bool> _disconnectCompletion;
         private Task _connectTask;
-        // Serveur de jeu annoncé par AYK/AXK tant que le ticket (AT) n'a pas été accepté (ATK) : voir TryRetryTicket.
+        // Serveur de jeu annoncé par AYK/AXK tant que le ticket (AT) n'a pas été accepté (ATK) : voir ReserveTicketRetry.
         private string _ticketHost;
         private int _ticketPort, _ticketRetries;
         /// <summary>Nouvelles connexions au serveur de jeu quand il ferme la connexion avant <c>ATK</c>.</summary>
@@ -102,10 +102,12 @@ namespace Tool_BotProtocol.Game.Accounts
                 if (string.IsNullOrWhiteSpace(GlobalConfig.IP)) GlobalConfig.InitializeConfig();
                 SetConnectionStatus("Connexion au serveur d’authentification…");
                 await ConnectEndpointAsync(connection, GlobalConfig.IP, int.Parse(GlobalConfig.AUTHPORT));
+                // Lu hors du verrou du compte : le transport prend son verrou avant celui du compte (ReserveTicketRetry).
+                bool connected = connection.IsConnected();
                 lock (_connectionSync)
                 {
                     if (isdisposed || !ReferenceEquals(Connexion, connection)) return;
-                    if (!connection.IsConnected())
+                    if (!connected)
                     {
                         ConnectionStatus = "Serveur d’authentification inaccessible";
                         _accountState = AccountStates.DISCONNECTED;
@@ -117,7 +119,7 @@ namespace Tool_BotProtocol.Game.Accounts
                     }
                 }
                 AccountStateEvent?.Invoke();
-                if (!connection.IsConnected()) Logger?.LogError("Connexion", "Serveur d’authentification inaccessible. Vérifiez l’adresse et le port.");
+                if (!connected) Logger?.LogError("Connexion", "Serveur d’authentification inaccessible. Vérifiez l’adresse et le port.");
             }
             catch (ObjectDisposedException) { }
             catch (Exception error)
@@ -198,24 +200,33 @@ namespace Tool_BotProtocol.Game.Accounts
         public void TicketAccepted() { lock (_connectionSync) _ticketHost = null; }
 
         /// <summary>
-        /// Le serveur de jeu a fermé la connexion entre <c>AYK</c> et <c>ATK</c>. StarLoco n'accepte <c>AT</c> qu'après avoir reçu
-        /// du Login le compte en attente (<c>WA</c>, traité de son côté de façon asynchrone) : un client plus rapide que ce message
-        /// est éconduit (<c>getWaitingAccount</c> nul, puis <c>kick</c>). Comme le compte reste en attente, le bot se reconnecte au
-        /// même serveur (au plus <see cref="TicketRetryLimit"/> fois) et renvoie le ticket sur le nouveau <c>HG</c>.
-        /// Faux si la fermeture doit déconnecter le compte.
+        /// Le serveur de jeu a fermé la connexion entre <c>AYK</c> et <c>ATK</c>, ou a répondu <c>ATE</c>. StarLoco n'accepte <c>AT</c>
+        /// qu'après avoir reçu du Login le compte en attente (<c>WA</c>, traité de son côté de façon asynchrone) : un client plus rapide
+        /// que ce message est éconduit (<c>getWaitingAccount</c> nul : <c>ATE</c>, puis <c>kick</c>). Comme le compte reste en attente,
+        /// le bot se reconnecte au même serveur (au plus <see cref="TicketRetryLimit"/> fois) et renvoie le ticket sur le nouveau <c>HG</c>.
+        /// Réserve l'essai sans rien appeler d'autre : le transport l'appelle sous son propre verrou, au moment où il remet sa session
+        /// à zéro (ordre des verrous : transport, puis compte). Faux si la fermeture doit déconnecter le compte.
         /// </summary>
-        internal bool TryRetryTicket(TcpClient connection)
+        internal bool ReserveTicketRetry(TcpClient connection, out string host, out int port, out int attempt)
         {
-            string host; int port, attempt;
+            host = null; port = 0; attempt = 0;
             lock (_connectionSync)
             {
                 if (isdisposed || connection == null || !ReferenceEquals(Connexion, connection) || _ticketHost == null
                     || string.IsNullOrEmpty(GameTicket) || _ticketRetries >= TicketRetryLimit) return false;
                 attempt = ++_ticketRetries; host = _ticketHost; port = _ticketPort;
+                return true;
             }
-            Logger?.LogDanger("Connexion", "Le serveur de jeu a fermé la connexion avant d’accepter le ticket : nouvel essai " + attempt + "/" + TicketRetryLimit + ".");
+        }
+
+        /// <summary>Lance l'essai réservé par <see cref="ReserveTicketRetry"/>, hors de tout verrou (journal, puis reconnexion différée).</summary>
+        internal void StartTicketRetry(TcpClient connection, string host, int port, int attempt, bool refused)
+        {
+            Logger?.LogDanger("Connexion", (refused
+                ? "Le serveur de jeu a refusé le ticket (ATE) avant de l’avoir reçu du serveur d’authentification"
+                : "Le serveur de jeu a fermé la connexion avant d’accepter le ticket")
+                + " : nouvel essai " + attempt + "/" + TicketRetryLimit + ".");
             _ = RetryGameServerAsync(connection, host, port, attempt);
-            return true;
         }
 
         private async Task RetryGameServerAsync(TcpClient connection, string host, int port, int attempt)
