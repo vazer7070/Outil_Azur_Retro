@@ -60,7 +60,8 @@ namespace Outil_Azur_complet.Bot.Controls
                 lock (icon) graphics.DrawImage(icon, inner);
             }
             else if (Occupied)
-                TextRenderer.DrawText(graphics, Fallback ?? "?", Font, inner, BotUi.PaperLight,
+                // Au-dessus de l'étiquette de la touche (en bas), qui recouvrait sinon le texte de repli (« CàC »).
+                TextRenderer.DrawText(graphics, Fallback ?? "?", Font, new Rectangle(inner.X, inner.Y, inner.Width, Math.Max(1, inner.Height - 8)), BotUi.PaperLight,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
             if (Occupied && !Available)
                 using (var shade = new SolidBrush(Color.FromArgb(128, 41, 38, 31))) graphics.FillRectangle(shade, inner);
@@ -69,8 +70,10 @@ namespace Outil_Azur_complet.Bot.Controls
             const TextFormatFlags small = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
             if (Occupied && !string.IsNullOrEmpty(Shortcut))
             {
-                Size size = TextRenderer.MeasureText(graphics, Shortcut, Font, new Size(Width, Height), small);
-                var label = new Rectangle(Width - size.Width - 2, Height - 11, size.Width + 1, 10);
+                // Mesure sans NoPadding : avec, les glyphes AZERTY (« é », « " », « ^& ») dépassaient du cadre et étaient coupés.
+                Size size = TextRenderer.MeasureText(graphics, Shortcut, Font, new Size(Width, Height), TextFormatFlags.SingleLine);
+                int width = Math.Min(Width - 2, size.Width), height = Math.Min(Height - 2, Math.Max(10, size.Height));
+                var label = new Rectangle(Width - width - 1, Height - height - 1, width, height);
                 using (var shade = new SolidBrush(Color.FromArgb(200, 41, 38, 31))) graphics.FillRectangle(shade, label);
                 TextRenderer.DrawText(graphics, Shortcut, Font, label, Color.White, small);
             }
