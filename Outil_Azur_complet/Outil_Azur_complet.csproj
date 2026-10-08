@@ -348,6 +348,8 @@
     <Compile Include="Bot\Panels\AuctionSellPanel.cs" />
     <Compile Include="Bot\Panels\MountPanel.cs" />
     <Compile Include="Bot\Panels\PaddockPanel.cs" />
+    <Compile Include="Bot\Panels\QuestsPanel.cs" />
+    <Compile Include="Bot\Controls\TitleBadge.cs" />
     <Compile Include="Bot\Controls\ActorMenuRegistry.cs" />
     <Compile Include="Bot\Controls\ActorContextMenu.cs" />
     <Compile Include="Bot\Controls\HudPanel.cs">

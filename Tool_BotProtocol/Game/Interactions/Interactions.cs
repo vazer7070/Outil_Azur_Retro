@@ -121,6 +121,8 @@ namespace Tool_BotProtocol.Game.Interactions
         public Jobs.JobsActions Jobs { get; private set; }
         /// <summary>Monture, enclos et étable : <c>Re</c>, <c>Rr</c>, <c>Rn</c>, <c>Rx</c>, <c>Rd</c>, <c>Rp</c>, <c>RD</c>, <c>Rv</c>, <c>Ee</c>, <c>Ef</c> ; sacoches <c>ER15|</c> (lot F7).</summary>
         public Montures.MountActions Mount { get; private set; }
+        /// <summary>Quêtes : envois <c>QL</c> et <c>QS&lt;id&gt;</c>, réceptions <c>QL</c>, <c>QS</c> et progression <c>Im054/055/056</c> (lot F10).</summary>
+        public Quetes.QuestsActions Quests { get; private set; }
 
         internal InteractionsClass(Accounts.Accounts account)
         {
@@ -142,8 +144,9 @@ namespace Tool_BotProtocol.Game.Interactions
             Alignment = new Alignement.AlignmentActions(account);
             Jobs = new Jobs.JobsActions(account, Exchanges);
             Mount = new Montures.MountActions(account);
+            Quests = new Quetes.QuestsActions(account);
         }
 
-        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); Party.Clear(); Friends.Clear(); House.Clear(); Guild.Clear(); Alignment.Clear(); Jobs.Clear(); Mount.Clear(); }
+        public void Clear() { MapActions.Clear(); Npc.Clear(); Zaap.Clear(); Exchanges.Clear(); Interactive.Clear(); Zaapi.Clear(); Party.Clear(); Friends.Clear(); House.Clear(); Guild.Clear(); Alignment.Clear(); Jobs.Clear(); Mount.Clear(); Quests.Clear(); }
     }
 }

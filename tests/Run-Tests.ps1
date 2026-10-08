@@ -81,6 +81,7 @@ try {
     $azurTests += 'BotAlignmentSmoke'
     $azurTests += 'BotCraftSmoke'
     $azurTests += 'BotMountSmoke'
+    $azurTests += 'BotQuestsSmoke'
     $azurTests += 'BotStatsSheetSmoke'
 
     if ($Integration) {

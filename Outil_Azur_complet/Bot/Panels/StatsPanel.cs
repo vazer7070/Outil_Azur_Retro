@@ -50,6 +50,7 @@ namespace Outil_Azur_complet.Bot.Panels
         private CharacterClass character;
         private Accounts boundAccount;
         private string alignmentShown;
+        private Controls.TitleBadge titleBadge; // titre porté (lot F10)
 
         public override string Title => "Caractéristiques";
         public override Image Icon => ClientAssets.Icon("icone-caracteristiques", 24);
@@ -105,7 +106,10 @@ namespace Outil_Azur_complet.Bot.Panels
 
             // Ordre d'ancrage : le dernier ajouté prend le bord en premier.
             page.Controls.Add(content); page.Controls.Add(status);
-            page.Controls.Add(tabs); page.Controls.Add(Spacer(4)); page.Controls.Add(xp); page.Controls.Add(header);
+            // Titre porté (lot F10) sous le nom ; le volet peut être lié à la session avant la création du contenu.
+            titleBadge = new Controls.TitleBadge { Dock = DockStyle.Top };
+            titleBadge.Bind(Game);
+            page.Controls.Add(tabs); page.Controls.Add(Spacer(4)); page.Controls.Add(xp); page.Controls.Add(titleBadge); page.Controls.Add(header);
             return page;
         }
 
@@ -239,6 +243,7 @@ namespace Outil_Azur_complet.Bot.Panels
         protected override void OnBind(GameClass game)
         {
             character = game.character;
+            titleBadge?.Bind(game);
             if (character != null)
             {
                 character.RefreshCaracteristiques += OnCharacterChanged;
@@ -260,6 +265,7 @@ namespace Outil_Azur_complet.Bot.Panels
             if (boundAccount != null) boundAccount.AccountStateEvent -= OnStateChanged;
             character = null;
             boundAccount = null;
+            titleBadge?.Bind(null);
         }
 
         private void OnCharacterChanged() => OnUi(RefreshView);
