@@ -427,6 +427,8 @@ internal static class BotStatsSheetSmoke
         var xp = All(panel.View).OfType<XpGauge>().Single(gauge => gauge.Name == "stats-xp");
         var alignment = All(panel.View).OfType<Label>().Single(label => label.Name == "stats-alignment-text");
         Check(Math.Abs(xp.Percent - 50) < 0.01 && alignment.Text.Contains("3") && alignment.Text.Contains("750"), "XP gauge or alignment line differs: " + alignment.Text);
+        var energy = All(panel.View).OfType<Label>().Single(label => label.Name == "stats-value-energy");
+        Check(energy.Text == "8 000 / 10 000", "Energy is not grouped by spaces like the top bar: " + energy.Text);
         PumpUntil(() => Cached("Alignments", "1"));
         lock (reads) Check(reads.Any(entry => entry.Key.EndsWith("Alignments/1", StringComparison.Ordinal) && entry.Value != uiThread), "Alignment image was not read off the UI thread");
 

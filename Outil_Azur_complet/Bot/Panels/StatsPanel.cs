@@ -423,8 +423,9 @@ namespace Outil_Azur_complet.Bot.Panels
             return "Résistance " + elements[offset / 4] + kinds[offset % 4];
         }
 
-        private static string Number(double value) => value.ToString("#,0", CultureInfo.CurrentCulture);
-        private static string Number(int value) => value.ToString("#,0", CultureInfo.CurrentCulture);
+        // Espaces entre les milliers quelle que soit la culture du système, comme la barre du haut (« 1 162 000 », pas « 1,162,000 »).
+        private static string Number(double value) => value.ToString("#,0", Outil_Azur_complet.Bot.Controls.Banner.BannerArt.Spaced);
+        private static string Number(int value) => value.ToString("#,0", Outil_Azur_complet.Bot.Controls.Banner.BannerArt.Spaced);
 
         /// <summary>Clic sur « + » : <c>AB&lt;code&gt;</c> tout de suite ; la fiche change à la réception de <c>As</c>.</summary>
         public async Task BoostAsync(BoostableStat stat)
