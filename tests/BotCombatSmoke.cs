@@ -83,6 +83,8 @@ internal static class BotCombatSmoke
                     await Feed(account, "GJK2|1|1|0|30000|0");
                     await Feed(account, "GP" + Hash.Get_Cell_Char(0) + Hash.Get_Cell_Char(3) + "|" + Hash.Get_Cell_Char(9) + "|0");
                     Check(fight.IsPlacement && account.IsFighting() && fight.PlacementCells.SequenceEqual(new short[] { 0, 3 }), "Placement state/team cells not decoded");
+                    Check(fight.TeamPlacementCells(0).SequenceEqual(new short[] { 0, 3 }) && fight.TeamPlacementCells(1).SequenceEqual(new short[] { 9 }),
+                        "Both teams' placement cells are needed to draw them in red and blue");
                     Check(!(await fight.PlaceAsync(9)).Sent && peer.Available == 0, "Enemy placement cell is accepted");
                     Check((await fight.PlaceAsync(3)).Sent && await Within(Read(peer)) == "Gp3", "Wrong placement wire");
                     Check(account.Game.character.Cell.CellID == 0, "Placement position predicted before GIC");
@@ -91,6 +93,7 @@ internal static class BotCombatSmoke
                     Check((await fight.SetReadyAsync(true)).Sent && await Within(Read(peer)) == "GR1" && !fight.IsReady, "Ready state predicted or wrong wire");
                     await Feed(account, "GR142"); Check(fight.IsReady && !fight.IsActionPending, "GR did not confirm ready");
                     await Feed(account, "GS");
+                    Check(fight.TeamPlacementCells(0).Length == 0 && fight.TeamPlacementCells(1).Length == 0, "Placement cells survive the fight start");
                     await Feed(account, "GM|+9;1;0;-7;101;-2;1100^100;1;-1;-1;-1;0,0,0,0;60;4;2;1");
                     Check(fight.Fighters[-7].ActionPoints == 4 && fight.Fighters[-7].Team == 1 && account.Game.Map.Entites.ContainsKey(-7), "Combat GM monster layout ignored");
                     await Feed(account, "GTM|42;0;100;8;3;0;;100|-7;0;60;4;2;9;;60|malformed");

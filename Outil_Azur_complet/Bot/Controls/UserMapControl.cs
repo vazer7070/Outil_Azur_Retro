@@ -346,6 +346,13 @@ namespace Outil_Azur_complet.Bot.Controls
             GraphicsState saved = G.Save();
             using (var transform = new Matrix(viewScale, 0, 0, viewScale, origin.X, origin.Y)) G.Transform = transform;
             if (artwork != null) artwork.DrawGround(G);
+            // Placement d'un combat : cellules de départ de l'équipe 0 en rouge, de l'équipe 1 en bleu, comme le client.
+            var fight = Account?.Game?.Fight;
+            HashSet<short> redStarts = null, blueStarts = null;
+            if (fight != null && fight.IsPlacement)
+            {
+                redStarts = new HashSet<short>(fight.TeamPlacementCells(0)); blueStarts = new HashSet<short>(fight.TeamPlacementCells(1));
+            }
             // Un PNG absent reste visible comme diagnostic, les cellules gardant la géométrie réelle de la carte.
             foreach (UserMapCell cell in Cells)
             {
@@ -360,6 +367,9 @@ namespace Outil_Azur_complet.Bot.Controls
                 }
                 if (ShowGrid || noScenery)
                     using (var pen = new Pen(Color.FromArgb(70, 67, 62, 40), 1 / viewScale)) G.DrawPolygon(pen, worldPolygons[cell.id]);
+                if (redStarts != null && (redStarts.Contains(cell.id) || blueStarts.Contains(cell.id)))
+                    using (var start = new SolidBrush(redStarts.Contains(cell.id) ? Color.FromArgb(110, 255, 0, 0) : Color.FromArgb(110, 0, 0, 255)))
+                        G.FillPolygon(start, worldPolygons[cell.id]);
                 if (spellTargets?.Contains(cell.id) == true)
                     using (var target = new SolidBrush(Color.FromArgb(65, 70, 146, 207))) G.FillPolygon(target, worldPolygons[cell.id]);
             }

@@ -84,6 +84,7 @@ namespace Tool_BotProtocol.Game.Combats
         private DateTime turnStartedUtc = DateTime.MinValue;
         private int pa = -1, pm = -1;
         private short[] places = new short[0];
+        private short[][] teamPlaces = { new short[0], new short[0] };
         private FightFlag lastFlag;
         private FightResult lastResult;
         private string lastMessage = "Aucun combat en cours.";
@@ -108,6 +109,8 @@ namespace Tool_BotProtocol.Game.Combats
         public int MovementPoints { get { lock (sync) return pm; } }
         public string LastActionMessage { get { lock (sync) return lastMessage; } }
         public short[] PlacementCells { get { lock (sync) return (short[])places.Clone(); } }
+        /// <summary>Cellules de placement de l'équipe 0 ou 1 (<c>GP</c>), que le client montre en rouge et en bleu ; vide hors placement.</summary>
+        public short[] TeamPlacementCells(int team) { lock (sync) return team == 0 || team == 1 ? (short[])teamPlaces[team].Clone() : new short[0]; }
         public IReadOnlyDictionary<int, CombatFighter> Fighters
         { get { lock (sync) return fighters.ToDictionary(entry => entry.Key, entry => entry.Value.Copy()); } }
         /// <summary>Ordre des tours (<c>GTL</c>), tour courant (<c>GTS</c>), dernier tour terminé (<c>GTF</c>) et dernier <c>GTR</c>.</summary>
@@ -388,11 +391,17 @@ namespace Tool_BotProtocol.Game.Combats
         {
             string[] fields = payload.Split('|'); int team;
             if (fields.Length < 3 || !int.TryParse(fields[2], out team) || team < 0 || team > 1) return;
-            string encoded = fields[team];
-            if (encoded.Length % 2 != 0 || encoded.Any(c => !Hash.caracteres_array.Contains(c))) return;
+            short[] own = DecodePlaces(fields[team]);
+            if (own == null) return;
+            short[] other = DecodePlaces(fields[1 - team]) ?? new short[0];
+            lock (sync) { if (!InFight) return; places = own; teamPlaces = team == 0 ? new[] { own, other } : new[] { other, own }; } Changed();
+        }
+        private static short[] DecodePlaces(string encoded)
+        {
+            if (encoded.Length % 2 != 0 || encoded.Any(c => !Hash.caracteres_array.Contains(c))) return null;
             var cells = new List<short>();
             for (int i = 0; i < encoded.Length; i += 2) cells.Add(Hash.Get_Cell_From_Hash(encoded.Substring(i, 2)));
-            lock (sync) { if (!InFight) return; places = cells.Distinct().ToArray(); } Changed();
+            return cells.Distinct().ToArray();
         }
         internal void SetReady(string payload)
         {
@@ -407,7 +416,7 @@ namespace Tool_BotProtocol.Game.Combats
             Changed();
         }
         internal void Start()
-        { lock (sync) { if (!InFight) return; phase = CombatPhase.Active; places = new short[0]; pendingKind = null; lastMessage = "Combat commencé. Attendez votre tour."; } Changed(); }
+        { lock (sync) { if (!InFight) return; phase = CombatPhase.Active; places = new short[0]; teamPlaces = new[] { new short[0], new short[0] }; pendingKind = null; lastMessage = "Combat commencé. Attendez votre tour."; } Changed(); }
 
         /// <summary><c>GTL|id|id…</c> : ordre de jeu des combattants vivants (début du combat, invocations, morts).</summary>
         internal void SetTurnList(string payload)
@@ -760,7 +769,7 @@ namespace Tool_BotProtocol.Game.Combats
                 generation++; previous = cancellation; cancellation = disposed ? null : new CancellationTokenSource();
                 phase = CombatPhase.None; spectator = ready = canCancel = challengeMenu = false; fightType = -1; actor = turn = turnDuration = 0; pa = pm = -1;
                 lastActor = readyActor = 0; tableTurn = null; turnStartedUtc = DateTime.MinValue;
-                places = new short[0]; fighters.Clear(); lastSpellTurn.Clear(); castsThisTurn.Clear();
+                places = new short[0]; teamPlaces = new[] { new short[0], new short[0] }; fighters.Clear(); lastSpellTurn.Clear(); castsThisTurn.Clear();
                 turnOrder.Clear(); effects.Clear(); states.Clear(); zones.Clear(); teamOptions.Clear(); journal.Clear();
                 lastFlag = null; lastResult = null;
                 pendingKind = null; pendingConfirmed = false; lastMessage = "Aucun combat en cours.";

@@ -56,7 +56,7 @@ Une amélioration n’est affichée qu’après confirmation du serveur. En cas 
 
 ## Combat manuel en cours de validation
 
-Le client suit la phase de placement, le combattant dont c’est le tour et les PA/PM annoncés. En placement, cliquez sur une cellule autorisée puis utilisez **Prêt** ; le bouton devient **Annuler** pour retirer cet état. Pendant votre tour, utilisez les sorts du bandeau ou les touches **1 à 9 / 0**, cliquez sur une cellule cible, ou déplacez-vous sans sort sélectionné. **Passer** termine le tour. Les raccourcis de prêt et de passage sont indiqués dans l’interface.
+Le client suit la phase de placement, le combattant dont c’est le tour et les PA/PM annoncés. En placement, cliquez sur une cellule autorisée (cellules de départ en rouge pour l’équipe 0 et en bleu pour l’équipe 1, comme dans le client) puis utilisez **Prêt** ; le bouton devient **Annuler** pour retirer cet état. Pendant votre tour, utilisez les sorts du bandeau ou les touches **1 à 9 / 0**, cliquez sur une cellule cible, ou déplacez-vous sans sort sélectionné. **Passer** termine le tour. Les raccourcis de prêt et de passage sont indiqués dans l’interface.
 
 Les contrôles locaux portent sur la connexion, le tour, les cellules connues, les PA/PM disponibles et les contraintes connues du sort : portée, lancer en ligne, cellule vide, nombre de lancers et intervalle. Les PA/PM ne sont pas dépensés par une simple demande locale : seuls les messages du serveur confirment l’action. La ligne de vue complète, les états, les modificateurs d’équipement et les limites par cible restent sous l’autorité du serveur. Les cellules proposées ne garantissent donc pas qu’un lancement sera accepté.
 
