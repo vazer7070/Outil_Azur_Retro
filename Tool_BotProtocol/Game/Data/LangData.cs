@@ -35,6 +35,8 @@ namespace Tool_BotProtocol.Game.Data
         /// <summary>Familles chargées (<c>dialog</c>, <c>npc</c>, <c>maps</c>…).</summary>
         public static string[] Families => Volatile.Read(ref current).Families.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray();
         public static bool IsLoaded(string family) => family != null && Volatile.Read(ref current).Families.ContainsKey(family);
+        /// <summary>Jeu de textes chargé : change à chaque <see cref="Load"/> ou <see cref="Clear"/> (clé des caches dérivés).</summary>
+        internal static object CurrentSnapshot => Volatile.Read(ref current);
         /// <summary>Numéro du SWF de langue d'origine (attribut <c>version</c>), ou <c>null</c>.</summary>
         public static string Version(string family) => Volatile.Read(ref current).Families.TryGetValue(family ?? string.Empty, out FamilyData data) ? data.Version : null;
         /// <summary>Identifiants d'une table (ordre ordinal), vide si la famille ou la table est absente.</summary>

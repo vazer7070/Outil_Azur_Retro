@@ -108,6 +108,41 @@ namespace Tool_BotProtocol.Game.Perso.Spells
             catch (Exception) { return null; }
         }
 
+        /// <summary>Niveau lu dans <c>spells.xml</c> seulement (null sans fichiers de langue ou pour un niveau absent).</summary>
+        internal static SpellLevelInfo LangLevel(short spellId, int level) => level < 1 || level > SpellBook.MaxSpellLevel ? null : FromLangData(spellId, level);
+
+        /// <summary>
+        /// Caractéristiques utilisées en combat (PA, portée, ligne, cellule libre, relances, effets et zones), comme
+        /// <c>dofus.datacenter.Spell</c> du client : la zone d'un effet normal est la paire n° i de la chaîne des zones, celle
+        /// d'un effet critique la paire n° (nombre d'effets normaux + i).
+        /// </summary>
+        internal SpellStats ToStats()
+        {
+            var stats = new SpellStats
+            {
+                PA = ToByte(ApCost), Min_portee = ToByte(RangeMin), Max_portee = ToByte(RangeMax),
+                IsInLine = LineOnly, AvecLigneDeVue = LineOfSight, EmptyCell = FreeCell, portee_modifiable = RangeBoostable,
+                PerTurn = ToByte(PerTurn), PerObjective = ToByte(PerTarget), Interval = ToByte(Delay)
+            };
+            int index = 0;
+            foreach (SpellEffectLine effect in Effects) stats.AddEffect(new SpellEffect(effect.Type, ZoneAt(index++)), false);
+            foreach (SpellEffectLine effect in CriticalEffects) stats.AddEffect(new SpellEffect(effect.Type, ZoneAt(index++)), true);
+            return stats;
+        }
+
+        private Spells.Zones ZoneAt(int index)
+        {
+            string zones = Zones ?? string.Empty;
+            if (zones.Length >= 2 * (index + 1))
+            {
+                try { return Spells.Zones.Parse(zones.Substring(index * 2, 2)); }
+                catch (Exception) { /* zone illisible : effet sur une seule cellule */ }
+            }
+            return new Spells.Zones(SpellActionZone.SOLO, 0);
+        }
+
+        private static byte ToByte(int value) => (byte)Math.Max(0, Math.Min(byte.MaxValue, value));
+
         private static SpellLevelInfo FromLangData(short spellId, int level)
         {
             IReadOnlyDictionary<string, string> row = Row(spellId);
