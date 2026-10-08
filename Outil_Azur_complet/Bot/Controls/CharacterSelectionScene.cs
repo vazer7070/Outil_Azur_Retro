@@ -239,7 +239,16 @@ namespace Outil_Azur_complet.Bot.Controls
         }
         protected override void OnPaint(PaintEventArgs e)
         {
-            e.Graphics.Clear(BotUi.FrameLight); e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            e.Graphics.Clear(BotUi.FrameLight);
+            // Coins de la pilule : la scène dessinée dessous, plutôt qu'un rectangle gris opaque autour de « Jouer ».
+            if (Parent is CharacterSelectionScene scene)
+            {
+                GraphicsState state = e.Graphics.Save();
+                e.Graphics.TranslateTransform(-Left, -Top);
+                InvokePaint(scene, new PaintEventArgs(e.Graphics, Bounds));
+                e.Graphics.Restore(state);
+            }
+            e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
             var asset = pressed && down != null ? down : up;
             if (asset != null) e.Graphics.DrawImage(asset, ClientRectangle);
             else using (var brush = new SolidBrush(Color.FromArgb(208, 150, 28))) e.Graphics.FillRectangle(brush, ClientRectangle);
