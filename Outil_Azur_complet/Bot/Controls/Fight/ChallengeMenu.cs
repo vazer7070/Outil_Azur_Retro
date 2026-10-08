@@ -19,7 +19,7 @@ namespace Outil_Azur_complet.Bot.Controls.Fight
     {
         private readonly ClientButton ready, cancel;
         private readonly ToolTip tips = new ToolTip();
-        private Bitmap tick, backdrop;
+        private Bitmap tick;
         private Accounts account;
         private bool released;
 
@@ -35,7 +35,6 @@ namespace Outil_Azur_complet.Bot.Controls.Fight
             cancel.Click += async (s, e) => await CancelAsync();
             Controls.Add(ready); Controls.Add(cancel);
             BannerArt.RequestIcon(this, "UI_ChallengeMenu_coche", 20, image => { tick = image; RefreshFromFight(); });
-            BannerArt.Request(this, "UI_ChallengeMenu_fond", image => { backdrop = image; Invalidate(); });
         }
 
         /// <summary>Message court pour le bandeau (réponse locale d'une demande).</summary>
@@ -96,17 +95,9 @@ namespace Outil_Azur_complet.Bot.Controls.Fight
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
-            Rectangle area = ClientRectangle;
-            if (backdrop != null)
-            {
-                // Bande parchemin du client (UI_ChallengeMenu sans sa coche) : extrémités conservées, centre étiré.
-                ClientAssets.DrawPill(e.Graphics, backdrop, area, 24);
-                using (var veil = new SolidBrush(Color.FromArgb(150, BotUi.Paper))) e.Graphics.FillRectangle(veil, Rectangle.Inflate(area, -2, -2));
-            }
-            else
-            {
-                using (var paper = new SolidBrush(BotUi.Paper)) e.Graphics.FillRectangle(paper, Rectangle.Inflate(area, -1, -1));
-            }
+            // Bande parchemin unie : le fond du client (UI_ChallengeMenu_fond) a ses propres emplacements orange, qui
+            // débordaient autour des pilules « Prêt » et « Annuler » une fois étiré.
+            using (var paper = new SolidBrush(BotUi.Paper)) e.Graphics.FillRectangle(paper, Rectangle.Inflate(ClientRectangle, -1, -1));
             using (var rule = new Pen(BotUi.Gold)) e.Graphics.DrawRectangle(rule, 1, 1, Width - 3, Height - 3);
             using (var edge = new Pen(BotUi.Frame)) e.Graphics.DrawRectangle(edge, 0, 0, Width - 1, Height - 1);
         }
