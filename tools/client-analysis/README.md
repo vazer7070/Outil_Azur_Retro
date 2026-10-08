@@ -80,6 +80,20 @@ swfsvg --list <fichier.swf>
   `texte`, `absent`…), `images` (images utiles : la timeline et les clips qu'elle contient, jusqu'à
   leur `stop()`), `images_timeline` (images de la timeline du symbole seule). Exemple sur
   `sprites/1001.swf` : `walkR clip 26 1`, `runR clip 16 1`, `staticR clip 1 1`, `emote16R clip 122 122`.
+  Depuis la version 0.2.3, une sixième colonne **`fin`** dit comment l'animation se termine quand le
+  client la joue, d'après le script de l'image où elle s'arrête : `boucle` (aucun script d'arrêt),
+  `arret` (`stop()` : la dernière image reste affichée), `static` (`GAC.applyAnim(this, "static")` :
+  retour à la pose de repos, ou `removeMovieClip` : le clip disparaît, comme à la fin des effets de
+  sorts) ou `suite:<anim>` (`GAC.applyAnim(this, "<anim>")`, par exemple `anim18End`). C'est la
+  timeline qui fixe la durée (`images`) qui décide : celle du symbole si elle est au moins aussi
+  longue que ses clips, sinon celle du clip imbriqué qui finit le plus tard (les coups `hitR` du
+  client sont un clip d'une image qui contient le vrai coup de 24 images). Un appel placé après un
+  branchement conditionnel ne compte pas (`static<O>` n'enchaîne sur `anim18End` qu'après
+  `anim18`) ; `applyAnim(this, "StaticR")` compte comme `static` (le client ajoute la lettre et
+  retombe sur la pose de repos). La ligne `scene` porte aussi sa fin (timeline principale jouée
+  depuis l'image 1). Mesuré sur les 936 sprites du client : `hitR`/`hitL` finissent par `static`
+  (1 459 sur 1 499), `dieR`/`dieL` par `arret` (1 367 sur 1 485) ; sur les 273 scènes de sorts,
+  134 `static`, 121 `arret`, 18 `boucle`.
 - **`--append-index`** ajoute les lignes à un `index.tsv` existant au lieu de le réécrire, pour
   rassembler toute une famille de SWF dans un seul dossier.
 
@@ -116,7 +130,7 @@ par la couleur de son milieu, et un aplat magenta sous une transformation de cou
 donne le nombre d'images et `--frame` permet de choisir une image représentative. Un SWF illisible
 arrête la commande avec un message et le code 1 (2 pour une option invalide), jamais une panique.
 
-Tests : `cargo test` dans `swfsvg/` (17 tests ; le SWF de test est fabriqué par les tests avec la
+Tests : `cargo test` dans `swfsvg/` (18 tests ; le SWF de test est fabriqué par les tests avec la
 crate `swf`, aucun fichier du client n'est nécessaire).
 
 Temps mesurés (conteneur 4 cœurs, un processus par SWF, binaire `--release`) :
