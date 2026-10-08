@@ -1,4 +1,6 @@
 using System;
+using System.Drawing;
+using System.Globalization;
 using System.Windows.Forms;
 using Outil_Azur_complet.Bot.Controls;
 using Tool_BotProtocol.Game;
@@ -31,9 +33,9 @@ namespace Outil_Azur_complet.Bot.Interfaces
 
     /// <summary>
     /// Effets visuels de la carte (lot AN1) : abonnements aux événements visuels du protocole (combat, objets interactifs,
-    /// carte hors combat, émotes), relais sur le fil de l'interface et aiguillage vers une méthode par famille. Les méthodes
-    /// de famille sont vides ici : chaque lot remplit les siennes (AN2 : chiffres, coups, morts ; AN4 : sorts, critiques,
-    /// récolte, effets de carte ; AN8 : émotes), avec les aides <see cref="TryEnqueueVisual"/>, <see cref="TryAddEffect"/>,
+    /// carte hors combat, émotes), relais sur le fil de l'interface et aiguillage vers une méthode par famille. Chaque lot
+    /// remplit les siennes (AN2 : chiffres, coups, morts, remplies ; AN4 : sorts, critiques, récolte, effets de carte ;
+    /// AN8 : émotes), avec les aides <see cref="TryEnqueueVisual"/>, <see cref="TryAddEffect"/>,
     /// <see cref="TryPlayAnimation"/> et <see cref="TryAddGhost"/>. Carte cachée (<see cref="MapShown"/> faux) : les files
     /// sont vidées et rien n'y entre ; seuls les chiffres restent transmis à <c>OnPoints</c>, qui décide.
     /// Le protocole n'attend jamais l'affichage.
@@ -223,14 +225,126 @@ namespace Outil_Azur_complet.Bot.Interfaces
 
         // ------------------------------------------------------------ familles : remplies par AN2, AN4 et AN8
 
-        /// <summary>Chiffres PV, PA, PM et quantité récoltée (AN2). Appelée même carte cachée.</summary>
-        private void OnPoints(VisualEvent visual) { }
+        // Chiffres, coups reçus et morts (lot AN2) : GameActions.onActions, updateLP/updateAP/updateMP, addSpritePoints,
+        // Infos.onQuantity et l'action Die du client 1.34.
 
-        /// <summary>Coup reçu : <c>hit</c> (AN2).</summary>
-        private void OnHit(VisualEvent visual) { }
+        /// <summary>
+        /// Attente maximale du fantôme immobile d'un mort dont l'étape <c>Die</c> n'a pas encore commencé (garde-fou : il est
+        /// remplacé au départ de l'étape, ou effacé avec les files au changement de carte ou de combat).
+        /// </summary>
+        public const double PendingDeathMaxWait = 30000;
+        /// <summary>Sans bande <c>die</c>, le fantôme garde <c>static</c> pendant 300 ms (choix du bot : pas de disparition sèche).</summary>
+        public const double DeathWithoutStripMs = 300;
 
-        /// <summary>Mort : fantôme <c>die</c> d'après <see cref="VisualEvent.Snapshot"/>, étape de 1 500 ms (AN2).</summary>
-        private void OnDeath(VisualEvent visual) { }
+        private PointsLayer points;
+        private Tool_BotProtocol.Config.BotOptions options;
+
+        /// <summary>Options du client, relues à chaque chiffre (<c>PointsOverHead</c>) ; <c>null</c> : <see cref="Tool_BotProtocol.Config.BotOptions.Current"/>.</summary>
+        public Tool_BotProtocol.Config.BotOptions Options
+        {
+            get => options ?? Tool_BotProtocol.Config.BotOptions.Current;
+            set => options = value;
+        }
+
+        /// <summary>Couche des chiffres en cours, ou <c>null</c> s'il n'y en a pas (tests, diagnostic).</summary>
+        public PointsLayer Points => points != null && !points.IsDisposed ? points : null;
+
+        /// <summary>
+        /// Chiffres PV (100, 108, 110), PA (101, 102, 111, 120, 168), PM (78, 127, 128, 129, 169) et quantité récoltée (<c>IQ</c>).
+        /// Comme le client : une variation nulle n'affiche rien, 102 et 129 seulement sur le joueur dont c'est le tour, texte
+        /// <c>String(v)</c>. Les chiffres d'un <c>GA</c> passent par la file de son séquenceur (étape non bloquante) ;
+        /// <c>IQ</c> est affiché aussitôt (<c>Infos.onQuantity</c> n'utilise pas de séquenceur). Carte cachée : rien n'est
+        /// retenu (le client n'ajoute aucun chiffre quand sa fenêtre n'a pas le focus).
+        /// </summary>
+        private void OnPoints(VisualEvent visual)
+        {
+            if (!IsMapShown) return;
+            if (visual.Source == VisualSource.Quantity)
+            {
+                string quantity = visual.Fields.Count > 1 ? visual.Fields[1] : visual.Value.ToString(CultureInfo.InvariantCulture);
+                AddPoints(visual.ActorId, quantity, PointsLayer.QuantityColor, false, UserMap.Now);
+                return;
+            }
+            if (visual.Source != VisualSource.GameAction || visual.Value == 0) return;
+            Color color;
+            bool currentTurnOnly = false;
+            switch (visual.ActionId)
+            {
+                case 100: case 108: case 110: color = PointsLayer.LifeColor; break;
+                case 101: case 102: case 111: case 120: case 168: color = PointsLayer.ActionPointsColor; currentTurnOnly = visual.ActionId == 102; break;
+                case 78: case 127: case 128: case 129: case 169: color = PointsLayer.MovementPointsColor; currentTurnOnly = visual.ActionId == 129; break;
+                default: return;
+            }
+            long target = visual.TargetId;
+            string text = visual.Value.ToString(CultureInfo.InvariantCulture);
+            TryEnqueueVisual(visual.QueueId, VisualStep.Instant("Points", now => AddPoints(target, text, color, currentTurnOnly, now)));
+        }
+
+        /// <summary><c>addSpritePoints</c> : option relue à chaque ajout, condition « joueur du tour » relue au départ de l'étape.</summary>
+        private void AddPoints(long target, string text, Color color, bool currentTurnOnly, double now)
+        {
+            if (!Options.PointsOverHead) return;
+            if (currentTurnOnly && (Account.Game?.Fight?.CurrentActorId ?? 0) != target) return;
+            if (points == null || points.IsDisposed) points = new PointsLayer();
+            if (points.Add(target, text, color, now)) TryAddEffect(points);
+        }
+
+        /// <summary>
+        /// Coup reçu : <c>hit</c> sur la cible d'une perte ou d'un gain de PV non nul (<c>updateLP</c>, quel que soit le signe) et
+        /// sur l'acteur de GA 104 (« ne peut pas se déplacer »), étape non bloquante. Bande <c>hitR</c>/<c>hitL</c> d'après
+        /// l'orientation <c>d | 1</c> (choix du bot : le client attacherait <c>staticF</c> faute de <c>hitF</c>), puis retour à
+        /// <c>static</c>. Sans bande <c>hit</c> pour ce gfx, rien ne change.
+        /// </summary>
+        private void OnHit(VisualEvent visual)
+        {
+            if (visual.Source != VisualSource.GameAction) return;
+            bool life = visual.ActionId == 100 || visual.ActionId == 108 || visual.ActionId == 110;
+            if (!life && visual.ActionId != 104) return;
+            if (life && visual.Value == 0) return;
+            long target = visual.ActionId == 104 && visual.TargetId == 0 ? visual.ActorId : visual.TargetId;
+            TryEnqueueVisual(visual.QueueId, VisualStep.Instant("Hit", now => TryPlayAnimation(target, "hit", ActorAnimationMode.Once)));
+        }
+
+        /// <summary>
+        /// Mort (GA 103) : le modèle a déjà retiré l'acteur ; un fantôme tiré de <see cref="VisualEvent.Snapshot"/> le garde
+        /// immobile jusqu'au départ de l'étape <c>Die</c> de sa file (le client laisse le sprite en place jusque-là), puis joue
+        /// <c>die</c> pendant exactement 1 500 ms (<c>forceTimeout</c>) avant de disparaître (<c>mc.clear</c>) ; une bande plus
+        /// courte tient sa dernière image. Sans bande <c>die</c>, le fantôme garde <c>static</c> 300 ms ; l'étape dure 1 500 ms
+        /// dans tous les cas. Sans instantané ni cellule, rien (le client ne fait rien sans clip).
+        /// </summary>
+        private void OnDeath(VisualEvent visual)
+        {
+            ActorSnapshot body = visual.Snapshot;
+            if (body == null || body.CellId < 0) return;
+            UserMap.Sprites.Prefetch(body.Gfx, body.Direction, "die");
+            if (!TryAddGhost(body, "static", PendingDeathMaxWait)) return;
+            if (!TryEnqueueVisual(visual.QueueId, VisualStep.Die(now => StartDeath(body))))
+                UserMap.AnimationQueue.RemoveGhost(body.Id);
+        }
+
+        private void StartDeath(ActorSnapshot body)
+        {
+            try
+            {
+                bool strip = HasStrip(body, "die");
+                TryAddGhost(body, strip ? "die" : "static", strip ? FightVisualSequencer.DieDuration : DeathWithoutStripMs);
+            }
+            catch
+            {
+                // Le fantôme d'attente ne doit pas survivre à une étape en échec.
+                UserMap.AnimationQueue.RemoveGhost(body.Id);
+                throw;
+            }
+        }
+
+        /// <summary>Bande présente pour ce gfx : prête, ou en lecture avec sa ligne dans <c>ancres.tsv</c>.</summary>
+        private bool HasStrip(ActorSnapshot body, string animation)
+        {
+            SpritePose pose = UserMap.Sprites.Resolve(body.Gfx, body.Direction, body.NoFlip, animation);
+            if (pose.State == SpriteLoadState.Ready) return pose.Sheet != null;
+            if (pose.State == SpriteLoadState.Missing) return false;
+            return UserMap.Sprites.Duration(body.Gfx, animation, body.Direction).HasValue;
+        }
 
         /// <summary>Sort, arme, piège, glyphe : animation du lanceur et effet (AN4, AN5).</summary>
         private void OnSpell(VisualEvent visual) { }
