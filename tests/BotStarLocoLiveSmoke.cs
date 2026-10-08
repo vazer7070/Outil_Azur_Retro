@@ -12,6 +12,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Outil_Azur_complet.Bot;
+using Outil_Azur_complet.Bot.Controls;
+using Outil_Azur_complet.Bot.Interfaces;
 using Outil_Azur_complet.Parser;
 using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Frames.Messages;
@@ -327,10 +329,16 @@ internal static partial class Live
     /// <summary>Photographie la fenêtre de jeu (zone cliente) sur l'écran Xvfb, comme tools/captures.</summary>
     private static async Task Capture(string name)
     {
-        if (string.IsNullOrWhiteSpace(captures) || window == null) return;
+        if (string.IsNullOrWhiteSpace(captures)) return;
+        // La fenêtre se construit sur le fil d'interface après ASK : l'attendre avant la première capture.
+        DateTime until = DateTime.UtcNow.AddSeconds(20);
+        while (DateTime.UtcNow < until && !await OnUi(() => window != null && window.IsHandleCreated && window.Visible).ConfigureAwait(false))
+            await Task.Delay(100).ConfigureAwait(false);
+        if (window == null) { Say("capture impossible : fenêtre de jeu absente"); return; }
         Directory.CreateDirectory(captures);
-        await Task.Delay(600).ConfigureAwait(false);
+        await Task.Delay(1200).ConfigureAwait(false);
         Rectangle area = await OnUi(() => window.RectangleToScreen(window.ClientRectangle)).ConfigureAwait(false);
+        Journal("capture " + name + " : acteurs dessinés " + await OnUi(DrawnActors).ConfigureAwait(false));
         string file = Path.Combine(captures, name + ".png");
         var start = new ProcessStartInfo("import", "-window root -crop " + area.Width + "x" + area.Height + "+" + area.X + "+" + area.Y + " +repage \"" + file + "\"")
         { UseShellExecute = false, RedirectStandardError = true };
@@ -343,6 +351,17 @@ internal static partial class Live
             }
         }
         catch (Exception error) { Say("capture impossible : " + error.Message); }
+    }
+
+    /// <summary>États visuels de la carte de la fenêtre (acteur, apparence, cellule, sprite chargé), pour le journal des captures.</summary>
+    private static string DrawnActors()
+    {
+        var user = window?.Map == null ? null : typeof(MapControl).GetField("UserMap", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(window.Map) as UserMapControl;
+        if (user == null) return "(pas de carte)";
+        return string.Join(", ", user.GetActorVisualStates().Where(state => state.MemberIndex < 0).Select(state =>
+            state.ActorId + (state.IsSelf ? " (soi)" : "") + " apparence " + state.GFX + " cellule " + state.CellId
+            + (state.IsVisible ? "" : " invisible") + (state.HasSprite ? "" : " sans sprite")
+            + " @" + (int)state.ScreenPosition.X + "," + (int)state.ScreenPosition.Y));
     }
 
     // ------------------------------------------------------------------------------------------------ scénarios
@@ -541,7 +560,6 @@ internal static partial class Live
         Check(a.MapId == b.MapId, "Les deux personnages ne sont pas sur la même carte : " + a.MapId + " / " + b.MapId);
         Check(await a.Until(() => ActorOf(a, b) != null && ActorOf(b, a) != null, 10).ConfigureAwait(false), "Les deux bots ne se voient pas (GM).");
         string seen = "A voit " + ActorOf(a, b) + ", B voit " + ActorOf(b, a);
-        await Capture("19-reel-carte").ConfigureAwait(false);
 
         // Déplacement de A : GA001<chemin> → GA0;1;<A>;<chemin> reçu par A et B → GKK0 de A.
         Cell target = FreeCellNear(a, 3, 7);
@@ -557,6 +575,8 @@ internal static partial class Live
         Check(await a.Until(() => a.Map.Self.CellId == target.CellID && ActorOf(b, a)?.CellId == target.CellID, 10).ConfigureAwait(false),
             "Cellule de A après la marche : A pense " + a.Map.Self.CellId + ", B voit " + ActorOf(b, a)?.CellId + ", attendu " + target.CellID);
         string gkk = a.SentSince(sentA).First(p => p.StartsWith("GKK"));
+        // Les deux personnages, côte à côte après la marche de A, dans la fenêtre de jeu de A.
+        await Capture("19-reel-carte").ConfigureAwait(false);
 
         // Changement de carte par un déclencheur de téléportation, puis retour par celui de la carte voisine.
         string travel = await ChangeMapAndBackAsync(a, b).ConfigureAwait(false);
@@ -940,8 +960,6 @@ internal static partial class Live
         await PlaceAndReady(b, markB, false).ConfigureAwait(false);
         string gs = await a.Expect("GS", "GS (début du combat)", 30, markA).ConfigureAwait(false);
         await a.Expect("GTL", "GTL (ordre de jeu)", 10, markA).ConfigureAwait(false);
-        await Capture("19-reel-combat").ConfigureAwait(false);
-
         bool attacked = false;
         DateTime until = DateTime.UtcNow.AddSeconds(150);
         int turns = 0;
@@ -958,6 +976,8 @@ internal static partial class Live
             else if (actor == b.Id) await PlayTurn(b, true, false, evidence).ConfigureAwait(false);
         }
         Check(attacked, "A n'a pas pu lancer de sort sur B en " + turns + " tour(s)");
+        // Combat en cours, bannière « Le combat commence » retombée : ligne de temps, PV entamés de B, tour suivant.
+        await Capture("19-reel-combat").ConfigureAwait(false);
         // Abandon de B (GQ) : StarLoco le compte comme mort, le combat se termine (GE).
         int endA = a.ReceivedCount, endB = b.ReceivedCount;
         var giveUp = await b.Account.Game.Fight.GiveUpAsync().ConfigureAwait(false);
