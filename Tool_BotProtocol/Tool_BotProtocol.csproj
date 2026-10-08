@@ -140,6 +140,7 @@
     <Compile Include="Frames\Jeu\ExchangeFrame.cs" />
     <Compile Include="Frames\Jeu\FightsFrame.cs" />
     <Compile Include="Frames\Jeu\FriendsFrame.cs" />
+    <Compile Include="Frames\Jeu\QuestFrame.cs" />
     <Compile Include="Frames\Jeu\AlignmentFrame.cs" />
     <Compile Include="Frames\Jeu\GuildFrame.cs" />
     <Compile Include="Frames\Jeu\InteractionFrame.cs" />
@@ -257,6 +258,7 @@
     <Compile Include="Game\Perso\Inventory\SpecialItems.cs" />
     <Compile Include="Game\Perso\Personnages.cs" />
     <Compile Include="Game\Perso\PlayerRestrictions.cs" />
+    <Compile Include="Game\Perso\Titles.cs" />
     <Compile Include="Game\Perso\Spells\Shaper.cs" />
     <Compile Include="Game\Perso\Spells\Spell.cs" />
     <Compile Include="Game\Perso\Spells\SpellActionZone.cs" />
@@ -279,6 +281,8 @@
     <Compile Include="Game\Montures\Mount.cs" />
     <Compile Include="Game\Montures\MountActions.cs" />
     <Compile Include="Game\Montures\MountExchange.cs" />
+    <Compile Include="Game\Quetes\Quests.cs" />
+    <Compile Include="Game\Quetes\QuestsActions.cs" />
     <Compile Include="Json\AccountsJson.cs" />
     <Compile Include="Json\Config.cs" />
     <Compile Include="Network\ByPass\ByPassLauncher.cs" />

@@ -74,3 +74,21 @@ python3 tools/client-analysis/exporter_inventaire.py --client "<client 1.34>" --
 | ItemViewerDestroy.png, ItemViewerTarget.png, ItemViewerTwoHand.png, ItemViewerUseHand.png | symboles du même nom | Fiche d'objet (`ItemTooltip`) : détruire, cibler, arme à deux mains, utiliser |
 | UI_InventoryMountIcon.png | symbole du même nom | Emplacement de la monture |
 | ItemSetViewerItemBorder.png | symbole du même nom | Objet de panoplie non porté |
+
+## Fenêtre des quêtes (`exporter_quetes.py`, lot F10)
+
+Produits par `tools/client-analysis/exporter_quetes.py`, qui réutilise le rendu d'`exporter_icons.py` (swfsvg 0.2.2 construit depuis `tools/client-analysis/swfsvg`, cairosvg à l'échelle 2, magenta pur rendu transparent, recadrage sur les pixels visibles, palette de 256 couleurs quand l'écart reste invisible). Les calques sont rendus seuls dans le `DefineSprite` de leur ligne (identifiant lu dans `ExportAssets`). Commande exacte, depuis la racine du dépôt :
+
+```sh
+python3 tools/client-analysis/exporter_quetes.py --client "<client 1.34>" --sortie Outil_Azur_complet/Resources/Bot
+```
+
+| PNG | Source dans `modules/core.swf` | Usage |
+| --- | --- | --- |
+| UI_QuestXP.png | symbole du même nom | Récompense en expérience d'une étape (`QuestsPanel`) ; la récompense en kamas reprend `kamas.png` (`UI_QuestKamaSymbol`) |
+| quete-terminee.png | `UI_QuestsQuestItem`, instance `_mcCheckFinished` seule | Coche d'une quête terminée, d'une étape passée ou d'un objectif atteint |
+| quete-en-cours.png | `UI_QuestsQuestItem`, instance `_mcCurrent` seule | Marque d'une quête en cours |
+| etape-courante.png | `UI_QuestsStepItem`, instance `_mcArrow` seule (même dessin que `_mcCurrent`) | Flèche de l'étape courante dans la liste des étapes |
+| objectif-boussole.png | `UI_QuestsObjectivetItem`, instance `_mcCompass` seule | Objectif localisé : un clic oriente la boussole du bandeau |
+
+Ajout du lot : 5 PNG, 5 971 octets.
