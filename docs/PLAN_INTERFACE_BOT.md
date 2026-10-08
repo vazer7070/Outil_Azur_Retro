@@ -250,7 +250,8 @@ Préalable : une copie isolée d’un vrai StarLoco, avec des comptes et des per
 
 - Images des sols en pente : `swfsvg` sait rendre une image choisie, mais le décor versionné a été exporté sans les pentes.
 - Formes morphées et textes statiques de 31 objets ; images 3 à 5 des objets interactifs (objet vidé, repousse).
-- Recoloration des sprites (couleurs de `GM`), accessoires, ailes d’alignement, auras, bandes d’émote, de coup et de mort ; bandes de marche des monstres et PNJ.
+- Recoloration des sprites (couleurs de `GM`), accessoires, ailes d’alignement, auras, bandes d’émote ; bandes de marche, de coup et de mort des monstres et PNJ (celles des 24 classes sont livrées par le lot AN2) ; variantes « porté » (`_C`) des bandes.
+- Chiffres au-dessus des têtes (lot AN2) : Tahoma gras à la place de la police Font2 du client, non exportée.
 - Icône de sac des marchands ; couleur d’alignement des PNJ ; membres des équipes d’un combat sous les épées.
 - Affichage des cellules déclencheurs ; droits de la carte (défis et agressions interdits) non exportés dans `BotMaps`.
 - Raccourci maintenu de la surtête de tous les groupes de monstres.
@@ -267,7 +268,7 @@ Préalable : une copie isolée d’un vrai StarLoco, avec des comptes et des per
 ### Bandeau, options et fiches
 
 - Illustrations Boune et mini carte, barre de raccourcis déplaçable, date de `BD`, onglet Audio, boîte de confirmation du changement de qualité.
-- Options Transparency, SpriteInfos, SpriteMove et PointsOverHead enregistrées mais non dessinées.
+- Options Transparency, SpriteInfos et SpriteMove enregistrées mais non dessinées (PointsOverHead l’est depuis le lot AN2).
 - Ordre local des sorts de la barre : gardé sur la machine, jamais renvoyé au serveur.
 - Glisser un objet de l’inventaire vers la barre : format en place, non rejoué à la souris.
 - Fiche d’un sort sans zone d’effet ; infobulle des sorts de la barre restée simple.

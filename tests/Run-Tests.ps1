@@ -87,6 +87,7 @@ try {
     # n'est pas défini ; avec le serveur, prévoir -TestTimeoutSeconds 300 (voir tests/README.md).
     $azurTests += 'BotStarLocoLiveSmoke'
     $azurTests += 'BotAnimationQueueSmoke'
+    $azurTests += 'BotPointsHitDeathSmoke'
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'
