@@ -727,6 +727,9 @@ internal static partial class Live
 {
     // ------------------------------------------------------------------------------------------------ outils de combat
 
+    private static int LifeOf(LiveSession s, int id) => s.Account.Game.Fight.Fighters.TryGetValue(id, out CombatFighter f) ? f.Life : int.MinValue;
+    private static int CellOf(LiveSession s, int id) => s.Account.Game.Fight.Fighters.TryGetValue(id, out CombatFighter f) ? f.CellId : int.MinValue;
+
     private static CombatFighter Self(LiveSession s) => s.Account.Game.Fight.Fighters.TryGetValue(s.Id, out CombatFighter f) ? f : null;
 
     private static IEnumerable<CombatFighter> Enemies(LiveSession s)
@@ -765,13 +768,20 @@ internal static partial class Live
     private static async Task<string> CheckFightersMatchGtm(LiveSession s, int mark)
     {
         var lines = new List<string>();
+        // Le tour qui commence peut être vu d'abord par l'autre compte : attendre le GTM qui suit le dernier GTF de ce compte.
+        bool fresh = await s.Until(() =>
+        {
+            string[] seen = s.ReceivedSince(mark);
+            return Array.FindLastIndex(seen, p => p.StartsWith("GTM|")) > Array.FindLastIndex(seen, p => p.StartsWith("GTF"));
+        }, 5).ConfigureAwait(false);
+        Check(fresh, s.Label + " : pas de GTM après la fin du tour précédent");
         foreach (CombatFighter fighter in s.Account.Game.Fight.Fighters.Values.ToList())
         {
             int[] gtm = LastGtm(s, fighter.Id, mark);
             if (gtm == null) continue;
-            bool same = await s.Until(() => fighter.Life == gtm[0], 3).ConfigureAwait(false);
-            Check(same, s.Label + " : vie de " + fighter.Name + " = " + fighter.Life + " dans le bot, " + gtm[0] + " dans GTM");
-            Check(fighter.CellId == gtm[3], s.Label + " : cellule de " + fighter.Name + " = " + fighter.CellId + " dans le bot, " + gtm[3] + " dans GTM");
+            bool same = await s.Until(() => LifeOf(s, fighter.Id) == gtm[0], 3).ConfigureAwait(false);
+            Check(same, s.Label + " : vie de " + fighter.Name + " = " + LifeOf(s, fighter.Id) + " dans le bot, " + gtm[0] + " dans GTM");
+            Check(await s.Until(() => CellOf(s, fighter.Id) == gtm[3], 3).ConfigureAwait(false), s.Label + " : cellule de " + fighter.Name + " = " + CellOf(s, fighter.Id) + " dans le bot, " + gtm[3] + " dans GTM");
             lines.Add(fighter.Name + " " + gtm[0] + " PV/" + gtm[1] + " PA/" + gtm[2] + " PM");
         }
         return string.Join(", ", lines);
@@ -807,7 +817,7 @@ internal static partial class Live
         int mark = s.ReceivedCount;
         CombatFighter target = Enemies(s).OrderBy(e => DistanceTo(s, e)).FirstOrDefault();
         if (target == null) return "aucune cible";
-        int paBefore = fight.ActionPoints, pmBefore = fight.MovementPoints;
+        int paBefore = fight.ActionPoints, pmBefore = fight.MovementPoints, origin = Self(s)?.CellId ?? -1;
         if (move && fight.MovementPoints > 0)
         {
             short? destination = StepToward(s, target, DamageSpellOn(s, (short)target.CellId) == null);
@@ -816,7 +826,18 @@ internal static partial class Live
                 var moved = await fight.MoveAsync(destination.Value).ConfigureAwait(false);
                 if (moved.Sent)
                 {
-                    string ga = await s.Expect(p => p.StartsWith("GA") && p.Contains(";1;" + s.Id + ";"), "GA;1 du déplacement en combat", 10, mark).ConfigureAwait(false);
+                    // GA;104 : le combattant est tacle en quittant le contact d'un ennemi (esquive ratée) : ni chemin ni GA;1.
+                    string ga = await s.Expect(p => p.StartsWith("GA") && (p.Contains(";1;" + s.Id + ";") || p.Contains(";104;" + s.Id + ";")),
+                        "GA;1 du déplacement en combat (ou GA;104, tacle)", 10, mark).ConfigureAwait(false);
+                    if (ga.Contains(";104;"))
+                    {
+                        string lostPm = await s.Expect(p => p.StartsWith("GA") && p.Contains(";129;" + s.Id + ";"), "GA;129 (PM perdus au tacle)", 10, mark).ConfigureAwait(false);
+                        int lost = -int.Parse(lostPm.Split(';')[3].Split(',')[1], CultureInfo.InvariantCulture);
+                        Check(await s.Until(() => !fight.IsActionPending && fight.MovementPoints == pmBefore - lost && Self(s)?.CellId == origin, 10).ConfigureAwait(false),
+                            s.Label + " : après le tacle, PM du bot " + fight.MovementPoints + " (attendu " + (pmBefore - lost) + "), cellule " + Self(s)?.CellId + " (attendu " + origin + ")");
+                        evidence.Add(s.Label + " est taclé : " + ga + ", " + lostPm + " → PM " + pmBefore + "→" + fight.MovementPoints + ", PA " + paBefore + "→" + fight.ActionPoints);
+                        goto afterMove;
+                    }
                     string pm = await s.Expect(p => p.StartsWith("GA;129;" + s.Id + ";"), "GA;129 (PM utilisés)", 10, mark).ConfigureAwait(false);
                     Check(await s.Until(() => Self(s)?.CellId == destination.Value && !fight.IsActionPending, 10).ConfigureAwait(false),
                         s.Label + " : cellule après le déplacement en combat = " + Self(s)?.CellId + ", attendu " + destination);
@@ -827,6 +848,7 @@ internal static partial class Live
                 else Journal(s.Label + " [test] déplacement en combat refusé par le bot : " + moved.Message);
             }
         }
+        afterMove:
         if (cast)
         {
             target = Enemies(s).OrderBy(e => DistanceTo(s, e)).FirstOrDefault();
@@ -849,12 +871,17 @@ internal static partial class Live
                 if (damage != null)
                 {
                     int delta = int.Parse(damage.Split(';')[3].Split(',')[1], CultureInfo.InvariantCulture);
-                    Check(await s.Until(() => target.Life == lifeBefore + delta, 5).ConfigureAwait(false), s.Label + " : vie de la cible " + target.Life + ", attendu " + (lifeBefore + delta));
+                    // Fights.Fighters renvoie des copies : relire le combattant à chaque essai.
+                    Check(await s.Until(() => LifeOf(s, target.Id) == lifeBefore + delta, 5).ConfigureAwait(false), s.Label + " : vie de la cible " + LifeOf(s, target.Id) + ", attendu " + (lifeBefore + delta));
                 }
                 evidence.Add(s.Label + " lance le sort " + spell + " (" + LangDataSpell(spell.Value) + ") : " + Short(launched, 36) + ", " + pa + (damage != null ? ", " + damage : " (échec critique)")
-                    + " → PA " + paStart + "→" + fight.ActionPoints + ", PV de " + target.Name + " " + lifeBefore + "→" + target.Life);
+                    + " → PA " + paStart + "→" + fight.ActionPoints + ", PV de " + target.Name + " " + lifeBefore + "→" + LifeOf(s, target.Id));
             }
-            else Journal(s.Label + " [test] aucun sort de dégâts possible sur " + target?.Name + " (cellule " + target?.CellId + ")");
+            else Journal(s.Label + " [test] aucun sort de dégâts possible sur " + target?.Name + " (cellule " + target?.CellId + ", distance " + (target == null ? -1 : DistanceTo(s, target))
+                + ", PA " + fight.ActionPoints + ") : " + string.Join(" ; ", s.Account.Game.character.Spells.Values.Select(x => x.ID + " niv. " + x.Level + " "
+                + (x.GetStats() == null ? "sans caractéristiques" : "PA " + x.GetStats().PA + ", portée " + x.GetStats().Min_portee + "-" + x.GetStats().Max_portee
+                    + ", effets " + string.Join(",", x.GetStats().NormalEffect.Select(e => e.Id)))
+                + " → " + (target == null ? "?" : s.Account.Game.Fight.GetSpellUnavailableReason(x.ID, (short)target.CellId) ?? "possible"))));
         }
         if (!fight.IsInFight || fight.Phase == CombatPhase.Finished) return "fin";
         int passMark = s.ReceivedCount;
@@ -1064,12 +1091,13 @@ internal static partial class Live
             string question = await a.Expect("DQ", "DQ (question du PNJ)", 10, mark).ConfigureAwait(false);
             Check(await a.Until(() => dialog.IsOpen && dialog.QuestionId >= 0, 5).ConfigureAwait(false), "Le bot n'affiche pas la question du PNJ");
             string text = dialog.QuestionText;
+            int answers = dialog.Answers.Count;
             int closeMark = a.ReceivedCount;
             var leave = await dialog.LeaveAsync().ConfigureAwait(false);
             Check(leave.Sent, "Fin du dialogue refusée par le bot : " + leave.Message);
             string dv = await a.Expect("DV", "DV (dialogue fermé)", 10, closeMark).ConfigureAwait(false);
             Check(await a.Until(() => !dialog.IsOpen, 5).ConfigureAwait(false), "Le dialogue reste ouvert dans le bot");
-            return npc.DisplayName + " (modèle " + npc.TemplateId + ") : " + answer + ", " + Short(question, 40) + " « " + Short(text, 60) + " » (" + dialog.Answers.Count + " réponse(s)), " + dv;
+            return npc.DisplayName + " (modèle " + npc.TemplateId + ") : " + answer + ", " + Short(question, 40) + " « " + Short(text, 60) + " » (" + answers + " réponse(s)), " + dv;
         }
         throw new SkipScenario("aucun PNJ de la carte " + a.MapId + " n'accepte le dialogue");
     }
@@ -1089,6 +1117,7 @@ internal static partial class Live
             if (!eck.StartsWith("ECK")) { Journal("A [test] boutique de " + npc.DisplayName + " : " + eck); continue; }
             string list = await a.Expect("EL", "EL (articles)", 10, mark).ConfigureAwait(false);
             Check(await a.Until(() => shop.IsOpen && shop.Articles.Count > 0, 5).ConfigureAwait(false), "Le bot n'a lu aucun article");
+            int articles = shop.Articles.Count;
             int kamas = a.Account.Game.character.Kamas;
             ShopArticle article = shop.Articles.Where(x => x.Price.HasValue && x.Price.Value > 0 && x.Price.Value <= kamas).OrderBy(x => x.Price.Value).FirstOrDefault()
                 ?? shop.Articles.First();
@@ -1100,11 +1129,14 @@ internal static partial class Live
             Check(ebk.StartsWith("EBK"), "Achat refusé par le serveur : " + ebk);
             string oak = await a.Expect(p => p.StartsWith("OAKO") || p.StartsWith("OQ"), "OAKO (objet ajouté)", 10, buyMark).ConfigureAwait(false);
             Check(await a.Until(() => a.Account.Game.character.Kamas < kamas, 5).ConfigureAwait(false), "Kamas inchangés après l'achat");
+            // Le prix affiché (règle du client : prix du modèle × BUY_PRICE_MULTIPLICATOR) doit être celui que StarLoco débite.
+            Check(!article.Price.HasValue || await a.Until(() => kamas - a.Account.Game.character.Kamas == article.Price.Value, 5).ConfigureAwait(false),
+                "Prix affiché " + article.Price + " k, débit réel " + (kamas - a.Account.Game.character.Kamas) + " k");
             int closeMark = a.ReceivedCount;
             var leave = await shop.LeaveAsync().ConfigureAwait(false);
             Check(leave.Sent, "Fermeture refusée par le bot : " + leave.Message);
             await a.Expect("EV", "EV (boutique fermée)", 10, closeMark).ConfigureAwait(false);
-            return npc.DisplayName + " : " + Short(eck, 20) + ", " + shop.Articles.Count + " article(s) (" + Short(list, 50) + ") ; achat de " + article.TemplateId + " (" + article.Name + ", "
+            return npc.DisplayName + " : " + Short(eck, 20) + ", " + articles + " article(s) (" + Short(list, 50) + ") ; achat de " + article.TemplateId + " (" + article.Name + ", "
                 + article.Price + " k) : " + ebk + ", " + Short(oak, 40) + ", kamas " + kamas + " → " + a.Account.Game.character.Kamas + ", objets " + itemsBefore + " → " + a.Account.Game.character.Inventory.Objets.Count();
         }
         throw new SkipScenario("aucun PNJ marchand sur la carte " + a.MapId);
@@ -1123,6 +1155,7 @@ internal static partial class Live
         string wc = await a.Expect(p => p.StartsWith("WC") || p.StartsWith("GA;0") || p.StartsWith("Im"), "WC (destinations du zaap)", 20, mark).ConfigureAwait(false);
         Check(wc.StartsWith("WC"), "Le serveur n'ouvre pas le zaap : " + wc);
         Check(await a.Until(() => zaap.IsOpen && zaap.Destinations.Count > 0, 5).ConfigureAwait(false), "Le bot n'a lu aucune destination");
+        int destinations = zaap.Destinations.Count;
         int kamas = a.Account.Game.character.Kamas;
         ZaapDestination destination = zaap.Destinations.Where(d => !d.IsCurrent && d.Cost <= kamas && Map.AllBotMaps.ContainsKey(d.MapId)).OrderBy(d => d.Cost).FirstOrDefault();
         Check(destination != null, "Aucune destination abordable");
@@ -1148,6 +1181,6 @@ internal static partial class Live
             }
             else if (zaap.IsOpen) await zaap.LeaveAsync().ConfigureAwait(false);
         }
-        return "zaap cellule " + cell + " : " + Short(wc, 60) + " (" + zaap.Destinations.Count + " destination(s)) ; WU" + destination.MapId + " (" + destination.Cost + " k) → GDM|" + destination.MapId + ", " + cost + back;
+        return "zaap cellule " + cell + " : " + Short(wc, 60) + " (" + destinations + " destination(s)) ; WU" + destination.MapId + " (" + destination.Cost + " k) → GDM|" + destination.MapId + ", " + cost + back;
     }
 }
