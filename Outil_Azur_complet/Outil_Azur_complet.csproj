@@ -238,6 +238,9 @@
     <Compile Include="Bot\Controls\Animations.cs" />
     <Compile Include="Bot\Controls\AnimationType.cs" />
     <Compile Include="Bot\Controls\ActorSprites.cs" />
+    <Compile Include="Bot\Controls\ActorAnimationQueue.cs" />
+    <Compile Include="Bot\Controls\FightVisualSequencer.cs" />
+    <Compile Include="Bot\Controls\MapEffects.cs" />
     <Compile Include="Bot\Controls\BubbleLayer.cs" />
     <Compile Include="Bot\Controls\OverheadImages.cs" />
     <Compile Include="Bot\Controls\OverheadLayer.cs" />
@@ -280,6 +283,9 @@
       <DependentUpon>MapControl.cs</DependentUpon>
     </Compile>
     <Compile Include="Bot\Interfaces\MapControl.Fight.cs">
+      <DependentUpon>MapControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Bot\Interfaces\MapControl.Effects.cs">
       <DependentUpon>MapControl.cs</DependentUpon>
     </Compile>
     <Compile Include="Bot\LoadingBotForm.cs">
