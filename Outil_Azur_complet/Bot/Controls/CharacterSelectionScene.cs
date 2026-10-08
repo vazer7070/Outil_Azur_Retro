@@ -129,11 +129,11 @@ namespace Outil_Azur_complet.Bot.Controls
                                 new RectangleF(center - 105, 438, 210, 128), multiline);
                     } else if (listReceived) DrawFit(graphics, unknown, new RectangleF(center - 38, 468, 76, 108));
                     DrawAsset(graphics, cartouche, new RectangleF(center - 110, 669, 220, 80));
-                    graphics.DrawString(entry == null ? (listReceived ? "Emplacement libre" : "En attente…") : entry.Name,
+                    DrawShrunk(graphics, entry == null ? (listReceived ? "Emplacement libre" : "En attente…") : entry.Name,
                         font, light, new RectangleF(center - 104, 671, 208, 37), centered);
                     string details = entry == null ? (listReceived ? "Créer un personnage" : "Liste du serveur") :
                         "Niv. " + entry.Level + " · " + entry.Appearance.Split('·')[0].Trim();
-                    graphics.DrawString(details, small, light, new RectangleF(center - 103, 708, 206, 34), centered);
+                    DrawShrunk(graphics, details, small, light, new RectangleF(center - 103, 708, 206, 34), centered);
                 }
                 if (PageCount > 1) graphics.DrawString("Page " + (page + 1) + " / " + PageCount,
                     small, light, new RectangleF(970, 798, 300, 36), centered);
@@ -141,6 +141,14 @@ namespace Outil_Azur_complet.Bot.Controls
                 graphics.DrawString("Serveur de jeu", small, light, new RectangleF(846, 6, 460, 35), centered);
             }
             graphics.Restore(state);
+        }
+        /// <summary>Texte d'une ligne réduit jusqu'à tenir dans le cartouche (les noms longs étaient coupés des deux côtés).</summary>
+        private static void DrawShrunk(Graphics graphics, string text, Font font, Brush brush, RectangleF bounds, StringFormat format)
+        {
+            SizeF size = graphics.MeasureString(text, font, PointF.Empty, StringFormat.GenericTypographic);
+            if (size.Width <= bounds.Width - 4 || size.Width <= 0) { graphics.DrawString(text, font, brush, bounds, format); return; }
+            using (var smaller = new Font(font.FontFamily, Math.Max(9f, font.Size * (bounds.Width - 4) / size.Width), font.Style))
+                graphics.DrawString(text, smaller, brush, bounds, format);
         }
         private static void DrawAsset(Graphics graphics, Image asset, RectangleF bounds)
         {
