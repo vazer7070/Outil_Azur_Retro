@@ -32,7 +32,20 @@ try {
 
     $env:AZUR_TEST_BIN = $azurBin
     $env:AZUR_TEST_WORK = $azurWork
-    $azurCompiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+    # Les tests sont écrits en C# 6 et 7 ($"…", out var, membres =>) : le csc.exe du .NET Framework s'arrête à C# 5.
+    # Compilateur Roslyn de Visual Studio ou des Build Tools (vswhere), sinon repli sur l'ancien avec un avertissement.
+    $azurCompiler = $null
+    if (${env:ProgramFiles(x86)}) {
+        $azurVsWhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+        if (Test-Path -LiteralPath $azurVsWhere) {
+            $azurCompiler = & $azurVsWhere -latest -products '*' -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\Roslyn\csc.exe' | Select-Object -First 1
+        }
+    }
+    if (!$azurCompiler) {
+        $azurCompiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+        Write-Warning "Compilateur Roslyn introuvable (vswhere, MSBuild\**\Bin\Roslyn\csc.exe) : repli sur $azurCompiler, limité à C# 5, qui refusera les tests écrits en C# 6 ou 7. Installez Visual Studio ou ses Build Tools avec MSBuild."
+    }
+    else { Write-Host "Compilateur des tests : $azurCompiler" }
     $azurReferences = @('Outil_Azur_complet.exe', 'Tools_protocol.dll', 'Tool_Editor.dll', 'Tool_BotProtocol.dll', 'MySql.Data.dll') |
         ForEach-Object { '/r:' + (Join-Path $azurBin $_) }
     $azurSwfLibrary = Join-Path $azurRoot 'packages\SwfDotNet.IO.1.0.0.1\lib\net40-full\SwfDotNet.IO.dll'
