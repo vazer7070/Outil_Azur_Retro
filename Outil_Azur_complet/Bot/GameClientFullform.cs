@@ -566,11 +566,6 @@ namespace Outil_Azur_complet.Bot
             });
         }
 
-        /// <summary>
-        /// Barre d'état (chaque seconde) : session, retour d'action, visée, combat ou carte et cellule. Le volet affiché n'est pas
-        /// rafraîchi ici (il suit ses propres événements et <see cref="RefreshState"/>) : le reconstruire chaque seconde défaisait les
-        /// saisies en cours et remontait les listes.
-        /// </summary>
         /// <summary>Nom du combattant dont c'est le tour (nom du joueur, nom du monstre), sinon son identifiant.</summary>
         private static string TurnName(Tool_BotProtocol.Game.Combats.Fights fight)
         {
@@ -578,6 +573,21 @@ namespace Outil_Azur_complet.Bot
             return fight.Fighters.TryGetValue(id, out var fighter) && !string.IsNullOrEmpty(fighter?.Name) ? fighter.Name : id.ToString(CultureInfo.InvariantCulture);
         }
 
+        /// <summary>Tour en cours : PA et PM du compte pendant son tour, sinon ceux du combattant courant s'ils sont connus (<c>GTM</c>).</summary>
+        private static string TurnStatus(Tool_BotProtocol.Game.Combats.Fights fight)
+        {
+            if (fight.IsMyTurn) return "Votre tour · " + fight.ActionPoints + " PA · " + fight.MovementPoints + " PM";
+            string text = "Tour de " + TurnName(fight);
+            if (fight.Fighters.TryGetValue(fight.CurrentActorId, out var fighter) && fighter != null && fighter.ActionPoints >= 0 && fighter.MovementPoints >= 0)
+                text += " · " + fighter.ActionPoints + " PA · " + fighter.MovementPoints + " PM";
+            return text;
+        }
+
+        /// <summary>
+        /// Barre d'état (chaque seconde) : session, retour d'action, visée, combat ou carte et cellule. Le volet affiché n'est pas
+        /// rafraîchi ici (il suit ses propres événements et <see cref="RefreshState"/>) : le reconstruire chaque seconde défaisait les
+        /// saisies en cours et remontait les listes.
+        /// </summary>
         private void RefreshStatus()
         {
             if(ActualCompte.Game==null||uiReleased||InvokeRequired)return;
@@ -602,8 +612,7 @@ namespace Outil_Azur_complet.Bot
             string text = (string.IsNullOrEmpty(c.Name) ? "Personnage en cours de chargement" : c.Name + " · Niveau " + c.Level + " · " + BannerArt.Thousands(c.Kamas) + " kamas")
                 + " · " + (map.LoadError ?? ("Carte " + map.MapID + " " + map.GetCoordinates + " · Cellule " + (c.Cell == null ? "?" : c.Cell.CellID.ToString(CultureInfo.InvariantCulture))));
             if (mapControl != null && mapControl.MissingAssetCount > 0) text += " · " + mapControl.MissingAssetCount + " ressource(s) absente(s)";
-            if (fight.IsInFight) text = fight.IsPlacement ? "Placement · choisissez votre cellule · " + nextTurn + " : prêt" :
-                (fight.IsMyTurn ? "Votre tour" : "Tour de " + TurnName(fight)) + " · " + fight.ActionPoints + " PA · " + fight.MovementPoints + " PM";
+            if (fight.IsInFight) text = fight.IsPlacement ? "Placement · choisissez votre cellule · " + nextTurn + " : prêt" : TurnStatus(fight);
             if (mapControl?.SelectedSpellId != null) {
                 Spell selected; if (c.Spells.TryGetValue(mapControl.SelectedSpellId.Value, out selected)) text = selected.Name + " · choisissez une cible · Échap : annuler";
             }
