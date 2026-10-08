@@ -221,7 +221,8 @@ internal static class BotTransportSmoke
         }
         await AccountLifecycle();
         await AccountSendFailure();
-        Console.WriteLine("OK: loopback bot TCP fragments/coalescing/UTF-8, complete serialized sends, stale callbacks, send errors, failed connections and concurrent Dispose");
+        await TicketRetryAfterEarlyGameClose();
+        Console.WriteLine("OK: loopback bot TCP fragments/coalescing/UTF-8, complete serialized sends, stale callbacks, send errors, failed connections, concurrent Dispose and ticket resent after an early Game close");
     }
 
     private static async Task AccountLifecycle()
@@ -323,5 +324,84 @@ internal static class BotTransportSmoke
             }
         }
         finally { listener.Stop(); }
+    }
+    private static async Task<string> ReadPacket(Socket peer)
+    {
+        return await Within(Task.Run(() =>
+        {
+            using (var packet = new MemoryStream())
+            {
+                byte[] one = new byte[1];
+                while (true)
+                {
+                    if (peer.Receive(one) != 1) throw new IOException("The bot closed the simulated server connection");
+                    if (one[0] == 0) return Encoding.UTF8.GetString(packet.ToArray()).TrimEnd('\r', '\n');
+                    packet.WriteByte(one[0]);
+                }
+            }
+        }), "No packet from the bot");
+    }
+
+    private static void SendText(Socket peer, string packets) { byte[] data = Encoding.UTF8.GetBytes(packets); SendAll(peer, data, 0, data.Length); }
+
+    /// <summary>
+    /// Serveur de jeu qui ferme la connexion après <c>AT</c> sans <c>ATK</c>, comme StarLoco quand le compte en attente
+    /// (<c>WA</c> du Login) n'est pas encore enregistré : le bot se reconnecte au même serveur avec le même transport et
+    /// renvoie le ticket ; une fois <c>ATK</c> reçu, une fermeture déconnecte le compte.
+    /// </summary>
+    private static async Task TicketRetryAfterEarlyGameClose()
+    {
+        MessagesReception.messagesDatas.Clear();
+        MessagesReception.Init();
+        var configuration = (Dictionary<string, string>)typeof(GlobalConfig)
+            .GetField("ConfigDico", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+        var login = new TcpListener(IPAddress.Loopback, 0);
+        var world = new TcpListener(IPAddress.Loopback, 0);
+        login.Start(); world.Start();
+        configuration["IP"] = "127.0.0.1";
+        configuration["authport"] = ((IPEndPoint)login.LocalEndpoint).Port.ToString();
+        int previousDelay = Accounts.TicketRetryDelayMs;
+        Accounts.TicketRetryDelayMs = 50;
+        try
+        {
+            using (var account = new Accounts(new AccountConfig("local-ticket-test", "synthetic-not-used", "test")))
+            {
+                var log = new ConcurrentQueue<string>();
+                account.Logger.log_event += (entry, color) => log.Enqueue(entry.message);
+                Task<Socket> accepted = login.AcceptSocketAsync();
+                await Within(account.ConnectAsync(), "Login connection did not complete");
+                BotClient transport = account.Connexion;
+                using (Socket peer = await Within(accepted, "Login peer was not accepted"))
+                {
+                    peer.ReceiveTimeout = 7000;
+                    Task<Socket> first = world.AcceptSocketAsync();
+                    SendText(peer, "AYK127.0.0.1:" + ((IPEndPoint)world.LocalEndpoint).Port + ";88\0");
+                    using (Socket refused = await Within(first, "Game connection was not opened"))
+                    {
+                        refused.ReceiveTimeout = 7000;
+                        Task<Socket> second = world.AcceptSocketAsync();
+                        SendText(refused, "HG\0");
+                        Check(await ReadPacket(refused) == "AT88", "The ticket was not sent on HG");
+                        refused.Shutdown(SocketShutdown.Both);
+                        refused.Close();
+                        using (Socket game = await Within(second, "The bot did not reconnect after an early Game close"))
+                        {
+                            game.ReceiveTimeout = 7000;
+                            Check(account.Connexion == transport && account.GameTicket == "88", "Early Game close dropped the account instead of retrying the ticket");
+                            SendText(game, "HG\0");
+                            Check(await ReadPacket(game) == "AT88", "The ticket was not resent after reconnection");
+                            SendText(game, "ATK0\0");
+                            Check(await ReadPacket(game) == "Ak0" && await ReadPacket(game) == "AV", "ATK0 after the retry was not answered");
+                            Check(log.Any(line => line.Contains("nouvel essai 1/")), "The ticket retry was not logged");
+                            // Ticket accepté : une fermeture du serveur de jeu déconnecte désormais le compte.
+                            game.Shutdown(SocketShutdown.Both);
+                            await Eventually(() => account.Connexion == null && account.AccountStates == AccountStates.DISCONNECTED,
+                                "A Game close after ATK must disconnect the account");
+                        }
+                    }
+                }
+            }
+        }
+        finally { Accounts.TicketRetryDelayMs = previousDelay; login.Stop(); world.Stop(); }
     }
 }

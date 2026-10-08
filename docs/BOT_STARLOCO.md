@@ -123,6 +123,7 @@ La configuration locale du bot et le dossier `AccountSingle` sont exclus des nou
 - Initialisation du registre sans doublons ; choix du préfixe reconnu le plus long (`ATK0` avant `ATK`) et attente des gestionnaires asynchrones.
 - `HC → version → compte → #1<mot de passe chiffré> → Af`, puis `AH/AQ/AxK → AX → AYK/AXK`.
 - `HG → AT → ATK0 → Ak0/AV → AV0 → Agfr/AL/Af → ALK → AS → ASK → GC1`.
+- Si le serveur de jeu ferme la connexion après `AT` sans `ATK` (StarLoco enregistre le compte en attente `WA` du Login en même temps qu’il envoie `AYK`, un client rapide peut donc arriver trop tôt), le bot se reconnecte au même serveur et renvoie le même ticket, deux fois au plus (400 puis 800 ms) ; une fois `ATK` reçu, une fermeture déconnecte le compte comme avant (`BotTransportSmoke`).
 - `AQ` renseigne `SecretQuestion` après décodage de la question. La suppression manuelle envoie `AD<id>|<réponse>`, avec les espaces de la réponse encodés en `%20`, conformément aux sources du kit.
 - `As` actualise les points de caractéristiques et de sorts. Une augmentation manuelle envoie `AB<caractéristique>` : vitalité `11`, sagesse `12`, force `10`, intelligence `15`, chance `13`, agilité `14`.
 - `SL<id>~<niveau>~<emplacement>;…` remplace la liste des sorts du personnage. Une demande manuelle `SB<id>` reçoit `SUK<id>~<niveau>` en cas de succès ou `SUE` en cas de refus. Les informations de chaque personnage sont copiées sans modifier les modèles de ressources ni les autres comptes ; une liste vide efface les anciens sorts.

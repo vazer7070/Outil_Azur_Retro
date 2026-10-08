@@ -23,11 +23,16 @@ namespace Tool_BotProtocol.Frames.Jeu
         [MessageAttribution("ATK0")]
         public async Task ServerSelected(TcpClient client, string message)
         {
+            client.account?.TicketAccepted();
             await client.SendPacket("Ak0").ConfigureAwait(false);
             await client.SendPacket("AV").ConfigureAwait(false);
         }
         [MessageAttribution("ATK")]
-        public Task ServerSelectionned(TcpClient client, string message) => client.SendPacket("AV");
+        public Task ServerSelectionned(TcpClient client, string message)
+        {
+            client.account?.TicketAccepted();
+            return client.SendPacket("AV");
+        }
         [MessageAttribution("AV0")]
         public async Task List_Perso(TcpClient client, string message)
         {

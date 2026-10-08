@@ -31,6 +31,13 @@ namespace Tool_BotProtocol.Game.Accounts
         private readonly object _connectionSync = new object();
         private TaskCompletionSource<bool> _disconnectCompletion;
         private Task _connectTask;
+        // Serveur de jeu annoncé par AYK/AXK tant que le ticket (AT) n'a pas été accepté (ATK) : voir TryRetryTicket.
+        private string _ticketHost;
+        private int _ticketPort, _ticketRetries;
+        /// <summary>Nouvelles connexions au serveur de jeu quand il ferme la connexion avant <c>ATK</c>.</summary>
+        public const int TicketRetryLimit = 2;
+        /// <summary>Attente avant chaque nouvel essai (multipliée par le numéro de l'essai).</summary>
+        public static int TicketRetryDelayMs = 400;
         public event Action AccountStateEvent;
         public event Action AccountDisconnectEvent;
         /// <summary>Vrai si le compte appartient à une équipe de comptes du bot (<see cref="Regroupement"/>), pas au groupe du jeu.</summary>
@@ -123,7 +130,7 @@ namespace Tool_BotProtocol.Game.Accounts
         public void Disconnect()
         {
             TcpClient current;
-            lock (_connectionSync) current = Connexion;
+            lock (_connectionSync) { current = Connexion; _ticketHost = null; }
             Disconnect(current);
         }
         internal void Disconnect(TcpClient expectedConnection)
@@ -182,7 +189,44 @@ namespace Tool_BotProtocol.Game.Accounts
             {
                 if (isdisposed || Connexion == null) return;
                 connection = Connexion;
+                _ticketHost = host; _ticketPort = port; _ticketRetries = 0;
             }
+            await ConnectToGameServerAsync(connection, host, port).ConfigureAwait(false);
+        }
+
+        /// <summary><c>ATK</c> : le serveur de jeu a accepté le ticket ; une fermeture ultérieure n'est plus un refus de ticket.</summary>
+        public void TicketAccepted() { lock (_connectionSync) _ticketHost = null; }
+
+        /// <summary>
+        /// Le serveur de jeu a fermé la connexion entre <c>AYK</c> et <c>ATK</c>. StarLoco n'accepte <c>AT</c> qu'après avoir reçu
+        /// du Login le compte en attente (<c>WA</c>, traité de son côté de façon asynchrone) : un client plus rapide que ce message
+        /// est éconduit (<c>getWaitingAccount</c> nul, puis <c>kick</c>). Comme le compte reste en attente, le bot se reconnecte au
+        /// même serveur (au plus <see cref="TicketRetryLimit"/> fois) et renvoie le ticket sur le nouveau <c>HG</c>.
+        /// Faux si la fermeture doit déconnecter le compte.
+        /// </summary>
+        internal bool TryRetryTicket(TcpClient connection)
+        {
+            string host; int port, attempt;
+            lock (_connectionSync)
+            {
+                if (isdisposed || connection == null || !ReferenceEquals(Connexion, connection) || _ticketHost == null
+                    || string.IsNullOrEmpty(GameTicket) || _ticketRetries >= TicketRetryLimit) return false;
+                attempt = ++_ticketRetries; host = _ticketHost; port = _ticketPort;
+            }
+            Logger?.LogDanger("Connexion", "Le serveur de jeu a fermé la connexion avant d’accepter le ticket : nouvel essai " + attempt + "/" + TicketRetryLimit + ".");
+            _ = RetryGameServerAsync(connection, host, port, attempt);
+            return true;
+        }
+
+        private async Task RetryGameServerAsync(TcpClient connection, string host, int port, int attempt)
+        {
+            await Task.Delay(TicketRetryDelayMs * attempt).ConfigureAwait(false);
+            lock (_connectionSync) if (isdisposed || !ReferenceEquals(Connexion, connection) || _ticketHost == null) return;
+            await ConnectToGameServerAsync(connection, host, port).ConfigureAwait(false);
+        }
+
+        private async Task ConnectToGameServerAsync(TcpClient connection, string host, int port)
+        {
             try
             {
                 SetConnectionStatus("Connexion au serveur de jeu…");
