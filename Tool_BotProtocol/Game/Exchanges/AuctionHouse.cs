@@ -215,6 +215,7 @@ namespace Tool_BotProtocol.Game.Exchanges
             if (Account?.IsFighting() == true) return Task.FromResult(Refuse("Action impossible pendant un combat."));
             int type = IsBuying ? ExchangeTypes.AuctionSell : ExchangeTypes.AuctionBuy;
             IsOpeningPending = true;
+            Notify();
             return SendAsync("ER" + type.ToString(CultureInfo.InvariantCulture) + "|" + Info.NpcId.ToString(CultureInfo.InvariantCulture),
                 (type == ExchangeTypes.AuctionSell ? "Mode vente" : "Mode achat") + " demandé ; le serveur rouvre l'hôtel.");
         }
@@ -338,6 +339,7 @@ namespace Tool_BotProtocol.Game.Exchanges
             InteractionResult refused = CheckCanOpen();
             if (refused != null) return Task.FromResult(refused);
             IsOpeningPending = true;
+            Notify();
             string packet = "ER" + type.ToString(CultureInfo.InvariantCulture) + "|" + npcId.ToString(CultureInfo.InvariantCulture);
             return SendAsync(packet, "Hôtel de vente (" + (type == ExchangeTypes.AuctionBuy ? "achat" : "vente") + ") demandé (" + packet + ") ; sans hôtel sur cette carte, StarLoco ne répond rien.");
         }

@@ -67,6 +67,7 @@ namespace Tool_BotProtocol.Game.Interactions
             if (article.Price.HasValue && (long)article.Price.Value * quantity > kamas)
                 return Task.FromResult(Refuse("Kamas insuffisants : " + ((long)article.Price.Value * quantity) + " demandés, " + kamas + " disponibles."));
             IsPending = true;
+            Notify();
             return SendAsync("EB" + templateId + "|" + quantity, "Achat de " + quantity + " × " + article.Name + " demandé ; le serveur confirme.");
         }
 
@@ -79,6 +80,7 @@ namespace Tool_BotProtocol.Game.Interactions
             if (item == null) return Task.FromResult(Refuse("Cet objet n'est pas dans votre inventaire."));
             if (quantity <= 0 || quantity > item.Qua) return Task.FromResult(Refuse("Quantité invalide (1 à " + item.Qua + ")."));
             IsPending = true;
+            Notify();
             return SendAsync("ES" + inventoryId + "|" + quantity, "Vente de " + quantity + " × " + item.Name + " demandée ; le serveur confirme.");
         }
 

@@ -130,6 +130,7 @@ namespace Tool_BotProtocol.Game.Exchanges
             if (total > kamas) return Task.FromResult(Refuse(ExchangeRegistry.Text("NOT_ENOUGH_RICH", "Tu n'as pas assez de kamas pour réaliser cette action.")
                 + " (" + total.ToString(CultureInfo.InvariantCulture) + " demandés, " + kamas.ToString(CultureInfo.InvariantCulture) + " disponibles)"));
             IsPending = true;
+            Notify();
             return SendAsync("EB" + itemId.ToString(CultureInfo.InvariantCulture) + "|" + quantity.ToString(CultureInfo.InvariantCulture),
                 "Achat de " + quantity + " × " + item.Name + " pour " + total + " kamas demandé ; le serveur confirme.");
         }
@@ -193,6 +194,7 @@ namespace Tool_BotProtocol.Game.Exchanges
             if (TaxRequested || PendingTax != null) return Task.FromResult(Refuse("La taxe du mode marchand a déjà été demandée."));
             if (shopKnownEmpty == true) return Task.FromResult(Refuse("Mettez au moins un objet en vente (Organiser mon magasin) avant de passer en mode marchand (Im123)."));
             TaxRequested = true;
+            Notify();
             return SendAsync("Eq", "Taxe du mode marchand demandée ; le serveur répond par Eq1 ou un refus Im.");
         }
 
