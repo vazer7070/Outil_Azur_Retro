@@ -44,3 +44,10 @@ fonctionnement : [tools/captures/README.md](../../tools/captures/README.md).
 | [16-monture.png](16-monture.png) | Monture | `Re+` : dragodinde équipée, jauges (xp, énergie, fatigue, maturité, endurance, amour, sérénité) |
 | [17-combat-placement.png](17-combat-placement.png) | Combat, placement | `GJK`, `GP`, `GM`, `GIC` : options du combat, boutons Prêt / Annuler |
 | [18-combat.png](18-combat.png) | Combat, tour du joueur | `GS`, `GTM`, `GTL`, `GTS` : frise des combattants, Passer / Abandonner, raccourcis actifs |
+| [19-reel-carte.png](19-reel-carte.png) | Vrai StarLoco, carte | Port de Madrestam [7,-4] (164) : Essai-Bedir (Crâ, cellule 253, au milieu des PNJ) après sa marche, l'Iop du second compte (cellule 298) |
+| [19-reel-combat.png](19-reel-combat.png) | Vrai StarLoco, défi | après le sort de la Crâ : carte vidée des PNJ, deux combattants, ligne de temps, options de combat, « Tour de Essai-Ruruf » |
+
+Les deux captures `19-reel-*` ne viennent pas de `tools/captures` : `BotStarLocoLiveSmoke` les prend pendant qu'il fait jouer
+deux comptes sur une copie locale du StarLoco du kit (variable `AZUR_STARLOCO_CAPTURES`, voir [tests/README.md](../../tests/README.md)),
+fenêtre de jeu du premier compte, puis `tools/captures/optimize.py`. Les comptes (AzurTest1, AzurTest2) et les personnages
+« Essai-… » sont inventés ; les PNJ, la carte et ses textes sont ceux du serveur et du client.
