@@ -471,6 +471,10 @@ internal static class BotStatsSheetSmoke
             "Class filter differs: " + string.Join(", ", list.Items.Cast<ListViewItem>().Select(row => row.Text)));
         type.SelectedIndex = 0; Application.DoEvents();
         Check(list.Items.Count == 3 && list.Items.Cast<ListViewItem>().Any(row => row.Text == "Glyphe fictif"), "« Tous types » filter differs");
+        // Infobulle d'une ligne : nom et niveau, PA et portée du niveau, description du sort.
+        string strikeTip = list.Items.Cast<ListViewItem>().First(row => row.Text == "Frappe fictive").ToolTipText;
+        Check(list.ShowItemToolTips && strikeTip.StartsWith("Frappe fictive · Niveau 2", StringComparison.Ordinal) && strikeTip.Contains("4 PA")
+            && strikeTip.Contains("1 à 4 PO") && strikeTip.EndsWith("Frappe de test.", StringComparison.Ordinal), "Spell row tooltip differs: " + strikeTip);
         PumpUntil(() => Cached("Spells", "3"));
         lock (reads) Check(reads.Any(entry => entry.Key.EndsWith("Spells/3", StringComparison.Ordinal) && entry.Value != uiThread), "Spell icon was not read off the UI thread");
 
@@ -529,7 +533,8 @@ internal static class BotStatsSheetSmoke
         var seeAll = (CheckBox)Get(panel, "seeAll");
         PumpUntil(() => seeAll.Visible);
         seeAll.Checked = true; Application.DoEvents();
-        Check(list.Items.Cast<ListViewItem>().Any(row => row.Text == "Sort non appris" && row.ForeColor.ToArgb() == Color.FromArgb(108, 100, 74).ToArgb()), "Unlearned class spells are not listed");
+        Check(list.Items.Cast<ListViewItem>().Any(row => row.Text == "Sort non appris" && row.ForeColor.ToArgb() == Color.FromArgb(108, 100, 74).ToArgb()
+            && row.ToolTipText.Contains("Non appris")), "Unlearned class spells are not listed");
         panel.SelectSpell(18); Application.DoEvents();
         Check(!upgrade.Enabled && panel.CreateDragData(18) == null, "An unlearned spell can be upgraded or dragged");
 

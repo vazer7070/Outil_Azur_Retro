@@ -97,6 +97,7 @@ namespace Outil_Azur_complet.Bot.Panels
             spells.Dock = DockStyle.Top; spells.Height = 150; spells.Name = "spells-list";
             spells.Columns[0].Width = 290; spells.Columns[1].Width = 60;
             spells.SmallImageList = icons;
+            spells.ShowItemToolTips = true;
             spells.SelectedIndexChanged += (s, e) => UpdateSelection();
             spells.ItemDrag += (s, e) => DragSpell(e.Item as ListViewItem);
 
@@ -234,6 +235,7 @@ namespace Outil_Azur_complet.Bot.Panels
                     item.SubItems.Add(row.Level.ToString(CultureInfo.CurrentCulture));
                     item.Tag = row.Id;
                     item.ImageKey = IconKey(row.Id);
+                    item.ToolTipText = RowTip(row);
                     if (!row.Learned) item.ForeColor = BotUi.Muted;
                     if (row.Id == selected) item.Selected = true;
                 }
@@ -247,13 +249,37 @@ namespace Outil_Azur_complet.Bot.Panels
             public Row(short id, string name, int level, bool learned)
             {
                 Id = id; Name = name; Level = level; Learned = learned;
-                MinLevel = SpellLevelInfo.Get(id, level)?.MinPlayerLevel ?? 0;
+                Info = SpellLevelInfo.Get(id, level);
             }
             public short Id { get; }
             public string Name { get; }
             public int Level { get; }
             public bool Learned { get; }
-            public int MinLevel { get; }
+            public SpellLevelInfo Info { get; }
+            public int MinLevel => Info?.MinPlayerLevel ?? 0;
+        }
+
+        /// <summary>Infobulle d'une ligne : nom et niveau, PA et portée du niveau, niveau requis, description (<c>S[id].d</c>).</summary>
+        private static string RowTip(Row row)
+        {
+            var lines = new List<string> { row.Name + " · " + Text("LEVEL", "Niveau") + " " + row.Level.ToString(CultureInfo.CurrentCulture) };
+            if (row.Info != null)
+            {
+                lines.Add(CostAndRange(row.Info));
+                if (row.Info.MinPlayerLevel > 0) lines.Add(Text("REQUIRED_SPELL_LEVEL", "Niveau requis") + " : " + row.Info.MinPlayerLevel.ToString(CultureInfo.CurrentCulture));
+            }
+            if (!row.Learned) lines.Add("Non appris");
+            string description = SpellBook.DescriptionOf(row.Id);
+            if (!string.IsNullOrEmpty(description)) lines.Add(description);
+            return string.Join("\n", lines);
+        }
+
+        /// <summary>« 3 PA · 1 à 5 PO », comme l'en-tête de la fiche détaillée.</summary>
+        private static string CostAndRange(SpellLevelInfo info)
+        {
+            string range = info.RangeMin == info.RangeMax ? info.RangeMax.ToString(CultureInfo.CurrentCulture)
+                : info.RangeMin.ToString(CultureInfo.CurrentCulture) + " " + Text("TO_RANGE", "à") + " " + info.RangeMax.ToString(CultureInfo.CurrentCulture);
+            return info.ApCost.ToString(CultureInfo.CurrentCulture) + " " + Text("AP", "PA") + "   ·   " + range + " " + Text("RANGE", "PO");
         }
 
         /// <summary>Type du sort (index 11 d'un niveau) ; un sort sans données compte comme sort de classe pour rester visible.</summary>
@@ -399,9 +425,7 @@ namespace Outil_Azur_complet.Bot.Panels
             }
             else
             {
-                string range = info.RangeMin == info.RangeMax ? info.RangeMax.ToString(CultureInfo.CurrentCulture)
-                    : info.RangeMin.ToString(CultureInfo.CurrentCulture) + " " + Text("TO_RANGE", "à") + " " + info.RangeMax.ToString(CultureInfo.CurrentCulture);
-                spellCharacteristics.Text = info.ApCost.ToString(CultureInfo.CurrentCulture) + " " + Text("AP", "PA") + "   ·   " + range + " " + Text("RANGE", "PO");
+                spellCharacteristics.Text = CostAndRange(info);
                 IReadOnlyList<SpellEffectLine> effects = effectTabs.Selected == 1 ? info.CriticalEffects : info.Effects;
                 var lines = effects.Select(effect => info.FromLang ? effect.Describe() : ItemEffectFallback(effect.Type)).Where(line => !string.IsNullOrEmpty(line)).ToList();
                 if (lines.Count == 0) lines.Add(effectTabs.Selected == 1 ? "Aucun effet critique." : "Aucun effet.");
