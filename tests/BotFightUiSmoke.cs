@@ -131,6 +131,10 @@ internal static class BotFightUiSmoke
                         // ---------------------------------------------------------------- placement : menu, options, drapeau
                         FeedFromNetwork(account, "GJK2|1|1|0|30000|0");
                         PumpUntil(() => menu.Visible && options.Visible, "placement menu and options after GJK received on the network thread");
+                        // Checked on the UI thread: InvokeRequired is true when the handle was created by the network thread
+                        // (the former BotUi.OnUi ran the action there for controls created hidden, without a handle).
+                        Check(menu.IsHandleCreated && !menu.InvokeRequired && options.IsHandleCreated && !options.InvokeRequired,
+                            "Placement menu or options got their window handle on the network thread");
                         Feed(account, "GP" + Hash.Get_Cell_Char(0) + Hash.Get_Cell_Char(3) + "|" + Hash.Get_Cell_Char(9) + "|0");
                         Feed(account, "GM|+0;1;0;42;Personnage de test;1;10^100;0|+3;1;0;43;Allié de test;1;10^100;0"); Feed(account, "GIC|42;3;1");
                         PumpUntil(() => menu.Visible && options.Visible && combatTools.Visible, "placement controls");
@@ -175,6 +179,7 @@ internal static class BotFightUiSmoke
                         Check(!timeline.Visible && timeline.Entries.Count == 0, "Timeline shown before GTL");
                         FeedFromNetwork(account, "GTL|42|43|-7");
                         PumpUntil(() => timeline.Visible && timeline.Entries.Count == 3, "GTL portraits (packet received on the network thread)");
+                        Check(timeline.IsHandleCreated && !timeline.InvokeRequired, "Timeline got its window handle on the network thread");
                         IReadOnlyList<TimelineEntry> entries = timeline.Entries;
                         Check(entries[0].FighterId == 42 && entries[1].FighterId == 43 && entries[2].FighterId == -7, "Timeline order differs from GTL");
                         Check(entries[0].Name == "Personnage de test" && entries[1].Name == "Allié de test" && entries[2].Life == 60 && entries[2].Team == 1,
@@ -190,6 +195,9 @@ internal static class BotFightUiSmoke
                         Feed(account, "GTS43|30000");
                         PumpUntil(() => timeline.CurrentFighterId == 43, "GTS current");
                         PumpUntil(() => ((Label)Get(form, "summary")).Text.StartsWith("Tour de Allié de test"), "status bar names the fighter whose turn it is");
+                        // Another fighter's turn: its own PA and PM (GTM 43 : 6 PA, 3 PM), never those of the account (8 PA).
+                        Check(((Label)Get(form, "summary")).Text == "Tour de Allié de test · 6 PA · 3 PM",
+                            "status bar shows other points than the current fighter's: " + ((Label)Get(form, "summary")).Text);
                         entries = timeline.Entries;
                         Check(entries[1].IsCurrent && entries[1].IsHighlighted && timeline.RemainingMilliseconds > 20000 && timeline.RemainingMilliseconds <= 30000,
                             "GTS43|30000 (two fields) did not start the chrono");
@@ -205,6 +213,7 @@ internal static class BotFightUiSmoke
                         Feed(account, "GTF43"); PumpUntil(() => timeline.CurrentFighterId == 0, "GTF");
                         Check(timeline.RemainingMilliseconds == 0 && timeline.HighlightedFighterId == 43, "GTF kept the chrono or lost the GTR frame");
                         Feed(account, "GTS42|30000"); PumpUntil(() => timeline.CurrentFighterId == 42, "own turn");
+                        PumpUntil(() => ((Label)Get(form, "summary")).Text == "Votre tour · 8 PA · 3 PM", "status bar shows the account's points on its turn");
                         Feed(account, "GA;103;42;-7"); PumpUntil(() => timeline.Entries.Count == 2, "dead fighter removed");
                         Feed(account, "GTL|x"); Feed(account, "GTL|42|zz"); Application.DoEvents();
                         Check(timeline.Entries.Count == 2 && timeline.Visible, "Malformed GTL changed the timeline");

@@ -131,9 +131,20 @@ internal static class BotFightProtocolSmoke
                     await Feed(account, "Gc+88;0|43;6;0;-1|-1;7;1;-1"); await Feed(account, "GDO+5;7655;0");
                     Check(account.Game.Map.GetActor(-1) != null && account.Game.Map.GetActor(77) != null && account.Game.Map.FightSwords.Count == 1
                         && account.Game.Map.GroundObjects.Count == 1, "Map actors before GJK not known");
+                    // States of the map: a GDF frame, a permanent GDC (level 1 in the client) and a non-permanent one (;0).
+                    await Feed(account, "GDF|5;3;0"); await Feed(account, "GDC4;aaaaaaaaaa1000;1"); await Feed(account, "GDC6;aaaaaaaaaa1000;0");
+                    Check(account.Game.Map.ObjectStates[5].State == 3 && !account.Game.Map.GetCellFromId(4).LineofSight
+                        && !account.Game.Map.GetCellFromId(6).LineofSight, "GDF/GDC before GJK not applied");
                     await Feed(account, "GJK2|1|1|0|30000|0");
                     Check(!account.Game.Map.AllActors.Any() && account.Game.Map.Self == null && account.Game.Map.FightSwords.Count == 0
                         && account.Game.Map.GroundObjects.Count == 0, "GJK kept the actors of the map (NPC, players, swords, ground objects)");
+                    // cleanMap(1) only changes the image of GDF objects and restores the cells of level 1 (initializeMap(1)).
+                    Check(account.Game.Map.ObjectStates.TryGetValue(5, out InteractiveObjectState kept) && kept.State == 3,
+                        "GJK dropped the GDF states of the map");
+                    Check(account.Game.Map.GetCellFromId(4).LineofSight, "GJK did not restore the cell of a permanent GDC like cleanMap(1)");
+                    Check(!account.Game.Map.GetCellFromId(6).LineofSight, "GJK restored the cell of a non-permanent GDC");
+                    await Feed(account, "GDC6");
+                    Check(account.Game.Map.GetCellFromId(6).LineofSight, "GJK dropped the snapshot used by a later GDC restore");
                     await Feed(account, "GP" + Hash.Get_Cell_Char(0) + Hash.Get_Cell_Char(3) + "|" + Hash.Get_Cell_Char(9) + "|0");
                     Check(fight.IsPlacement && fight.TeamOptions.Count == 0, "Join keeps options of another fight");
                     await Feed(account, "GM|+0;1;0;42;Synthetic;1;10^100;0|+3;1;0;43;Ally;1;10^100;0"); await Feed(account, "GIC|42;3;1");

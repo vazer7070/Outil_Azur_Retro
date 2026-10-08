@@ -709,7 +709,10 @@ internal static partial class Live
         Check(await a.Until(() => a.Account.Game.Interactions.Exchange.CanValidate, 6).ConfigureAwait(false), "A ne peut pas valider l'échange (délai du bouton)");
         var validateA = await a.Account.Game.Interactions.Exchange.ValidateAsync().ConfigureAwait(false);
         Check(validateA.Sent, "Validation de A refusée par le bot : " + validateA.Message);
-        await b.Expect(p => p.StartsWith("EK1" + a.Id) || p.StartsWith("EK1"), "EK1 (A a validé, vu par B)", 10, markB).ConfigureAwait(false);
+        // PlayerExchange.toogleOk de StarLoco : « EK1 » suivi de l'id de celui qui valide, envoyé aux deux joueurs.
+        await b.Expect(p => p == "EK1" + a.Id, "EK1" + a.Id + " (A a validé, vu par B)", 10, markB).ConfigureAwait(false);
+        Check(await b.Until(() => b.Account.Game.Interactions.Exchange.DistantReady && !b.Account.Game.Interactions.Exchange.LocalReady, 5).ConfigureAwait(false),
+            "B ne voit pas la validation de A (EK1" + a.Id + ")");
         Check(await b.Until(() => b.Account.Game.Interactions.Exchange.CanValidate, 6).ConfigureAwait(false), "B ne peut pas valider l'échange (délai du bouton)");
         var validateB = await b.Account.Game.Interactions.Exchange.ValidateAsync().ConfigureAwait(false);
         Check(validateB.Sent, "Validation de B refusée par le bot : " + validateB.Message);
@@ -732,11 +735,13 @@ internal static partial class Live
         var refresh = await friends.RefreshAsync(FriendListKind.Friends).ConfigureAwait(false);
         Check(refresh.Sent, "Liste d'amis refusée par le bot : " + refresh.Message);
         string fl = await a.Expect("FL", "FL (liste d'amis)", 10, markA).ConfigureAwait(false);
-        Check(await a.Until(() => friends.Friends.Any(f => f.Name == b.CharacterName || f.Account == b.Login || (f.Account ?? "").Length > 0), 5).ConfigureAwait(false),
-            "La liste d'amis du bot ne contient pas B : " + string.Join(", ", friends.Friends.Select(f => f.Name + "/" + f.Account)));
+        // Account.parseFriendList de StarLoco : pseudo du compte (celui de « Ad »), puis le personnage connecté.
+        Func<FriendEntry, bool> isB = f => f != null && (f.Name == b.CharacterName || (!string.IsNullOrEmpty(b.Account.Name) && f.Account == b.Account.Name));
+        Check(await a.Until(() => friends.Friends.Any(isB), 5).ConfigureAwait(false),
+            "La liste d'amis du bot ne contient ni le personnage de B (" + b.CharacterName + ") ni le pseudo de son compte : " + string.Join(", ", friends.Friends.Select(f => f.Name + "/" + f.Account)));
         string entry = string.Join(", ", friends.Friends.Select(f => f.Name + (f.IsOnline ? " (en ligne)" : "")));
         // Nettoyage : retrait de l'ami (FD), pour que le passage suivant rejoue l'ajout.
-        FriendEntry added = friends.Friends.FirstOrDefault();
+        FriendEntry added = friends.Friends.FirstOrDefault(isB);
         if (added != null) { var removed = await friends.RemoveAsync(FriendListKind.Friends, added).ConfigureAwait(false); Journal("A [test] retrait de l'ami : " + removed.Message); }
         return fak + ", " + Short(fl, 80) + " → " + entry;
     }
@@ -784,7 +789,13 @@ internal static partial class Live
         return null;
     }
 
-    /// <summary>Compare vie, PA et PM du bot aux derniers GTM (fin du tour précédent) ; renvoie le constat.</summary>
+    private static string PointsOf(LiveSession s, int id) =>
+        s.Account.Game.Fight.Fighters.TryGetValue(id, out CombatFighter f) ? f.ActionPoints + " PA/" + f.MovementPoints + " PM" : "absent";
+
+    /// <summary>
+    /// Au début d'un tour, avant toute action : compare vie, cellule, PA et PM de chaque combattant du bot aux derniers GTM
+    /// (envoyés par StarLoco à la fin du tour précédent, PA et PM totaux), et les PA/PM du compte quand c'est son tour ; renvoie le constat.
+    /// </summary>
     private static async Task<string> CheckFightersMatchGtm(LiveSession s, int mark)
     {
         var lines = new List<string>();
@@ -802,7 +813,17 @@ internal static partial class Live
             bool same = await s.Until(() => LifeOf(s, fighter.Id) == gtm[0], 3).ConfigureAwait(false);
             Check(same, s.Label + " : vie de " + fighter.Name + " = " + LifeOf(s, fighter.Id) + " dans le bot, " + gtm[0] + " dans GTM");
             Check(await s.Until(() => CellOf(s, fighter.Id) == gtm[3], 3).ConfigureAwait(false), s.Label + " : cellule de " + fighter.Name + " = " + CellOf(s, fighter.Id) + " dans le bot, " + gtm[3] + " dans GTM");
-            lines.Add(fighter.Name + " " + gtm[0] + " PV/" + gtm[1] + " PA/" + gtm[2] + " PM");
+            string expected = gtm[1] + " PA/" + gtm[2] + " PM";
+            Check(await s.Until(() => PointsOf(s, fighter.Id) == expected, 3).ConfigureAwait(false), s.Label + " : " + fighter.Name + " a " + PointsOf(s, fighter.Id) + " dans le bot, " + expected + " dans GTM");
+            lines.Add(fighter.Name + " " + gtm[0] + " PV/" + expected);
+        }
+        Fights fight = s.Account.Game.Fight;
+        int[] own = LastGtm(s, s.Id, mark);
+        if (own != null && fight.IsMyTurn)
+        {
+            Check(await s.Until(() => fight.ActionPoints == own[1] && fight.MovementPoints == own[2], 3).ConfigureAwait(false),
+                s.Label + " : tour du compte avec " + fight.ActionPoints + " PA/" + fight.MovementPoints + " PM dans le bot, " + own[1] + "/" + own[2] + " dans GTM");
+            lines.Add("tour de " + s.Label + " : " + fight.ActionPoints + " PA/" + fight.MovementPoints + " PM");
         }
         return string.Join(", ", lines);
     }

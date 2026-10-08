@@ -165,12 +165,14 @@ internal static class BotStatsSheetSmoke
                 Sort(3, "Frappe fictive", "Frappe de test.", 0, 1, 1, 1, 30, 30)
                 + "\n" + Sort(17, "Glyphe fictif", "Glyphe de test.", 1, 1, 1)
                 + "\n" + Sort(18, "Sort non appris", "Sort de classe non appris.", 0, 1)
-                + "\n" + Sort(19, "Sort maximal", "Sort à deux niveaux.", 0, 1, 1));
+                + "\n" + Sort(19, "Sort maximal", "Sort à deux niveaux.", 0, 1, 1)
+                + "\n" + Sort(21, "Zone illisible", "Deuxième zone hors de la table de hachage.", 0, 1, 1).Replace("&quot;PaPa&quot;", "&quot;Paa*&quot;"));
             WriteLang(lang, "effects.xml", "effects",
                 "<entree table=\"E\" id=\"100\" d=\"Dommages : #1{~1~2 à }#2 (test)\" />\n<entree table=\"E\" id=\"108\" d=\"Soins : #1{~1~2 à }#2 (test)\" />\n"
                 + "<entree table=\"E\" id=\"283\" d=\"+#3 de dommages sur le sort #1 (test)\" />");
             Check(LangData.Load(lang) == 4, "Synthetic lang files not loaded: " + string.Join(" / ", LangData.LoadWarnings));
             Model();
+            UnreadableZones(lang);
 
             MessagesReception.Init();
             foreach (string prefix in new[] { "As", "AB", "SL", "SLo", "SB", "SF", "SUK", "SUE" })
@@ -248,6 +250,32 @@ internal static class BotStatsSheetSmoke
             "Spell effect texts differ: " + first.Effects[1].Describe());
         Check(SpellLevelInfo.MaxLevel(3) == 5 && SpellLevelInfo.MaxLevel(17) == 2 && SpellLevelInfo.Get(3, 4).MinPlayerLevel == 30 && SpellLevelInfo.Get(3, 6) == null
             && SpellLevelInfo.Get(17, 1).SpellType == 1 && SpellBook.NameOf(3) == "Frappe fictive" && SpellBook.DescriptionOf(3) == "Frappe de test.", "Spell levels differ");
+    }
+
+    /// <summary>
+    /// Zone d'effet illisible dans spells.xml (second caractère hors de la table de hachage) : l'effet reste sur une seule
+    /// cellule et le problème est journalisé une fois par sort et niveau, même quand les caractéristiques sont recalculées.
+    /// </summary>
+    private static void UnreadableZones(string lang)
+    {
+        var warnings = new List<string>();
+        Action<string> collect = message => { lock (warnings) warnings.Add(message); };
+        SpellLevelInfo.ZoneWarning += collect;
+        try
+        {
+            SpellStats first = Spell.LangStats(21, 1);
+            Check(first != null && first.NormalEffect.Count == 2 && first.NormalEffect[0].ZoneEffet.Type == SpellActionZone.SOLO
+                && first.NormalEffect[1].ZoneEffet.Type == SpellActionZone.SOLO && first.NormalEffect[1].ZoneEffet.taille == 0,
+                "Unreadable zone did not fall back to a single cell");
+            Check(Spell.LangStats(21, 2) != null && Spell.LangStats(3, 1) != null, "Spell stats with readable zones missing");
+            // Nouveau chargement : les caractéristiques sont recalculées, la zone illisible n'est pas signalée une seconde fois.
+            Check(LangData.Load(lang) == 4 && Spell.LangStats(21, 1) != null, "Reloaded spell stats missing");
+            lock (warnings)
+                Check(warnings.Count == 2 && warnings[0].StartsWith("Sort 21 niveau 1 ") && warnings[0].Contains("« a* »")
+                    && warnings[1].StartsWith("Sort 21 niveau 2 "), "Unreadable zones not logged once per spell and level: " + string.Join(" / ", warnings));
+            Check(SpellLevelInfo.ZoneWarnings.Count(line => line.StartsWith("Sort 21 ")) == 2, "ZoneWarnings does not keep one line per spell and level");
+        }
+        finally { SpellLevelInfo.ZoneWarning -= collect; }
     }
 
     private static void Network(string folder)
@@ -524,6 +552,8 @@ internal static class BotStatsSheetSmoke
         FeedFromNetwork(account, "SUK3~1");
         FeedFromNetwork(account, "SF+"); PumpUntil(() => panel.IsServerWindowOpen);
         Click(Get(panel, "cancelForget")); Expect(peer, "SF-1", "« Annuler » does not send SF-1");
+        // CancelForgetAsync ferme la fenêtre après l'envoi : attendre cette fermeture avant le SF+ suivant, sinon elle peut l'écraser.
+        PumpUntil(() => !book.ForgetWindowOpen);
         FeedFromNetwork(account, "SF+"); PumpUntil(() => panel.IsServerWindowOpen);
         drawer.CloseAll(); Application.DoEvents();
         Check(drawer.IsOpen(panel), "CloseAll removed the open forget window");

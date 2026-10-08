@@ -222,7 +222,9 @@ internal static class BotTransportSmoke
         await AccountLifecycle();
         await AccountSendFailure();
         await TicketRetryAfterEarlyGameClose();
-        Console.WriteLine("OK: loopback bot TCP fragments/coalescing/UTF-8, complete serialized sends, stale callbacks, send errors, failed connections, concurrent Dispose and ticket resent after an early Game close");
+        await TicketRetryAfterAte();
+        await NoSessionOnDiscardedTransport();
+        Console.WriteLine("OK: loopback bot TCP fragments/coalescing/UTF-8, complete serialized sends, stale callbacks, send errors, failed connections, concurrent Dispose, ticket resent after an early Game close or ATE, and no session opened on a discarded transport");
     }
 
     private static async Task AccountLifecycle()
@@ -403,5 +405,114 @@ internal static class BotTransportSmoke
             }
         }
         finally { Accounts.TicketRetryDelayMs = previousDelay; login.Stop(); world.Stop(); }
+    }
+
+    /// <summary>
+    /// StarLoco répond <c>ATE</c> puis ferme la session (<c>kick</c>) quand le compte en attente (<c>WA</c> du Login) n'est pas
+    /// encore arrivé : tant qu'il reste des essais, le bot renvoie le ticket sur une seule nouvelle connexion au lieu d'échouer ;
+    /// les essais épuisés, <c>ATE</c> fait échouer la connexion avec son message.
+    /// </summary>
+    private static async Task TicketRetryAfterAte()
+    {
+        MessagesReception.messagesDatas.Clear();
+        MessagesReception.Init();
+        var configuration = (Dictionary<string, string>)typeof(GlobalConfig)
+            .GetField("ConfigDico", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+        var login = new TcpListener(IPAddress.Loopback, 0);
+        var world = new TcpListener(IPAddress.Loopback, 0);
+        login.Start(); world.Start();
+        configuration["IP"] = "127.0.0.1";
+        configuration["authport"] = ((IPEndPoint)login.LocalEndpoint).Port.ToString();
+        int previousDelay = Accounts.TicketRetryDelayMs;
+        Accounts.TicketRetryDelayMs = 50;
+        Socket game = null;
+        try
+        {
+            using (var account = new Accounts(new AccountConfig("local-ate-test", "synthetic-not-used", "test")))
+            {
+                var log = new ConcurrentQueue<string>();
+                account.Logger.log_event += (entry, color) => log.Enqueue(entry.message);
+                Task<Socket> accepted = login.AcceptSocketAsync();
+                await Within(account.ConnectAsync(), "Login connection did not complete");
+                BotClient transport = account.Connexion;
+                using (Socket peer = await Within(accepted, "Login peer was not accepted"))
+                {
+                    Task<Socket> next = world.AcceptSocketAsync();
+                    SendText(peer, "AYK127.0.0.1:" + ((IPEndPoint)world.LocalEndpoint).Port + ";77\0");
+                    game = await Within(next, "Game connection was not opened");
+                    for (int attempt = 1; ; attempt++)
+                    {
+                        game.ReceiveTimeout = 7000;
+                        next = world.AcceptSocketAsync();
+                        await Task.Delay(250);
+                        Check(!next.IsCompleted, "One ATE opened more than one new Game connection");
+                        SendText(game, "HG\0");
+                        Check(await ReadPacket(game) == "AT77", "The ticket was not sent on HG (connection " + attempt + ")");
+                        SendText(game, "ATE\0");
+                        if (attempt > Accounts.TicketRetryLimit) break;
+                        game.Shutdown(SocketShutdown.Both); // kick de StarLoco juste après ATE
+                        Socket reconnected = await Within(next, "ATE " + attempt + " did not resend the ticket on a new connection");
+                        game.Dispose();
+                        game = reconnected;
+                        Check(account.Connexion == transport && account.GameTicket == "77"
+                            && !account.ConnectionStatus.StartsWith("Connexion impossible", StringComparison.Ordinal),
+                            "ATE during the WA/AT race failed the account instead of resending the ticket");
+                        Check(log.Any(line => line.Contains("ATE") && line.Contains("nouvel essai " + attempt + "/" + Accounts.TicketRetryLimit)),
+                            "The ticket retry after ATE was not logged (attempt " + attempt + ")");
+                    }
+                    await Eventually(() => account.Connexion == null && account.AccountStates == AccountStates.DISCONNECTED,
+                        "ATE with no retry left did not fail the connection");
+                    Check(account.ConnectionStatus.Contains("refusé le ticket"), "Final ATE lost its reason: " + account.ConnectionStatus);
+                    await Task.Delay(300);
+                    Check(!next.IsCompleted, "The bot retried the ticket beyond TicketRetryLimit");
+                }
+            }
+        }
+        finally { game?.Dispose(); Accounts.TicketRetryDelayMs = previousDelay; login.Stop(); world.Stop(); }
+    }
+
+    /// <summary>
+    /// Fermeture distante sans ticket en cours : la décision (nouvel essai du ticket ou déconnexion du compte) est prise sous le
+    /// verrou qui remet la session à zéro. Un <c>ConnectToServer</c> lancé pendant la fermeture (ici depuis le journal du transport,
+    /// appelé juste après la remise à zéro) est refusé au lieu d'ouvrir une session sur le transport que le compte va jeter.
+    /// </summary>
+    private static async Task NoSessionOnDiscardedTransport()
+    {
+        var configuration = (Dictionary<string, string>)typeof(GlobalConfig)
+            .GetField("ConfigDico", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+        var login = new TcpListener(IPAddress.Loopback, 0);
+        var stray = new TcpListener(IPAddress.Loopback, 0);
+        login.Start(); stray.Start();
+        configuration["IP"] = "127.0.0.1";
+        configuration["authport"] = ((IPEndPoint)login.LocalEndpoint).Port.ToString();
+        int strayPort = ((IPEndPoint)stray.LocalEndpoint).Port;
+        try
+        {
+            using (var account = new Accounts(new AccountConfig("local-race-test", "synthetic-not-used", "test")))
+            {
+                Task<Socket> accepted = login.AcceptSocketAsync();
+                await Within(account.ConnectAsync(), "Login connection did not complete");
+                BotClient transport = account.Connexion;
+                Task<Socket> strayAccepted = stray.AcceptSocketAsync();
+                var concurrent = new TaskCompletionSource<Task>();
+                transport.socketInformationEvent += info =>
+                {
+                    if (info == "Socket déconnecté de l'hôte")
+                        concurrent.TrySetResult(transport.ConnectToServer(IPAddress.Loopback, strayPort));
+                };
+                using (Socket peer = await Within(accepted, "Login peer was not accepted"))
+                {
+                    peer.Close();
+                    Task attempt = await Within(concurrent.Task, "The remote close was not reported by the transport");
+                    await Eventually(() => account.Connexion == null && account.AccountStates == AccountStates.DISCONNECTED,
+                        "Remote close without a ticket did not disconnect the account");
+                    Check(attempt.IsFaulted && attempt.Exception.InnerException is ObjectDisposedException,
+                        "A connection started during the account disconnection was not refused");
+                    await Task.Delay(200);
+                    Check(!strayAccepted.IsCompleted, "The discarded transport opened a session on another server");
+                }
+            }
+        }
+        finally { login.Stop(); stray.Stop(); }
     }
 }
