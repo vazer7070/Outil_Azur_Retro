@@ -654,6 +654,10 @@ Le volet **Caractéristiques** (`Bot/Panels/StatsPanel.cs`, bouton « Stats » d
 
 `BotStatsSheetSmoke` rejoue tout cela contre un serveur fictif local avec des textes `lang`, `classes`, `spells` et `effects` et deux images synthétiques ; `BotSpellsSmoke` vérifie en plus que `SLo` ne vide plus la liste `SL`. Les deux passent sous Mono. Limites : rien n'a encore été rejoué sur un vrai StarLoco ; les volets prennent la largeur du tiroir au lieu des fenêtres du client ; la fiche d'un sort n'affiche pas la zone d'effet (champ 15 du niveau, gardé dans `SpellLevelInfo.Zones`) ; l'infobulle des sorts du bandeau reste celle du lot C3.
 
+## Son (lot AN9 : évaluation)
+
+Le bot ne joue aucun son : ni les bruitages des sorts, des coups et de l’interface, ni les ambiances, ni les musiques du client. StarLoco n’envoie aucun paquet propre au son ; le client 1.34 déduit tout des paquets de combat et de carte et des animations qu’il joue. La [note sur le son](SON_BOT.md) chiffre ce que le client fait entendre (904 bruitages et 36 musiques en MP3, dont 793 bruitages réellement appelés, 2,64 Mo), ce que coûterait leur conversion en WAV (32,4 Mo), ce que `SoundPlayer` sait lire sous Windows et sous Mono (sous Mono, sans carte son, il ne rend jamais la main sur un WAV valide), et recommande de ne pas ouvrir de lot son avant les animations. Aucun test ne porte sur le son.
+
 ## Animations de la carte : événements visuels, séquenceur, animations ponctuelles et effets (lot AN1)
 
 Ce lot pose le socle des animations, sans nouvelle image ni donnée : les familles (chiffres, coups, morts, sorts, critiques, émotes, récolte, effets de carte) restent vides et sont remplies par les lots suivants.

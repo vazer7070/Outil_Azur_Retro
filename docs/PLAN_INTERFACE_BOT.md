@@ -273,6 +273,7 @@ Préalable : une copie isolée d’un vrai StarLoco, avec des comptes et des per
 - Fiche d’un sort sans zone d’effet ; infobulle des sorts de la barre restée simple.
 - Inventaire : bordure des objets de panoplie non portés, boîte de quantité du client, objets de la barre non signalés dans la grille.
 - Les volets prennent la largeur du tiroir au lieu des fenêtres fixes du client.
+- Son : le bot ne joue ni bruitage ni musique. L’évaluation chiffrée et la recommandation (pas de lot son avant les animations) sont dans [la note sur le son](SON_BOT.md) (lot AN9).
 
 ### Chat
 
