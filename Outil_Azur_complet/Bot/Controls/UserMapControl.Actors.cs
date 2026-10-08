@@ -250,7 +250,9 @@ namespace Outil_Azur_complet.Bot.Controls
         public ActorVisualState[] GetActorVisualStates()
         {
             Map map = Account?.Game?.Map;
-            if (map?.MapCells == null || worldPolygons == null) return new ActorVisualState[0];
+            // Copie locale : le fil réseau remet MapCells à null (Map.Clear) à chaque GDM pendant que la carte se dessine.
+            Cell[] mapCells = map?.MapCells;
+            if (mapCells == null || worldPolygons == null) return new ActorVisualState[0];
             var states = new List<ActorVisualState>();
             var live = new HashSet<int>();
             CharacterClass self = Account.Game.character;
@@ -261,7 +263,7 @@ namespace Outil_Azur_complet.Bot.Controls
                 ActorVisualState main = AddMain(states, self, self.id, ActorKind.Player, self.GFX > 0 ? self.GFX : self.Race_ID * 10 + self.Sex,
                     self.Orientation, selfActor?.NoFlip == true, self.GraphicsScaleX, self.GraphicsScaleY, self.Cell.CellID, true,
                     Color.FromArgb(72, 103, 156), self.Name ?? "Vous", PlayerEmote(self.id, selfActor as PlayerActor));
-                if (main != null && selfActor != null) AddFollowers(states, main, selfActor);
+                if (main != null && selfActor != null) AddFollowers(states, main, selfActor, map, mapCells);
             }
             foreach (MapActor actor in map.AllActors.ToArray())
             {
@@ -269,10 +271,10 @@ namespace Outil_Azur_complet.Bot.Controls
                 int cell = actor.Cell?.CellID ?? actor.CellId;
                 if (cell < 0 || cell >= worldPolygons.Length) continue;
                 live.Add(actor.id);
-                if (actor is MonsterGroupActor group) { AddGroup(states, group, cell); continue; }
+                if (actor is MonsterGroupActor group) { AddGroup(states, group, cell, map, mapCells); continue; }
                 ActorVisualState main = AddMain(states, actor, actor.Id, actor.Kind, actor.Gfx, actor.Orientation, actor.NoFlip, actor.ScaleX, actor.ScaleY,
                     cell, false, KindColor(actor.Kind), actor.DisplayName, PlayerEmote(actor.Id, actor as PlayerActor));
-                if (main != null) AddFollowers(states, main, actor);
+                if (main != null) AddFollowers(states, main, actor, map, mapCells);
             }
             foreach (FightSwordsActor swords in map.FightSwords.Values.ToArray()) AddSwords(states, swords);
             foreach (int id in Anim.Keys.Where(id => !live.Contains(id)).ToArray()) CancelAnimation(id);
@@ -393,7 +395,7 @@ namespace Outil_Azur_complet.Bot.Controls
         /// parmi 8, orientation impaire tirée au hasard. Le hasard est fixé par l'identifiant du groupe (placement stable
         /// d'un dessin à l'autre). Les membres suivent le chef quand il marche.
         /// </summary>
-        private void AddGroup(List<ActorVisualState> states, MonsterGroupActor group, int cell)
+        private void AddGroup(List<ActorVisualState> states, MonsterGroupActor group, int cell, Map map, Cell[] mapCells)
         {
             IReadOnlyList<MonsterGroupMember> members = group.Members ?? new MonsterGroupMember[0];
             MonsterGroupMember leader = members.Count > 0 ? members[0] : null;
@@ -401,7 +403,6 @@ namespace Outil_Azur_complet.Bot.Controls
             ActorVisualState main = AddMain(states, group, group.Id, ActorKind.MonsterGroup, leaderGfx, group.Orientation, group.NoFlip,
                 group.ScaleX, group.ScaleY, cell, false, KindColor(ActorKind.MonsterGroup), group.DisplayName, 0);
             if (main == null || !viewAllMonsters || members.Count < 2) return;
-            Map map = Account.Game.Map;
             var random = new Random(unchecked((int)(group.Id * 7919 + 17)));
             // Cellule logique du chef (destination du pas en cours quand il marche) : les membres s'y rattachent.
             int anchorCell = main.CellId;
@@ -415,8 +416,8 @@ namespace Outil_Azur_complet.Bot.Controls
                 int parent = 0;
                 if (random.Next(3) != 0 && index != 1) parent = random.Next(index - 1) + 1;
                 int childIndex = random.Next(8);
-                int target = AroundCell(map, cells[parent], directions[parent], childIndex);
-                Cell data = target >= 0 && target < map.MapCells.Length ? map.MapCells[target] : null;
+                int target = AroundCell(map.MapWidth, mapCells, cells[parent], directions[parent], childIndex);
+                Cell data = target >= 0 && target < mapCells.Length ? mapCells[target] : null;
                 if (data == null || !data.IsWalkable()) target = cells[parent];
                 cells.Add(target); directions.Add(direction);
                 PointF offset = WorldCenter(target);
@@ -441,15 +442,14 @@ namespace Outil_Azur_complet.Bot.Controls
         /// <c>getArroundCellNum</c> du client : le rang <paramref name="childIndex"/> (modulo 8) choisit une des 8 cases
         /// voisines, tournée de l'orientation du parent ; la case doit exister, être active et à moins de 53 px en x.
         /// </summary>
-        internal int AroundCell(Map map, int cell, int parentDirection, int childIndex)
+        internal int AroundCell(int width, Cell[] mapCells, int cell, int parentDirection, int childIndex)
         {
-            int width = map.MapWidth;
             int[] offsets = { 1, width, width * 2 - 1, width - 1, -1, -width, -width * 2 + 1, -(width - 1) };
             int[] slots = { 2, 6, 4, 0, 3, 5, 1, 7 };
             int slot = (slots[((childIndex % 8) + 8) % 8] + ActorOrientation.Normalize(parentDirection)) % 8;
             int target = cell + offsets[slot];
-            if (target < 0 || target >= worldPolygons.Length || map.MapCells == null || target >= map.MapCells.Length) return cell;
-            bool active = artwork != null && artwork.Cells.Length == worldPolygons.Length ? artwork.Cells[target].Active : map.MapCells[target]?.IsActive == true;
+            if (target < 0 || target >= worldPolygons.Length || mapCells == null || target >= mapCells.Length) return cell;
+            bool active = artwork != null && artwork.Cells.Length == worldPolygons.Length ? artwork.Cells[target].Active : mapCells[target]?.IsActive == true;
             return active && Math.Abs(WorldCenter(target).X - WorldCenter(cell).X) <= BotMapArtwork.CellWidth ? target : cell;
         }
 
@@ -457,11 +457,10 @@ namespace Outil_Azur_complet.Bot.Controls
         /// Sprites liés d'un acteur qui n'est pas un groupe (familier qui suit un joueur) : disposition <c>circle</c>
         /// (rang k autour du parent), <c>line</c> (chaque sprite suit le précédent) ou par défaut rang 2 autour du parent.
         /// </summary>
-        private void AddFollowers(List<ActorVisualState> states, ActorVisualState main, MapActor actor)
+        private void AddFollowers(List<ActorVisualState> states, ActorVisualState main, MapActor actor, Map map, Cell[] mapCells)
         {
             IReadOnlyList<GfxPart> parts = actor.LinkedSprites;
             if (parts == null || parts.Count == 0 || actor is MonsterGroupActor) return;
-            Map map = Account.Game.Map;
             int parentCell = main.CellId, parentDirection = main.Orientation;
             PointF anchorWorld = WorldCenter(main.CellId);
             for (int index = 0; index < parts.Count; index++)
@@ -469,8 +468,8 @@ namespace Outil_Azur_complet.Bot.Controls
                 GfxPart part = parts[index];
                 if (part == null || part.Gfx <= 0) continue;
                 int childIndex = actor.LinkedShape == "circle" ? index + 1 : 2;
-                int target = AroundCell(map, parentCell, parentDirection, childIndex);
-                Cell data = target >= 0 && target < map.MapCells.Length ? map.MapCells[target] : null;
+                int target = AroundCell(map.MapWidth, mapCells, parentCell, parentDirection, childIndex);
+                Cell data = target >= 0 && target < mapCells.Length ? mapCells[target] : null;
                 if (data == null || !data.IsWalkable()) target = parentCell;
                 PointF offset = WorldCenter(target);
                 var position = new PointF(main.WorldPosition.X + offset.X - anchorWorld.X, main.WorldPosition.Y + offset.Y - anchorWorld.Y);
