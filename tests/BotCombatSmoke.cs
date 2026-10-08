@@ -143,6 +143,7 @@ internal static class BotCombatSmoke
                     await Feed(account, "GDM|900090|new-date|"); Check(await Within(Read(peer)) == "GI", "Map changed without requesting GI");
                     await oldMovement; Check(peer.Available == 0 && fight.IsInFight && account.IsFighting(), "Old combat map movement sends a stale ACK or clears fight");
                     await Feed(account, "GE0|0");
+                    Check(await Within(Read(peer)) == "GC1", "GE is not followed by GC1 (client terminateFight → Game.create)");
                     Check(fight.Phase == CombatPhase.Finished && !fight.IsInFight && account.AccountStates == AccountStates.CONNECTED_INACTIVE && fight.Fighters.Count == 0
                         && fight.LastResult != null && fight.LastResult.DurationMilliseconds == 0 && fight.TurnOrder.Count == 0, "Fight end retains stale state or loses GE");
                     await Feed(account, "GJK3|0|0|1|0|4"); await Feed(account, "GTS42|30000");

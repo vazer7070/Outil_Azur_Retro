@@ -275,6 +275,8 @@ internal static class BotFightProtocolSmoke
                     Check(giveUp.Sent && await Within(Read(peer)) == "GQ" && giveUp.Message.Contains("mort"), "GQ in an active fight");
                     int journalBeforeEnd = fight.Journal.Count;
                     await Feed(account, "GE12000;1|42|0|2;42;Synthetic;10;0;1000;1500;2000;500;0;0;311~2,312~1;150|0;-7;101;5;1;;;;;;;;");
+                    // Comme GameManager.terminateFight du client : GE → Game.onLeave → create() ; StarLoco renvoie alors la carte.
+                    Check(await Within(Read(peer)) == "GC1", "GE is not followed by GC1");
                     FightResult pvm = fight.LastResult;
                     Check(pvm != null && pvm.DurationMilliseconds == 12000 && pvm.StarBonus == 1 && pvm.InitiatorId == 42 && pvm.FightType == 0
                         && pvm.Winners.Count == 1 && pvm.Losers.Count == 1 && pvm.IsWinner(42) && !pvm.IsWinner(-7), "GE header/categories");
@@ -287,6 +289,7 @@ internal static class BotFightProtocolSmoke
                     // PvP result (type 1: honour then experience), no star bonus.
                     await Feed(account, "GJK2|1|1|0|30000|1"); Check(fight.LastResult == null && fight.Journal.Count == 0, "New fight keeps the previous result");
                     await Feed(account, "GE5000|42|1|2;42;Synthetic;10;0;0;100;200;10;1;0;0;;0;1000;1500;2000;50");
+                    Check(await Within(Read(peer)) == "GC1", "PvP GE is not followed by GC1");
                     FightResult pvp = fight.LastResult; FightResultEntry pvpOwn = pvp?.Find(42);
                     Check(pvp != null && pvp.FightType == 1 && pvp.StarBonus == null && pvpOwn.WonHonour == 10 && pvpOwn.Rank == 1 && pvpOwn.Honour == 100
                         && pvpOwn.WonExperience == 50 && pvpOwn.Items.Count == 0 && pvpOwn.Kamas == 0, "GE PvP line");
@@ -294,6 +297,8 @@ internal static class BotFightProtocolSmoke
                     // A malformed GE still ends the fight (the client always leaves the fight screen).
                     await Feed(account, "GJK2|1|1|0|30000|0"); await Feed(account, "GEabc");
                     Check(!fight.IsInFight && fight.Phase == CombatPhase.Finished && fight.LastResult == null && results == 2, "Malformed GE");
+                    Check(await Within(Read(peer)) == "GC1", "Malformed GE is not followed by GC1");
+                    await Feed(account, "GE5000|42|1|"); Check(peer.Available == 0, "GE outside a fight sent GC1");
 
                     // GQ during placement, then GV.
                     await Feed(account, "GJK2|1|1|0|30000|0");

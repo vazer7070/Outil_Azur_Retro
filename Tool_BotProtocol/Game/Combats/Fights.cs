@@ -553,8 +553,11 @@ namespace Tool_BotProtocol.Game.Combats
 
         /// <summary><c>GV</c> : sortie du combat sans résultat (abandon, spectateur, exclusion).</summary>
         internal void Finish() { Finish(null); }
-        /// <summary><c>GE…</c> : fin du combat ; le résultat est conservé dans <see cref="LastResult"/>.</summary>
-        internal void Finish(string resultPayload)
+        /// <summary>
+        /// <c>GE…</c> : fin du combat ; le résultat est conservé dans <see cref="LastResult"/>. Renvoie vrai si un combat
+        /// en cours vient de se terminer (faux hors combat ou après fermeture du compte).
+        /// </summary>
+        internal bool Finish(string resultPayload)
         {
             FightResult result = resultPayload == null ? null : FightResult.Parse(resultPayload);
             if (resultPayload != null && result == null) Malformed("GE", resultPayload);
@@ -562,11 +565,11 @@ namespace Tool_BotProtocol.Game.Combats
                 account.Logger?.LogDanger("COMBAT", result.Rejected.Count + " ligne(s) du résultat de combat illisible(s), ignorée(s).");
             int self = account.Game.character.id;
             FightLogEntry[] kept;
-            lock (sync) { if (!InFight) return; kept = journal.ToArray(); }
+            lock (sync) { if (!InFight) return false; kept = journal.ToArray(); }
             Clear(false);
             lock (sync)
             {
-                if (disposed) return;
+                if (disposed) return false;
                 phase = CombatPhase.Finished; lastResult = result; journal.AddRange(kept);
                 FightResultEntry own = result?.Find(self);
                 lastMessage = own == null ? "Combat terminé." : own.Kind == FightResultKind.Winner ? "Combat terminé : victoire."
@@ -576,6 +579,7 @@ namespace Tool_BotProtocol.Game.Combats
             Changed();
             if (result != null) CombatResultReceived?.Invoke(result);
             CombatFinished?.Invoke();
+            return true;
         }
         public void UpdateFighterFromMap(string[] info)
         {
