@@ -653,9 +653,14 @@ namespace Outil_Azur_complet.Bot.Panels
                 TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
             if (!closeVisible) return;
             Image cross = QuestIcons.Client("fermer-haut", this);
-            if (cross != null) lock (cross) ClientAssets.DrawFit(graphics, cross, CloseBounds);
+            // La croix du client est noire : sur la barre sombre, elle se pose sur une pastille claire, sinon elle disparaît.
+            System.Drawing.Drawing2D.SmoothingMode smoothing = graphics.SmoothingMode;
+            graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            using (var disc = new SolidBrush(BotUi.PaperLight)) graphics.FillEllipse(disc, CloseBounds);
+            graphics.SmoothingMode = smoothing;
+            if (cross != null) lock (cross) ClientAssets.DrawFit(graphics, cross, Rectangle.Inflate(CloseBounds, -3, -3));
             else
-                TextRenderer.DrawText(graphics, "×", BotFonts.Get(10, FontStyle.Bold), CloseBounds, ForeColor,
+                TextRenderer.DrawText(graphics, "×", BotFonts.Get(10, FontStyle.Bold), CloseBounds, BotUi.Ink,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
         }
 
