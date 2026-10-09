@@ -91,8 +91,8 @@ python3 tools/client-analysis/exporter_sorts.py --starloco "<StarLoco>/02 - BDD/
 
 ## Bandes `rotate` des types 20 et 21 (lot AN5)
 
-Pour les types 20 et 21, le client tourne l'enfant `rotate` de la scène vers la cible
-(`p1.rotate._rotation = angle` dans `onLoadInit`). Les 12 gfx de `sorts_utilises.txt` affichés
+Pour les types 20 et 21, le client tourne l'enfant `rotate` de la scène vers la cible (`onLoadInit`
+donne à sa propriété `_rotation` l'angle lanceur → cible). Les 12 gfx de `sorts_utilises.txt` affichés
 seulement en types 20 et 21 ont tous une instance `rotate` (profondeur 1, image 1, sans rotation) :
 306, 403, 405, 406, 510, 804, 806, 809, 903, 906, 2003 et 2050. Pour eux, `exporter_sorts.py` écrit
 `<gfx>_rotate.png` (`swfsvg --scene --instance rotate --frame all`) et rend la scène sans cette
