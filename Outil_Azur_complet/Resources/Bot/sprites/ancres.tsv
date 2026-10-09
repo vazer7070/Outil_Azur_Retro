@@ -2006,7 +2006,7 @@ gfx	anim	xmin	ymin	largeur	hauteur	images	ips	fin
 1190	staticR	-20	-39	37	43	1	40	arret
 1190	walkL	-21	-40	49	45	17	20	boucle
 1190	walkR	-20	-40	45	45	17	20	boucle
-1191	staticL	-21	-51	29	56	1	40	arret
+1191	staticL	-22	-51	30	56	1	40	arret
 1191	staticR	-9	-56	32	60	1	40	arret
 1192	anim0L	-54	-63	95	72	35	20	static
 1192	anim0R	-53	-61	99	64	32	20	static
