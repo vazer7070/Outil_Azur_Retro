@@ -264,7 +264,8 @@ Préalable : une copie isolée d’un vrai StarLoco, avec des comptes et des per
 - Nombre de tours du résultat compté par le bot (StarLoco n’envoie pas le troisième champ de `GTS`).
 - Caractéristiques temporaires et changement d’apparence non appliqués ; noms des états et des effets.
 - Aperçu du chemin pendant un combat.
-- Effets de sorts (lot AN4) : projectiles des types 20 à 51 (lot AN5) ; aucun repli pour les 10 gfx de type 10 ou 11 sans scène (dessinés par script ou vides) ; scripts des SWF non exécutés (hasard, niveau du sort) ; `anim8` des ballons et feux d’artifice non exporté, couleur à 200 % de `GA208` non reproduite ; clip du coup critique limité à `staticF` d’après le code du client, non observé ; rien n’a été comparé au client en jeu.
+- Effets de sorts (lot AN4) : aucun repli pour les 10 gfx de type 10 ou 11 sans scène (dessinés par script ou vides) ; scripts des SWF non exécutés (hasard, niveau du sort) ; `anim8` des ballons et feux d’artifice non exporté, couleur à 200 % de `GA208` non reproduite ; clip du coup critique limité à `staticF` d’après le code du client, non observé ; rien n’a été comparé au client en jeu.
+- Projectiles des sorts (lot AN5) : types 50 et 51 approchés par la scène, ou `shoot`, à la cellule visée (le clip du client se dessine par script) ; rien à dessiner pour 41 des 61 gfx de type 51, pour le gfx de type 50 et pour 103 et 3001 (scripts) ; `duplicate` de 1210 joué en entier au lieu de retirer le clip ; aucune capture prise pendant un vol sur le vrai StarLoco, rien n’a été comparé au client en jeu.
 
 ### Bandeau, options et fiches
 

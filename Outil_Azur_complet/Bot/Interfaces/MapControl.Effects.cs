@@ -485,16 +485,17 @@ namespace Outil_Azur_complet.Bot.Interfaces
             bool visible = anchor.IsVisible;
             int gfx = int.TryParse(file, NumberStyles.None, CultureInfo.InvariantCulture, out int parsed) ? parsed : -1;
             bool hasEffect = SpellEffects.HasEffect(type);
-            bool drawn = hasEffect && SpellEffects.IsDrawn(type) && gfx >= 0 && visible;
-            if (drawn) using (UserMap.Sprites.ResolveFixed(SpellEffects.SpellFamily, gfx, SpellEffects.SceneAnimation)) { }
+            // Lot AN5 : les projectiles (20 à 51) sont dessinés aussi, par SpellEffects.Launch.
+            bool drawn = hasEffect && (SpellEffects.IsDrawn(type) || SpellProjectiles.IsProjectile(type)) && gfx >= 0 && visible;
+            if (drawn) SpellEffects.Prefetch(UserMap.Sprites, gfx, type);
             if (animation != null) PrefetchAnimation(caster, cell, animation);
             if (!TryEnqueueVisual(caster, VisualStep.Instant("Direction", now => TurnTowards(caster, cell)))) return;
             if (animation != null) TryEnqueueVisual(caster, CasterAnimationStep("Sort", caster, animation));
             if (!hasEffect) return;
-            StripEffect effect = null;
+            IMapEffect effect = null;
             Action<double> start = now => { if (drawn) effect = AddSpellEffect(caster, cell, gfx, type, inFront, now); };
             TryEnqueueVisual(caster, SpellEffects.IsBlocking(type)
-                ? VisualStep.Waiting("Effet", start, now => effect == null || effect.Finished)
+                ? VisualStep.Waiting("Effet", start, now => SpellEffects.Released(effect, now))
                 : VisualStep.Instant("Effet", start));
         }
 
@@ -507,17 +508,15 @@ namespace Outil_Azur_complet.Bot.Interfaces
                     || !string.Equals(playing, animation, StringComparison.OrdinalIgnoreCase));
         }
 
-        /// <summary>Scène du sort au lanceur (types 10 et 12, pied au départ de l'étape) ou au centre de la cellule (11).</summary>
-        private StripEffect AddSpellEffect(long caster, short cell, int gfx, int type, bool inFront, double now)
+        /// <summary>
+        /// Scène du sort au lanceur (types 10 et 12, pied au départ de l'étape) ou au centre de la cellule (11) ; projectile du
+        /// pied du lanceur vers le centre de la cellule (20 à 51, lot AN5).
+        /// </summary>
+        private IMapEffect AddSpellEffect(long caster, short cell, int gfx, int type, bool inFront, double now)
         {
-            PointF world;
-            if (SpellEffects.AtCaster(type))
-            {
-                if (!UserMap.TryGetActorAnchor(caster, out ActorAnchor anchor)) return null;
-                world = anchor.WorldFoot;
-            }
-            else if (!UserMap.TryGetCellCenter(cell, out world)) return null;
-            return spellEffects.Add(UserMap.Sprites, Effects, TryAddEffect, gfx, world, cell, inFront, now);
+            PointF? from = UserMap.TryGetActorAnchor(caster, out ActorAnchor anchor) ? anchor.WorldFoot : (PointF?)null;
+            PointF? to = UserMap.TryGetCellCenter(cell, out PointF center) ? center : (PointF?)null;
+            return spellEffects.Launch(UserMap.Sprites, Effects, TryAddEffect, gfx, type, from, to, cell, inFront, now);
         }
 
         /// <summary>Clip du coup critique au-dessus de l'acteur pendant 5 000 ms, à la place du précédent s'il est encore là.</summary>

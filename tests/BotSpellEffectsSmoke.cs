@@ -153,7 +153,7 @@ internal static class BotSpellEffectsSmoke
             var row = new EffectRow { Gfx = f[0], Anim = f[1], XMin = n[0], YMin = n[1], Width = n[2], Height = n[3], Images = n[4], Fps = n[5], Fin = f[8] };
             Check(row.Width > 0 && row.Height > 0 && row.Images > 0 && row.Fps == expectedFps, "effets.tsv row (size, images, ips " + expectedFps + "): " + line);
             Check(ActorSprites.TryParseEnd(row.Fin, out SpriteEnd end, out string next) && end != SpriteEnd.Next, "effets.tsv fin: " + line);
-            Check(new[] { "scene", "shoot", "move", "duplicate" }.Contains(row.Anim), "Unknown effect animation: " + line);
+            Check(new[] { "scene", "shoot", "move", "duplicate", "rotate" }.Contains(row.Anim), "Unknown effect animation: " + line);
             string png = Path.Combine(folder, row.Gfx + "_" + row.Anim + ".png");
             Check(ActorSprites.TryReadPngSize(png, out int width, out int height), "PNG missing or unreadable: " + png);
             Check(width <= ActorSprites.MaxImageSide && height <= ActorSprites.MaxImageSide, "PNG wider than 32 767 px: " + png);

@@ -108,7 +108,11 @@ class ExporterSorts(unittest.TestCase):
         self.assertEqual(self.effets()[("106", "scene")][4:], (1, 40, "arret"))
 
     def test_options_refusees(self):
-        for options in (["--pas", "3"], ["--gfx", "101", "--liste", "x.txt"], ["--gfx", "abc"]):
+        liste = os.path.join(self.dossier, "liste.txt")
+        with open(liste, "w", encoding="utf-8") as f:
+            f.write("103 30 sorts\n")
+        # --gfx avec --liste : seulement des gfx de la liste.
+        for options in (["--pas", "3"], ["--gfx", "101", "--liste", liste], ["--gfx", "101", "--liste", "x.txt"], ["--gfx", "abc"]):
             r = self.exporter(*options, ok=False)
             self.assertNotEqual(r.returncode, 0, options)
 
@@ -150,6 +154,99 @@ class ExporterSorts(unittest.TestCase):
         self.assertEqual(lignes, ["101 10,11 sorts", "103 30 sorts", "2900 11 228", "2906 11 208", "2914 11 228"])
         r = subprocess.run([sys.executable, EXPORTEUR, "--starloco", sql], capture_output=True, encoding="utf-8")
         self.assertNotEqual(r.returncode, 0)
+
+    # ------------------------------------------------------------------ instance « rotate » (lot AN5)
+
+    @staticmethod
+    def bits(*champs):
+        """Champs (valeur, nombre de bits) écrits bit à bit, poids fort d'abord, complétés à l'octet."""
+        texte = "".join(format(v & ((1 << n) - 1), "0%db" % n) for v, n in champs)
+        texte += "0" * (-len(texte) % 8)
+        return bytes(int(texte[i:i + 8], 2) for i in range(0, len(texte), 8))
+
+    def swf_binaire(self, chemin, tx, ty, compresse=False):
+        """Vrai SWF d'une image : un PlaceObject2 sans nom (profondeur 2), puis l'instance « rotate »
+        (profondeur 1, caractère 1) translatée de (tx, ty) twips."""
+        def balise(code, corps):
+            return ((code << 6) | len(corps)).to_bytes(2, "little") + corps
+        matrice = self.bits((0, 1), (0, 1), (8, 5), (tx, 8), (ty, 8))
+        sans_nom = balise(26, bytes([0x06]) + (2).to_bytes(2, "little") + (2).to_bytes(2, "little") + self.bits((0, 1), (0, 1), (0, 5)))
+        nomme = balise(26, bytes([0x26]) + (1).to_bytes(2, "little") + (1).to_bytes(2, "little") + matrice + b"rotate\0")
+        corps = b"\x00" + b"\x00\x18" + (1).to_bytes(2, "little") + sans_nom + nomme + balise(1, b"") + balise(0, b"")
+        with open(chemin, "wb") as f:
+            if compresse:
+                f.write(b"CWS\x08" + (len(corps) + 8).to_bytes(4, "little") + zlib.compress(corps))
+            else:
+                f.write(b"FWS\x08" + (len(corps) + 8).to_bytes(4, "little") + corps)
+
+    def test_lecture_des_placements(self):
+        sys.path.insert(0, os.path.join(ICI, ".."))
+        import exporter_sorts
+        for compresse in (False, True):
+            chemin = os.path.join(self.dossier, "p.swf")
+            self.swf_binaire(chemin, 69, -41, compresse)
+            self.assertEqual(exporter_sorts.placements_principaux(chemin),
+                             [(0, 2, 2, None, (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)), (0, 1, 1, "rotate", (1.0, 0.0, 0.0, 1.0, 3.45, -2.05))])
+            self.assertEqual(exporter_sorts.placement_nomme(chemin, "ROTATE"), (1.0, 0.0, 0.0, 1.0, 3.45, -2.05))
+            self.assertIsNone(exporter_sorts.placement_nomme(chemin, "shoot"))
+        # Un fichier qui n'est pas un SWF, ou un SWF tronqué, ne lève pas.
+        self.assertEqual(exporter_sorts.placements_principaux(os.path.join(self.swfs, "900.swf")), [])
+        with open(chemin, "rb") as f:
+            debut = f.read(30)
+        with open(chemin, "wb") as f:
+            f.write(b"FWS" + debut[3:])
+        self.assertIsInstance(exporter_sorts.placements_principaux(chemin), list)
+
+    def test_bande_rotate_centree_sur_l_instance(self):
+        # 120 : scène de 4 images et instance rotate de 4 images en (3,45 ; -2,05), affichée en type 21 ;
+        # 121 : même SWF affiché aussi en type 10 (rotate reste dans la scène) ; 123 : scène faite de rotate seul.
+        for gfx, scene in (("120", 4), ("121", 4), ("123", 0)):
+            self.swf_binaire(os.path.join(self.swfs, gfx + ".swf"), 69, -41)
+            with open(os.path.join(self.swfs, gfx + ".swf.json"), "w", encoding="utf-8") as f:
+                json.dump({"scene": scene, "rotate": 4, "pivot": [3, -2], "fin": "static"}, f)
+        liste = os.path.join(self.dossier, "sorts_utilises.txt")
+        with open(liste, "w", encoding="utf-8") as f:
+            f.write("120 21 sorts\n121 10,21 sorts\n123 20 sorts\n")
+        sortie = self.exporter("--liste", liste).stdout
+        e = self.effets()
+        # Cadre symétrique autour du pivot arrondi (3, -2) : xmin + largeur / 2 = 3, ymin + hauteur / 2 = -2.
+        self.assertEqual(e[("120", "rotate")], (-3, -4, 12, 4, 4, 40, "static"))
+        vert = (0x00, 0xc0, 0x40)
+
+        def pixels(nom):
+            image = Image.open(os.path.join(self.sortie, nom)).convert("RGBA")
+            return image, [image.getpixel((x, y)) for y in range(image.height) for x in range(image.width)]
+
+        bande, tous = pixels("120_rotate.png")
+        self.assertEqual(bande.size, (48, 4))
+        for j in range(4):
+            k = j + 1  # rectangle de k + 1 px de large, de x = 4 (colonne 7 du cadre) à x = 4 + k
+            self.assertEqual(bande.getpixel((j * 12 + 7, 0))[:3], vert, "image %d" % k)
+            self.assertEqual(bande.getpixel((j * 12 + 7 + k, 1))[:3], vert, "image %d" % k)
+            self.assertEqual(bande.getpixel((j * 12 + 6, 0))[3], 0, "image %d" % k)
+            self.assertEqual(bande.getpixel((j * 12 + 7, 2))[3], 0, "image %d" % k)
+            if 8 + k < 12:
+                self.assertEqual(bande.getpixel((j * 12 + 8 + k, 0))[3], 0, "image %d" % k)
+        # Scène rendue sans l'instance ; gardée entière pour un gfx affiché aussi en type 10.
+        _, tous = pixels("120_scene.png")
+        self.assertFalse(any(p[3] and p[:3] == vert for p in tous))
+        self.assertNotIn(("121", "rotate"), e)
+        _, tous = pixels("121_scene.png")
+        self.assertTrue(any(p[3] and p[:3] == vert for p in tous))
+        self.assertIn("121 : instance rotate gardée dans la scène (types 10,21)", sortie)
+        # Scène vide sans l'instance : exclusion « symboles » qui nomme rotate.
+        self.assertEqual(e[("123", "rotate")][:4], (-3, -4, 12, 4))
+        self.assertNotIn(("123", "scene"), e)
+        _, lignes = self.tsv("exclusions.tsv", 3)
+        self.assertIn(["123", "symboles", "rotate"], lignes)
+        # --gfx sans --liste : types inconnus, l'instance reste dans la scène et l'ancienne bande disparaît.
+        sortie = self.exporter("--gfx", "120").stdout
+        self.assertIn("120 : instance rotate gardée dans la scène (types inconnus)", sortie)
+        self.assertNotIn(("120", "rotate"), self.effets())
+        self.assertFalse(os.path.exists(os.path.join(self.sortie, "120_rotate.png")))
+        # --gfx avec --liste : types lus dans la liste, seules les lignes de 120 changent.
+        self.exporter("--gfx", "120", "--liste", liste)
+        self.assertEqual(self.effets(), e)
 
 
 if __name__ == "__main__":

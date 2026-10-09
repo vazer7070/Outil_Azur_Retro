@@ -10,15 +10,20 @@ gfx	raison	detail
 212	symboles	shoot
 302	script	attachMovie, duplicateMovieClip ou onEnterFrame
 305	symboles	shoot,move
+306	symboles	rotate,shoot
 308	vide	2 image(s) sans dessin
 309	vide	2 image(s) sans dessin
 310	symboles	shoot,move
 311	vide	2 image(s) sans dessin
 313	vide	2 image(s) sans dessin
 317	symboles	shoot,move
+403	symboles	rotate
 404	script	attachMovie, duplicateMovieClip ou onEnterFrame
+405	symboles	rotate,shoot
+406	symboles	rotate,shoot
 412	vide	2 image(s) sans dessin
 501	symboles	shoot
+510	symboles	rotate
 512	script	attachMovie, duplicateMovieClip ou onEnterFrame
 515	symboles	shoot
 601	symboles	shoot,move
@@ -29,12 +34,17 @@ gfx	raison	detail
 616	script	attachMovie, duplicateMovieClip ou onEnterFrame
 709	vide	2 image(s) sans dessin
 710	vide	2 image(s) sans dessin
+804	symboles	rotate
 805	symboles	duplicate
+806	symboles	rotate
+809	symboles	rotate,shoot
 812	symboles	duplicate
 814	symboles	shoot
 901	symboles	shoot,move
 902	symboles	shoot,move
+903	symboles	rotate
 905	symboles	shoot,move
+906	symboles	rotate,shoot
 908	symboles	shoot,move
 909	script	attachMovie, duplicateMovieClip ou onEnterFrame
 910	symboles	shoot,move
@@ -63,6 +73,7 @@ gfx	raison	detail
 1210	symboles	duplicate
 2001	vide	2 image(s) sans dessin
 2002	vide	2 image(s) sans dessin
+2003	symboles	rotate
 2004	symboles	shoot
 2005	symboles	shoot
 2006	vide	2 image(s) sans dessin
@@ -84,6 +95,7 @@ gfx	raison	detail
 2045	vide	2 image(s) sans dessin
 2047	symboles	shoot,move
 2049	script	attachMovie, duplicateMovieClip ou onEnterFrame
+2050	symboles	rotate
 2051	script	attachMovie, duplicateMovieClip ou onEnterFrame
 2053	symboles	shoot,move
 2054	script	attachMovie, duplicateMovieClip ou onEnterFrame

@@ -10,7 +10,8 @@ namespace Outil_Azur_complet.Bot.Controls
     /// 11 et 12 (couche <see cref="EffectLayer.Depth"/>).
     /// <list type="bullet">
     /// <item>Types : 0 et types inconnus sans effet ; 10 et 12 posés au lanceur, 11 à la cellule visée ; 12, 30, 31, 40, 41
-    /// et 51 retiennent la file (au plus 1 000 ms) ; les projectiles (20 à 51) relèvent du lot AN5 : rien n'est dessiné ici.</item>
+    /// et 51 retiennent la file (au plus 1 000 ms) ; les projectiles (20 à 51) sont aiguillés vers
+    /// <see cref="ProjectileEffect"/> (lot AN5, <see cref="Launch"/>).</item>
     /// <item>Profondeur : cellule visée × 100 + 50 ± (index + 51), index 1 à 21 puis 0 ; devant le sprite, + ; derrière, −.
     /// Un nouvel effet qui reprend l'index d'un effet encore affiché le remplace (<c>removeMovieClip</c> du client).</item>
     /// <item>Direction du lanceur vers la cellule (<c>autoCalculateSpriteDirection</c>) : 1, 3, 5 ou 7 d'après les
@@ -157,15 +158,81 @@ namespace Outil_Azur_complet.Bot.Controls
             bool inFront, double now)
         {
             if (sprites == null || set == null || add == null || gfx < 0 || targetCell < 0) return null;
+            int slot = Claim(set);
+            var effect = new StripEffect(sprites.ResolveFixed(SpellFamily, gfx, SceneAnimation), world, now, StripPlay.Once,
+                layer: EffectLayer.Depth, depth: Depth(targetCell, slot, inFront), order: inFront ? 4 : 2);
+            return Keep(slot, effect, add) ? effect : null;
+        }
+
+        /// <summary>
+        /// Projectile (types 20 à 51, lot AN5) du lanceur <paramref name="caster"/> (pied) vers <paramref name="target"/> (centre de
+        /// la cellule <paramref name="targetCell"/>), à la profondeur du client et avec le même index que les scènes ; voir
+        /// <see cref="ProjectileEffect"/>. Null si un argument est invalide ou si <paramref name="add"/> le refuse.
+        /// </summary>
+        public ProjectileEffect AddProjectile(ActorSprites sprites, MapEffectSet set, Func<IMapEffect, bool> add, int gfx, int type, PointF caster,
+            PointF target, int targetCell, bool inFront, double now)
+        {
+            if (sprites == null || set == null || add == null || gfx < 0 || targetCell < 0 || !SpellProjectiles.IsProjectile(type)) return null;
+            int slot = Claim(set);
+            var effect = new ProjectileEffect(sprites, gfx, type, caster, target, now, Depth(targetCell, slot, inFront), inFront ? 4 : 2);
+            return Keep(slot, effect, add) ? effect : null;
+        }
+
+        /// <summary>
+        /// Aiguillage par type (<c>onLoadInit</c>) : 10 et 12, scène au pied du lanceur ; 11, scène au centre de la cellule ;
+        /// 20 à 51, projectile (<see cref="AddProjectile"/>). Null sans effet, ou si la position nécessaire manque
+        /// (<paramref name="caster"/> : pied du lanceur au départ de l'étape ; <paramref name="cell"/> : centre de la cellule).
+        /// </summary>
+        public IMapEffect Launch(ActorSprites sprites, MapEffectSet set, Func<IMapEffect, bool> add, int gfx, int type, PointF? caster, PointF? cell,
+            int targetCell, bool inFront, double now)
+        {
+            if (IsDrawn(type))
+            {
+                PointF? world = AtCaster(type) ? caster : cell;
+                return world.HasValue ? Add(sprites, set, add, gfx, world.Value, targetCell, inFront, now) : null;
+            }
+            if (!SpellProjectiles.IsProjectile(type) || !cell.HasValue) return null;
+            // 50 et 51 sont posés à la cellule : le pied du lanceur n'y sert pas.
+            PointF from = caster ?? cell.Value;
+            if (!caster.HasValue && type != 50 && type != 51) return null;
+            return AddProjectile(sprites, set, add, gfx, type, from, cell.Value, targetCell, inFront, now);
+        }
+
+        /// <summary>Demande au pool les bandes d'un type (scène, ou bandes du projectile) dès la réception du paquet.</summary>
+        public static void Prefetch(ActorSprites sprites, int gfx, int type)
+        {
+            if (sprites == null || gfx < 0) return;
+            if (IsDrawn(type)) { using (sprites.ResolveFixed(SpellFamily, gfx, SceneAnimation)) { } return; }
+            foreach (string animation in SpellProjectiles.Animations(type))
+                using (sprites.ResolveFixed(SpellFamily, gfx, animation)) { }
+        }
+
+        /// <summary>
+        /// Fin de l'étape bloquante d'un effet de <see cref="Launch"/> : rien de posé, scène terminée (<see cref="StripEffect.Finished"/>)
+        /// ou projectile arrivé (<see cref="ProjectileEffect.IsReleased"/>).
+        /// </summary>
+        public static bool Released(IMapEffect effect, double now)
+        {
+            if (effect is ProjectileEffect projectile) return projectile.IsReleased(now);
+            if (effect is StripEffect strip) return strip.Finished;
+            return true;
+        }
+
+        /// <summary>Prend l'index suivant ; l'effet qui l'occupait encore est retiré (<c>removeMovieClip</c> du client).</summary>
+        private int Claim(MapEffectSet set)
+        {
             int slot = NextIndex();
             IMapEffect previous = slots[slot];
             slots[slot] = null;
             if (previous != null) set.Remove(previous);
-            var effect = new StripEffect(sprites.ResolveFixed(SpellFamily, gfx, SceneAnimation), world, now, StripPlay.Once,
-                layer: EffectLayer.Depth, depth: Depth(targetCell, slot, inFront), order: inFront ? 4 : 2);
-            if (!add(effect)) return null;
+            return slot;
+        }
+
+        private bool Keep(int slot, IMapEffect effect, Func<IMapEffect, bool> add)
+        {
+            if (!add(effect)) return false;
             slots[slot] = effect;
-            return effect;
+            return true;
         }
 
         /// <summary>Oublie les index et les effets suivis (les effets eux-mêmes appartiennent à <see cref="MapEffectSet"/>).</summary>

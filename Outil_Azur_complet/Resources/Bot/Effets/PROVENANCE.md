@@ -88,3 +88,32 @@ python3 tools/client-analysis/exporter_sorts.py --starloco "<StarLoco>/02 - BDD/
     --java "<StarLoco>/04 - Game/src/org/starloco/locos/object/ObjectAction.java" \
     --liste tools/client-analysis/sorts_utilises.txt
 ```
+
+## Bandes `rotate` des types 20 et 21 (lot AN5)
+
+Pour les types 20 et 21, le client tourne l'enfant `rotate` de la scène vers la cible (`onLoadInit`
+donne à sa propriété `_rotation` l'angle lanceur → cible). Les 12 gfx de `sorts_utilises.txt` affichés
+seulement en types 20 et 21 ont tous une instance `rotate` (profondeur 1, image 1, sans rotation) :
+306, 403, 405, 406, 510, 804, 806, 809, 903, 906, 2003 et 2050. Pour eux, `exporter_sorts.py` écrit
+`<gfx>_rotate.png` (`swfsvg --scene --instance rotate --frame all`) et rend la scène sans cette
+instance (`--sans-instance rotate`). Le cadre de chaque image de `<gfx>_rotate.png` est centré sur la
+translation de l'instance, lue dans le `PlaceObject2` du SWF et arrondie au pixel : `xmin + largeur / 2`
+et `ymin + hauteur / 2` donnent le point autour duquel le bot tourne la bande (0,5 px près). La colonne
+`fin` est celle de la scène. Les 12 scènes privées de `rotate` sont vides : elles passent en exclusion
+`symboles` (`rotate`, ou `rotate,shoot`). Commande, depuis la racine du dépôt (seules les lignes de ces
+gfx changent ; `--liste` fournit leurs types) :
+
+```sh
+SWFSVG=tools/client-analysis/swfsvg/target/release/swfsvg \
+python3 tools/client-analysis/exporter_sorts.py "<client>/clips/spells" \
+    Outil_Azur_complet/Resources/Bot/Effets/sorts --liste tools/client-analysis/sorts_utilises.txt \
+    --gfx 306,403,405,406,510,804,806,809,903,906,2003,2050 --pas 2 --jobs 4
+```
+
+Mesuré le 9 octobre 2026 avec swfsvg 0.2.4, cairosvg 2.9.1 et Pillow 12.3 : 12 bandes `rotate`
+(468 images au pas 2, 427 Ko) à la place des 12 scènes retirées (399 Ko) ; les `shoot` de ces gfx sont
+inchangés à l'octet. `Effets/` passe à 16,47 Mo : 202 PNG dans `sorts/` (97 scènes, 56 `shoot`,
+32 `move`, 5 `duplicate`, 12 `rotate`) et 115 exclusions (63 `symboles`, 31 `script`, 21 `vide`).
+Les bandes sont plus larges que la scène d'origine, le cadre étant symétrique autour du pivot (2050 :
+22 images de 972 px, une ligne de 21 384 px). Le gfx 2103, qui a aussi une instance `rotate`, est
+affiché en type 51 : sa scène reste entière.
