@@ -4,7 +4,15 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
+using Outil_Azur_complet.Bot.Controls;
+using Tool_BotProtocol.Config;
+using Tool_BotProtocol.Game.Accounts;
+using Tool_BotProtocol.Game.Maps;
+using Tool_BotProtocol.Game.Maps.Entities;
+using Tool_BotProtocol.Game.Maps.Mouvements;
+using Tool_BotProtocol.Utils.Crypto;
 
 // Vérifie les sprites d'acteurs exportés du client 1.34 par tools/client-analysis/exporter_sprites.py
 // (Resources/Bot/sprites) : syntaxe d'ancres.tsv, PNG présents et de la taille annoncée, bandes de
@@ -14,6 +22,10 @@ using System.Text.RegularExpressions;
 // (colonnes = largeur du PNG / largeur d'image), aucun côté de PNG au-delà de 32 767 px.
 // Lot AN2 : sprites_animes.txt au format « <gfx> <famille>[:<pas>],... » (un gfx seul vaut walk,run), chaque
 // famille demandée a ses bandes, hit et die des 24 classes en R et L, part du budget (4 Mo).
+// Lot AN3 : ips de 20 ou 40, 100 gfx de monstres avec walk, run, hit et die (anim0 quand le SWF l'a), anim<n> des classes
+// (lot AN4) en R et L, parts du budget (monstres 55 Mo, anim<n> des classes 23 Mo) et taille du dossier (104 Mo) ;
+// sur les données réelles, deux instants de 1001_walkR à 50 ms d'écart donnent des pixels différents, et un groupe de
+// monstres 1001 qui se déplace sur une carte synthétique joue cette bande à 20 ips (UserMapControl, horloge injectée).
 internal static class BotSpriteSheetsSmoke
 {
     private static readonly string[] Header = { "gfx", "anim", "xmin", "ymin", "largeur", "hauteur", "images" };
@@ -24,6 +36,15 @@ internal static class BotSpriteSheetsSmoke
     private const int MaxSide = 32767;
     // Part du lot AN2 dans le budget des animations (plan, section 4) : hit et die des 24 classes, 3,5 Mo mesurés.
     private const long HitDieBudget = 4L * 1024 * 1024;
+    // Parts du dossier sprites/ (plan des animations, sections 3.7 et 4 ; Mo = 10^6 octets). Lot AN3 : walk, run, hit, die et
+    // anim0 des monstres, ≈ 55 Mo prévus. Lot AN4 : anim0 à anim2 (≈ 7 Mo) puis anim3 et anim10 à anim18 (6 à 16 Mo) des
+    // classes, soit 23 Mo au plus. Dossier : 21,5 + 3,5 + 7 + 11 + 55 + 6 (marge) Mo ; AN6 (masques) et AN8 (émotes) le relèvent.
+    private const long MonsterBudget = 55L * 1000 * 1000;
+    private const long ClassAttackBudget = 23L * 1000 * 1000;
+    private const long FolderBudget = 104L * 1000 * 1000;
+    private static readonly string[] MonsterFamilies = { "walk", "run", "hit", "die", "anim0" };
+    private static readonly Regex AttackFamily = new Regex("^anim[0-9]+$", RegexOptions.CultureInvariant);
+    private const int MapWidth = 8, MapHeight = 8;
     private static readonly Regex AnimatedLine = new Regex("^([0-9]+)(?:[ \\t]+([A-Za-z][A-Za-z0-9]*(?::[0-9]+)?(?:,[A-Za-z][A-Za-z0-9]*(?::[0-9]+)?)*))?$",
         RegexOptions.CultureInvariant);
 
@@ -37,6 +58,12 @@ internal static class BotSpriteSheetsSmoke
     [STAThread]
     private static void Main()
     {
+        AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
+        {
+            string file = Path.Combine(TestPaths.ApplicationBin, new AssemblyName(args.Name).Name + ".dll");
+            if (!File.Exists(file)) file = Path.ChangeExtension(file, "exe");
+            return File.Exists(file) ? Assembly.LoadFrom(file) : null;
+        };
         try { Run(); }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
@@ -265,6 +292,30 @@ internal static class BotSpriteSheetsSmoke
         Check(rows.Where(r => r.Images > 1).All(r => animated.ContainsKey(r.Gfx) && animated[r.Gfx].ContainsKey(Family(r.Anim))),
             "A strip belongs to a gfx or a family not listed in sprites_animes.txt");
 
+        // Lot AN3 : ips de 20 (pas 2) ou 40 (pas 1) seulement. 100 gfx de monstres (hors classes) avec walk, run, hit et die,
+        // anim0 quand le SWF a le symbole (8010 ne l'a pas), chaque famille en R ou en L (orientations que le bot demande pour
+        // un monstre : diagonales et direction | 1). Le gfx 1001 sert aux vérifications sur données réelles (section 4).
+        Row[] oddRate = rows.Where(r => r.Fps != 20 && r.Fps != 40).ToArray();
+        Check(oddRate.Length == 0, "ips must be 20 or 40: " + string.Join(", ", oddRate.Take(5).Select(r => r.File + " at " + r.Fps)));
+        int[] monsters = animated.Keys.Where(g => !classes.Contains(g) && MonsterFamilies.Take(4).All(f => animated[g].ContainsKey(f))).OrderBy(g => g).ToArray();
+        Check(monsters.Length >= 100, "sprites_animes.txt lists " + monsters.Length + " monster gfx with walk, run, hit and die, lot AN3 asks 100");
+        int withAttack = monsters.Count(g => animated[g].ContainsKey("anim0"));
+        Check(withAttack >= 90, "Too few monster gfx with anim0: " + withAttack);
+        foreach (int gfx in monsters)
+            foreach (string family in MonsterFamilies.Where(f => animated[gfx].ContainsKey(f)))
+                Check(byKey.ContainsKey(gfx + "/" + family + "R") || byKey.ContainsKey(gfx + "/" + family + "L"),
+                    "Monster gfx " + gfx + " has no " + family + "R nor " + family + "L strip");
+        Check(animated.ContainsKey(1001) && MonsterFamilies.All(f => animated[1001].ContainsKey(f)) && byKey.ContainsKey("1001/walkR"),
+            "Monster gfx 1001 must list " + string.Join(",", MonsterFamilies) + " and have a walkR strip");
+        // Lot AN4 (même vague) : anim<n> des 24 classes (anim0 à anim2, anim3, anim10 à anim18), en R et en L comme hit et die.
+        foreach (int gfx in classes)
+            foreach (string family in animated[gfx].Keys.Where(f => AttackFamily.IsMatch(f)))
+                foreach (char o in "RL")
+                {
+                    Row strip;
+                    Check(byKey.TryGetValue(gfx + "/" + family + o, out strip) && strip.Images > 1, "Missing strip " + gfx + "_" + family + o);
+                }
+
         // 4. PNG : présents et de la taille annoncée (largeur x images, hauteur), si le dossier en contient.
         bool shippedPng = Directory.GetFiles(source, "*_static?.png").Length > 0;
         if (!shippedPng) Console.WriteLine("NOTE: no <gfx>_static<O>.png in " + source + " (PNG not versioned here): file checks skipped");
@@ -314,6 +365,24 @@ internal static class BotSpriteSheetsSmoke
             long hitDie = hitDieRows.Sum(r => new FileInfo(Path.Combine(source, r.File)).Length);
             Check(hitDieRows.Length == 96 && hitDie <= HitDieBudget, "hit/die strips of the 24 classes: " + hitDieRows.Length + " files, " + hitDie + " bytes, AN2 budget is " + HitDieBudget);
             Console.WriteLine("hit/die of the 24 classes: " + hitDieRows.Length + " strips, " + hitDie + " bytes (budget " + HitDieBudget + ")");
+
+            // Lots AN3 et AN4 : leur part du dossier, puis le dossier entier (PNG, ancres.tsv, textes).
+            Func<IEnumerable<Row>, long> bytes = list => list.Sum(r => new FileInfo(Path.Combine(source, r.File)).Length);
+            Row[] monsterRows = rows.Where(r => !classes.Contains(r.Gfx) && MonsterFamilies.Contains(Family(r.Anim))).ToArray();
+            long monsterBytes = bytes(monsterRows);
+            Check(monsterBytes <= MonsterBudget, "Monster strips (walk, run, hit, die, anim0): " + monsterRows.Length + " files, " + monsterBytes + " bytes, AN3 budget is " + MonsterBudget);
+            Row[] attackRows = rows.Where(r => classes.Contains(r.Gfx) && AttackFamily.IsMatch(Family(r.Anim))).ToArray();
+            long attackBytes = bytes(attackRows);
+            Check(attackBytes <= ClassAttackBudget, "anim<n> strips of the 24 classes: " + attackRows.Length + " files, " + attackBytes + " bytes, AN4 budget is " + ClassAttackBudget);
+            long folder = Directory.GetFiles(source, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length);
+            Check(folder <= FolderBudget, "Resources/Bot/sprites holds " + folder + " bytes, budget is " + FolderBudget + " (raise it only with a lot that owns a share)");
+            Console.WriteLine("monsters: " + monsterRows.Length + " strips, " + monsterBytes + " bytes (budget " + MonsterBudget + "); class anim<n>: "
+                + attackRows.Length + " strips, " + attackBytes + " bytes (budget " + ClassAttackBudget + "); folder: " + folder + " bytes (budget " + FolderBudget + ")");
+
+            // Données réelles (lot AN3) : 1001_walkR se lit comme le bot la lit, à 20 ips, et deux instants à 50 ms d'écart
+            // montrent deux images différentes ; puis un groupe de monstres 1001 en marche la joue sur une carte.
+            RealWalk(source, byKey["1001/walkR"]);
+            MovingGroup(source, byKey);
         }
 
         // 5. Les anciens <gfx><O>.png restent en place pour le chargeur actuel (UserMapControl.LoadSprite).
@@ -322,7 +391,8 @@ internal static class BotSpriteSheetsSmoke
 
         // 6. Provenance : source, outil et commande exacte de régénération.
         string provenance = File.ReadAllText(Path.Combine(source, "PROVENANCE.md"));
-        foreach (string needed in new[] { "exporter_sprites.py", "clips/sprites", "swfsvg", "--frame all", "ancres.tsv", "sprites_animes.txt", "cargo build --release", "--anims hit,die" })
+        foreach (string needed in new[] { "exporter_sprites.py", "clips/sprites", "swfsvg", "--frame all", "ancres.tsv", "sprites_animes.txt", "cargo build --release", "--anims hit,die",
+            "choisir_gfx_animes.py", "--anims walk,run,hit,die,anim0 --pas 2", "sprites-local" })
             Check(provenance.Contains(needed), "PROVENANCE.md does not mention " + needed);
 
         // 7. Livraison : ancres.tsv est copié à côté de l'exécutable avec les PNG.
@@ -331,6 +401,131 @@ internal static class BotSpriteSheetsSmoke
         Check(File.ReadAllText(Path.Combine(shipped, "ancres.tsv")) == File.ReadAllText(anchors), "Shipped ancres.tsv differs from the source");
         if (shippedPng) Check(File.Exists(Path.Combine(shipped, "10_walkR.png")) && File.Exists(Path.Combine(shipped, "1001R.png")), "Sprite PNG are not copied next to the executable");
 
-        Console.WriteLine("OK: " + rows.Count + " sprite anchors (" + rows.Count(r => r.Images > 1) + " strips), sprites_animes.txt families, PNG sizes, feet anchor, hit/die budget, legacy sprites, provenance and delivery");
+        Console.WriteLine("OK: " + rows.Count + " sprite anchors (" + rows.Count(r => r.Images > 1) + " strips), sprites_animes.txt families, " + monsters.Length
+            + " monster gfx, ips 20/40, PNG sizes, feet anchor, budgets, real 1001_walkR at 20 fps, legacy sprites, provenance and delivery");
+    }
+
+    private static string EncodedCell()
+    {
+        // Cellule active, praticable, en ligne de vue, sans sol ni objet (aucun PNG de décor demandé).
+        int[] value = { 33, 7, 32, 0, 4, 0, 0, 0, 0, 0 };
+        return new string(value.Select(part => Hash.caracteres_array[part]).ToArray());
+    }
+
+    /// <summary>Image <paramref name="frame"/> de la bande, découpée comme au dessin (<see cref="SpriteSheet.Source"/>).</summary>
+    private static Bitmap Frame(SpriteSheet sheet, int frame)
+    {
+        var image = new Bitmap(sheet.FrameWidth, sheet.FrameHeight, PixelFormat.Format32bppArgb);
+        using (Graphics graphics = Graphics.FromImage(image))
+        {
+            graphics.Clear(Color.Transparent);
+            graphics.DrawImage(sheet.Image, new Rectangle(0, 0, sheet.FrameWidth, sheet.FrameHeight), sheet.Source(frame), GraphicsUnit.Pixel);
+        }
+        return image;
+    }
+
+    /// <summary>
+    /// Données réelles : <c>1001_walkR.png</c> lu par <see cref="ActorSprites"/> (dossier versionné seul, sans
+    /// <c>sprites-local</c>), bande à 20 ips en boucle ; à 0 et 50 ms, images 0 et 1, qui diffèrent par plus de 100 pixels.
+    /// </summary>
+    private static void RealWalk(string source, Row expected)
+    {
+        using (var sprites = new ActorSprites(source))
+        {
+            SpritePose pose = sprites.Resolve(1001, 1, false, "walk");
+            if (pose.State == SpriteLoadState.Loading)
+            {
+                Check(sprites.WaitForPending(10000), "1001_walkR.png was not decoded within 10 s");
+                pose = sprites.Resolve(1001, 1, false, "walk");
+            }
+            Check(pose.State == SpriteLoadState.Ready && pose.Sheet != null && !pose.Mirrored && pose.FullName == "walkR",
+                "Direction 1 of gfx 1001 does not resolve to the walkR strip: " + pose.State + " " + pose.FullName + " " + pose.Reason);
+            SpriteSheet sheet = pose.Sheet;
+            Check(string.Equals(sheet.File, expected.File, StringComparison.OrdinalIgnoreCase) && !sheet.Legacy, "1001 walk pose read from " + sheet.File);
+            Check(sheet.FramesPerSecond == 20 && sheet.Frames == expected.Images && sheet.End == SpriteEnd.Loop
+                && sheet.FrameWidth == expected.Width && sheet.FrameHeight == expected.Height,
+                "1001_walkR: " + sheet.Frames + " frames of " + sheet.FrameWidth + "x" + sheet.FrameHeight + " at " + sheet.FramesPerSecond + " fps, end " + sheet.End
+                + "; ancres.tsv says " + expected.Images + " frames of " + expected.Width + "x" + expected.Height + " at " + expected.Fps + " fps, " + expected.End);
+            int first = sheet.FrameAt(0, true), later = sheet.FrameAt(50, true);
+            Check(first == 0 && later == 1, "At 20 fps, 0 ms and 50 ms must show frames 0 and 1, got " + first + " and " + later);
+            using (Bitmap a = Frame(sheet, first))
+            using (Bitmap b = Frame(sheet, later))
+            {
+                a.Save(Path.Combine(TestPaths.Work, "sprite-1001-walkR-0ms.png"), ImageFormat.Png);
+                b.Save(Path.Combine(TestPaths.Work, "sprite-1001-walkR-50ms.png"), ImageFormat.Png);
+                int opaque = 0, changed = 0;
+                for (int y = 0; y < a.Height; y++)
+                    for (int x = 0; x < a.Width; x++)
+                    {
+                        Color p = a.GetPixel(x, y), q = b.GetPixel(x, y);
+                        if (p.A > 0) opaque++;
+                        if (p.ToArgb() != q.ToArgb()) changed++;
+                    }
+                Check(opaque > 200 && changed > 100, "1001_walkR at 0 and 50 ms: " + opaque + " opaque pixels, " + changed + " changed (expected two different frames)");
+                Console.WriteLine("1001_walkR: frames 0 and 1 differ by " + changed + " pixels (" + opaque + " opaque in frame 0)");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Carte synthétique 8 × 8 avec un groupe d'un monstre 1001 (GM) ; la vue lit le dossier versionné. Au repos : 1001_staticR ;
+    /// en marche sur 61 → 69 → 77 (orientation 1) : bande walk ou run (selon l'allure calculée) en R, images 1 puis 2 à 75 et
+    /// 125 ms, ce que donnent 20 ips (40 ips donneraient 3 puis 5) ; à l'arrivée, retour à la pose fixe.
+    /// </summary>
+    private static void MovingGroup(string sprites, Dictionary<string, Row> byKey)
+    {
+        string overheads = Path.Combine(TestPaths.Work, "sprite-sheets-overheads");
+        Directory.CreateDirectory(overheads);
+        int count = MapHeight * (2 * MapWidth - 1) - (MapWidth - 1);
+        string data = string.Concat(Enumerable.Repeat(EncodedCell(), count));
+        using (var account = new Accounts(new AccountConfig("synthetic-sprite-sheets", "Synthetic123", "test")))
+        {
+            Map map = account.Game.Map;
+            map.MapID = 991302; map.MapWidth = MapWidth; map.MapHeight = MapHeight; map.MapData = data; map.DecompressMap(data);
+            Check(map.MapCells.Length == count, "Synthetic map was not decoded");
+            GmParseResult parsed = GmParser.Parse("GM|+61;1;0;-2;101;-3;1001^100;5;-1,-1,-1;0,0,0,0", false, 42, -1);
+            Check(parsed.Rejected.Count == 0 && parsed.Entries.Count == 1 && parsed.Entries[0].Actor is MonsterGroupActor,
+                "Synthetic monster group GM was rejected: " + string.Join(" / ", parsed.Rejected));
+            parsed.Entries[0].Actor.Cell = map.GetCellFromId((short)parsed.Entries[0].Actor.CellId);
+            map.AddActor(parsed.Entries[0].Actor);
+
+            double clock = 1000;
+            using (var view = new UserMapControl(() => clock, sprites, overheads))
+            {
+                view.SetAccount(account); view.W = MapWidth; view.H = MapHeight; view.Size = new Size(640, 400);
+                view.SetCellNum(); view.DrawGrille(); view.RefreshMap();
+                Check(view.WaitForActorSprites(10000), "Monster pose decoding did not finish");
+                UserMapControl.ActorVisualState still = view.GetActorVisualState(-2);
+                Check(still != null && still.HasSprite && !still.IsMoving && !still.IsMirrored && still.AnimationName == "staticR",
+                    "Monster group 1001 at rest does not show its staticR pose: " + (still == null ? "no state" : still.AnimationName + " " + still.SpriteReason));
+
+                var path = new List<Cell> { map.MapCells[61], map.MapCells[69], map.MapCells[77] };
+                AnimDuration timing = AnimDuration.Compute(path, UserMapControl.MovementProfile(account, -2));
+                string strip = timing.Mode == MoveMode.Walk ? "walk" : "run";
+                Row real = byKey["1001/" + strip + "R"];
+                Check(real.Fps == 20 && real.Images > 2, "ancres.tsv: " + real.File + " has " + real.Images + " frames at " + real.Fps + " fps");
+                double start = clock;
+                view.AddAnimations(-2, path, timing, AnimationType.ENTITES);
+                foreach (int at in new[] { 75, 125 })
+                {
+                    clock = start + at;
+                    Check(view.WaitForActorSprites(10000), "Monster " + strip + " strip decoding did not finish");
+                    UserMapControl.ActorVisualState moving = view.GetActorVisualState(-2);
+                    Check(moving.IsMoving && moving.HasSprite && !moving.IsMirrored && moving.Orientation == 1 && moving.AnimationName == strip + "R",
+                        "Moving monster group does not play " + real.File + ": " + moving.AnimationName + " " + moving.SpriteReason);
+                    Check(moving.Frame == at * real.Fps / 1000 % real.Images,
+                        "At " + at + " ms the monster shows frame " + moving.Frame + ", " + real.Fps + " fps gives " + at * real.Fps / 1000);
+                    if (at == 75)
+                        using (var image = new Bitmap(view.Width, view.Height))
+                        {
+                            using (Graphics graphics = Graphics.FromImage(image)) view.DrawCells(graphics);
+                            image.Save(Path.Combine(TestPaths.Work, "sprite-1001-groupe-en-marche.png"), ImageFormat.Png);
+                        }
+                }
+                clock = start + timing.Total + 1;
+                UserMapControl.ActorVisualState arrived = view.GetActorVisualState(-2);
+                Check(!arrived.IsMoving && arrived.Animation == "static", "Monster group did not return to its static pose after the move");
+            }
+        }
     }
 }
