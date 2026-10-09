@@ -87,6 +87,7 @@ BotPointsHitDeathSmoke
 BotEntitiesSmoke
 EditorWorkflowSmoke
 BotSpellEffectsSmoke
+BotRecolorSmoke
 BotStarLocoLiveSmoke
 "
 TESTS=${*:-$DEFAULT_TESTS}
