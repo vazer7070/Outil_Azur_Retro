@@ -1,7 +1,7 @@
 # Sprites d'acteurs du client fourni
 
 Ce dossier est copié à côté de l'exécutable dans `ressources/Bot/sprites` (cible `CopyBotAssets`
-de `Outil_Azur_complet.csproj`, pour les PNG et `ancres.tsv`).
+de `Outil_Azur_complet.csproj`, pour les PNG, `ancres.tsv` et `couleurs.tsv`).
 
 ## Deux générations de fichiers
 
@@ -11,6 +11,7 @@ de `Outil_Azur_complet.csproj`, pour les PNG et `ancres.tsv`).
 | `<gfx>_static<O>.png`, `<gfx>_scene.png`, `<gfx>_walk<O>.png`, `<gfx>_run<O>.png`, `ancres.tsv` | Générés par `tools/client-analysis/exporter_sprites.py` (commande ci-dessous). | Rendu des acteurs (lot M1) : nouveau nom d'abord, ancien nom en repli. |
 | `<gfx>_hit<O>.png`, `<gfx>_die<O>.png` (96, `O` = `R` ou `L`) | Même outil, export partiel du lot AN2 (section « Coups reçus et morts »). | Coup reçu et mort des personnages joueurs (lot AN2). |
 | `<gfx>_walk<O>.png`, `<gfx>_run<O>.png`, `<gfx>_hit<O>.png`, `<gfx>_die<O>.png`, `<gfx>_anim0<O>.png` de 100 gfx de monstres (1 034 bandes à 20 ips) | Même outil au pas 2, gfx choisis par `choisir_gfx_animes.py` (section « Monstres (lot AN3) »). | Marche, course, coup reçu, mort et attaque des monstres. |
+| `<gfx>_<anim>.couleurs.png` (1 296 masques) et `couleurs.tsv` | Même outil avec `--masques` (section « Recoloration (lot AN6) »). | Couleurs du `GM` posées sur les classes, les monstres et les PNJ (lot AN6). |
 
 ## Source et commande exacte
 
@@ -71,7 +72,7 @@ lignes existantes sont identiques sur leurs 7 premières colonnes et ont reçu `
 
 | bande | images | fin |
 | --- | --- | --- |
-| `hitR`, `hitL` | 24 (600 ms), 26 pour `90`, 28 pour `31_hitR` | `static` : le clip revient à la pose de repos |
+| `hitR`, `hitL` | 24 (600 ms), 26 pour `90`, 28 pour `31_hitR` ; 23 (575 ms) depuis le lot AN6, voir « Recoloration (lot AN6) » | `static` : le clip revient à la pose de repos |
 | `dieR`, `dieL` | 25 à 112 selon la classe ; la plus large, `60_dieR`, fait 6 832 px | `arret` (dernière image tenue), sauf `60_dieR` et `61_dieR` : `boucle` |
 
 Le client joue la mort pendant exactement 1 500 ms (60 images) puis retire le sprite (voir
@@ -144,7 +145,8 @@ pour `1003_hitL`). Le bot joue donc ces coups reçus en une seule passe de 5,8 �
 même ces attaques avec le lot AN4) ; la mort reste coupée à 1 500 ms.
 `1564_hitL` et les `hit` de `1572` finissent aussi en `boucle`, `1564_hitR` (7 images) en `arret`. La
 correction relève de `swfsvg` (lot suivant qui l'édite) ; il suffira ensuite de relancer la seconde
-commande avec `--gfx 1003,1004,1007,1009,1564,1572`.
+commande avec `--gfx 1003,1004,1007,1009,1564,1572`. **Corrigé par le lot AN6** (`swfsvg` 0.2.5) : les
+100 gfx ont été réexportés, voir « Recoloration (lot AN6) ».
 
 **Le reste.** Les 310 autres gfx présents, les familles `anim1` et suivantes, `bonus`, `appear` et le
 repos animé (le `static` à plusieurs images, que l'exporteur rend sur une seule image) ne sont pas
@@ -190,8 +192,9 @@ des monstres n'ont que `R` et `L`.
   cavalier par le client) ; les calques `_Front`/`_Back` de `1381`, `1440`, `1441`, `7002`, `7005` et
   `9097` sont aussi ignorés, ces gfx ayant des `static<O>` simples. Les montures d'enclos envoyées par
   StarLoco utilisent `7002` ou `7005`, exportés.
-- Recoloration des personnages (couleurs de `GM`), accessoires (`clips/sprites/accessories`), montures
-  composées (`chevauchor`), auras, émotes : hors de portée de PNG statiques par symbole. Coups et morts
+- Accessoires (`clips/sprites/accessories`), montures composées (`chevauchor`), auras, émotes : hors de
+  portée de PNG statiques par symbole. La recoloration (couleurs du `GM`) passe par les masques du lot
+  AN6, seulement pour les gfx que StarLoco colore. Coups et morts
   des monstres et PNJ : non exportés hors des 100 gfx de la section « Monstres (lot AN3) » (familles à
   ajouter par gfx dans `sprites_animes.txt`).
 
@@ -227,8 +230,8 @@ Seules les lignes `anim<n>` d'`ancres.tsv` ont été ajoutées.
 | familles | images | octets | fin |
 | --- | --- | --- | --- |
 | `anim0` | 916 | 1 239 716 | `static` |
-| `anim1` | 1 218 | 1 881 184 | `boucle` pour 24 bandes sur 48, `static` sinon |
-| `anim2` | 1 208 | 1 863 329 | `boucle` pour 20 bandes sur 48, `static` sinon |
+| `anim1` | 1 218 | 1 881 184 | `boucle` pour 24 bandes sur 48, `static` sinon ; `static` partout depuis le lot AN6 |
+| `anim2` | 1 208 | 1 863 329 | `boucle` pour 20 bandes sur 48, `static` sinon ; `static` partout depuis le lot AN6 |
 | `anim3` | 1 380 | 1 131 693 | `static` |
 | `anim10` à `anim17` | 7 354 | 12 711 746 | `static` |
 | `anim18` (le plus large : `41_anim18R`, 6 519 px) | 1 918 | 2 849 060 | `static` |
@@ -239,3 +242,87 @@ pas 2 (≈ 11 Mo) : au pas 1, `anim0` à `anim2` pèsent 9 006 153 octets (6 684
 sont donc aussi au pas 2 (même durée, 20 images par seconde comme les monstres). `anim8` (lancer d'un
 ballon ou d'un feu d'artifice, GA208 et GA228) n'est pas exporté : 52 à 56 images par bande, environ
 2 Mo de plus au pas 2 ; sans bande, le bot passe directement à l'effet. `anim4` (4 fioles) non plus.
+
+## Recoloration (lot AN6)
+
+Le client pose sur chaque clip d'une zone un aplat de la couleur du `GM` : `GAC.applyColor(<clip>, k)`
+avec la transformation de couleur `ra/ga/ba = 0`, `rb/gb/bb` = la couleur, alpha gardé ; rien pour une
+couleur `-1`. Pour chaque bande `<gfx>_<anim>.png` d'un gfx coloré, `exporter_sprites.py --masques`
+écrit un masque `<gfx>_<anim>.couleurs.png` de même taille et les lignes de `couleurs.tsv`. Deux rendus de
+plus par bande avec `swfsvg` 0.2.5 : `--zones aucune` (B, clips des zones en noir) et `--zones 123` (W,
+zone 1 en rouge, 2 en vert, 3 en bleu). La part de la zone dans un pixel vaut `W - B` et la couleur
+d'origine `(D - B) × 255 / part`, D étant le rendu ordinaire.
+
+| fichier | contenu |
+| --- | --- |
+| `<gfx>_<anim>.couleurs.png` | rouge : part de la zone dominante (0 à 255, au pas de 17) ; vert : index (1 à 255) de la couleur d'origine dans `couleurs.tsv` ; bleu : 0. En palette quand il y a 256 couleurs au plus, sinon en RGB. |
+| `couleurs.tsv` | UTF-8, tabulations, en-tête `gfx anim index zone couleur` : zone 1 à 3 et couleur d'origine `rrggbb` dessinée dans le SWF. Une zone peut avoir plusieurs teintes d'origine (ombres, reflets) : une ligne par teinte. |
+
+Le bot (`SpriteRecolor`, lot AN6) calcule une fois, hors du fil de l'interface, `pixel = PNG + (couleur du
+GM - couleur d'origine) × rouge / 255`, borné à 0..255, alpha du PNG ; une zone à `-1` garde le PNG.
+
+**Gfx masqués.** Les 24 classes, et les gfx que StarLoco colore dans `02 - BDD/game.sql` de l'archive
+remise par l'utilisateur (non versionnée ; seuls des numéros de gfx en sont tirés) : `monsters.colors`
+différent de `-1,-1,-1` (25 gfx) et `npc_template.color1` à `color3` différents de `-1` (95 gfx, dont un
+sans SWF). Hors classes, 91 gfx ont un SWF ; 20 n'appellent jamais `applyColor` (1056, 1061, 1063, 1065,
+1076, 1222, 1243, 1253, 1260, 1273, 1356, 1535, 9014, 9015, 9019, 9031, 9032, 9034, 9039, 9051) et ne
+sont pas recolorés par le client non plus. Restent 10 monstres d'AN3 (toutes leurs familles) et 61 gfx
+dont seule la pose fixe est exportée.
+
+**Durées (`swfsvg` 0.2.5).** Les versions 0.2.3 et 0.2.4 prenaient la durée du clip imbriqué le plus
+long. La 0.2.5 arrête l'animation au premier script qui remplace le clip (`applyAnim`, `removeMovieClip`),
+le sien ou celui d'un clip imbriqué ; une timeline qui boucle dure ses propres images ; sinon, celle du
+plus long clip. L'image du script compte, comme en 0.2.3 et 0.2.4 : le lecteur Flash ne la montrerait
+pas, soit une image de trop (25 ms au pas 1). Le défaut touchait aussi les classes : 500 bandes perdent 1
+à 12 images (`10_hitR` passe de 24 à 23, `10_anim12R` de 18 à 17), dont 44 `anim1`/`anim2` qui
+s'arrêtaient à 28 images en `boucle` et finissent maintenant en `static` ; `30_runL` et `80_staticR`
+changent d'un pixel de cadre (rendu de la 0.2.5). Les monstres d'AN3 ont été réexportés : `hit` de 1003, 1004,
+1007 et 1009 en 12 images (138 à 175 avant), `walk` et `run` en 10 à 15. Les `die` de 1003, 1004, 1007
+et 1009 restent longues (138, 138, 116 et 175 images en `boucle`) : leur clip le plus long boucle
+vraiment ; la mort est coupée à 1 500 ms.
+
+**Commandes exactes**, depuis la racine du dépôt, à lancer **l'une après l'autre** (chacune réécrit
+`ancres.tsv` et `couleurs.tsv` à la fin). `--conserver` garde un PNG existant quand sa ligne d'ancres ne
+change pas et que le nouveau rendu n'en diffère que par l'anticrénelage (écart d'alpha d'au plus 32,
+écart moyen d'au plus 2/255) : l'historique ne reçoit pas des bandes identiques à l'œil.
+
+```sh
+(cd tools/client-analysis/swfsvg && cargo build --release)
+SW=tools/client-analysis/swfsvg/target/release/swfsvg
+OUT=Outil_Azur_complet/Resources/Bot/sprites
+# 1. Les 24 classes, toutes leurs familles (sprites_animes.txt), avec masques.
+python3 tools/client-analysis/exporter_sprites.py "<client>/clips/sprites" $OUT --swfsvg $SW \
+    --gfx 10,11,20,21,30,31,40,41,50,51,60,61,70,71,80,81,90,91,100,101,110,111,120,121 \
+    --masques --conserver --jobs 4
+# 2. Les 10 monstres d'AN3 colorés : pose fixe et familles d'AN3, avec masques.
+python3 tools/client-analysis/exporter_sprites.py "<client>/clips/sprites" $OUT --swfsvg $SW \
+    --gfx 1002,1013,1108,1205,1212,1226,1274,1335,1359,1564 \
+    --anims static,walk:2,run:2,hit:2,die:2,anim0:2 --masques --conserver --jobs 4
+# 3. Les 90 autres monstres d'AN3 : durées corrigées, sans masque.
+python3 tools/client-analysis/exporter_sprites.py "<client>/clips/sprites" $OUT --swfsvg $SW \
+    --gfx $(awk '/^# Monstres \(lot AN3\)/{f=1} f && /^[0-9]/{print $1}' $OUT/sprites_animes.txt \
+            | grep -vxE '1002|1013|1108|1205|1212|1226|1274|1335|1359|1564' | paste -sd,) \
+    --anims walk:2,run:2,hit:2,die:2,anim0:2 --conserver --jobs 4
+# 4. Pose fixe des 61 autres gfx colorés, avec masques.
+python3 tools/client-analysis/exporter_sprites.py "<client>/clips/sprites" $OUT --swfsvg $SW \
+    --gfx 1019,1044,1155,1191,1197,1207,1211,1228,1264,1278,1281,1339,1340,1357,1664,1718,1719,1723,1725,1727,6000,8038,9000,9001,9003,9004,9005,9006,9007,9008,9010,9012,9013,9016,9023,9025,9026,9030,9041,9042,9043,9045,9046,9047,9048,9049,9050,9056,9058,9059,9067,9069,9070,9073,9079,9082,9083,9090,9093,9097,9107 \
+    --anims static --masques --conserver --jobs 4
+```
+
+Mesuré le 9 octobre 2026 (4 cœurs ; `swfsvg` 0.2.5, cairosvg 2.9, Pillow 12) :
+
+| commande | durée | PNG | gardés tels quels | masques | messages |
+| --- | --- | --- | --- | --- | --- |
+| 1. classes | 8 min 18 s | 1 080 | 576 | 1 080 (7,0 Mo) | aucun |
+| 2. monstres d'AN3 colorés | 56 s | 129 | 110 | 115 (0,3 Mo) | aucun |
+| 3. autres monstres d'AN3 | 1 min 56 s | 928 | 805 | — | `8010 : aucun symbole anim0<O>` |
+| 4. poses fixes colorées | 4,5 s | 121 | 118 | 101 (0,1 Mo) | aucun |
+
+Total : 1 296 masques pour 7 322 972 octets et `couleurs.tsv` (23 825 lignes) pour 524 695 octets, soit
+7 847 667 octets (≈ 12 Mo prévus). Les bandes réexportées sont plus courtes : classes 34 510 269 →
+34 144 300 octets, familles animées des monstres 35 206 465 → 34 688 832. Le dossier passe de
+83 075 211 à 90 039 320 octets (+ 6 964 109). Sept gfx de la commande 4 (1281, 9003, 9046, 9047, 9050,
+9073, 9093) n'ont aucun pixel de zone dans leur pose fixe : leurs appels `applyColor` visent des noms
+d'instance absents du SWF (vérifié sur 9003 : les clips visés n'ont pas de nom), le client ne les colore
+pas non plus. Les montures et leurs couleurs (`GM` d'un joueur monté), les accessoires et les familiers
+ne sont pas recolorés.
