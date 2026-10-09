@@ -540,7 +540,8 @@ namespace Outil_Azur_complet.Bot.Interfaces
 
         /// <summary>
         /// <c>ToolAnimation</c> du client : <c>anim</c> suivi de l'attribut <c>an</c> de l'arme (premier accessoire du
-        /// <c>GM</c>, <c>items.xml</c>), sinon <c>anim0</c> en combat et <c>anim3</c> hors combat.
+        /// <c>GM</c>, <c>items.xml</c>), sinon <c>anim0</c> en combat et <c>anim3</c> hors combat ; null si l'attribut n'est
+        /// pas un nom lisible (<see cref="SpellEffects.IsAnimationName"/>).
         /// </summary>
         private string ToolAnimation(long actorId)
         {
@@ -556,7 +557,8 @@ namespace Outil_Azur_complet.Bot.Interfaces
                 IReadOnlyDictionary<string, string> item = LangData.Raw("items", "objet", weapon.TemplateId.ToString(CultureInfo.InvariantCulture));
                 if (item != null) item.TryGetValue("an", out an);
             }
-            if (!string.IsNullOrEmpty(an)) return "anim" + an;
+            // Attribut illisible (le nom deviendrait un nom de fichier) : aucune animation, le lanceur garde sa pose.
+            if (!string.IsNullOrEmpty(an)) return SpellEffects.IsAnimationName("anim" + an) ? "anim" + an : null;
             return Account.Game?.Fight?.IsInFight == true ? "anim0" : "anim3";
         }
 

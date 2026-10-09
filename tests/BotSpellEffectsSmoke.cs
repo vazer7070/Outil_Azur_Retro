@@ -344,12 +344,13 @@ internal static class BotSpellEffectsSmoke
             "5\tscene\t-10\t-80\t20\t15\t2\t40\tboucle"
         });
 
-        // Textes : CRITICAL_MISS et une arme (objet 122, an = 12).
+        // Textes : CRITICAL_MISS, une arme (objet 122, an = 12) et une arme à l'attribut illisible (objet 123, an = 1.5).
         string lang = Path.Combine(root, "BotLang"); Directory.CreateDirectory(lang);
         File.WriteAllText(Path.Combine(lang, "lang.xml"), "<?xml version='1.0' encoding='utf-8'?>\n<BotLang famille=\"lang\" langue=\"fr\" version=\"1\" source=\"test\">\n"
             + "<texte cle=\"CRITICAL_MISS\" valeur=\"" + MissText + "\" />\n</BotLang>\n", new UTF8Encoding(false));
         File.WriteAllText(Path.Combine(lang, "items.xml"), "<?xml version='1.0' encoding='utf-8'?>\n<BotLang famille=\"items\" langue=\"fr\" version=\"1\" source=\"test\">\n"
-            + "<objet id=\"122\" nom=\"Arme fictive\" type=\"6\" gfx=\"7\" an=\"12\" />\n</BotLang>\n", new UTF8Encoding(false));
+            + "<objet id=\"122\" nom=\"Arme fictive\" type=\"6\" gfx=\"7\" an=\"12\" />\n"
+            + "<objet id=\"123\" nom=\"Arme illisible\" type=\"6\" gfx=\"7\" an=\"1.5\" />\n</BotLang>\n", new UTF8Encoding(false));
         Check(LangData.Load(lang) == 2 && LangData.Text.Has("CRITICAL_MISS"), "Synthetic texts not loaded: " + string.Join(" / ", LangData.LoadWarnings));
         return sprites;
     }
@@ -521,7 +522,7 @@ internal static class BotSpellEffectsSmoke
                             Feed(account, "GM|+" + SelfCell + ";1;0;42;Synthetic;1;900^100;0;1;0,0,0,0;-1;-1;-1;7a,,,,;100;8;3");
                             Feed(account, "GS");
                             Feed(account, "GM|+" + MonsterCell + ";1;0;-7;101;-2;902^100;1;-1;-1;-1;0,0,0,0;60;4;2;1"
-                                + "|+" + PlainCell + ";1;0;-8;102;-2;901^100;1;-1;-1;-1;0,0,0,0;60;4;2;1"
+                                + "|+" + PlainCell + ";1;0;-8;102;-2;901^100;1;-1;-1;-1;7b,,,;60;4;2;1"
                                 + "|+" + HiddenCell + ";1;0;-9;103;-2;901^0;1;-1;-1;-1;0,0,0,0;60;4;2;1");
                             Feed(account, "GTM|42;0;100;8;3;" + SelfCell + ";;100|-7;0;60;4;2;" + MonsterCell + ";;60|-8;0;60;4;2;" + PlainCell + ";;60|-9;0;60;4;2;" + HiddenCell + ";;60");
                             Feed(account, "GTS42|30000");
@@ -745,6 +746,15 @@ internal static class BotSpellEffectsSmoke
             "GA303 of the monster does not play anim0 turned towards the player: " + attacker.AnimationName + " " + attacker.Orientation);
         At(control, f9 + 200);
         Check(control.Sequencer.IsIdle && State(view, -7).Animation == "static", "GA303 steps not over");
+
+        // Arme à l'attribut illisible (objet 123, an = 1.5) : aucun nom de bande n'en est tiré, le lanceur se tourne seulement.
+        MethodInfo tool = typeof(MapControl).GetMethod("ToolAnimation", BindingFlags.Instance | BindingFlags.NonPublic);
+        Check(tool != null && (string)tool.Invoke(control, new object[] { 42L }) == "anim12" && (string)tool.Invoke(control, new object[] { -7L }) == "anim0"
+            && tool.Invoke(control, new object[] { -8L }) == null, "ToolAnimation does not follow the an attribute of the weapon");
+        Feed(account, "GA;303;-8;" + SelfCell);
+        At(control, f9 + 300);
+        Check(State(view, -8).Orientation == 3 && State(view, -8).Animation == "static" && control.Sequencer.IsIdle,
+            "GA303 with an illegible weapon attribute did more than turn the attacker: " + State(view, -8).AnimationName);
 
         // GA303 avec fichier : comme un sort animé par ToolAnimation.
         const double f10 = 68000;
