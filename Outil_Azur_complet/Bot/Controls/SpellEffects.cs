@@ -79,7 +79,8 @@ namespace Outil_Azur_complet.Bot.Controls
         /// Animation du lanceur d'après le champ « anim » du paquet. <paramref name="spellCodes"/> (GA300) : <c>-1</c>, rien du
         /// tout ; <c>-2</c>, direction et effet sans animation (<paramref name="animation"/> null). Un nombre donne
         /// <c>anim</c> suivi du texte reçu ; un bond <c>a~b~c~d</c> (moins de trois parties : rien) se réduit à l'animation
-        /// <c>b</c> sur place, sans les déplacements. Champ vide ou absent : rien (le client échoue sur <c>undefined</c>).
+        /// <c>b</c> sur place, sans les déplacements (<c>b</c> vide : pas d'animation). Champ vide ou absent : rien (le client
+        /// échoue sur <c>undefined</c>).
         /// Faux : aucun lancement.
         /// </summary>
         public static bool TryParseAnimation(string field, bool spellCodes, out string animation)
@@ -95,7 +96,8 @@ namespace Outil_Azur_complet.Bot.Controls
             }
             string[] parts = field.Split('~');
             if (parts.Length < 3) return false;
-            animation = parts[1];
+            // Animation b vide : le lanceur garde sa pose, l'effet est joué quand même.
+            animation = parts[1].Length > 0 ? parts[1] : null;
             return true;
         }
 
