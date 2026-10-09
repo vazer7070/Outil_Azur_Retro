@@ -10,7 +10,8 @@
 #   AZUR_PACKAGES              dossier des paquets NuGet de la solution (packages/ à la racine par défaut)
 #   AZUR_TEST_TIMEOUT          durée maximale d'un test en secondes (240 par défaut)
 # Prérequis : solution compilée en Debug, mono, xvfb-run (si aucun écran n'est ouvert), SDK .NET.
-# Ne lance ni les 8 tests propres à Windows ni les tests d'intégration (MySQL) ; BotStarLocoLiveSmoke réussit sans rien
+# Ne lance ni les 6 tests propres à Windows (PrintWindow, GetDC, licence Syncfusion, résolution DNS d'un hôte invalide)
+# ni les tests d'intégration (MySQL) ; BotStarLocoLiveSmoke réussit sans rien
 # contacter tant que AZUR_STARLOCO_LOGIN n'est pas défini (voir tests/README.md).
 set -u
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -83,6 +84,8 @@ BotQuestsSmoke
 BotStatsSheetSmoke
 BotAnimationQueueSmoke
 BotPointsHitDeathSmoke
+BotEntitiesSmoke
+EditorWorkflowSmoke
 BotStarLocoLiveSmoke
 "
 TESTS=${*:-$DEFAULT_TESTS}
