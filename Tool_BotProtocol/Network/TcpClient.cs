@@ -60,7 +60,12 @@ namespace Tool_BotProtocol.Network
             account = Account;
         }
 
-        public async Task ConnectToServer(IPAddress ip, int port)
+        /// <summary>
+        /// Ouvre une nouvelle session et lance sa réception. Vrai si la connexion s'est ouverte, même si le serveur l'a déjà
+        /// refermée au retour : dès la réception lancée, une fermeture est décidée par <see cref="EndSession"/> (nouvel essai du
+        /// ticket ou déconnexion du compte), et <see cref="IsConnected"/> ne dit plus si la connexion a pu s'ouvrir.
+        /// </summary>
+        public async Task<bool> ConnectToServer(IPAddress ip, int port)
         {
             if (ip == null) throw new ArgumentNullException(nameof(ip));
             if (port < 1 || port > 65535) throw new ArgumentOutOfRangeException(nameof(port));
@@ -79,7 +84,7 @@ namespace Tool_BotProtocol.Network
             {
                 if (GlobalConfig.BYPASS)
                     await ConnexionZaap().ConfigureAwait(false);
-                if (!IsCurrent(current)) return;
+                if (!IsCurrent(current)) return false;
                 Task connecting = current.Socket.ConnectAsync(ip, port);
                 if (await Task.WhenAny(connecting, Task.Delay(10000)).ConfigureAwait(false) != connecting)
                 {
@@ -88,7 +93,9 @@ namespace Tool_BotProtocol.Network
                     throw new TimeoutException("Le serveur n’a pas répondu dans le délai de connexion.");
                 }
                 await connecting.ConfigureAwait(false);
-                if (IsCurrent(current)) BeginReceive(current);
+                if (!IsCurrent(current)) return false;
+                BeginReceive(current);
+                return true;
             }
             catch (Exception error)
             {
@@ -97,6 +104,7 @@ namespace Tool_BotProtocol.Network
                     ReportInformation(error.ToString());
                     DisconnectSession(current, false);
                 }
+                return false;
             }
         }
 
