@@ -719,7 +719,7 @@ Ce lot remplit quatre familles du socle AN1 (`OnSpell`, `OnCritical`, `OnHarvest
 
 Limites et points incertains du plan :
 
-- rien n'a été comparé au client sur un vrai StarLoco ; `BotStarLocoLiveSmoke` ne regarde pas l'affichage ;
+- rien n'a été comparé au client sur un vrai StarLoco ; `BotStarLocoLiveSmoke` ne vérifie pas les effets de sorts (rejoué le 9 octobre 2026 : onze scénarios réussis ; la Flèche Magique y arrive en `GA;300;<lanceur>;161,<cellule>,902,1,31,2,1`, un projectile de type 31 : le bot ne joue que `anim2` du lanceur avant AN5) ;
 - le clip critique visible seulement en `staticF` est déduit du code du client, non observé ;
 - le chevauchement d'une `anim<n>` de plus d'une seconde avec l'effet est reproduit et testé (`anim1`), sans comparaison avec le client ;
 - aucun repli n'est affiché pour les 10 gfx de type 10 ou 11 sans scène (105, 201, 210, 302, 404, 1201, 1209 et 3000 dessinés par script ; 1013 et 1208 vides) : le lanceur s'anime, aucun effet n'apparaît ;
