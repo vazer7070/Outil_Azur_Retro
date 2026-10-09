@@ -12,6 +12,7 @@ using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Game.Maps;
 using Tool_BotProtocol.Game.Perso.Spells;
+using Tool_BotProtocol.Utils.Crypto;
 
 internal static class BotUiSmoke
 {
@@ -32,6 +33,32 @@ internal static class BotUiSmoke
     private static object Get(object target,string field) { return target.GetType().GetField(field,BindingFlags.Instance|BindingFlags.NonPublic).GetValue(target); }
     private static IEnumerable<Control> All(Control value) { yield return value;foreach(Control child in value.Controls)foreach(var nested in All(child))yield return nested; }
     private static void Layout(Control value) { value.PerformLayout();foreach(Control child in value.Controls)Layout(child); }
+    // Cellule client sur dix caractères, codée comme la lisent Map.DecompressCell et BotMapArtwork : active, niveau 7, à plat,
+    // avec un sol, un objet au sol (object1) et un objet en relief (object2) ; une cellule infranchissable bloque aussi la vue.
+    private static string EncodedCell(int ground,int object1,int object2,bool walkable)
+    {
+        int[] value=new int[10];
+        value[0]=32|(walkable?1:0)|((ground>>6)&24)|((object1>>11)&4)|((object2>>12)&2);
+        value[1]=7;value[2]=(walkable?32:0)|((ground>>6)&7);value[3]=ground&63;
+        value[4]=4|((object1>>12)&1);value[5]=(object1>>6)&63;value[6]=object1&63;
+        value[7]=(object2>>12)&1;value[8]=(object2>>6)&63;value[9]=object2&63;
+        return new string(value.Select(part=>Hash.caracteres_array[part]).ToArray());
+    }
+    // Carte 7411 synthétique de 15 × 17 (479 cellules), sans aucune donnée de carte du serveur ni du client : herbe (sol 39),
+    // chemin pavé (sol 6) sur les lignes 18 à 21 où se tient le personnage (282), touffes et fleurs (objets 374, 528, 543),
+    // arbres et menhirs infranchissables placés hors du chemin pour ne pas le masquer (objets 42, 57, 58, 59) et fond 114.
+    // Ces visuels viennent du décor versionné (Resources/Bot/Decor) que le projet copie dans ressources/maps.
+    private static Map SyntheticAstrub()
+    {
+        const int width=15,height=17,count=height*(2*width-1)-(width-1);
+        int[] tufts={33,64,120,141,205,352,397,441},obstacles={46,98,149,198,230,364,419,450};
+        int[] flats={374,528,543},reliefs={42,57,58,59};
+        string data=string.Concat(Enumerable.Range(0,count).Select(id=>{
+            int row=2*(id/(2*width-1))+(id%(2*width-1)<width?0:1),tuft=Array.IndexOf(tufts,id),obstacle=Array.IndexOf(obstacles,id);
+            return EncodedCell(row>=18&&row<=21?6:39,tuft<0?0:flats[tuft%flats.Length],obstacle<0?0:reliefs[obstacle%reliefs.Length],obstacle<0);
+        }));
+        return new Map { MapID=7411,MapWidth=width,MapHeight=height,X=4,Y=-18,Back_ID=114,MapData=data };
+    }
     private static void Render(Form form,string file,bool minimum=false)
     {
         form.ShowInTaskbar=false;form.Opacity=0;form.Show();if(minimum)form.Size=form.MinimumSize;Layout(form);Application.DoEvents();
@@ -110,8 +137,7 @@ internal static class BotUiSmoke
                     dashboard.Panels.Show(dashboard.Panels.Get<StatsPanel>());Check(((Control)Get(dashboard,"drawer")).Visible,"Stats panel failed to open");Render(dashboard,"bot-personnage-stats",true);
                     var spellPanel=dashboard.Panels.Get<SpellsPanel>();dashboard.Panels.Show(spellPanel);var spellList=(ListView)Get(spellPanel,"spells");Check(spellList.Items.Count==1&&spellList.Items[0].Text=="Sort fictif","Learned spell is absent from UI");spellList.Items[0].Selected=true;Check(!((Control)Get(spellPanel,"upgradeSpell")).Enabled,"Spell upgrade enabled without connection");Render(dashboard,"bot-sorts",true);
                     account.Game.character.Spells[10]=template.CopyForCharacter(6);account.Game.character.SpellsRefreshEvent();Application.DoEvents();Check(spellList.SelectedItems.Count==1&&spellList.SelectedItems[0].SubItems[1].Text=="6","Spell update lost the selection or level");Check(((Label)Get(spellPanel,"spellHelp")).Text.Contains("maximal"),"Maximal spell can still be upgraded");dashboard.Panels.CloseAll();Check(!((Control)Get(dashboard,"drawer")).Visible,"Drawer cannot be closed");
-                    var xml=System.Xml.Linq.XElement.Load(Path.Combine(TestPaths.ApplicationBin,"ressources","Bot","BotMaps","7411.xml"));
-                    Map.AllBotMaps[7411]=new Map { MapID=7411,MapWidth=byte.Parse(xml.Element("LARGEUR").Value),MapHeight=byte.Parse(xml.Element("LONGUEUR").Value),X=int.Parse(xml.Element("X").Value),Y=int.Parse(xml.Element("Y").Value),MapData=xml.Element("MAP_DATA").Value,Back_ID=int.Parse(xml.Element("BACK").Value) };
+                    Map.AllBotMaps[7411]=SyntheticAstrub();
                     account.Game.Map.SetRefreshMap("7411|date|");account.Game.character.Cell=account.Game.Map.MapCells[282];
                     var mapView=(Outil_Azur_complet.Bot.Interfaces.MapControl)Get(dashboard,"mapControl");for(int wait=0;wait<200&&mapView.ArtworkStatus.StartsWith("Chargement du décor");wait++){Application.DoEvents();System.Threading.Thread.Sleep(50);}Check(mapView.ArtworkStatus.Contains("Décor chargé"),"Bundled map scenery is unavailable from the application directory");
                     Render(dashboard,"bot-astrub",true);mapView.ZoomIn();Render(dashboard,"bot-astrub-zoom",true);mapView.Fit();
