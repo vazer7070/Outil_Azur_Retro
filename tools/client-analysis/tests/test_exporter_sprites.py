@@ -36,10 +36,10 @@ class ExporterSprites(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.dossier, ignore_errors=True)
 
-    def swf(self, gfx, symboles, scene=False, vides=(), vides_images=None, fins=None, larges=None):
+    def swf(self, gfx, symboles, scene=False, vides=(), vides_images=None, fins=None, larges=None, zones=()):
         with open(os.path.join(self.sprites, gfx + ".swf"), "w", encoding="utf-8") as f:
             json.dump({"symboles": symboles, "scene": scene, "vides": list(vides), "vides_images": vides_images or {},
-                       "fins": fins or {}, "larges": larges or {}}, f)
+                       "fins": fins or {}, "larges": larges or {}, "zones": list(zones)}, f)
 
     def animes(self, texte):
         with open(os.path.join(self.sortie, "sprites_animes.txt"), "w", encoding="utf-8") as f:
@@ -74,6 +74,38 @@ class ExporterSprites(unittest.TestCase):
     def octets(self, nom):
         with open(os.path.join(self.sortie, nom), "rb") as f:
             return f.read()
+
+    def couleurs(self):
+        """couleurs.tsv : {(gfx, anim): {index: (zone, (r, g, b))}}."""
+        with open(os.path.join(self.sortie, "couleurs.tsv"), encoding="utf-8") as f:
+            lignes = f.read().splitlines()
+        self.assertEqual(lignes[0], "gfx\tanim\tindex\tzone\tcouleur")
+        resultat = {}
+        for l in lignes[1:]:
+            c = l.split("\t")
+            self.assertEqual(len(c), 5, l)
+            resultat.setdefault((c[0], c[1]), {})[int(c[2])] = (int(c[3]), tuple(int(c[4][i:i + 2], 16) for i in (0, 2, 4)))
+        return resultat
+
+    def recolorer(self, gfx, anim, cibles):
+        """Bande recolorée par la formule du bot : PNG + (couleur du GM - couleur d'origine) x couverture / 255."""
+        d = self.png("%s_%s.png" % (gfx, anim))
+        m = Image.open(os.path.join(self.sortie, "%s_%s.couleurs.png" % (gfx, anim))).convert("RGB")
+        self.assertEqual(m.size, d.size, "masque de même taille que sa bande")
+        table = self.couleurs()[(gfx, anim)]
+        r = d.copy()
+        for y in range(d.height):
+            for x in range(d.width):
+                couverture, index, bleu = m.getpixel((x, y))
+                self.assertEqual(bleu, 0)
+                if couverture == 0:
+                    self.assertEqual(index, 0, "pixel sans zone : noir")
+                    continue
+                zone, origine = table[index]
+                p = d.getpixel((x, y))
+                r.putpixel((x, y), tuple(max(0, min(255, round(p[k] + (cibles[zone][k] - origine[k]) * couverture / 255)))
+                                         for k in range(3)) + (p[3],))
+        return r
 
     def test_export_complet(self):
         sortie = self.exporter()
@@ -202,6 +234,49 @@ class ExporterSprites(unittest.TestCase):
             vert = [x for x in range(12) if grille.getpixel((x0 + x, y0))[1] > 200 and grille.getpixel((x0 + x, y0))[0] < 50]
             self.assertEqual(vert, [k + 1], "image %d" % (k + 1))
         self.assertEqual(grille.getpixel((2 * largeur + 5, 2 * hauteur + 5))[3], 0, "case vide après la dernière image")
+
+    def test_masques_de_recoloration(self):
+        # 10 : corps brun (zone 1) et chapeau bleu (zone 3, 3 px du haut) ; 11 et 7 sans zone : pas de masque.
+        self.swf("10", {"staticR": 3, "walkR": 4, "hitR": 2}, zones=[1, 3], fins={"hitR": "static"})
+        self.animes("10 walk,hit\n11\n")
+        sortie = self.exporter("--masques")
+        self.assertIn("3 masques", sortie)
+        for nom in ("11_staticR", "11_walkR", "7_scene"):
+            self.assertTrue(self.existe(nom + ".png"))
+            self.assertFalse(self.existe(nom + ".couleurs.png"), nom)
+        table = self.couleurs()
+        self.assertEqual(set(table), {("10", "staticR"), ("10", "walkR"), ("10", "hitR")})
+        self.assertEqual(sorted(table[("10", "staticR")].values()), [(1, (0x80, 0x40, 0x20)), (3, (0x20, 0x40, 0xc0))])
+        # Pose : chapeau sur les lignes 0 à 2, corps en dessous ; couverture pleine (255).
+        m = Image.open(os.path.join(self.sortie, "10_staticR.couleurs.png")).convert("RGB")
+        self.assertEqual(table[("10", "staticR")][m.getpixel((1, 1))[1]][0], 3)
+        self.assertEqual(table[("10", "staticR")][m.getpixel((1, 10))[1]][0], 1)
+        self.assertEqual(m.getpixel((1, 10))[0], 255)
+        cibles = {1: (10, 200, 30), 2: (0, 0, 0), 3: (250, 250, 0)}
+        r = self.recolorer("10", "staticR", cibles)
+        self.assertEqual(r.getpixel((1, 1)), (250, 250, 0, 255))
+        self.assertEqual(r.getpixel((2, 20)), (10, 200, 30, 255))
+        # Bande : même disposition que walkR (image k : colonnes k à k + 3 de sa case de 7 px).
+        r = self.recolorer("10", "walkR", cibles)
+        self.assertEqual(r.size, (28, 25))
+        for k in range(4):
+            vertes = [x for x in range(7) if r.getpixel((k * 7 + x, 12)) == (10, 200, 30, 255)]
+            self.assertEqual(vertes, [k, k + 1, k + 2, k + 3], "image %d" % (k + 1))
+        masque_walk, tsv = self.octets("10_walkR.couleurs.png"), self.octets("couleurs.tsv")
+        # Réexport de walk sans --masques : son masque et ses lignes partent, les autres restent.
+        sortie = self.exporter("--gfx", "10", "--anims", "walk")
+        self.assertIn("1 masques de recoloration retirés", sortie)
+        self.assertFalse(self.existe("10_walkR.couleurs.png"))
+        self.assertTrue(self.existe("10_staticR.couleurs.png") and self.existe("10_hitR.couleurs.png"))
+        self.assertEqual(set(self.couleurs()), {("10", "staticR"), ("10", "hitR")})
+        # Puis avec --masques : mêmes octets (export reproductible), lignes des autres bandes gardées.
+        self.exporter("--gfx", "10", "--anims", "walk", "--masques")
+        self.assertEqual(self.octets("10_walkR.couleurs.png"), masque_walk)
+        self.assertEqual(self.octets("couleurs.tsv"), tsv)
+        # Export complet sans --masques : plus aucun masque, couleurs.tsv réduit à son en-tête.
+        self.exporter()
+        self.assertFalse([f for f in os.listdir(self.sortie) if f.endswith(".couleurs.png")])
+        self.assertEqual(self.couleurs(), {})
 
     def test_disposition(self):
         self.assertEqual(exporter_sprites.disposition(10, 100, 50), (10, 1))
