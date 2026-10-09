@@ -51,6 +51,7 @@ python3 exporter_sprites.py <client>/clips/sprites ../../Outil_Azur_complet/Reso
 | `exporter_groupe.py` | Exporte les petites illustrations `clips/artworks/mini` et les éléments du volet `Party` de `core.swf` (couronne, flèche du suivi, infobulle) vers `Outil_Azur_complet/Resources/Bot/{Artworks/Mini,Party}`. Voir la section « Volet Groupe ». |
 | `exporter_artworks.py` | Exporte les bustes des classes `clips/artworks/faces/<gfx>.swf` (scène principale, gfx = classe × 10 + sexe) vers `Outil_Azur_complet/Resources/Bot/Artworks/Faces` pour la fiche du conjoint du volet Amis ; commande et provenance dans son `PROVENANCE.md`, tests dans `tests/test_exporter_artworks.py`. |
 | `exporter_quetes.py` | Exporte de `modules/core.swf` les pièces de la fenêtre des quêtes (icône d'expérience, coche, marque en cours, flèche d'étape, boussole d'objectif) vers `Outil_Azur_complet/Resources/Bot/Client`, en réutilisant le rendu d'`exporter_icons.py` ; commande dans le `PROVENANCE.md` de ce dossier. |
+| `choisir_gfx_animes.py` | Classe les gfx de monstres par présences sur les cartes d'un dump SQL de StarLoco et écrit les lignes de `sprites_animes.txt` des plus présents, dans la limite d'un nombre de gfx et d'un budget estimé. Voir la section « Choix des gfx animés ». |
 
 ## `swfsvg` : symboles, scène, images et index
 
@@ -193,11 +194,40 @@ la série continue. Le détail des conventions et la commande utilisée pour le 
 |---|---|---|
 | tous les sprites, `--jobs 4`, 24 gfx animés | 3 min 10 s | 2 556 PNG, 16,1 Mo, `ancres.tsv` de 2 556 lignes |
 | `--gfx <24 classes> --anims hit,die --jobs 4` (lot AN2) | 28 s | 96 PNG, 3,5 Mo, 3 444 images ; `ancres.tsv` de 2 652 lignes |
+| `--gfx <100 monstres> --anims walk,run,hit,die,anim0 --pas 2 --jobs 4` (lot AN3) | 2 min 38 s | 1 034 PNG, 35,2 Mo, 21 691 images ; `ancres.tsv` de 3 686 lignes |
 
 Tests : `python3 tests/test_exporter_sprites.py` (faux `swfsvg` écrit en Python dans `tests/`, aucun
 fichier du client) : image de repos, casse, scène, bandes, magenta, rognage, échelle, `--gfx`,
 `--anims` et pas, colonnes `ips` et `fin`, relecture d'un ancien `ancres.tsv`, grille au-delà de
 32 767 px.
+
+### Choix des gfx animés : `choisir_gfx_animes.py`
+
+```text
+choisir_gfx_animes.py <game.sql> [--sprites <client>/clips/sprites] [--swfsvg CHEMIN]
+                      [--familles walk,run,hit,die,anim0] [--pas 2] [--nombre 100]
+                      [--budget-mo N] [--ko-par-image 2.5] [--exclure FICHIER]... [--sans-fixes]
+                      [--tableau FICHIER]
+```
+
+Python seul (bibliothèque standard). Lit dans le dump SQL de StarLoco les tables `maps`, `monsters`
+et `mobgroups_fix` comme le serveur les charge, et compte les présences de chaque gfx de monstre : une
+entrée `<monstre>,<niveau>` de `maps.monsters` d'une carte qui fait apparaître des groupes
+(`numgroup` > 0) et dont le monstre a un grade de ce niveau, plus chaque membre d'un groupe fixe
+(`--sans-fixes` les ignore). Les gfx sont classés par présences décroissantes, puis par numéro.
+Avec `--sprites`, chaque SWF est lu par `swfsvg --list` : seules les familles dont une orientation
+garde au moins deux images au pas choisi sont retenues, et un gfx sans SWF ou sans aucune de ces
+familles est écarté. La sélection s'arrête à `--nombre` gfx, ou avant le premier gfx qui ferait
+dépasser `--budget-mo` (taille estimée : images × `--ko-par-image` ; demande `--sprites`). Les gfx
+d'un fichier `--exclure` (même format que `sprites_animes.txt`) sont sautés. La sortie standard
+reçoit des lignes de commentaire (couverture, taille estimée, raison de l'arrêt, gfx écartés) puis
+une ligne `<gfx> <famille>[:<pas>],...` par gfx (triées par gfx), prête à ajouter à `sprites_animes.txt` ; `--tableau`
+écrit en plus le classement complet (TSV). La commande du dépôt est dans
+`Outil_Azur_complet/Resources/Bot/sprites/PROVENANCE.md`, section « Monstres (lot AN3) ».
+
+Tests : `python3 tests/test_choisir_gfx_animes.py` (mini dump SQL inventé et faux `swfsvg` de
+`tests/`, aucun fichier du client ni du serveur) : comptage avec et sans groupes fixes, grades et
+cartes ignorés, familles gardées selon le SWF, budget, exclusions, erreurs.
 
 ## Limites connues
 

@@ -700,3 +700,21 @@ Limites :
 - les variantes « porté » (`_C`) ne sont pas exportées ;
 - les monstres et PNJ n'ont ni `hit` ni `die` avant AN3 ;
 - le client ignore aussi un sprite « pas encore placé » (coordonnées nulles), cas que le bot ne distingue pas.
+
+## Bandes des monstres (lot AN3)
+
+Les 100 gfx de monstres les plus présents sur les cartes de StarLoco ont leurs bandes `walk`, `run`, `hit`, `die` et `anim0`, au pas 2 (une image sur deux, colonne `ips` à 20) : 1 034 PNG, 21 691 images et 35 206 465 octets dans `Resources/Bot/sprites`. Ils couvrent 84,2 % des présences du dump : entrées `<monstre>,<niveau>` de `maps.monsters` des cartes qui font apparaître des groupes, plus les membres des groupes fixes de `mobgroups_fix`.
+
+- **Choix** : `tools/client-analysis/choisir_gfx_animes.py` lit le dump SQL comme le serveur le charge, classe les gfx par présences, ne garde avec `--sprites` que les familles que le SWF exporte vraiment, et s'arrête à `--nombre` gfx ou au budget `--budget-mo`. Il écrit les lignes de `sprites_animes.txt` ; `exporter_sprites.py` (lot AN2) fait l'export. Commandes exactes, mesures et défauts : `Resources/Bot/sprites/PROVENANCE.md`, section « Monstres (lot AN3) ».
+- **Aucun code nouveau dans le bot** : `ActorSprites` lit la colonne `ips`, l'image affichée vaut floor(temps écoulé × 20 / 1000) et une passe dure autant que chez le client (`1001_hitR` : 12 images à 20 ips, 600 ms, comme 24 images à 40).
+- **À l'écran** : un groupe de monstres qui se déplace joue `walk` ou `run` de son chef ; les membres dessinés autour prennent la même animation avec leur propre gfx, ou leur pose fixe si la bande manque. En combat, les coups reçus (`GA` 100, 108 et 110) et les morts (`GA;103`) du lot AN2 jouent `hit` et `die` sur ces monstres. `anim0` (attaque) est livrée mais pas encore jouée : le lancer de sort (`GA;300`) et l'animation du lanceur relèvent du lot AN4.
+- **Orientations** : 94 des 100 gfx n'ont `walk` et `run` qu'en `R` et `L`. Un pas dans une direction impaire (1, 3, 5, 7 : les axes de la grille) joue la bande ; un pas dans une direction paire (0, 2, 4, 6) garde la pose fixe, comme avant.
+- **PNJ** : ils gardent leur pose fixe. Leur repos animé (`static` à plusieurs images) n'est pas exporté : l'exporteur rend `static` sur une seule image.
+- **Le reste** : les 310 autres gfx, `anim1` et suivantes, `bonus` et `appear` ne sont pas versionnés (plafond de 150 Mo pour toutes les animations). Le dossier `sprites-local/` à côté de l'exécutable, ignoré par git, est lu avant `ressources/Bot/sprites` et reçoit un export plus large par les mêmes commandes.
+
+`BotSpriteSheetsSmoke` vérifie les 100 gfx et leurs familles, `ips` à 20 ou 40, les parts du dossier (monstres 55 Mo, `anim<n>` des classes du lot AN4 23 Mo, dossier entier 104 Mo) et, sur les données réelles, deux images différentes de `1001_walkR` à 50 ms d'écart, puis un groupe 1001 en marche sur une carte synthétique qui montre les images 1 et 2 de `walkR` à 75 et 125 ms. `test_choisir_gfx_animes.py` rejoue l'outil sur un mini dump SQL inventé.
+
+Limites :
+
+- défaut de swfsvg 0.2.3 : les bandes `hit`, `die` et `anim0` de `1003`, `1004`, `1007` (en `R`) et `1009` (toutes) prennent la longueur du clip imbriqué le plus long (116 à 175 images, fin `boucle`), et des `hit` de `1564` et `1572` finissent mal aussi. Ces coups reçus durent 5,8 à 8,8 s au lieu de 600 ms ; il faudra les réexporter quand swfsvg prendra la fin du clip qui ramène au repos ;
+- rien n'a été comparé au client sur un vrai StarLoco.

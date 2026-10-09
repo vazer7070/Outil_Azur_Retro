@@ -136,11 +136,12 @@ Les monstres n'exportent le plus souvent `walk` et `run` qu'en `R` et `L` (94 gf
 qui avance en ligne droite (directions 0, 2, 4, 6) garde alors sa pose fixe, comme avant ce lot.
 
 **Défaut connu (swfsvg 0.2.3).** Le nombre d'images utiles d'un symbole est celui de son clip imbriqué
-le plus long, même quand un clip plus court se termine par `GAC.applyAnim(this, "static")`. Les
+le plus long, même quand un clip plus court ramène le sprite à sa pose `static` à sa dernière image. Les
 symboles orientés `R` de `1003`, `1004` et `1007`, et tous ceux de `1009`, contiennent un clip en boucle
 de 275, 275, 232 et 350 images : leurs bandes `hit`, `die` et `anim0` concernées font 116 à 175 images
 au pas 2 avec la fin `boucle`, alors que le client revient au repos à la fin de l'animation (24 images
-pour `1003_hitL`). Le bot joue donc ces coups et ces attaques en une seule passe de 5,8 à 8,8 s.
+pour `1003_hitL`). Le bot joue donc ces coups reçus en une seule passe de 5,8 à 8,8 s (et jouera de
+même ces attaques avec le lot AN4) ; la mort reste coupée à 1 500 ms.
 `1564_hitL` et les `hit` de `1572` finissent aussi en `boucle`, `1564_hitR` (7 images) en `arret`. La
 correction relève de `swfsvg` (lot suivant qui l'édite) ; il suffira ensuite de relancer la seconde
 commande avec `--gfx 1003,1004,1007,1009,1564,1572`.
