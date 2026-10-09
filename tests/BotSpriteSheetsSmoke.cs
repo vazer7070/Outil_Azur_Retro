@@ -23,9 +23,12 @@ using Tool_BotProtocol.Utils.Crypto;
 // Lot AN2 : sprites_animes.txt au format « <gfx> <famille>[:<pas>],... » (un gfx seul vaut walk,run), chaque
 // famille demandée a ses bandes, hit et die des 24 classes en R et L, part du budget (4 Mo).
 // Lot AN3 : ips de 20 ou 40, 100 gfx de monstres avec walk, run, hit et die (anim0 quand le SWF l'a), anim<n> des classes
-// (lot AN4) en R et L, parts du budget (monstres 55 Mo, anim<n> des classes 23 Mo) et taille du dossier (104 Mo) ;
+// (lot AN4) en R et L, parts du budget (monstres 55 Mo, anim<n> des classes 23 Mo) et taille du dossier (104 Mo, 113 Mo depuis AN6) ;
 // sur les données réelles, deux instants de 1001_walkR à 50 ms d'écart donnent des pixels différents, et un groupe de
 // monstres 1001 qui se déplace sur une carte synthétique joue cette bande à 20 ips (UserMapControl, horloge injectée).
+// Lot AN6 : les masques <gfx>_<anim>.couleurs.png n'ont pas de ligne d'ancres.tsv ; chacun a sa bande, à la même taille, et
+// ses lignes dans couleurs.tsv (et l'inverse) ; toutes les bandes des 24 classes ont un masque ; part du budget (9 Mo) et
+// dossier relevé d'autant (113 Mo).
 internal static class BotSpriteSheetsSmoke
 {
     private static readonly string[] Header = { "gfx", "anim", "xmin", "ymin", "largeur", "hauteur", "images" };
@@ -41,7 +44,11 @@ internal static class BotSpriteSheetsSmoke
     // classes, soit 23 Mo au plus. Dossier : 21,5 + 3,5 + 7 + 11 + 55 + 6 (marge) Mo ; AN6 (masques) et AN8 (émotes) le relèvent.
     private const long MonsterBudget = 55L * 1000 * 1000;
     private const long ClassAttackBudget = 23L * 1000 * 1000;
-    private const long FolderBudget = 104L * 1000 * 1000;
+    // Lot AN6 : masques de recoloration et couleurs.tsv, 7,85 Mo mesurés (≈ 12 Mo prévus), ajoutés au dossier.
+    private const long MaskBudget = 9L * 1000 * 1000;
+    private const long FolderBudget = 113L * 1000 * 1000;
+    private const string MaskSuffix = ".couleurs.png";
+    private static readonly string[] ColorHeader = { "gfx", "anim", "index", "zone", "couleur" };
     private static readonly string[] MonsterFamilies = { "walk", "run", "hit", "die", "anim0" };
     private static readonly Regex AttackFamily = new Regex("^anim[0-9]+$", RegexOptions.CultureInvariant);
     private const int MapWidth = 8, MapHeight = 8;
@@ -329,8 +336,9 @@ internal static class BotSpriteSheetsSmoke
                 Check(error == null, "ancres.tsv line " + row.Line + ": " + error);
             }
             var listed = new HashSet<string>(rows.Select(r => r.File));
-            foreach (string file in Directory.GetFiles(source, "*_*.png").Select(f => Path.GetFileName(f)))
+            foreach (string file in Directory.GetFiles(source, "*_*.png").Select(f => Path.GetFileName(f)).Where(f => !f.EndsWith(MaskSuffix, StringComparison.Ordinal)))
                 Check(listed.Contains(file), "PNG without ancres.tsv line: " + file);
+            Masks(source, rows, classes);
 
             // Point d'ancrage = pixel (-xmin, -ymin) : le pied du personnage, en bas de l'image.
             Row stand = byKey["10/staticR"];
@@ -392,7 +400,7 @@ internal static class BotSpriteSheetsSmoke
         // 6. Provenance : source, outil et commande exacte de régénération.
         string provenance = File.ReadAllText(Path.Combine(source, "PROVENANCE.md"));
         foreach (string needed in new[] { "exporter_sprites.py", "clips/sprites", "swfsvg", "--frame all", "ancres.tsv", "sprites_animes.txt", "cargo build --release", "--anims hit,die",
-            "choisir_gfx_animes.py", "--anims walk,run,hit,die,anim0 --pas 2", "sprites-local" })
+            "choisir_gfx_animes.py", "--anims walk,run,hit,die,anim0 --pas 2", "sprites-local", "--masques", "--conserver", "couleurs.tsv" })
             Check(provenance.Contains(needed), "PROVENANCE.md does not mention " + needed);
 
         // 7. Livraison : ancres.tsv est copié à côté de l'exécutable avec les PNG.
@@ -403,6 +411,47 @@ internal static class BotSpriteSheetsSmoke
 
         Console.WriteLine("OK: " + rows.Count + " sprite anchors (" + rows.Count(r => r.Images > 1) + " strips), sprites_animes.txt families, " + monsters.Length
             + " monster gfx, ips 20/40, PNG sizes, feet anchor, budgets, real 1001_walkR at 20 fps, legacy sprites, provenance and delivery");
+    }
+
+    /// <summary>
+    /// Lot AN6 : chaque masque <c>&lt;gfx&gt;_&lt;anim&gt;.couleurs.png</c> accompagne une bande d'<c>ancres.tsv</c> de même
+    /// taille et a ses lignes dans <c>couleurs.tsv</c> (index 1 à 255, zone 1 à 3, couleur RRGGBB), et toute ligne a son
+    /// masque ; les bandes des 24 classes ont toutes un masque ; masques et table tiennent dans la part du lot.
+    /// </summary>
+    private static void Masks(string source, List<Row> rows, int[] classes)
+    {
+        string table = Path.Combine(source, "couleurs.tsv");
+        Check(File.Exists(table), "couleurs.tsv missing: " + table);
+        string[] lines = File.ReadAllLines(table);
+        Check(lines.Length > 1 && lines[0] == string.Join("\t", ColorHeader), "couleurs.tsv header must be " + string.Join(" ", ColorHeader));
+        var tableKeys = new HashSet<string>();
+        var seen = new HashSet<string>();
+        var hex = new Regex("^[0-9a-f]{6}$", RegexOptions.CultureInvariant);
+        for (int n = 1; n < lines.Length; n++)
+        {
+            string[] f = lines[n].Split('\t');
+            int gfx, index, zone;
+            Check(f.Length == 5 && int.TryParse(f[0], out gfx) && Anim.IsMatch(f[1]) && int.TryParse(f[2], out index) && index >= 1 && index <= 255
+                && int.TryParse(f[3], out zone) && zone >= 1 && zone <= 3 && hex.IsMatch(f[4]), "couleurs.tsv line " + (n + 1) + " is malformed: " + lines[n]);
+            Check(seen.Add(f[0] + "/" + f[1] + "/" + f[2]), "couleurs.tsv line " + (n + 1) + ": index listed twice");
+            tableKeys.Add(f[0] + "_" + f[1] + MaskSuffix);
+        }
+        var byFile = rows.ToDictionary(r => r.File, StringComparer.Ordinal);
+        string[] masks = Directory.GetFiles(source, "*" + MaskSuffix).Select(f => Path.GetFileName(f)).ToArray();
+        foreach (string mask in masks)
+        {
+            string band = mask.Substring(0, mask.Length - MaskSuffix.Length) + ".png";
+            Check(byFile.ContainsKey(band), "Mask without its strip in ancres.tsv: " + mask);
+            Check(PngSize(Path.Combine(source, mask)) == PngSize(Path.Combine(source, band)), "Mask " + mask + " is not the size of " + band);
+            Check(tableKeys.Contains(mask), "Mask without couleurs.tsv lines: " + mask);
+        }
+        var maskSet = new HashSet<string>(masks);
+        foreach (string key in tableKeys) Check(maskSet.Contains(key), "couleurs.tsv lines without their mask: " + key);
+        foreach (Row row in rows.Where(r => classes.Contains(r.Gfx) && r.Anim != "scene"))
+            Check(maskSet.Contains(row.Gfx + "_" + row.Anim + MaskSuffix), "Class strip without colour mask: " + row.File);
+        long bytes = masks.Sum(m => new FileInfo(Path.Combine(source, m)).Length) + new FileInfo(table).Length;
+        Check(bytes <= MaskBudget, "Colour masks and couleurs.tsv: " + masks.Length + " masks, " + bytes + " bytes, AN6 budget is " + MaskBudget);
+        Console.WriteLine("colour masks: " + masks.Length + " masks and " + (lines.Length - 1) + " couleurs.tsv lines, " + bytes + " bytes (budget " + MaskBudget + ")");
     }
 
     private static string EncodedCell()

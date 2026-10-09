@@ -60,7 +60,8 @@ python3 exporter_sprites.py <client>/clips/sprites ../../Outil_Azur_complet/Reso
 swfsvg [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier> [nomExport ...]
 swfsvg --scene [--name NOM] [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier>
 swfsvg --list <fichier.swf>
-# les deux premières formes acceptent aussi --instance NOM ou --sans-instance NOM
+swfsvg --zones-list <fichier.swf>
+# les deux premières formes acceptent aussi --instance NOM ou --sans-instance NOM, et --zones aucune|1|12|123…
 ```
 
 - **Sans option** (forme historique, inchangée) : l'image 1 de chaque symbole d'`ExportAssets`, ou des
@@ -94,7 +95,14 @@ swfsvg --list <fichier.swf>
   branchement conditionnel ne compte pas (`static<O>` n'enchaîne sur `anim18End` qu'après
   `anim18`) ; `applyAnim(this, "StaticR")` compte comme `static` (le client ajoute la lettre et
   retombe sur la pose de repos). La ligne `scene` porte aussi sa fin (timeline principale jouée
-  depuis l'image 1). Mesuré sur les 936 sprites du client : `hitR`/`hitL` finissent par `static`
+  depuis l'image 1). **Depuis la version 0.2.5**, le premier script qui remplace le clip
+  (`applyAnim`, `removeMovieClip`), dans la timeline ou dans un clip qu'elle contient, arrête
+  l'animation à son image (comptée) : un clip imbriqué plus long qui boucle n'allonge plus un coup
+  reçu (bande `1003_hitR` du dépôt, au pas 2 : 138 images en `boucle` avant, 12 en `static` ; `10_anim1R` :
+  28 en `boucle`, 23 en `static`). Sinon, une timeline de plusieurs images sans `stop()` dure ses
+  propres images (ses clips bouclent avec elle) ; sinon, ses clips continuent de jouer et le plus
+  long fixe la durée, comme avant. L'image du script compte, comme en 0.2.3 et 0.2.4 : le lecteur Flash ne
+  l'affiche pas, soit une image de plus (25 ms à 40 ips). Mesuré sur les 936 sprites du client : `hitR`/`hitL` finissent par `static`
   (1 459 sur 1 499), `dieR`/`dieL` par `arret` (1 367 sur 1 485) ; sur les 273 scènes de sorts,
   134 `static`, 121 `arret`, 18 `boucle`.
 - **`--append-index`** ajoute les lignes à un `index.tsv` existant au lieu de le réécrire, pour
@@ -106,6 +114,15 @@ swfsvg --list <fichier.swf>
   `--instance` s'ils découpent l'enfant). Un nom absent de toutes les images rendues est signalé sur
   la sortie d'erreur sans échec. Sert aux effets de sorts de types 20 et 21, dont l'enfant `rotate`
   est tourné vers la cible par le client (`306.swf` : `--scene --instance rotate`).
+- **`--zones-list`** (version 0.2.5) écrit, sans rien rendre, les appels `GAC.applyColor(<enfant>, <zone>)`
+  des scripts du SWF : `clip instance zone` (en-tête compris ; clip 0 pour la scène). Le client y
+  recolore l'enfant nommé avec la couleur k du `GM` (zones 1 à 3 : un aplat qui garde l'alpha).
+  **`--zones 123`** rend comme d'habitude, mais peint chaque enfant de zone de sa couleur unitaire
+  (zone 1 rouge, 2 vert, 3 bleu ; `--zones 1` ou `12` ne peignent que celles-là, les autres en noir),
+  **`--zones aucune`** les peint toutes en noir : même géométrie, même alpha, même cadre. La
+  différence des deux rendus donne la part de chaque zone dans chaque pixel (masques de
+  recoloration d'`exporter_sprites.py --masques`). L'enfant est cherché par son nom d'instance :
+  une cible calculée ou un clip posé sans nom n'est pas peint, et le client ne le colore pas non plus.
 
 `index.tsv` (sans ligne d'en-tête) compte une ligne par SVG écrit, colonnes séparées par des
 tabulations ; les sept premières sont celles des versions précédentes :
@@ -140,7 +157,8 @@ par la couleur de son milieu, et un aplat magenta sous une transformation de cou
 donne le nombre d'images et `--frame` permet de choisir une image représentative. Un SWF illisible
 arrête la commande avec un message et le code 1 (2 pour une option invalide), jamais une panique.
 
-Tests : `cargo test` dans `swfsvg/` (18 tests ; le SWF de test est fabriqué par les tests avec la
+Tests : `cargo test` dans `swfsvg/` (21 tests, dont les zones de `--zones` et la durée des clips
+imbriqués de la 0.2.5 ; le SWF de test est fabriqué par les tests avec la
 crate `swf`, aucun fichier du client n'est nécessaire).
 
 Temps mesurés (conteneur 4 cœurs, un processus par SWF, binaire `--release`) :
@@ -163,10 +181,10 @@ les exports d'un sprite sur dix (93 SWF, 260 s) : aucun échec, aucune panique.
 ```text
 exporter_sprites.py <client>/clips/sprites <sortie> [--swfsvg CHEMIN] [--animes FICHIER]
                     [--gfx 10,11,...] [--anims hit,die[:pas],...] [--pas N]
-                    [--echelle 1] [--jobs N] [--sans-palette]
+                    [--echelle 1] [--jobs N] [--sans-palette] [--masques] [--conserver]
 ```
 
-Requiert swfsvg 0.2.3 ou plus (colonne `fin` de `--list` ; `--swfsvg`, sinon `$SWFSVG`, le `PATH` ou
+Requiert swfsvg 0.2.3 ou plus (0.2.5 avec `--masques`) (colonne `fin` de `--list` ; `--swfsvg`, sinon `$SWFSVG`, le `PATH` ou
 `swfsvg/target/release`), cairosvg et Pillow. Pour chaque `<gfx>.swf` :
 
 - `<gfx>_static<O>.png` (`O` = `S`, `R`, `L`, `F`, `B`, casse du nom d'export ignorée) : la **dernière
@@ -199,16 +217,29 @@ dossier (les anciens `<gfx><O>.png` du bot) ne sont jamais touchés. Un SWF illi
 la série continue. Le détail des conventions et la commande utilisée pour le dépôt sont dans
 `Outil_Azur_complet/Resources/Bot/sprites/PROVENANCE.md`.
 
+`--masques` (lot AN6) écrit, pour chaque PNG d'un gfx dont le SWF appelle `applyColor`
+(`swfsvg --zones-list`), un masque de recoloration `<gfx>_<anim>.couleurs.png` de même taille et
+de même disposition : rouge = part de la zone dominante du pixel (rendus `--zones 123` moins
+`--zones aucune`, au pas de 17), vert = index de la couleur d'origine, bleu 0 ; un pixel sans zone
+est noir. `<sortie>/couleurs.tsv` (`gfx anim index zone couleur`, en-tête compris, couleur
+d'origine en `RRGGBB`) donne la zone et la couleur de chaque index. Le bot calcule
+`pixel = PNG + (couleur du GM − couleur d'origine) × rouge / 255`. Sans `--masques`, les masques et
+les lignes des familles réexportées sont retirés. `--conserver` garde un PNG existant quand sa ligne
+d'`ancres.tsv` ne change pas et que le nouveau rendu ne s'en écarte que par l'anticrénelage (alpha à
+32 près, écart moyen des couleurs visibles sous 2/255) : refaire les masques d'un dossier ne
+réécrit que les bandes qui changent vraiment.
+
 | Commande | Durée (4 cœurs) | Sortie |
 |---|---|---|
 | tous les sprites, `--jobs 4`, 24 gfx animés | 3 min 10 s | 2 556 PNG, 16,1 Mo, `ancres.tsv` de 2 556 lignes |
 | `--gfx <24 classes> --anims hit,die --jobs 4` (lot AN2) | 28 s | 96 PNG, 3,5 Mo, 3 444 images ; `ancres.tsv` de 2 652 lignes |
 | `--gfx <100 monstres> --anims walk,run,hit,die,anim0 --pas 2 --jobs 4` (lot AN3) | 2 min 38 s | 1 034 PNG, 35,2 Mo, 21 691 images ; `ancres.tsv` de 3 686 lignes |
+| `--gfx <24 classes> --masques --conserver --jobs 4` (lot AN6, familles de `sprites_animes.txt`) | 8 min 18 s | 1 080 PNG dont 576 gardés, 1 080 masques (7,0 Mo) |
 
 Tests : `python3 tests/test_exporter_sprites.py` (faux `swfsvg` écrit en Python dans `tests/`, aucun
 fichier du client) : image de repos, casse, scène, bandes, magenta, rognage, échelle, `--gfx`,
 `--anims` et pas, colonnes `ips` et `fin`, relecture d'un ancien `ancres.tsv`, grille au-delà de
-32 767 px.
+32 767 px, masques et `couleurs.tsv` de `--masques`, PNG gardés par `--conserver`.
 
 ### Choix des gfx animés : `choisir_gfx_animes.py`
 

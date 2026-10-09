@@ -136,7 +136,7 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 |---|---|---|---|---|---|
 | A1 | Décor (sols, objets, fond, pentes) | SWF de carte après `GDM` | envoie `GDM` | partiel : pas d’images de pente, 31 objets incomplets | `BotDecorAnchorsSmoke`, `BotMapViewSmoke` |
 | A2 | Changer de carte | marche vers une cellule de sortie | téléporte à l’arrivée (`GA;2`, `GDM`) | partiel : déclencheurs chargés mais non affichés | `BotActorsModelSmoke`, `BotMovementSmoke` |
-| A3 | Voir les joueurs | `GM` type ≥ 0 | traité | partiel : ni recoloration, ni accessoires, ni ailes, ni auras | `BotActorRenderSmoke`, `BotSpriteSheetsSmoke` |
+| A3 | Voir les joueurs | `GM` type ≥ 0 | traité | partiel : couleurs du `GM` appliquées (lot AN6), ni accessoires, ni ailes, ni auras | `BotActorRenderSmoke`, `BotSpriteSheetsSmoke`, `BotRecolorSmoke` |
 | A4 | Voir les PNJ et leur nom | `GM` type -4 | traité | fait | `BotActorRenderSmoke`, `BotActorsModelSmoke` |
 | A5 | Groupes de monstres, niveaux, étoiles | `GM` type -3 | traité | fait | `BotActorRenderSmoke` |
 | A6 | Marchands, percepteurs, prismes, montures d’enclos, épées | `GM` types -5, -6, -9, -10 ; `Gc` | traité | partiel : pas d’icône de sac, équipes des épées non suivies | `BotActorsModelSmoke`, `BotActorRenderSmoke` |
@@ -250,7 +250,8 @@ Préalable : une copie isolée d’un vrai StarLoco, avec des comptes et des per
 
 - Images des sols en pente : `swfsvg` sait rendre une image choisie, mais le décor versionné a été exporté sans les pentes.
 - Formes morphées et textes statiques de 31 objets ; images 3 à 5 des objets interactifs (objet vidé, repousse).
-- Recoloration des sprites (couleurs de `GM`), accessoires, ailes d’alignement, auras, bandes d’émote ; bandes des 310 autres gfx de monstres et repos animé des PNJ (les 24 classes ont leurs bandes depuis le lot AN2, les 100 monstres les plus présents depuis le lot AN3 ; le reste peut aller dans `sprites-local/`) ; `hit` et `anim0` trop longs de six de ces monstres (défaut de swfsvg 0.2.3, voir `PROVENANCE.md`) ; variantes « porté » (`_C`) des bandes.
+- Accessoires, ailes d’alignement, auras, bandes d’émote ; bandes des 310 autres gfx de monstres et repos animé des PNJ (les 24 classes ont leurs bandes depuis le lot AN2, les 100 monstres les plus présents depuis le lot AN3 ; le reste peut aller dans `sprites-local/`) ; variantes « porté » (`_C`) des bandes.
+- Recoloration (lot AN6) : hors classes et monstres d’AN3, seule la pose fixe des gfx colorés est recolorée ; ni monture chevauchée, ni accessoires, ni familiers ; rien n’a été comparé au client en jeu. Les `hit` et `anim0` trop longs d’AN3 sont corrigés par swfsvg 0.2.5 ; les `die` de 1003, 1004, 1007 et 1009 restent longues (clip qui boucle, coupé à 1 500 ms).
 - Chiffres au-dessus des têtes (lot AN2) : Tahoma gras à la place de la police Font2 du client, non exportée.
 - Icône de sac des marchands ; couleur d’alignement des PNJ ; membres des équipes d’un combat sous les épées.
 - Affichage des cellules déclencheurs ; droits de la carte (défis et agressions interdits) non exportés dans `BotMaps`.
