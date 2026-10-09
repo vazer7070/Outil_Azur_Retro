@@ -55,6 +55,8 @@ internal static class BotEntitiesSmoke
         int offset = 0; while (offset < bytes.Length) offset += socket.Send(bytes, offset, bytes.Length - offset, SocketFlags.None);
     }
 
+    // Le bot termine chaque paquet par « \n\0 », la trame qu'attend StarLoco (docs/STARLOCO_SOURCES_ANALYSE.md) :
+    // le « \n » est exigé puis retiré avant la comparaison.
     private static string Read(Socket socket)
     {
         using (var data = new MemoryStream())
@@ -62,7 +64,12 @@ internal static class BotEntitiesSmoke
             byte[] one = new byte[1];
             while (socket.Receive(one) != 0)
             {
-                if (one[0] == 0) return Encoding.UTF8.GetString(data.ToArray());
+                if (one[0] == 0)
+                {
+                    string packet = Encoding.UTF8.GetString(data.ToArray());
+                    Check(packet.EndsWith("\n", StringComparison.Ordinal), "Bot packet is not terminated by \\n\\0: " + packet);
+                    return packet.Substring(0, packet.Length - 1);
+                }
                 data.WriteByte(one[0]);
             }
             throw new Exception("Loopback peer closed before a full packet");
