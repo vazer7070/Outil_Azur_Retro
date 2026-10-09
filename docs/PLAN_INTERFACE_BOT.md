@@ -250,7 +250,7 @@ Préalable : une copie isolée d’un vrai StarLoco, avec des comptes et des per
 
 - Images des sols en pente : `swfsvg` sait rendre une image choisie, mais le décor versionné a été exporté sans les pentes.
 - Formes morphées et textes statiques de 31 objets ; images 3 à 5 des objets interactifs (objet vidé, repousse).
-- Recoloration des sprites (couleurs de `GM`), accessoires, ailes d’alignement, auras, bandes d’émote ; bandes de marche, de coup et de mort des monstres et PNJ (celles des 24 classes sont livrées par le lot AN2) ; variantes « porté » (`_C`) des bandes.
+- Recoloration des sprites (couleurs de `GM`), accessoires, ailes d’alignement, auras, bandes d’émote ; bandes des 310 autres gfx de monstres et repos animé des PNJ (les 24 classes ont leurs bandes depuis le lot AN2, les 100 monstres les plus présents depuis le lot AN3 ; le reste peut aller dans `sprites-local/`) ; `hit` et `anim0` trop longs de six de ces monstres (défaut de swfsvg 0.2.3, voir `PROVENANCE.md`) ; variantes « porté » (`_C`) des bandes.
 - Chiffres au-dessus des têtes (lot AN2) : Tahoma gras à la place de la police Font2 du client, non exportée.
 - Icône de sac des marchands ; couleur d’alignement des PNJ ; membres des équipes d’un combat sous les épées.
 - Affichage des cellules déclencheurs ; droits de la carte (défis et agressions interdits) non exportés dans `BotMaps`.
