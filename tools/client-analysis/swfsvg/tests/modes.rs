@@ -614,3 +614,75 @@ fn magenta_fills_are_kept_under_a_replacing_tint() {
     assert!(tinted.contains("#ff00ff") && tinted.contains("feColorMatrix"), "aplat teinté omis : {}", tinted);
     assert!(!w.read("emplacement.svg").contains("#ff00ff"), "un emplacement magenta seul reste omis");
 }
+
+/// SWF des instances nommées : la scène (2 images) pose un rectangle rouge anonyme en (100, 50),
+/// l'enfant `rotate` (clip de 2 images : carré bleu en x = 0 puis x = 5) en (10, 20), et l'enfant
+/// `Fond` (carré noir 40×40) en (200, 0) sous un masque 10×10 anonyme.
+fn write_instances_swf(path: &Path) {
+    let mut rotate = place(2, PlaceObjectAction::Place(20), Some((10.0, 20.0)));
+    rotate.name = Some(SwfStr::from_utf8_str("rotate"));
+    let mut mask = place(3, PlaceObjectAction::Place(2), Some((200.0, 0.0)));
+    mask.clip_depth = Some(4);
+    let mut fond = place(4, PlaceObjectAction::Place(3), Some((200.0, 0.0)));
+    fond.name = Some(SwfStr::from_utf8_str("Fond"));
+    let tags = vec![
+        rect(1, 20.0, 10.0, 255, 0, 0),
+        rect(2, 10.0, 10.0, 0, 0, 255),
+        rect(3, 40.0, 40.0, 0, 0, 0),
+        sprite(
+            20,
+            vec![
+                tag(place(1, PlaceObjectAction::Place(2), Some((0.0, 0.0)))),
+                Tag::ShowFrame,
+                tag(place(1, PlaceObjectAction::Modify, Some((5.0, 0.0)))),
+                Tag::ShowFrame,
+            ],
+        ),
+        tag(place(1, PlaceObjectAction::Place(1), Some((100.0, 50.0)))),
+        tag(rotate),
+        tag(mask),
+        tag(fond),
+        Tag::ShowFrame,
+        Tag::ShowFrame,
+    ];
+    let header = Header { compression: Compression::None, version: 8, stage_size: bounds(0.0, 0.0, 550.0, 400.0), frame_rate: Fixed8::from_f32(12.0), num_frames: 2 };
+    let mut out = Vec::new();
+    write_swf(&header, &tags, &mut out).expect("écriture du SWF de test");
+    std::fs::write(path, out).expect("SWF de test");
+}
+
+#[test]
+fn instance_options_keep_or_drop_a_named_child() {
+    let w = Work::new("instances");
+    let swf = w.dir.join("instances.swf");
+    write_instances_swf(&swf);
+    let swf = swf.to_string_lossy().to_string();
+
+    // --instance : l'enfant seul, à sa place dans la scène et dans le temps de la scène.
+    ok(&["--scene", "--instance", "rotate", "--frame", "all", &swf, &w.out()]);
+    let index = w.index();
+    assert_eq!(index.len(), 2, "deux images de scène : {:?}", index);
+    assert_eq!(&row(&index, "instances", "1")[2..6], &["10", "20", "15", "10"], "cadre commun des deux images");
+    let first = w.read("instances_f001.svg");
+    assert!(first.contains("#0000ff") && !first.contains("#ff0000") && !first.contains("#000000"), "seul rotate : {}", first);
+    assert_ne!(first, w.read("instances_f002.svg"), "le clip rotate joue avec la scène");
+    // Le nom ne tient pas compte de la casse ; un masque suit l'enfant qu'il découpe.
+    ok(&["--scene", "--instance=fond", &swf, &w.out()]);
+    let fond = w.read("instances.svg");
+    assert!(fond.contains("<clipPath") && fond.contains("#000000") && !fond.contains("#0000ff"), "Fond sous son masque : {}", fond);
+    assert_eq!(view_box(&fond), "200 0 10 10");
+
+    // --sans-instance : tout sauf l'enfant.
+    ok(&["--scene", "--sans-instance", "ROTATE", &swf, &w.out()]);
+    let without = w.read("instances.svg");
+    assert!(without.contains("#ff0000") && without.contains("<clipPath") && !without.contains("#0000ff"), "sans rotate : {}", without);
+
+    // Un nom absent est signalé sans échec ; --instance et --sans-instance s'excluent.
+    let o = swfsvg(&["--scene", "--instance", "absent", &swf, &w.out()]);
+    assert!(o.status.success());
+    assert!(String::from_utf8_lossy(&o.stderr).contains("instance absent absente"), "{}", String::from_utf8_lossy(&o.stderr));
+    let o = swfsvg(&["--scene", "--sans-instance", "absent", &swf, &w.out()]);
+    assert!(o.status.success() && w.read("instances.svg").contains("#0000ff"));
+    assert_eq!(swfsvg(&["--scene", "--instance", "a", "--sans-instance", "b", &swf, &w.out()]).status.code(), Some(2));
+    assert_eq!(swfsvg(&["--list", "--instance", "rotate", &swf]).status.code(), Some(2));
+}

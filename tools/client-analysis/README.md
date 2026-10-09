@@ -52,6 +52,7 @@ python3 exporter_sprites.py <client>/clips/sprites ../../Outil_Azur_complet/Reso
 | `exporter_artworks.py` | Exporte les bustes des classes `clips/artworks/faces/<gfx>.swf` (scène principale, gfx = classe × 10 + sexe) vers `Outil_Azur_complet/Resources/Bot/Artworks/Faces` pour la fiche du conjoint du volet Amis ; commande et provenance dans son `PROVENANCE.md`, tests dans `tests/test_exporter_artworks.py`. |
 | `exporter_quetes.py` | Exporte de `modules/core.swf` les pièces de la fenêtre des quêtes (icône d'expérience, coche, marque en cours, flèche d'étape, boussole d'objectif) vers `Outil_Azur_complet/Resources/Bot/Client`, en réutilisant le rendu d'`exporter_icons.py` ; commande dans le `PROVENANCE.md` de ce dossier. |
 | `choisir_gfx_animes.py` | Classe les gfx de monstres par présences sur les cartes d'un dump SQL de StarLoco et écrit les lignes de `sprites_animes.txt` des plus présents, dans la limite d'un nombre de gfx et d'un budget estimé. Voir la section « Choix des gfx animés ». |
+| `exporter_sorts.py` | Exporte en bandes PNG les effets de sorts (`clips/spells/<gfx>.swf` : scène, `shoot`, `move`, `duplicate`) et `clips/extra/5.swf` vers `Outil_Azur_complet/Resources/Bot/Effets/<famille>`, avec `effets.tsv` et `exclusions.tsv` ; `--starloco` écrit `sorts_utilises.txt`. Voir la section « Effets de sorts ». |
 
 ## `swfsvg` : symboles, scène, images et index
 
@@ -59,6 +60,7 @@ python3 exporter_sprites.py <client>/clips/sprites ../../Outil_Azur_complet/Reso
 swfsvg [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier> [nomExport ...]
 swfsvg --scene [--name NOM] [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier>
 swfsvg --list <fichier.swf>
+# les deux premières formes acceptent aussi --instance NOM ou --sans-instance NOM
 ```
 
 - **Sans option** (forme historique, inchangée) : l'image 1 de chaque symbole d'`ExportAssets`, ou des
@@ -97,6 +99,13 @@ swfsvg --list <fichier.swf>
   134 `static`, 121 `arret`, 18 `boucle`.
 - **`--append-index`** ajoute les lignes à un `index.tsv` existant au lieu de le réécrire, pour
   rassembler toute une famille de SWF dans un seul dossier.
+- **`--instance NOM`** (version 0.2.4) ne rend, de la timeline demandée (la scène avec `--scene`,
+  sinon le symbole), que l'enfant posé sous le nom d'instance `NOM` (casse ignorée), à sa place et
+  dans le temps de cette timeline : `--frame all` garde le nombre d'images de la timeline entière.
+  **`--sans-instance NOM`** rend tout sauf cet enfant. Les masques suivent leur contenu (gardés avec
+  `--instance` s'ils découpent l'enfant). Un nom absent de toutes les images rendues est signalé sur
+  la sortie d'erreur sans échec. Sert aux effets de sorts de types 20 et 21, dont l'enfant `rotate`
+  est tourné vers la cible par le client (`306.swf` : `--scene --instance rotate`).
 
 `index.tsv` (sans ligne d'en-tête) compte une ligne par SVG écrit, colonnes séparées par des
 tabulations ; les sept premières sont celles des versions précédentes :
@@ -299,3 +308,19 @@ python3 exporter_groupe.py <client> ../../Outil_Azur_complet/Resources/Bot --swf
 ```
 
 Les SWF de `clips/artworks/mini` n'exportent aucun symbole : chacun est rendu par `swfsvg --scene --name <numéro>`, puis converti par `exporter_png.py` à l'échelle 2 dans `Artworks/Mini/<gfx>.png`. De `modules/core.swf` (ou `--core`), `UI_PartyItem` est découpé à la bande transparente qui sépare la couronne du chef de la flèche du suivi (`Party/chef.png`, `Party/suivi.png`) ; `UI_PartyItemInfo` et `UI_FightOptionBlockJoinerExceptPartyMemberUp` donnent `Party/infos.png` et `Party/groupe.png`. Les marges transparentes sont retirées (Pillow). Le dossier de travail est temporaire et supprimé, sauf `--travail`. Mesuré le 4 octobre 2026 : moins de 2 s pour les 54 PNG (108 Ko). Avec `swfsvg` 0.2.2, `infos.png` prend un liseré magenta (contour recoloré par le client) : les PNG versionnés viennent de la 0.2.1 (voir `Resources/Bot/Party/PROVENANCE.md`).
+
+## Effets de sorts (`exporter_sorts.py`)
+
+```sh
+SWFSVG=swfsvg/target/release/swfsvg python3 exporter_sorts.py "<client>/clips/spells" \
+    ../../Outil_Azur_complet/Resources/Bot/Effets/sorts --liste sorts_utilises.txt --pas 2 --jobs 4
+SWFSVG=swfsvg/target/release/swfsvg python3 exporter_sorts.py "<client>/clips/extra" \
+    ../../Outil_Azur_complet/Resources/Bot/Effets/extra --gfx 5
+# liste des gfx que StarLoco fait afficher (sorts de type 10 ou plus, fées d'artifice GA228, ballons GA208)
+python3 exporter_sorts.py --starloco "<StarLoco>/02 - BDD/game.sql" \
+    --java "<StarLoco>/04 - Game/src/org/starloco/locos/object/ObjectAction.java" --liste sorts_utilises.txt
+# tests (faux swfsvg de tests/, aucun fichier du client ni de StarLoco)
+python3 tests/test_exporter_sorts.py
+```
+
+Pour chaque gfx : `swfsvg --list`, puis `--scene --frame all` (timeline principale, une image sur `--pas`) et `--frame all` des symboles `shoot`, `move` et `duplicate` que le client attache aux projectiles ; les bandes sont assemblées par `exporter_sprites.bande` (même cadre pour toutes les images, marges rognées, grille au-delà de 32 767 px, palette quand l'écart reste invisible). `effets.tsv` a le format d'`ancres.tsv` (`ips` = 40 / pas, `fin` de `--list`). Un gfx sans scène est écrit dans `exclusions.tsv` avec sa raison : `symboles` (dessin dans les symboles), `script` (`attachMovie`, `duplicateMovieClip` ou `onEnterFrame` dans le SWF, scripts non exécutés), `vide`, `cairo` (une image n'a pas pu être rendue : le gfx est sauté, le lot continue), `taille`, `absent` ou `erreur`. Avec `--gfx`, seules les lignes et les PNG de ces gfx sont remplacés. Mesures, commande exacte et liste des exclusions : `Outil_Azur_complet/Resources/Bot/Effets/PROVENANCE.md`.
