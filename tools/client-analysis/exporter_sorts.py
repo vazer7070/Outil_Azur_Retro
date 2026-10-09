@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Exporte les effets de sorts du client Dofus 1.34 (clips/spells, clips/extra) en bandes PNG, avec effets.tsv.
 
-usage : exporter_sorts.py <dossier des SWF> <sortie> [--liste sorts_utilises.txt | --gfx 5,...] [--pas N]
+usage : exporter_sorts.py <dossier des SWF> <sortie> [--liste sorts_utilises.txt] [--gfx 5,...] [--pas N]
                           [--echelle 1] [--jobs N] [--sans-palette] [--swfsvg CHEMIN]
         exporter_sorts.py --starloco <game.sql> [--java ObjectAction.java] --liste sorts_utilises.txt
 
@@ -12,7 +12,13 @@ Pour chaque <gfx>.swf choisi (cairosvg et Pillow requis, swfsvg 0.2.3 ou plus) :
   (exporter_sprites.bande : même cadre pour toutes les images, marges transparentes rognées, une ligne
   jusqu'à 32 767 px puis une grille, palette 8 bits quand l'écart reste invisible) ;
 - <gfx>_shoot.png, <gfx>_move.png, <gfx>_duplicate.png : les symboles exportés que le client attache
-  lui-même aux projectiles (types 20 à 41 de GA300), toutes leurs images utiles au même pas.
+  lui-même aux projectiles (types 20 à 41 de GA300), toutes leurs images utiles au même pas ;
+- <gfx>_rotate.png (lot AN5) : quand la timeline principale nomme une instance « rotate » et que le gfx
+  n'est affiché qu'en types 20 et 21 (types lus dans --liste), l'enfant que le client tourne alors vers la
+  cible (`--scene --instance rotate`), et la scène est rendue sans lui (`--sans-instance rotate`). Le
+  cadre de cette bande est centré sur le point d'origine de l'instance dans la scène (sa translation, lue
+  dans le PlaceObject du SWF) : le bot la fait tourner autour du centre de son cadre, à 0,5 px près.
+  Sinon (autre type, ou --gfx sans --liste) l'instance reste dans la scène, sans tourner, avec un message.
 Les scripts des SWF (hasard, niveau du sort, attachMovie) ne sont pas exécutés : on rend la timeline telle
 quelle.
 
@@ -23,7 +29,7 @@ lanceur, cellule ou acteur) ; ips : 40 / pas ; fin : colonne fin de `swfsvg --li
 retire lui-même, arret : stop() sur la dernière image, boucle : rien ne l'arrête avant le retrait à 20 s).
 
 <sortie>/exclusions.tsv (gfx, raison, détail) liste les gfx sans <gfx>_scene.png et pourquoi :
-    symboles  scène vide, le dessin est dans shoot, move ou duplicate (projectiles)
+    symboles  scène vide, le dessin est dans shoot, move, duplicate ou rotate (projectiles)
     script    scène vide, dessin fait par script (attachMovie, duplicateMovieClip ou onEnterFrame)
     vide      scène vide, sans script reconnu
     cairo     une image n'a pas pu être rendue (cairo, par exemple NO_MEMORY) : gfx sauté, lot poursuivi
@@ -31,13 +37,16 @@ retire lui-même, arret : stop() sur la dernière image, boucle : rien ne l'arr�
     absent    SWF absent du dossier
     erreur    swfsvg a échoué sur ce SWF
 Avec --gfx, seules les lignes, exclusions et PNG de ces gfx sont remplacés ; sinon le dossier est réécrit.
+--gfx et --liste ensemble : les gfx de --gfx, qui doivent figurer dans la liste, avec leurs types.
 
 --starloco écrit la liste des gfx que le serveur StarLoco fait afficher, avec leurs types (champ type de
 GA300, GA208 et GA228) et leur source : la table `sorts` (colonne sprite, types de spriteInfos à partir de
 10), les fées d'artifice (`objectsactions` de type 5 → table `animations` : id = gfx, area = type) et, avec
 --java, les ballons de GA208 lus dans ObjectAction.java. Une ligne : « <gfx> <types> <sources> ».
 """
-import argparse, collections, concurrent.futures, os, re, sys, tempfile, zlib
+import argparse, collections, concurrent.futures, os, re, struct, sys, tempfile, zlib
+
+from PIL import Image
 
 import exporter_sprites as sprites
 
@@ -46,6 +55,128 @@ SCRIPTS = (b"attachMovie", b"duplicateMovieClip", b"onEnterFrame")
 EN_TETE_EXCLUSIONS = ("gfx", "raison", "detail")
 PRODUIT = re.compile(r"^(\d+)_([A-Za-z][A-Za-z0-9]*)\.png$")
 TYPE_MIN = 10  # visualEffectHandler.addEffect ignore les types inférieurs
+INSTANCE_TOURNEE = "rotate"  # enfant de la scène tourné vers la cible (onLoadInit, types 20 et 21)
+TYPES_TOURNES = {20, 21}  # seuls types où onLoadInit tourne l'instance « rotate » vers la cible
+
+
+# ------------------------------------------------------------------------------- lecture minimale du SWF
+
+class _Bits:
+    """Lecture bit à bit (big-endian dans l'octet) des champs MATRIX et CXFORM d'un SWF."""
+
+    def __init__(self, donnees, position):
+        self.d, self.octet, self.bit = donnees, position, 0
+
+    def ub(self, n):
+        v = 0
+        for _ in range(n):
+            if self.octet >= len(self.d):
+                raise ValueError("champ binaire tronqué")
+            v = (v << 1) | ((self.d[self.octet] >> (7 - self.bit)) & 1)
+            self.bit += 1
+            if self.bit == 8:
+                self.bit, self.octet = 0, self.octet + 1
+        return v
+
+    def sb(self, n):
+        v = self.ub(n)
+        return v - (1 << n) if n and v & (1 << (n - 1)) else v
+
+    def aligner(self):
+        if self.bit:
+            self.bit, self.octet = 0, self.octet + 1
+        return self.octet
+
+
+def _matrice(b):
+    """MATRIX du SWF -> (a, b, c, d, tx, ty), translation en pixels (twips / 20)."""
+    a = d = 1.0
+    rb = rc = 0.0
+    if b.ub(1):
+        n = b.ub(5); a = b.sb(n) / 65536.0; d = b.sb(n) / 65536.0
+    if b.ub(1):
+        n = b.ub(5); rb = b.sb(n) / 65536.0; rc = b.sb(n) / 65536.0
+    n = b.ub(5)
+    tx, ty = b.sb(n) / 20.0, b.sb(n) / 20.0
+    b.aligner()
+    return (a, rb, rc, d, tx, ty)
+
+
+def _cxform(b):
+    ajout, produit = b.ub(1), b.ub(1)
+    n = b.ub(4)
+    for _ in range(4 * (ajout + produit)):
+        b.sb(n)
+    b.aligner()
+
+
+def placements_principaux(swf):
+    """PlaceObject2 et PlaceObject3 de la timeline principale (hors DefineSprite) : liste de
+    (image, profondeur, caractère ou None, nom ou None, matrice ou None). [] si le fichier n'est pas un SWF
+    lisible (le rendu de swfsvg dira alors pourquoi)."""
+    try:
+        with open(swf, "rb") as f:
+            donnees = f.read()
+        if donnees[:3] == b"CWS":
+            corps = zlib.decompress(donnees[8:])
+        elif donnees[:3] == b"FWS":
+            corps = donnees[8:]
+        else:
+            return []
+        b = _Bits(corps, 0)
+        n = b.ub(5)
+        for _ in range(4):
+            b.ub(n)
+        position = b.aligner() + 4  # cadre, puis cadence et nombre d'images
+        image, liste = 0, []
+        while position + 2 <= len(corps):
+            code_long = struct.unpack_from("<H", corps, position)[0]
+            position += 2
+            code, longueur = code_long >> 6, code_long & 0x3F
+            if longueur == 0x3F:
+                longueur = struct.unpack_from("<I", corps, position)[0]
+                position += 4
+            balise = corps[position:position + longueur]
+            position += longueur
+            if code == 0:
+                break
+            if code == 1:
+                image += 1
+            elif code in (26, 70) and len(balise) >= 3:
+                drapeaux, p = balise[0], 1
+                drapeaux2 = 0
+                if code == 70:
+                    drapeaux2, p = balise[1], 2
+                profondeur = struct.unpack_from("<H", balise, p)[0]
+                p += 2
+                if code == 70 and (drapeaux2 & 0x08 or (drapeaux2 & 0x10 and drapeaux & 0x02)):
+                    p = balise.index(b"\0", p) + 1  # nom de classe
+                caractere = matrice = nom = None
+                if drapeaux & 0x02:
+                    caractere = struct.unpack_from("<H", balise, p)[0]
+                    p += 2
+                if drapeaux & 0x04:
+                    lecteur = _Bits(balise, p); matrice = _matrice(lecteur); p = lecteur.octet
+                if drapeaux & 0x08:
+                    lecteur = _Bits(balise, p); _cxform(lecteur); p = lecteur.octet
+                if drapeaux & 0x10:
+                    p += 2  # ratio
+                if drapeaux & 0x20:
+                    fin = balise.index(b"\0", p)
+                    nom = balise[p:fin].decode("latin-1")
+                liste.append((image, profondeur, caractere, nom, matrice))
+        return liste
+    except (OSError, ValueError, IndexError, struct.error, zlib.error):
+        return []
+
+
+def placement_nomme(swf, nom):
+    """Matrice (a, b, c, d, tx, ty) du premier PlaceObject de la timeline principale qui nomme l'instance
+    « nom » (sans tenir compte de la casse, comme swfsvg --instance) ; None si elle n'existe pas."""
+    for _, _, _, n, m in placements_principaux(swf):
+        if n is not None and n.lower() == nom.lower():
+            return m or (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+    return None
 
 
 def lister(swfsvg, swf):
@@ -99,16 +230,78 @@ def exporter_bande(svgs, gfx, anim, sortie, echelle, palette, pas, fin, messages
     return ligne, taille, None, None
 
 
-def exporter_gfx(gfx, swf, sortie, pas, echelle, palette, swfsvg, temporaire):
-    """Exporte un SWF ; renvoie (lignes d'effets.tsv, exclusion ou None, messages, octets). Ne lève jamais."""
+def bande_centree(svgs, gfx, anim, sortie, echelle, palette, pivot):
+    """Comme exporter_sprites.bande, mais le cadre commun est symétrique autour de « pivot » (point du repère
+    du clip, en pixels du SWF) : le centre du cadre tombe sur ce point à 0,5 px près, quelle que soit
+    l'image. Renvoie les sept premières colonnes de la ligne d'effets.tsv et la taille du PNG."""
+    images = [sprites.svg_vers_image(s, echelle) for s in svgs]
+    if not images:
+        return None, 0
+    if len({(im.size, x0, y0) for im, x0, y0 in images}) != 1:
+        raise RuntimeError("%s : images de %s dans des cadres différents" % (gfx, anim))
+    cadres = [c for c in (im.getchannel("A").getbbox() for im, _, _ in images) if c]
+    if not cadres:
+        return None, 0
+    _, x0, y0 = images[0]
+    cx, cy = int(round(pivot[0] * echelle)) - x0, int(round(pivot[1] * echelle)) - y0
+    demi_l = max(1, max(max(cx - c[0], c[2] - cx) for c in cadres))
+    demi_h = max(1, max(max(cy - c[1], c[3] - cy) for c in cadres))
+    cadre = (cx - demi_l, cy - demi_h, cx + demi_l, cy + demi_h)  # crop de Pillow : hors de l'image, transparent
+    largeur, hauteur = 2 * demi_l, 2 * demi_h
+    colonnes, lignes = sprites.disposition(len(images), largeur, hauteur)
+    feuille = Image.new("RGBA", (largeur * colonnes, hauteur * lignes), (0, 0, 0, 0))
+    for k, (im, _, _) in enumerate(images):
+        feuille.paste(im.crop(cadre), (k % colonnes * largeur, k // colonnes * hauteur))
+    taille = sprites.enregistrer(feuille, os.path.join(sortie, "%s_%s.png" % (gfx, anim)), palette)
+    return (gfx, anim, x0 + cadre[0], y0 + cadre[1], largeur, hauteur, len(images)), taille
+
+
+def exporter_bande_centree(svgs, gfx, anim, sortie, echelle, palette, pas, fin, messages, pivot):
+    """exporter_bande avec bande_centree."""
+    try:
+        ligne, taille = bande_centree(svgs, gfx, anim, sortie, echelle, palette, pivot)
+    except RuntimeError as erreur:
+        return None, 0, "taille" if "px" in str(erreur) else "erreur", str(erreur)
+    except Exception as erreur:  # cairo, SVG illisible
+        return None, 0, "cairo", "%s: %s" % (type(erreur).__name__, str(erreur).strip()[:200])
+    if not ligne:
+        return None, 0, "vide", ""
+    ligne += (sprites.IPS // pas, "arret" if ligne[6] == 1 else sprites.fin_valide(fin, gfx, anim, messages))
+    return ligne, taille, None, None
+
+
+def instance_tournee(swf, types, gfx, messages):
+    """Matrice de l'instance « rotate » de la scène si le bot doit la tourner (types 20 et 21) ; None sinon.
+    types : types d'affichage du gfx (sorts_utilises.txt), None s'ils sont inconnus (--gfx sans --liste)."""
+    matrice = placement_nomme(swf, INSTANCE_TOURNEE)
+    if matrice is None:
+        return None
+    if not types or not set(types) <= TYPES_TOURNES:
+        # Types inconnus (--gfx sans --liste) ou gfx affiché aussi par un autre type, qui montre la scène
+        # telle quelle : l'instance reste dans la scène, sans tourner.
+        messages.append("%s : instance rotate gardée dans la scène (types %s)"
+                        % (gfx, ",".join(str(t) for t in sorted(types)) if types else "inconnus"))
+        return None
+    a, b, c, d, _, _ = matrice
+    if abs(b) > 0.01 or abs(c) > 0.01 or a <= 0 or d <= 0:
+        messages.append("%s : instance rotate déjà tournée ou retournée (%.3f %.3f %.3f %.3f) : le bot la tourne "
+                        "autour de sa translation sans en tenir compte" % (gfx, a, b, c, d))
+    return matrice
+
+
+def exporter_gfx(gfx, swf, sortie, pas, echelle, palette, swfsvg, temporaire, types=None):
+    """Exporte un SWF ; renvoie (lignes d'effets.tsv, exclusion ou None, messages, octets). Ne lève jamais.
+    types : types d'affichage du gfx (None : inconnus), pour la bande rotate."""
     lignes, messages, octets = [], [], 0
     if not os.path.isfile(swf):
         return lignes, (gfx, "absent", os.path.basename(swf)), messages, octets
     try:
         scene, symboles = lister(swfsvg, swf)
+        tournee = instance_tournee(swf, types, gfx, messages)
         with tempfile.TemporaryDirectory(dir=temporaire) as dossier:
             sous = os.path.join(dossier, "scene")
-            index = sprites.rendre_svg(swfsvg, ["--scene", "--name", "scene", "--frame", "all", swf, sous], sous)
+            filtre = ["--sans-instance", INSTANCE_TOURNEE] if tournee else []
+            index = sprites.rendre_svg(swfsvg, ["--scene", "--name", "scene"] + filtre + ["--frame", "all", swf, sous], sous)
             fichiers = [os.path.join(sous, f) for f in images_rendues(index, "scene", pas)]
             ligne, taille, raison, detail = exporter_bande(fichiers, gfx, "scene", sortie, echelle, palette, pas, scene[1], messages)
             if raison in ("cairo", "taille", "erreur"):
@@ -116,6 +309,19 @@ def exporter_gfx(gfx, swf, sortie, pas, echelle, palette, swfsvg, temporaire):
                 return [], (gfx, raison, detail), messages + ["%s : scène non rendue (%s)" % (gfx, detail)], 0
             if ligne:
                 lignes.append(ligne); octets += taille
+            if tournee:
+                # L'enfant tourné, rendu à sa place et dans le temps de la scène ; sa dernière image retire
+                # le clip (removeMovieClip de _parent) : même fin que la scène.
+                sous = os.path.join(dossier, INSTANCE_TOURNEE)
+                index = sprites.rendre_svg(swfsvg, ["--scene", "--name", INSTANCE_TOURNEE, "--instance", INSTANCE_TOURNEE,
+                                                    "--frame", "all", swf, sous], sous)
+                fichiers = [os.path.join(sous, f) for f in images_rendues(index, INSTANCE_TOURNEE, pas)]
+                l, t, r, d = exporter_bande_centree(fichiers, gfx, INSTANCE_TOURNEE, sortie, echelle, palette, pas,
+                                                    scene[1], messages, tournee[4:6])
+                if r in ("cairo", "taille", "erreur"):
+                    return [], (gfx, r, d), messages + ["%s : instance rotate non rendue (%s)" % (gfx, d)], 0
+                if l:
+                    lignes.append(l); octets += t
             for nom in SYMBOLES:
                 s = symboles.get(nom)
                 if not s:
@@ -233,7 +439,8 @@ def main():
     p.add_argument("swf", nargs="?", help="dossier des SWF (clips/spells ou clips/extra)")
     p.add_argument("sortie", nargs="?", help="dossier de sortie (Outil_Azur_complet/Resources/Bot/Effets/sorts)")
     p.add_argument("--liste", help="sorts_utilises.txt : gfx à exporter (lu), ou à écrire avec --starloco")
-    p.add_argument("--gfx", help="gfx à exporter, séparés par des virgules ; remplace leurs seules lignes")
+    p.add_argument("--gfx", help="gfx à exporter, séparés par des virgules ; remplace leurs seules lignes "
+                                 "(avec --liste : gfx de la liste, dont les types sont lus)")
     p.add_argument("--pas", type=int, default=1, help="une image sur N (diviseur de 40, défaut 1)")
     p.add_argument("--echelle", type=float, default=1.0, help="échelle des PNG (défaut 1)")
     p.add_argument("--jobs", type=int, default=os.cpu_count() or 1, help="processus en parallèle")
@@ -263,16 +470,19 @@ def main():
         p.error("dossier des SWF et dossier de sortie attendus")
     if a.pas < 1 or sprites.IPS % a.pas:
         sys.exit("--pas doit diviser %d" % sprites.IPS)
-    if a.liste and a.gfx:
-        sys.exit("--liste et --gfx s'excluent")
     swfsvg = sprites.trouver_swfsvg(a.swfsvg)
     os.makedirs(a.sortie, exist_ok=True)
     tous = sorted((f[:-4] for f in os.listdir(a.swf) if f.lower().endswith(".swf") and f[:-4].isdigit()), key=int)
+    types = {}  # gfx -> types d'affichage, connus seulement avec --liste
     try:
-        choisis = [g for g, _, _ in lire_liste(a.liste)] if a.liste else \
-            [g.strip() for g in a.gfx.split(",") if g.strip()] if a.gfx else tous
+        if a.liste:
+            for g, t, _ in lire_liste(a.liste):
+                types.setdefault(g, set()).update(t)
+        choisis = [g.strip() for g in a.gfx.split(",") if g.strip()] if a.gfx else list(types) if a.liste else tous
     except (OSError, ValueError) as erreur:
         sys.exit(str(erreur))
+    if a.liste and a.gfx and any(g not in types for g in choisis):
+        sys.exit("--gfx avec --liste : gfx absents de %s : %s" % (a.liste, ",".join(g for g in choisis if g not in types)))
     if not choisis or any(not g.isdigit() for g in choisis):
         sys.exit("gfx invalides ou aucun SWF : " + ",".join(choisis))
     choisis = sorted(set(choisis), key=int)
@@ -281,7 +491,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix="sorts-") as temporaire:
         with concurrent.futures.ProcessPoolExecutor(max_workers=max(1, a.jobs)) as pool:
             taches = [pool.submit(exporter_gfx, g, os.path.join(a.swf, g + ".swf"), a.sortie, a.pas, a.echelle,
-                                  not a.sans_palette, swfsvg, temporaire) for g in choisis]
+                                  not a.sans_palette, swfsvg, temporaire, types.get(g) if a.liste else None)
+                      for g in choisis]
             for t in taches:
                 l, e, m, o = t.result()
                 lignes += l; messages += m; octets += o
