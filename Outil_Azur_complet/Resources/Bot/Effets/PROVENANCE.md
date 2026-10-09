@@ -68,6 +68,13 @@ exclusions sont des projectiles (types 30 à 51). Les symboles vides
 (`shoot` de 103, 2014, 2015, 2017, 2018 ; `move` de 103 ; `duplicate` de 501 et 814) sont signalés par
 l'outil et absents d'`effets.tsv`.
 
+Trois projectiles n'ont aucun symbole exporté : 103 (type 30) et 3001 (types 40 et 41), exclus pour
+`script`, et 1100, employé en types 10, 11 et 31, dont le SWF n'a aucun symbole `shoot`, `move` ni
+`duplicate` : seule sa scène est exportée, et le lot AN5 devra décider quoi afficher pour le type 31.
+`2116.swf`, le seul SWF de sort qui porte des filtres, n'est employé par aucun sort de StarLoco : il
+n'est pas dans la liste et n'est donc pas exporté (le rendu de ses filtres par swfsvg n'a pas été
+examiné).
+
 ## `tools/client-analysis/sorts_utilises.txt`
 
 Liste des 212 gfx que le serveur StarLoco fait afficher, générée puis versionnée pour que le réexport
