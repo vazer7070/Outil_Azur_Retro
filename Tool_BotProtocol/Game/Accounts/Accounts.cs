@@ -101,9 +101,8 @@ namespace Tool_BotProtocol.Game.Accounts
                 // InitializeConfig is idempotent; UI and non-UI callers share the same defaults.
                 if (string.IsNullOrWhiteSpace(GlobalConfig.IP)) GlobalConfig.InitializeConfig();
                 SetConnectionStatus("Connexion au serveur d’authentification…");
-                await ConnectEndpointAsync(connection, GlobalConfig.IP, int.Parse(GlobalConfig.AUTHPORT));
-                // Lu hors du verrou du compte : le transport prend son verrou avant celui du compte (ReserveTicketRetry).
-                bool connected = connection.IsConnected();
+                // Résultat de l'ouverture, pas l'état présent : le serveur peut déjà avoir refermé la connexion (voir ConnectToServer).
+                bool connected = await ConnectEndpointAsync(connection, GlobalConfig.IP, int.Parse(GlobalConfig.AUTHPORT));
                 lock (_connectionSync)
                 {
                     if (isdisposed || !ReferenceEquals(Connexion, connection)) return;
@@ -242,8 +241,10 @@ namespace Tool_BotProtocol.Game.Accounts
             {
                 SetConnectionStatus("Connexion au serveur de jeu…");
                 connection.DisconnectSocket();
-                await ConnectEndpointAsync(connection, host, port);
-                if (connection.IsConnected()) return;
+                // Connexion ouverte : le serveur peut l'avoir déjà refermée (HG, AT puis kick avant ATK). Cette fermeture a été
+                // traitée par le transport (nouvel essai du ticket ou déconnexion) ; la lire ici comme un serveur injoignable
+                // déconnecterait le compte et abandonnerait le nouvel essai.
+                if (await ConnectEndpointAsync(connection, host, port)) return;
                 SetConnectionStatus("Connexion impossible : serveur de jeu inaccessible");
                 Logger?.LogError("Connexion", "Impossible de joindre le serveur de jeu. Vérifiez l’adresse annoncée par le Login.");
                 Disconnect(connection);
@@ -257,7 +258,8 @@ namespace Tool_BotProtocol.Game.Accounts
             }
         }
 
-        private static async Task ConnectEndpointAsync(TcpClient connection, string host, int port)
+        /// <summary>Vrai dès qu'une des adresses de l'hôte a accepté la connexion, même si elle est déjà refermée.</summary>
+        private static async Task<bool> ConnectEndpointAsync(TcpClient connection, string host, int port)
         {
             if (port < 1 || port > 65535) throw new ArgumentOutOfRangeException(nameof(port));
             IPAddress address;
@@ -265,9 +267,9 @@ namespace Tool_BotProtocol.Game.Accounts
                 ? new[] { address } : await Dns.GetHostAddressesAsync(host);
             foreach (var candidate in addresses.OrderBy(x => x.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? 0 : 1))
             {
-                await connection.ConnectToServer(candidate, port);
-                if (connection.IsConnected()) return;
+                if (await connection.ConnectToServer(candidate, port)) return true;
             }
+            return false;
         }
 
         public static void ParseEndpoint(string endpoint, out string host, out int port)
