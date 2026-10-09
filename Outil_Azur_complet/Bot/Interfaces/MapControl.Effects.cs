@@ -450,11 +450,14 @@ namespace Outil_Azur_complet.Bot.Interfaces
             if (visual.CellId < 0 || duration < 0) { IgnoredVisual(visual); return; }
             long actor = visual.ActorId;
             short cell = visual.CellId;
-            string animation = visual.Fields.Count > 2 && !string.IsNullOrEmpty(visual.Fields[2]) ? "anim" + visual.Fields[2] : ToolAnimation(actor);
+            // Troisième champ : anim<n> s'il est lisible (un nom illisible ne donne aucune animation), sinon ToolAnimation.
+            string extra = visual.Fields.Count > 2 ? visual.Fields[2] : null;
+            string animation = string.IsNullOrEmpty(extra) ? ToolAnimation(actor)
+                : SpellEffects.IsAnimationName("anim" + extra) ? "anim" + extra : null;
             bool self = actor == (Account.Game?.character?.id ?? long.MinValue);
             PrefetchAnimation(actor, cell, animation);
             TryEnqueueVisual(visual.QueueId, VisualStep.Instant("Direction", now => TurnTowards(actor, cell)));
-            Action<double> loop = now => TryPlayAnimation(actor, animation, ActorAnimationMode.Loop, duration);
+            Action<double> loop = now => { if (animation != null) TryPlayAnimation(actor, animation, ActorAnimationMode.Loop, duration); };
             TryEnqueueVisual(visual.QueueId, self ? VisualStep.Timed("Recolte", loop, duration) : VisualStep.Instant("Recolte", loop));
         }
 

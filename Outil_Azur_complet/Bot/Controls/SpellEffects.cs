@@ -79,8 +79,9 @@ namespace Outil_Azur_complet.Bot.Controls
         /// Animation du lanceur d'après le champ « anim » du paquet. <paramref name="spellCodes"/> (GA300) : <c>-1</c>, rien du
         /// tout ; <c>-2</c>, direction et effet sans animation (<paramref name="animation"/> null). Un nombre donne
         /// <c>anim</c> suivi du texte reçu ; un bond <c>a~b~c~d</c> (moins de trois parties : rien) se réduit à l'animation
-        /// <c>b</c> sur place, sans les déplacements (<c>b</c> vide : pas d'animation). Champ vide ou absent : rien (le client
-        /// échoue sur <c>undefined</c>).
+        /// <c>b</c> sur place, sans les déplacements. Un nom qui n'est pas fait de lettres et de chiffres (<c>b</c> vide,
+        /// <c>anim-2</c>) ne donne pas d'animation (<paramref name="animation"/> null) mais garde l'effet. Champ vide ou
+        /// absent : rien (le client échoue sur <c>undefined</c>).
         /// Faux : aucun lancement.
         /// </summary>
         public static bool TryParseAnimation(string field, bool spellCodes, out string animation)
@@ -91,13 +92,26 @@ namespace Outil_Azur_complet.Bot.Controls
             if (spellCodes && field == "-2") return true;
             if (double.TryParse(field, NumberStyles.Float, CultureInfo.InvariantCulture, out double number) && !double.IsNaN(number))
             {
-                animation = "anim" + field;
+                // Nom sans bande possible (« anim-2 », « anim1.5 ») : le lanceur garde sa pose, l'effet est joué.
+                animation = IsAnimationName("anim" + field) ? "anim" + field : null;
                 return true;
             }
             string[] parts = field.Split('~');
             if (parts.Length < 3) return false;
-            // Animation b vide : le lanceur garde sa pose, l'effet est joué quand même.
-            animation = parts[1].Length > 0 ? parts[1] : null;
+            // Animation b vide ou illisible : le lanceur garde sa pose, l'effet est joué quand même.
+            animation = IsAnimationName(parts[1]) ? parts[1] : null;
+            return true;
+        }
+
+        /// <summary>
+        /// Nom d'animation lisible (lettres et chiffres ASCII, comme les bandes exportées) : un texte reçu du serveur n'est
+        /// jamais employé tel quel dans un nom de fichier.
+        /// </summary>
+        public static bool IsAnimationName(string name)
+        {
+            if (string.IsNullOrEmpty(name) || name.Length > 32) return false;
+            foreach (char c in name)
+                if (!(c >= 'a' && c <= 'z') && !(c >= 'A' && c <= 'Z') && !(c >= '0' && c <= '9')) return false;
             return true;
         }
 

@@ -106,7 +106,11 @@ internal static class BotSpellEffectsSmoke
         string animation;
         Check(!SpellEffects.TryParseAnimation("-1", true, out animation) && animation == null, "-1 must show nothing");
         Check(SpellEffects.TryParseAnimation("-2", true, out animation) && animation == null, "-2 must launch without animation");
-        Check(SpellEffects.TryParseAnimation("-2", false, out animation) && animation == "anim-2", "GA208/228 have no -1/-2 codes");
+        Check(SpellEffects.TryParseAnimation("-2", false, out animation) && animation == null, "GA208/228 have no -1/-2 codes (anim-2: effect, no strip)");
+        Check(SpellEffects.TryParseAnimation("1.5", true, out animation) && animation == null, "anim1.5 is not a strip name");
+        Check(SpellEffects.TryParseAnimation("a~../x~c", true, out animation) && animation == null, "Jump animation used as a file name");
+        Check(SpellEffects.IsAnimationName("anim12") && !SpellEffects.IsAnimationName("anim-1") && !SpellEffects.IsAnimationName("../anim")
+            && !SpellEffects.IsAnimationName("") && !SpellEffects.IsAnimationName(new string('a', 33)), "IsAnimationName");
         Check(SpellEffects.TryParseAnimation("0", true, out animation) && animation == "anim0", "0 → anim0");
         Check(SpellEffects.TryParseAnimation("12", true, out animation) && animation == "anim12", "12 → anim12");
         Check(SpellEffects.TryParseAnimation("2~anim2~1~3", true, out animation) && animation == "anim2", "Jump keeps its animation b");
@@ -565,6 +569,16 @@ internal static class BotSpellEffectsSmoke
         Feed(account, "GA;501;77;45,500");
         Check(control.Sequencer.Count(77) == 0 && !control.AnimationQueue.IsPlaying(77) && account.Game.Map.GetActor(77).Orientation == 3,
             "GA501 of another player held the queue, played a missing strip or did not turn it");
+
+        // Troisième champ : anim<n> à la place de ToolAnimation ; illisible, aucune animation mais la durée est tenue.
+        Feed(account, "GA;501;42;" + UpCell + ",300,../x");
+        Check(!control.AnimationQueue.IsPlaying(42) && control.Sequencer.Count(42) == 1, "Unreadable GA501 animation played or did not hold the queue");
+        At(control, h + 1300);
+        Check(control.Sequencer.IsIdle, "GA501 with an unreadable animation did not last 300 ms");
+        Feed(account, "GA;501;42;" + UpCell + ",200,12");
+        Check(State(view, 42).Animation == "anim12", "GA501 third field not played as anim12");
+        At(control, h + 1500);
+        Check(control.Sequencer.IsIdle && State(view, 42).Animation == "static", "GA501 with anim12 not over after 200 ms");
 
         // GA208 : anim8 non exportée (étape sautée), effet aussitôt devant, au centre de la cellule.
         At(control, h + 2000);
