@@ -122,3 +122,45 @@ des monstres n'ont que `R` et `L`.
 
 Les illustrations conservent les droits de leurs titulaires d'origine, comme celles de `../Client` et
 `../Selection` ; les SWF du client ne sont ni versionnés ni nécessaires à l'exécution.
+
+## Animations d'attaque des classes (lot AN4)
+
+`<gfx>_anim<n><O>.png` (624 bandes, `O` = `R` ou `L`, comme `hit` et `die`) : familles `anim0` à
+`anim2`, `anim3` et `anim10` à `anim18` des 24 gfx de classes, ajoutées à leur ligne de
+`sprites_animes.txt`, toutes au pas 2 (`ips` 20). Le bot les joue sur le lanceur d'un sort (GA300 :
+`anim` + champ 6), d'un coup d'arme (GA303) et pendant une récolte (GA501) : `ToolAnimation` du client
+vaut `anim` + l'attribut `an` de l'arme (premier accessoire du `GM`), sinon `anim0` en combat et `anim3`
+hors combat. Valeurs d'`an` dans `../BotLang/items.xml` : 10 arcs, 11 baguettes, 12 bâtons, 13 dagues,
+14 épées, 15 marteaux, 16 pelles, 17 haches et outils de récolte (bûcheron, paysan, mineur), 18 cannes à
+pêche ; 0, 1, 3 et 4 portent sur 22 objets. Outils : `swfsvg` 0.2.4 et `exporter_sprites.py` du même
+commit. Depuis la racine du dépôt :
+
+```sh
+(cd tools/client-analysis/swfsvg && cargo build --release)
+python3 tools/client-analysis/exporter_sprites.py "<client>/clips/sprites" \
+    Outil_Azur_complet/Resources/Bot/sprites \
+    --swfsvg tools/client-analysis/swfsvg/target/release/swfsvg \
+    --gfx 10,11,20,21,30,31,40,41,50,51,60,61,70,71,80,81,90,91,100,101,110,111,120,121 \
+    --anims anim0,anim1,anim2,anim3,anim10,anim11,anim12,anim13,anim14,anim15,anim16,anim17,anim18 \
+    --pas 2 --jobs 4
+```
+
+Mesuré le 9 octobre 2026 (4 cœurs) : environ 4 min, 24 SWF, 624 PNG pour 21 676 728 octets (21,7 Mo),
+13 994 images, aucun message, tous en RGBA (palette refusée par le seuil, comme les autres sprites).
+Seules les lignes `anim<n>` d'`ancres.tsv` ont été ajoutées.
+
+| familles | images | octets | fin |
+| --- | --- | --- | --- |
+| `anim0` | 916 | 1 239 716 | `static` |
+| `anim1` | 1 218 | 1 881 184 | `boucle` pour 24 bandes sur 48, `static` sinon |
+| `anim2` | 1 208 | 1 863 329 | `boucle` pour 20 bandes sur 48, `static` sinon |
+| `anim3` | 1 380 | 1 131 693 | `static` |
+| `anim10` à `anim17` | 7 354 | 12 711 746 | `static` |
+| `anim18` (le plus large : `41_anim18R`, 6 519 px) | 1 918 | 2 849 060 | `static` |
+
+Écarts avec le plan des animations, qui prévoyait `anim0` à `anim2` au pas 1 (≈ 7 Mo) et le reste au
+pas 2 (≈ 11 Mo) : au pas 1, `anim0` à `anim2` pèsent 9 006 153 octets (6 684 images) et l'ensemble
+25 698 652 octets, au-delà des 23 Mo de la part du lot dans le dossier ; les trois familles des sorts
+sont donc aussi au pas 2 (même durée, 20 images par seconde comme les monstres). `anim8` (lancer d'un
+ballon ou d'un feu d'artifice, GA208 et GA228) n'est pas exporté : 52 à 56 images par bande, environ
+2 Mo de plus au pas 2 ; sans bande, le bot passe directement à l'effet. `anim4` (4 fioles) non plus.
