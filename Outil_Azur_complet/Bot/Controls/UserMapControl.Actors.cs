@@ -72,6 +72,11 @@ namespace Outil_Azur_complet.Bot.Controls
             public float Depth;
             /// <summary>Icône d'émote à afficher au-dessus de la tête (pas de bande <c>emote&lt;n&gt;</c> exportée), 0 sinon.</summary>
             public int EmoteIcon;
+            /// <summary>
+            /// Couleurs du <c>GM</c> (zones 1 à 3) posées sur le sprite (lot AN6) : celles de l'acteur, ou de chaque membre d'un
+            /// groupe de monstres ; <see cref="ActorColors.None"/> pour les suiveurs et les épées (couleurs du SWF).
+            /// </summary>
+            public ActorColors Colors;
             internal SpritePose Pose;
             internal Color Color;
             internal bool NoFlip;
@@ -269,7 +274,7 @@ namespace Outil_Azur_complet.Bot.Controls
                 MapActor selfActor = map.Self;
                 ActorVisualState main = AddMain(states, self, self.id, ActorKind.Player, self.GFX > 0 ? self.GFX : self.Race_ID * 10 + self.Sex,
                     self.Orientation, selfActor?.NoFlip == true, self.GraphicsScaleX, self.GraphicsScaleY, self.Cell.CellID, true,
-                    Color.FromArgb(72, 103, 156), self.Name ?? "Vous", PlayerEmote(self.id, selfActor as PlayerActor));
+                    Color.FromArgb(72, 103, 156), self.Name ?? "Vous", PlayerEmote(self.id, selfActor as PlayerActor), ColorsOf(selfActor));
                 if (main != null && selfActor != null) AddFollowers(states, main, selfActor, map, mapCells);
             }
             foreach (MapActor actor in map.AllActors.ToArray())
@@ -280,7 +285,7 @@ namespace Outil_Azur_complet.Bot.Controls
                 live.Add(actor.id);
                 if (actor is MonsterGroupActor group) { AddGroup(states, group, cell, map, mapCells); continue; }
                 ActorVisualState main = AddMain(states, actor, actor.Id, actor.Kind, actor.Gfx, actor.Orientation, actor.NoFlip, actor.ScaleX, actor.ScaleY,
-                    cell, false, KindColor(actor.Kind), actor.DisplayName, PlayerEmote(actor.Id, actor as PlayerActor));
+                    cell, false, KindColor(actor.Kind), actor.DisplayName, PlayerEmote(actor.Id, actor as PlayerActor), ColorsOf(actor));
                 if (main != null) AddFollowers(states, main, actor, map, mapCells);
             }
             foreach (FightSwordsActor swords in map.FightSwords.Values.ToArray()) AddSwords(states, swords);
@@ -308,6 +313,7 @@ namespace Outil_Azur_complet.Bot.Controls
                 ActorVisualState state = NewState(null, snapshot.Id, snapshot.Kind, snapshot.Gfx, snapshot.Direction, snapshot.NoFlip,
                     snapshot.ScaleX, snapshot.ScaleY, snapshot.CellId, WorldCenter(snapshot.CellId), snapshot.IsSelf, KindColor(snapshot.Kind), snapshot.Name, -1);
                 state.IsGhost = true;
+                state.Colors = ActorColors.Parse(snapshot.Colors);
                 SpritePose requested = Resolve(state, ghost.Animation, ghost.Elapsed(now), false);
                 if (!ghost.Shown.HasValue && requested.State == SpriteLoadState.Ready) ghost.Shown = now;
                 states.Add(state);
@@ -325,6 +331,22 @@ namespace Outil_Azur_complet.Bot.Controls
             }
         }
 
+        /// <summary>
+        /// Couleurs du <c>GM</c> d'un acteur (joueur, PNJ, monstre en combat, marchand), lues comme le client
+        /// (<c>parseInt(c, 16)</c>, <c>-1</c> = zone gardée) ; aucune pour les autres.
+        /// </summary>
+        internal static ActorColors ColorsOf(MapActor actor)
+        {
+            switch (actor)
+            {
+                case PlayerActor player: return ActorColors.Parse(player.Color1, player.Color2, player.Color3);
+                case NpcActor npc: return ActorColors.Parse(npc.Color1, npc.Color2, npc.Color3);
+                case FightMonsterActor monster: return ActorColors.Parse(monster.Color1, monster.Color2, monster.Color3);
+                case MerchantActor merchant: return ActorColors.Parse(merchant.Color1, merchant.Color2, merchant.Color3);
+                default: return ActorColors.None;
+            }
+        }
+
         private int PlayerEmote(long actorId, PlayerActor player)
         {
             int? shown = bubbles.EmoteOf(actorId);
@@ -335,7 +357,7 @@ namespace Outil_Azur_complet.Bot.Controls
         }
 
         private ActorVisualState AddMain(List<ActorVisualState> states, Entites entity, long actorId, ActorKind kind, int gfx, int orientation,
-            bool noFlip, int scaleX, int scaleY, int cell, bool self, Color color, string name, int emote)
+            bool noFlip, int scaleX, int scaleY, int cell, bool self, Color color, string name, int emote, ActorColors colors)
         {
             if (cell < 0 || cell >= worldPolygons.Length) return null;
             PointF position = Animate(unchecked((int)actorId), cell, self, ref orientation, out int shownCell, out bool moving, out double elapsed, out MoveMode? mode);
@@ -360,6 +382,7 @@ namespace Outil_Azur_complet.Bot.Controls
                 elapsed = now;
             }
             ActorVisualState state = NewState(entity, actorId, kind, gfx, orientation, noFlip, scaleX, scaleY, shownCell, position, self, color, name, -1);
+            state.Colors = colors;
             state.IsMoving = moving;
             SpritePose requested = Resolve(state, animation, elapsed, loop);
             if (overriding) animationQueue.Observe(actorId, animation, requested.State, requested.Sheet, now);
@@ -411,12 +434,12 @@ namespace Outil_Azur_complet.Bot.Controls
             SpritePose requested = null, pose = null;
             if (animation != "static" && animation != "scene")
             {
-                requested = sprites.Resolve(state.GFX, state.Orientation, state.NoFlip, animation);
+                requested = sprites.Resolve(state.GFX, state.Orientation, state.NoFlip, animation, state.Colors);
                 if (requested.State == SpriteLoadState.Ready) pose = requested;
             }
             if (pose == null)
             {
-                pose = sprites.Resolve(state.GFX, state.Orientation, state.NoFlip, animation == "scene" ? "scene" : "static");
+                pose = sprites.Resolve(state.GFX, state.Orientation, state.NoFlip, animation == "scene" ? "scene" : "static", state.Colors);
                 loop = true;
             }
             requested = requested ?? pose;
@@ -463,7 +486,7 @@ namespace Outil_Azur_complet.Bot.Controls
             MonsterGroupMember leader = members.Count > 0 ? members[0] : null;
             int leaderGfx = group.Gfx > 0 ? group.Gfx : MemberGfx(leader);
             ActorVisualState main = AddMain(states, group, group.Id, ActorKind.MonsterGroup, leaderGfx, group.Orientation, group.NoFlip,
-                group.ScaleX, group.ScaleY, cell, false, KindColor(ActorKind.MonsterGroup), group.DisplayName, 0);
+                group.ScaleX, group.ScaleY, cell, false, KindColor(ActorKind.MonsterGroup), group.DisplayName, 0, ActorColors.ParseList(leader?.Colors));
             if (main == null || !viewAllMonsters || members.Count < 2) return;
             var random = new Random(unchecked((int)(group.Id * 7919 + 17)));
             // Cellule logique du chef (destination du pas en cours quand il marche) : les membres s'y rattachent.
@@ -487,6 +510,7 @@ namespace Outil_Azur_complet.Bot.Controls
                 int shown = main.IsMoving ? main.Orientation : direction;
                 ActorVisualState state = NewState(group, group.Id, ActorKind.MonsterGroup, MemberGfx(member), shown, group.NoFlip,
                     member.ScaleX, member.ScaleY, target, position, false, main.Color, member.Name, index);
+                state.Colors = ActorColors.ParseList(member.Colors);
                 state.IsMoving = main.IsMoving;
                 Resolve(state, main.IsMoving ? main.Animation : "static", animationClock());
                 states.Add(state);

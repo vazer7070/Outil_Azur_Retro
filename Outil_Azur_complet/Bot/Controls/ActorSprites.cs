@@ -77,6 +77,8 @@ namespace Outil_Azur_complet.Bot.Controls
         public int YMin { get; }
         /// <summary>Nom du PNG lu (<c>1001_staticR.png</c>, ou l'ancien <c>1001R.png</c>).</summary>
         public string File { get; }
+        /// <summary>Dossier du PNG lu (son masque de couleurs et <c>couleurs.tsv</c> y sont cherchés), ou <c>null</c>.</summary>
+        internal string SourceDirectory { get; set; }
         /// <summary>Vrai pour un ancien PNG sans ancre : ancre déduite des pixels visibles (milieu, bas).</summary>
         public bool Legacy { get; }
         /// <summary>Images par ligne du PNG (1 ligne pour une bande ordinaire, plusieurs pour une grille).</summary>
@@ -160,6 +162,9 @@ namespace Outil_Azur_complet.Bot.Controls
     /// Lot AN1 : dossier local <c>sprites-local</c> lu avant le dossier versionné, noms cherchés sans tenir compte de la casse,
     /// colonnes <c>ips</c> et <c>fin</c>, bandes en grille, largeur lue dans l'en-tête PNG avant tout décodage (refus au-delà de
     /// 32 767 px), effets fixes (<see cref="ResolveFixed"/>, budget de 32 Mo) et <see cref="Duration"/>.
+    /// Lot AN6 : <see cref="Resolve"/> reçoit les couleurs de l'acteur ; la bande recolorée (<see cref="SpriteRecolor"/>) est
+    /// calculée une fois sur le pool et gardée dans le même cache, par gfx, animation, orientation et couleurs : deux acteurs
+    /// de mêmes couleurs partagent la même image. Sans masque (ou sans couleur qui touche une zone), la bande d'origine.
     /// </summary>
     public sealed class ActorSprites : IDisposable
     {
@@ -310,8 +315,11 @@ namespace Outil_Azur_complet.Bot.Controls
         /// Pose d'un acteur pour l'animation demandée (<c>static</c>, <c>walk</c>, <c>run</c>, <c>emote&lt;n&gt;</c>, <c>hit</c>,
         /// <c>scene</c>…). Ne lit jamais le disque. Une animation absente rend <see cref="SpriteLoadState.Missing"/> : l'appelant
         /// revient à <c>static</c>. Les animations de <see cref="IsFourDirection"/> prennent l'orientation <c>d | 1</c>.
+        /// <paramref name="colors"/> (lot AN6) : couleurs du <c>GM</c> ; la bande recolorée est en lecture
+        /// (<see cref="SpriteLoadState.Loading"/>) le temps de son calcul sur le pool, puis partagée entre les acteurs de mêmes
+        /// couleurs. Un PNG sans masque garde ses couleurs.
         /// </summary>
-        public SpritePose Resolve(int gfx, int direction, bool noFlip, string animation = "static")
+        public SpritePose Resolve(int gfx, int direction, bool noFlip, string animation = "static", ActorColors colors = default(ActorColors))
         {
             animation = string.IsNullOrEmpty(animation) ? "static" : animation;
             bool scene = animation == "scene";
@@ -321,8 +329,21 @@ namespace Outil_Azur_complet.Bot.Controls
             if (gfx <= 0)
                 return new SpritePose(null, mirrored, SpriteLoadState.Missing, "L'identifiant graphique de cet acteur n'a pas été transmis.", animation, suffix);
             if (disposed) return new SpritePose(null, mirrored, SpriteLoadState.Missing, "Vue de la carte fermée.", animation, suffix);
-            SpriteLoadState state = Acquire(SheetKey(gfx, animation, suffix), gfx, animation, suffix, out LoadResult result);
-            if (state == SpriteLoadState.Loading) return new SpritePose(null, mirrored, SpriteLoadState.Loading, null, animation, suffix);
+            string key = SheetKey(gfx, animation, suffix);
+            SpriteLoadState state;
+            LoadResult result = null;
+            if (!colors.IsNone)
+            {
+                state = Acquire(key + "|" + colors.Key, gfx, animation, suffix, colors, out result);
+                if (state == SpriteLoadState.Loading) return new SpritePose(null, mirrored, SpriteLoadState.Loading, null, animation, suffix);
+                // Sans masque ni zone touchée : la bande d'origine, partagée avec les acteurs sans couleurs.
+                if (result != null && result.Uncolored) result = null;
+            }
+            if (result == null)
+            {
+                state = Acquire(key, gfx, animation, suffix, ActorColors.None, out result);
+                if (state == SpriteLoadState.Loading) return new SpritePose(null, mirrored, SpriteLoadState.Loading, null, animation, suffix);
+            }
             if (result?.Sheet == null) return new SpritePose(null, mirrored, SpriteLoadState.Missing, result?.Reason, animation, suffix);
             string reason = result.Reason;
             if (reason != null && !scene) reason = "Orientation " + shown + " : " + reason;
@@ -464,7 +485,7 @@ namespace Outil_Azur_complet.Bot.Controls
                 || error is System.Security.SecurityException) { return path; }
         }
 
-        private SpriteLoadState Acquire(string key, int gfx, string animation, string suffix, out LoadResult result)
+        private SpriteLoadState Acquire(string key, int gfx, string animation, string suffix, ActorColors colors, out LoadResult result)
         {
             Entry entry; bool start = false; SpriteLoadState state;
             lock (library.Sync)
@@ -483,7 +504,9 @@ namespace Outil_Azur_complet.Bot.Controls
             if (start)
             {
                 Library owner = library;
-                Task.Factory.StartNew(() => owner.Complete(entry, owner.Load(() => owner.LoadCore(gfx, animation, suffix), gfx.ToString(CultureInfo.InvariantCulture))),
+                Func<LoadResult> load = colors.IsNone ? (Func<LoadResult>)(() => owner.LoadCore(gfx, animation, suffix))
+                    : () => owner.LoadColored(gfx, animation, suffix, colors);
+                Task.Factory.StartNew(() => owner.Complete(entry, owner.Load(load, gfx.ToString(CultureInfo.InvariantCulture))),
                     CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
             }
             return state;
@@ -543,6 +566,8 @@ namespace Outil_Azur_complet.Bot.Controls
         {
             public SpriteSheet Sheet;
             public string Reason;
+            /// <summary>Entrée recolorée sans effet (pas de masque, ou aucune zone touchée) : utiliser la bande d'origine.</summary>
+            public bool Uncolored;
         }
 
         internal sealed class Entry
@@ -570,6 +595,8 @@ namespace Outil_Azur_complet.Bot.Controls
             public readonly string Path;
             public volatile Dictionary<string, AnchorRow> Anchors;
             public int AnchorsRequested;
+            /// <summary><c>couleurs.tsv</c> du dossier (lot AN6), lu au premier besoin sur le pool.</summary>
+            public volatile Dictionary<string, Dictionary<int, SpriteRecolor.Origin>> Colors;
             public Dictionary<string, string> Files;
             public DateTime FilesStamp;
         }
@@ -690,6 +717,58 @@ namespace Outil_Azur_complet.Bot.Controls
                 return new LoadResult { Reason = unreadable ?? "Le sprite " + gfx + " est absent du dossier des personnages/monstres." };
             }
 
+            /// <summary>
+            /// Bande recolorée (lot AN6) : la bande d'origine décodée à part (copie propre à cette entrée), son masque
+            /// <c>&lt;id&gt;_&lt;anim&gt;.couleurs.png</c> et les lignes de <c>couleurs.tsv</c> du même dossier. Sans masque, sans
+            /// ligne, masque refusé ou couleurs qui ne touchent aucune zone : <see cref="LoadResult.Uncolored"/> (rien n'est gardé).
+            /// </summary>
+            public LoadResult LoadColored(int gfx, string animation, string suffix, ActorColors colors)
+            {
+                LoadResult original = LoadCore(gfx, animation, suffix);
+                SpriteSheet sheet = original.Sheet;
+                if (sheet == null) return original;
+                bool kept = false;
+                try
+                {
+                    if (sheet.Legacy || sheet.SourceDirectory == null) return new LoadResult { Uncolored = true };
+                    string id = gfx.ToString(CultureInfo.InvariantCulture);
+                    string name = Path.GetFileNameWithoutExtension(sheet.File) ?? string.Empty;
+                    if (!name.StartsWith(id + "_", StringComparison.OrdinalIgnoreCase)) return new LoadResult { Uncolored = true };
+                    string anim = name.Substring(id.Length + 1);
+                    Folder folder = FolderAt(sheet.SourceDirectory);
+                    if (!ColorTable(folder).TryGetValue(id + "\t" + anim, out Dictionary<int, SpriteRecolor.Origin> rows) || !SpriteRecolor.Touches(rows, colors))
+                        return new LoadResult { Uncolored = true };
+                    string mask = Find(folder, id + "_" + anim + SpriteRecolor.MaskSuffix);
+                    if (mask == null
+                        || !SpriteRecolor.ReadMask(mask, sheet.Image.Width, sheet.Image.Height, out byte[] coverage, out byte[] index, out string refused))
+                        return new LoadResult { Uncolored = true };
+                    SpriteRecolor.Apply(sheet.Image, coverage, index, rows, colors);
+                    kept = true;
+                    return new LoadResult { Sheet = sheet, Reason = original.Reason };
+                }
+                catch (Exception error) when (!(error is ThreadAbortException))
+                {
+                    // Recoloration impossible (masque abîmé, mémoire) : l'acteur garde la bande d'origine.
+                    return new LoadResult { Uncolored = true };
+                }
+                finally
+                {
+                    if (!kept) sheet.Image?.Dispose();
+                }
+            }
+
+            /// <summary><c>couleurs.tsv</c> du dossier, lu une fois (table vide s'il manque).</summary>
+            private static Dictionary<string, Dictionary<int, SpriteRecolor.Origin>> ColorTable(Folder folder)
+            {
+                Dictionary<string, Dictionary<int, SpriteRecolor.Origin>> loaded = folder.Colors;
+                if (loaded != null) return loaded;
+                lock (folder)
+                {
+                    if (folder.Colors == null) folder.Colors = SpriteRecolor.ReadTable(Path.Combine(folder.Path, SpriteRecolor.TableFile));
+                    return folder.Colors;
+                }
+            }
+
             public LoadResult LoadFixed(string family, int id, string animation)
             {
                 SpriteSheet sheet = ReadSheet(Folders(family).ToArray(), id.ToString(CultureInfo.InvariantCulture), animation, allowLegacy: false);
@@ -744,10 +823,10 @@ namespace Outil_Azur_complet.Bot.Controls
                         if (lines == 1) frames = row.Width * declared == image.Width ? declared : columns;
                         else frames = Math.Min(declared, columns * lines); // grille : dernière ligne éventuellement incomplète
                         return new SpriteSheet(image, frames, row.Width, Math.Min(row.Height, image.Height), row.XMin, row.YMin, file, false, mask,
-                            row.FramesPerSecond, row.End, row.Next);
+                            row.FramesPerSecond, row.End, row.Next) { SourceDirectory = folder.Path };
                     }
                     Point foot = Foot(mask, image.Width, image.Height);
-                    return new SpriteSheet(image, 1, image.Width, image.Height, -foot.X, -foot.Y, file, true, mask);
+                    return new SpriteSheet(image, 1, image.Width, image.Height, -foot.X, -foot.Y, file, true, mask) { SourceDirectory = folder.Path };
                 }
                 if (allowLegacy)
                     foreach (Folder folder in places)

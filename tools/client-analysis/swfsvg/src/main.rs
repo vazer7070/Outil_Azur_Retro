@@ -4,7 +4,8 @@
 //!   swfsvg [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier> [nomExport ...]
 //!   swfsvg --scene [--name NOM] [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier>
 //!   swfsvg --list <fichier.swf>
-//!   (avec --instance NOM ou --sans-instance NOM pour les deux premières formes)
+//!   swfsvg --zones-list <fichier.swf>
+//!   (avec --instance NOM ou --sans-instance NOM, et --zones aucune|123…, pour les deux premières formes)
 //!
 //! Sans nom d'export, tous les symboles d'`ExportAssets` sont rendus. `--scene` rend la timeline
 //! principale (icônes d'objets, émotes, portraits : formes posées sur la scène, sans export).
@@ -14,6 +15,13 @@
 //! `--instance NOM` ne rend, de la timeline demandée, que l'enfant nommé NOM (nom d'instance du
 //! `PlaceObject`, sans tenir compte de la casse), dans le temps de cette timeline et à sa place ;
 //! `--sans-instance NOM` rend tout sauf lui. Les masques suivent leur contenu.
+//!
+//! Zones de couleur : les sprites d'acteurs du client recolorent certains enfants nommés par
+//! `GAC.applyColor(<enfant>, <zone>)` (zones 1 à 3 : les couleurs du personnage ou du monstre,
+//! posées comme un aplat qui garde l'alpha). `--zones-list` liste ces appels (clip, instance,
+//! zone) ; `--zones 123` peint chaque zone de sa couleur unitaire (1 rouge, 2 vert, 3 bleu) et
+//! `--zones aucune` les peint en noir, le reste du rendu étant inchangé : la différence des deux
+//! rendus donne, pour chaque pixel, la part de chaque zone (masques de recoloration).
 use base64::Engine;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
@@ -24,7 +32,9 @@ use swf::{FillStyle, Matrix, ShapeRecord, Tag};
 const USAGE: &str = "usage : swfsvg [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier> [nomExport ...]
         swfsvg --scene [--name NOM] [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier>
         swfsvg --list <fichier.swf>
-        (--instance NOM : seul l'enfant nommé de la timeline demandée ; --sans-instance NOM : tout sauf lui)";
+        swfsvg --zones-list <fichier.swf>
+        (--instance NOM : seul l'enfant nommé de la timeline demandée ; --sans-instance NOM : tout sauf lui ;
+         --zones aucune|1|12|123… : zones de couleur peintes en rouge, vert, bleu, les autres en noir)";
 
 /// Profondeur maximale d'imbrication suivie (clips dans des clips).
 const MAX_DEPTH: usize = 12;
@@ -184,6 +194,8 @@ struct Placed {
     born: usize,
     /// Nom d'instance (`PlaceObject` nommé), pour `--instance` et `--sans-instance`.
     name: Option<String>,
+    /// Zone de couleur (1 à 3) que les scripts de la timeline donnent à cette instance (`--zones`).
+    zone: Option<u8>,
 }
 
 /// Filtre des enfants de la timeline demandée (`--instance`, `--sans-instance`).
@@ -206,11 +218,18 @@ impl Instance {
 struct Exporter<'a> {
     chars: HashMap<u16, &'a Tag<'a>>,
     jpeg_tables: Option<&'a [u8]>,
-    bitmaps: HashMap<u16, Option<Bitmap>>,
+    /// Bitmaps décodés, par caractère et aplat de zone (`--zones`).
+    bitmaps: HashMap<(u16, Option<(u8, u8, u8)>), Option<Bitmap>>,
     timelines: HashMap<u16, Timeline>,
-    cycles: HashMap<u16, usize>,
-    /// Fin de chaque caractère joué comme clip (`--list`), mise en cache.
-    ends: HashMap<u16, End>,
+    /// Durée et fin de chaque caractère joué comme clip (`--list`, `--frame all`), mises en cache.
+    plays: HashMap<u16, (usize, End)>,
+    /// Zones de couleur : pour chaque clip (0 pour la scène), les enfants nommés que ses scripts
+    /// recolorent par `GAC.applyColor(<nom>, <zone>)`, avec leur zone (1 à 3).
+    zones: HashMap<u16, Vec<(String, u8)>>,
+    /// `--zones` : zones peintes de leur couleur unitaire (rouge, vert, bleu), les autres en noir.
+    zone_mode: Option<[bool; 3]>,
+    /// Aplat imposé au rendu en cours (instance d'une zone de couleur et tout ce qu'elle contient).
+    zone_paint: Option<(u8, u8, u8)>,
     defs: String,
     body: String,
     bounds: Bounds,
@@ -229,6 +248,21 @@ struct Exporter<'a> {
 
 fn color_css(c: &swf::Color) -> (String, f64) {
     (format!("#{:02x}{:02x}{:02x}", c.r, c.g, c.b), c.a as f64 / 255.0)
+}
+
+/// Remplissage sous l'aplat d'une zone de couleur (`--zones`) : la teinte devient `paint`, l'alpha
+/// reste celui du SWF (aplat du client : multiplicateurs RGB nuls, alpha inchangé). Un bitmap
+/// garde son style : ses pixels sont repeints au décodage ([`Exporter::bitmap`]).
+fn paint_fill(style: &FillStyle, paint: (u8, u8, u8)) -> FillStyle {
+    let tint = |c: &swf::Color| swf::Color { r: paint.0, g: paint.1, b: paint.2, a: c.a };
+    let gradient = |g: &swf::Gradient| swf::Gradient { records: g.records.iter().map(|r| swf::GradientRecord { ratio: r.ratio, color: tint(&r.color) }).collect(), ..g.clone() };
+    match style {
+        FillStyle::Color(c) => FillStyle::Color(tint(c)),
+        FillStyle::LinearGradient(g) => FillStyle::LinearGradient(gradient(g)),
+        FillStyle::RadialGradient(g) => FillStyle::RadialGradient(gradient(g)),
+        FillStyle::FocalGradient { gradient: g, focal_point } => FillStyle::FocalGradient { gradient: gradient(g), focal_point: *focal_point },
+        FillStyle::Bitmap { .. } => style.clone(),
+    }
 }
 
 /// Segment d'une forme : chaque arête, avec ses styles.
@@ -335,13 +369,31 @@ impl<'a> Exporter<'a> {
                 _ => {}
             }
         }
+        let mut zones: HashMap<u16, Vec<(String, u8)>> = HashMap::new();
+        let mut collect = |owner: u16, list: &[Tag]| {
+            for t in list {
+                if let Tag::DoAction(code) = t {
+                    for call in color_calls(code) {
+                        zones.entry(owner).or_default().push(call);
+                    }
+                }
+            }
+        };
+        for t in tags {
+            if let Tag::DefineSprite(s) = t {
+                collect(s.id, &s.tags);
+            }
+        }
+        collect(0, tags);
         Exporter {
             chars,
             jpeg_tables,
             bitmaps: HashMap::new(),
             timelines: HashMap::new(),
-            cycles: HashMap::new(),
-            ends: HashMap::new(),
+            plays: HashMap::new(),
+            zones,
+            zone_mode: None,
+            zone_paint: None,
             defs: String::new(),
             body: String::new(),
             bounds: Bounds::default(),
@@ -362,6 +414,27 @@ impl<'a> Exporter<'a> {
         self.warnings.clear();
         self.clip_mode = false;
         self.recolored = 0;
+    }
+
+    /// Zone de couleur de l'enfant `name` du clip `owner` (0 : la scène) ; le dernier appel du
+    /// clip pour ce nom l'emporte, comme à l'exécution. Les noms d'instance des SWF 7 et plus
+    /// respectent la casse.
+    fn zone_of(&self, owner: u16, name: &str) -> Option<u8> {
+        self.zones.get(&owner)?.iter().rev().find(|(n, _)| n == name).map(|(_, z)| *z)
+    }
+
+    /// Aplat à imposer à un enfant de zone `zone` sous `--zones` : la couleur unitaire de sa zone
+    /// (rouge, vert ou bleu) si elle est peinte, sinon du noir. Une zone contenue dans une autre
+    /// garde l'aplat de la plus extérieure : la transformation du parent s'applique en dernier.
+    fn zone_paint_for(&self, zone: Option<u8>) -> Option<(u8, u8, u8)> {
+        let (Some(mode), Some(k), None) = (self.zone_mode, zone, self.zone_paint) else { return None };
+        let painted = mode.get(k as usize - 1).copied().unwrap_or(false);
+        Some(match (painted, k) {
+            (false, _) => (0, 0, 0),
+            (true, 1) => (255, 0, 0),
+            (true, 2) => (0, 255, 0),
+            _ => (0, 0, 255),
+        })
     }
 
     fn warn(&mut self, message: String) {
@@ -389,88 +462,69 @@ impl<'a> Exporter<'a> {
         }
     }
 
-    /// Nombre d'images utiles d'un caractère joué comme clip imbriqué : sa timeline jusqu'à son
-    /// `stop()` et celles des clips qu'il contient (un cycle de marche est souvent un clip
-    /// d'une image qui contient le vrai cycle).
+    /// Nombre d'images utiles d'un caractère joué comme clip imbriqué (voir [`Exporter::play`]).
     fn cycle(&mut self, id: u16, depth: usize) -> usize {
+        self.play(id, depth).0
+    }
+
+    /// Fin d'un caractère joué comme clip imbriqué (voir [`End`] et [`Exporter::play`]).
+    fn end_of(&mut self, id: u16, depth: usize) -> End {
+        self.play(id, depth).1
+    }
+
+    /// Durée (images utiles) et fin d'un caractère joué comme clip imbriqué, mises en cache. Un
+    /// bouton dure autant que le plus long des clips de son état relâché ; une forme, une image.
+    fn play(&mut self, id: u16, depth: usize) -> (usize, End) {
         if depth > MAX_DEPTH {
-            return 1;
+            return (1, End::Stop);
         }
-        if let Some(n) = self.cycles.get(&id) {
-            return *n;
+        if let Some(p) = self.plays.get(&id) {
+            return p.clone();
         }
         // Valeur provisoire : un clip qui se contient lui-même (fichier corrompu) ne boucle pas.
-        self.cycles.insert(id, 1);
-        let n = match self.chars.get(&id).copied() {
+        self.plays.insert(id, (1, End::Stop));
+        let p = match self.chars.get(&id).copied() {
             Some(Tag::DefineSprite(sp)) => {
                 let info = self.sprite_timeline(sp);
-                self.cycle_of_timeline(&sp.tags, info, false, depth + 1)
+                self.play_of_timeline(&sp.tags, info, false, depth + 1)
             }
             Some(Tag::DefineButton(b)) | Some(Tag::DefineButton2(b)) => {
                 let ids: Vec<u16> = b.records.iter().filter(|r| r.states.contains(swf::ButtonState::UP)).map(|r| r.id).collect();
-                ids.into_iter().map(|c| self.cycle(c, depth + 1)).max().unwrap_or(1)
+                (ids.into_iter().map(|c| self.cycle(c, depth + 1)).max().unwrap_or(1), End::Stop)
             }
-            _ => 1,
+            _ => (1, End::Stop),
         };
-        self.cycles.insert(id, n);
-        n
+        self.plays.insert(id, p.clone());
+        p
     }
 
-    /// Nombre d'images utiles d'une timeline. `root` : timeline demandée (toutes ses images
-    /// comptent, comme pour `gotoAndStop`) ; sinon elle s'arrête sur son premier `stop()`.
+    /// Nombre d'images utiles d'une timeline (voir [`Exporter::play_of_timeline`]).
     fn cycle_of_timeline(&mut self, tags: &[Tag], info: Timeline, root: bool, depth: usize) -> usize {
-        let own = if root { info.frames } else { info.stop.map(|s| s + 1).unwrap_or(info.frames) };
-        // Une timeline qui boucle recrée à chaque tour les clips posés après sa première image.
-        let looping = info.frames > 1 && (root || info.stop.is_none());
-        let mut best = own.max(1);
-        let mut frame = 0usize;
-        let mut children: Vec<(usize, u16)> = Vec::new();
-        for t in tags {
-            match t {
-                Tag::PlaceObject(p) => {
-                    if let swf::PlaceObjectAction::Place(cid) | swf::PlaceObjectAction::Replace(cid) = p.action {
-                        if frame < own && (!looping || frame == 0) {
-                            children.push((frame, cid));
-                        }
-                    }
-                }
-                Tag::ShowFrame => frame += 1,
-                _ => {}
-            }
-        }
-        for (born, cid) in children {
-            best = best.max(born + self.cycle(cid, depth + 1));
-        }
-        best
+        self.play_of_timeline(tags, info, root, depth).0
     }
 
-    /// Fin d'un caractère joué comme clip imbriqué (voir [`End`]).
-    fn end_of(&mut self, id: u16, depth: usize) -> End {
-        if depth > MAX_DEPTH {
-            return End::Stop;
-        }
-        if let Some(e) = self.ends.get(&id) {
-            return e.clone();
-        }
-        // Valeur provisoire : un clip qui se contient lui-même (fichier corrompu) ne boucle pas.
-        self.ends.insert(id, End::Stop);
-        let e = match self.chars.get(&id).copied() {
-            Some(Tag::DefineSprite(sp)) => {
-                let info = self.sprite_timeline(sp);
-                self.end_of_timeline(&sp.tags, info, false, depth + 1)
-            }
-            _ => End::Stop,
-        };
-        self.ends.insert(id, e.clone());
-        e
-    }
-
-    /// Fin d'une timeline jouée par le client depuis sa première image. La timeline qui fixe la
-    /// durée (`images`) décide : la sienne si elle est au moins aussi longue que ses clips (premier
-    /// script d'arrêt rencontré, sinon boucle), sinon celle du clip imbriqué qui finit le plus tard.
-    /// Une timeline d'une image sans clip plus long ne bouge pas : `arret`. Les conditions ne sont
-    /// pas évaluées.
+    /// Fin d'une timeline (voir [`Exporter::play_of_timeline`]).
     fn end_of_timeline(&mut self, tags: &[Tag], info: Timeline, root: bool, depth: usize) -> End {
+        self.play_of_timeline(tags, info, root, depth).1
+    }
+
+    /// Durée et fin d'une timeline jouée par le client depuis sa première image. `root` : timeline
+    /// demandée (ses `stop()` ne coupent pas ses images, comme pour `gotoAndStop`).
+    ///
+    /// 1. Un script qui remplace le clip (`GAC.applyAnim`, `removeMovieClip`) termine l'animation
+    ///    à son image, qu'il soit dans la timeline ou dans un clip qu'elle contient : le premier
+    ///    atteint fixe la durée et la fin (un clip imbriqué plus long qui boucle n'y change rien :
+    ///    c'était le défaut de la 0.2.4, des coups reçus de 116 à 175 images au lieu de 24). Dans
+    ///    une timeline qui boucle, un clip créé après la première image n'y compte que si son
+    ///    script est atteint avant le tour suivant (il est retiré quand la timeline reboucle).
+    /// 2. Sinon, une timeline qui boucle (plusieurs images, sans `stop()`) dure ses propres images :
+    ///    ses clips bouclent avec elle.
+    /// 3. Sinon (une image, ou arrêtée par `stop()`), ses clips continuent de jouer : la durée est
+    ///    celle du plus long, et la fin celle du clip qui finit le plus tard ; une timeline d'une
+    ///    image sans clip plus long ne bouge pas : `arret`.
+    ///
+    /// Les conditions ne sont pas évaluées.
+    fn play_of_timeline(&mut self, tags: &[Tag], info: Timeline, root: bool, depth: usize) -> (usize, End) {
         let own = if root { info.frames } else { info.stop.map(|s| s + 1).unwrap_or(info.frames) }.max(1);
         let looping = info.frames > 1 && (root || info.stop.is_none());
         let mut frame = 0usize;
@@ -492,7 +546,7 @@ impl<'a> Exporter<'a> {
                 }
                 Tag::PlaceObject(p) => {
                     if let swf::PlaceObjectAction::Place(cid) | swf::PlaceObjectAction::Replace(cid) = p.action {
-                        if frame < own && (!looping || frame == 0) {
+                        if frame < own {
                             children.push((frame, cid));
                         }
                     }
@@ -501,34 +555,55 @@ impl<'a> Exporter<'a> {
                 _ => {}
             }
         }
+        let own_end = own_end.filter(|(f, _)| *f < info.frames);
+        // 1. Fin par un script qui remplace le clip, le sien ou celui d'un clip imbriqué.
+        let mut terminal: Option<(usize, End)> = own_end.as_ref().filter(|(_, e)| e.replaces()).map(|(f, e)| (f + 1, e.clone()));
+        for &(born, cid) in &children {
+            if terminal.as_ref().is_some_and(|(t, _)| born >= *t) {
+                continue;
+            }
+            let (length, e) = self.play(cid, depth + 1);
+            // Dans une timeline qui boucle, un clip créé après la première image disparaît au tour
+            // suivant : son script ne compte que s'il est atteint avant.
+            if looping && born > 0 && born + length > own {
+                continue;
+            }
+            if e.replaces() && terminal.as_ref().map_or(true, |(t, _)| born + length < *t) {
+                terminal = Some((born + length, e));
+            }
+        }
+        if let Some(t) = terminal {
+            return t;
+        }
+        let own_end = own_end.map(|(_, e)| e);
+        // 2. Timeline qui boucle : ses propres images.
+        if looping {
+            return (own, own_end.unwrap_or(End::Loop));
+        }
+        // 3. Timeline d'une image ou arrêtée : ses clips continuent de jouer.
         let mut longest = 0usize;
         let mut child_end: Option<End> = None;
         for (born, cid) in children {
-            let finish = born + self.cycle(cid, depth + 1);
-            let e = self.end_of(cid, depth + 1);
+            let (length, e) = self.play(cid, depth + 1);
+            let finish = born + length;
             let loops = child_end.as_ref().is_some_and(|c| *c == End::Loop);
             if finish > longest || (finish == longest && loops && e != End::Loop) {
                 longest = finish;
                 child_end = Some(e);
             }
         }
-        let own_end = own_end.filter(|(f, _)| *f < info.frames).map(|(_, e)| e);
         if longest > own {
-            return child_end.unwrap_or(End::Loop);
+            return (longest, child_end.unwrap_or(End::Loop));
         }
         if let Some(e) = own_end {
-            return e;
+            return (own, e);
         }
         if longest == own {
             if let Some(e) = child_end.filter(|e| *e != End::Loop) {
-                return e;
+                return (own, e);
             }
         }
-        if info.frames > 1 {
-            End::Loop
-        } else {
-            End::Stop
-        }
+        (own, if info.frames > 1 { End::Loop } else { End::Stop })
     }
 
     fn next_id(&mut self, prefix: &str) -> String {
@@ -536,15 +611,19 @@ impl<'a> Exporter<'a> {
         format!("{}{}", prefix, self.def_counter)
     }
 
+    /// Bitmap `id` en PNG (base 64), sous l'aplat de zone en cours s'il y en a un.
     fn bitmap(&mut self, id: u16) -> Option<(u32, u32, String)> {
-        if !self.bitmaps.contains_key(&id) {
-            let decoded = self.decode_bitmap(id);
-            self.bitmaps.insert(id, decoded);
+        let key = (id, self.zone_paint);
+        if !self.bitmaps.contains_key(&key) {
+            let decoded = self.decode_bitmap(id, self.zone_paint);
+            self.bitmaps.insert(key, decoded);
         }
-        self.bitmaps.get(&id).and_then(|b| b.as_ref()).map(|b| (b.width, b.height, b.png_b64.clone()))
+        self.bitmaps.get(&key).and_then(|b| b.as_ref()).map(|b| (b.width, b.height, b.png_b64.clone()))
     }
 
-    fn decode_bitmap(&mut self, id: u16) -> Option<Bitmap> {
+    /// Décode le bitmap `id` ; `paint` remplace la couleur de chaque pixel en gardant son alpha
+    /// (aplat de zone de `--zones`).
+    fn decode_bitmap(&mut self, id: u16, paint: Option<(u8, u8, u8)>) -> Option<Bitmap> {
         let tag = *self.chars.get(&id)?;
         let img: image::RgbaImage = match tag {
             Tag::DefineBits { jpeg_data, .. } => {
@@ -633,6 +712,14 @@ impl<'a> Exporter<'a> {
             }
             _ => return None,
         };
+        let mut img = img;
+        if let Some((r, g, b)) = paint {
+            for p in img.pixels_mut() {
+                p.0[0] = r;
+                p.0[1] = g;
+                p.0[2] = b;
+            }
+        }
         let mut png = Vec::new();
         image::DynamicImage::ImageRgba8(img.clone()).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).ok()?;
         Some(Bitmap { width: img.width(), height: img.height(), png_b64: base64::engine::general_purpose::STANDARD.encode(&png) })
@@ -642,6 +729,14 @@ impl<'a> Exporter<'a> {
     /// celui de la forme, donc les matrices de dégradé et de bitmap s'expriment seules, sans `m`
     /// (l'y ajouter appliquait deux fois la pose du clip : motifs minuscules et répétés).
     fn fill_attr(&mut self, style: &FillStyle) -> (String, String) {
+        let painted;
+        let style = match self.zone_paint {
+            Some(paint) => {
+                painted = paint_fill(style, paint);
+                &painted
+            }
+            None => style,
+        };
         match style {
             FillStyle::Color(c) => {
                 let (hex, a) = color_css(c);
@@ -809,7 +904,11 @@ impl<'a> Exporter<'a> {
             let style = gen_styles.get(gen).and_then(|g| g.1.get(idx - 1)).cloned();
             let Some(style) = style else { continue };
             let width = (style.width().get() as f64 / 20.0).max(0.5);
-            let (stroke, attrs) = match style.fill_style() {
+            let line_fill = match self.zone_paint {
+                Some(paint) => paint_fill(style.fill_style(), paint),
+                None => style.fill_style().clone(),
+            };
+            let (stroke, attrs) = match &line_fill {
                 FillStyle::Color(c) => {
                     let (hex, a) = color_css(c);
                     (hex, if a < 1.0 { format!(" stroke-opacity=\"{}\"", fm(a)) } else { String::new() })
@@ -827,13 +926,22 @@ impl<'a> Exporter<'a> {
 
     fn color_transform_attr(&mut self, ct: Option<&swf::ColorTransform>) -> String {
         let Some(ct) = ct else { return String::new() };
-        let mult = [ct.r_multiply.to_f32() as f64, ct.g_multiply.to_f32() as f64, ct.b_multiply.to_f32() as f64, ct.a_multiply.to_f32() as f64];
-        let add = [ct.r_add as f64 / 255.0, ct.g_add as f64 / 255.0, ct.b_add as f64 / 255.0, ct.a_add as f64 / 255.0];
+        let mut mult = [ct.r_multiply.to_f32() as f64, ct.g_multiply.to_f32() as f64, ct.b_multiply.to_f32() as f64, ct.a_multiply.to_f32() as f64];
+        let mut add = [ct.r_add as f64 / 255.0, ct.g_add as f64 / 255.0, ct.b_add as f64 / 255.0, ct.a_add as f64 / 255.0];
         if mult == [1.0, 1.0, 1.0, 1.0] && add == [0.0, 0.0, 0.0, 0.0] {
             return String::new();
         }
         if mult[0] == 1.0 && mult[1] == 1.0 && mult[2] == 1.0 && add == [0.0, 0.0, 0.0, 0.0] {
             return format!(" opacity=\"{}\"", fm(mult[3]));
+        }
+        if self.zone_paint.is_some() {
+            // Sous l'aplat d'une zone (appliqué après), seule la partie alpha d'une transformation
+            // intérieure subsiste ; elle garde la même forme (filtre) que sans --zones.
+            if mult[3] == 1.0 && add[3] == 0.0 {
+                return String::new();
+            }
+            mult[..3].copy_from_slice(&[1.0, 1.0, 1.0]);
+            add[..3].copy_from_slice(&[0.0, 0.0, 0.0]);
         }
         let id = self.next_id("ct");
         let _ = write!(self.defs, "<filter id=\"{}\" color-interpolation-filters=\"sRGB\"><feColorMatrix type=\"matrix\" values=\"{} 0 0 0 {} 0 {} 0 0 {} 0 0 {} 0 {} 0 0 0 {} {}\"/></filter>", id, fm(mult[0]), fm(add[0]), fm(mult[1]), fm(add[1]), fm(mult[2]), fm(add[2]), fm(mult[3]), fm(add[3]));
@@ -860,7 +968,7 @@ impl<'a> Exporter<'a> {
             Tag::DefineShape(s) => self.render_shape(s, m, &extra),
             Tag::DefineSprite(sp) => {
                 let info = self.sprite_timeline(sp);
-                self.group(&extra, |e| e.render_timeline(&sp.tags, info, m, depth + 1, age, false));
+                self.group(&extra, |e| e.render_timeline(&sp.tags, info, m, depth + 1, age, false, sp.id));
             }
             Tag::DefineButton2(b) | Tag::DefineButton(b) => {
                 let mut recs: Vec<&swf::ButtonRecord> = b.records.iter().filter(|r| r.states.contains(swf::ButtonState::UP)).collect();
@@ -920,8 +1028,9 @@ impl<'a> Exporter<'a> {
     /// Rend une timeline `age` images après sa création. Une timeline `root` (symbole demandé ou
     /// scène) affiche directement son image `age` (modulo sa longueur), comme après un
     /// `gotoAndStop` ; une timeline imbriquée joue comme à l'écran : elle boucle et s'arrête sur
-    /// son premier `stop()`. Les clips qu'elle contient vieillissent depuis leur création.
-    fn render_timeline(&mut self, tags: &[Tag], info: Timeline, m: &M, depth: usize, age: usize, root: bool) {
+    /// son premier `stop()`. Les clips qu'elle contient vieillissent depuis leur création. `owner` :
+    /// clip de la timeline (0 pour la scène), dont les scripts donnent les zones de couleur.
+    fn render_timeline(&mut self, tags: &[Tag], info: Timeline, m: &M, depth: usize, age: usize, root: bool, owner: u16) {
         let (frame, persistent) = play_position(info, age, root);
         let mut display: BTreeMap<u16, Placed> = BTreeMap::new();
         let mut current_frame = 0usize;
@@ -943,6 +1052,7 @@ impl<'a> Exporter<'a> {
                                 clip_depth: p.clip_depth.or(prev.as_ref().and_then(|x| x.clip_depth)),
                                 born: if kept { prev.as_ref().map_or(current_frame, |x| x.born) } else { current_frame },
                                 name: named.or(if kept { prev.and_then(|x| x.name) } else { None }),
+                                zone: None,
                             };
                             display.insert(p.depth, placed);
                         }
@@ -978,8 +1088,9 @@ impl<'a> Exporter<'a> {
         }
         let mut items: Vec<(u16, Placed, usize)> = display
             .into_iter()
-            .map(|(d, p)| {
+            .map(|(d, mut p)| {
                 let child_age = child_age(age, frame, persistent, p.born);
+                p.zone = p.name.as_deref().and_then(|n| self.zone_of(owner, n));
                 (d, p, child_age)
             })
             .collect();
@@ -1015,7 +1126,12 @@ impl<'a> Exporter<'a> {
                     i = j;
                 }
                 None => {
+                    let outer = self.zone_paint;
+                    if let Some(paint) = self.zone_paint_for(p.zone) {
+                        self.zone_paint = Some(paint);
+                    }
                     self.render_char(p.id, &full, p.ct.as_ref(), depth, *age, p.ratio);
+                    self.zone_paint = outer;
                     i += 1;
                 }
             }
@@ -1052,7 +1168,7 @@ impl<'a> Exporter<'a> {
         match self.chars.get(&id).copied() {
             Some(Tag::DefineSprite(sp)) => {
                 let info = self.sprite_timeline(sp);
-                self.group("", |e| e.render_timeline(&sp.tags, info, &M::identity(), 1, age, true));
+                self.group("", |e| e.render_timeline(&sp.tags, info, &M::identity(), 1, age, true, sp.id));
             }
             _ => self.render_char(id, &M::identity(), None, 0, age, 0),
         }
@@ -1166,11 +1282,13 @@ fn has_stop(code: &[u8]) -> bool {
     false
 }
 
-/// Valeur de la pile AVM1 suivie par [`script_end`].
-#[derive(Clone, Debug)]
+/// Valeur de la pile AVM1 suivie par [`avm1_events`].
+#[derive(Clone, Debug, PartialEq)]
 enum Val {
     Str(String),
     Num(f64),
+    /// Valeur lue par `GetVariable` (nom de la variable : un clip enfant, `this`, `GAC`…).
+    Var(String),
     Other,
 }
 
@@ -1201,16 +1319,26 @@ fn push_values(payload: &[u8], pool: &[String], stack: &mut Vec<Val>) {
     }
 }
 
-/// Script d'arrêt d'un bloc AVM1 (une image) : `GAC.applyAnim(this, "<anim>")` (retour au repos ou
-/// animation suivante), `removeMovieClip` (le clip disparaît), sinon `stop()`. La pile n'est suivie
-/// que pour les actions utiles (`ConstantPool`, `Push`, `GetVariable`, `GetMember`, appels, `Pop`).
-/// Un appel placé après un branchement conditionnel (`If`) ne compte pas : `static<O>` n'enchaîne
-/// sur `anim18End` qu'après `anim18`. Un `stop()` compte toujours, comme pour [`has_stop`], et les
-/// corps de fonctions sont sautés.
-fn script_end(code: &[u8]) -> Option<End> {
+/// Ce que [`avm1_events`] relève d'un bloc AVM1.
+#[derive(Clone, Debug, PartialEq)]
+enum Event {
+    /// `stop()`.
+    Stop,
+    /// Action `RemoveSprite` (`removeMovieClip(cible)`).
+    Remove,
+    /// Appel de fonction ou de méthode par son nom, avec ses arguments dans l'ordre.
+    Call(String, Vec<Val>),
+}
+
+/// Événements d'un bloc AVM1 (le script d'une image) dans l'ordre d'exécution, chacun avec un
+/// drapeau vrai s'il suit un branchement conditionnel (`If`) : il peut ne pas s'exécuter. La pile
+/// n'est suivie que pour les actions utiles (`ConstantPool`, `Push`, `GetVariable`, `GetMember`,
+/// opérateurs, appels, `Pop`) ; les conditions ne sont pas évaluées et les corps de fonctions
+/// (`DefineFunction`, `DefineFunction2`), qui ne s'exécutent pas avec l'image, sont sautés.
+fn avm1_events(code: &[u8]) -> Vec<(Event, bool)> {
+    let mut events = Vec::new();
     let mut pool: Vec<String> = Vec::new();
     let mut stack: Vec<Val> = Vec::new();
-    let mut stop = false;
     let mut conditional = false;
     let mut i = 0usize;
     while i < code.len() {
@@ -1220,21 +1348,33 @@ fn script_end(code: &[u8]) -> Option<End> {
         }
         if op < 0x80 {
             match op {
-                0x07 => stop = true,
+                0x07 => events.push((Event::Stop, conditional)),
                 0x17 => {
                     stack.pop();
                 }
+                // GetVariable : la valeur d'une variable est désignée par son nom.
                 0x1C => {
+                    let v = match stack.pop() {
+                        Some(Val::Str(name)) => Val::Var(name),
+                        _ => Val::Other,
+                    };
+                    stack.push(v);
+                }
+                // Opérateurs à deux opérandes (arithmétique, comparaisons, chaînes, bits) et GetMember.
+                0x0A..=0x11 | 0x13 | 0x21 | 0x29 | 0x3F | 0x47..=0x49 | 0x4E | 0x60..=0x68 => {
+                    stack.pop();
                     stack.pop();
                     stack.push(Val::Other);
                 }
-                0x4E => {
-                    stack.pop();
+                // Opérateurs à un opérande (Not, longueurs, conversions, typeof, incréments).
+                0x12 | 0x14 | 0x18 | 0x31 | 0x44 | 0x4A | 0x4B | 0x50 | 0x51 => {
                     stack.pop();
                     stack.push(Val::Other);
                 }
-                // RemoveSprite : removeMovieClip(cible).
-                0x25 if !conditional => return Some(End::Static),
+                0x25 => {
+                    stack.pop();
+                    events.push((Event::Remove, conditional));
+                }
                 // CallFunction, CallMethod : nom, (objet), nombre d'arguments, arguments dans l'ordre.
                 0x3D | 0x52 => {
                     let name = match stack.pop() {
@@ -1249,20 +1389,8 @@ fn script_end(code: &[u8]) -> Option<End> {
                         _ => 0,
                     };
                     let args: Vec<Val> = (0..count).map(|_| stack.pop().unwrap_or(Val::Other)).collect();
-                    if let Some(name) = name.filter(|_| !conditional) {
-                        if name.eq_ignore_ascii_case("applyAnim") {
-                            if let Some(Val::Str(anim)) = args.get(1) {
-                                // Le client ajoute la lettre d'orientation au nom : « StaticR » donne
-                                // « staticRR », absent, d'où la pose static<lettre> : retour au repos.
-                                let rest = anim.get(..6).filter(|p| p.eq_ignore_ascii_case("static")).map(|_| &anim[6..]);
-                                return Some(match rest {
-                                    Some(r) if r.is_empty() || r.chars().all(|c| "SRLFB".contains(c)) => End::Static,
-                                    _ => End::Next(anim.clone()),
-                                });
-                            }
-                        } else if name.eq_ignore_ascii_case("removeMovieClip") {
-                            return Some(End::Static);
-                        }
+                    if let Some(name) = name {
+                        events.push((Event::Call(name, args), conditional));
                     }
                     stack.push(Val::Other);
                 }
@@ -1295,11 +1423,63 @@ fn script_end(code: &[u8]) -> Option<End> {
         }
         i = next + body;
     }
+    events
+}
+
+/// Script d'arrêt d'un bloc AVM1 (une image) : `GAC.applyAnim(this, "<anim>")` (retour au repos ou
+/// animation suivante), `removeMovieClip` (le clip disparaît), sinon `stop()`. Un appel placé après
+/// un branchement conditionnel (`If`) ne compte pas : `static<O>` n'enchaîne sur `anim18End`
+/// qu'après `anim18`. Un `stop()` compte toujours, comme pour [`has_stop`].
+fn script_end(code: &[u8]) -> Option<End> {
+    let mut stop = false;
+    for (event, conditional) in avm1_events(code) {
+        match event {
+            Event::Stop => stop = true,
+            _ if conditional => {}
+            Event::Remove => return Some(End::Static),
+            Event::Call(name, args) => {
+                if name.eq_ignore_ascii_case("applyAnim") {
+                    if let Some(Val::Str(anim)) = args.get(1) {
+                        // Le client ajoute la lettre d'orientation au nom : « StaticR » donne
+                        // « staticRR », absent, d'où la pose static<lettre> : retour au repos.
+                        let rest = anim.get(..6).filter(|p| p.eq_ignore_ascii_case("static")).map(|_| &anim[6..]);
+                        return Some(match rest {
+                            Some(r) if r.is_empty() || r.chars().all(|c| "SRLFB".contains(c)) => End::Static,
+                            _ => End::Next(anim.clone()),
+                        });
+                    }
+                } else if name.eq_ignore_ascii_case("removeMovieClip") {
+                    return Some(End::Static);
+                }
+            }
+        }
+    }
     if stop {
         Some(End::Stop)
     } else {
         None
     }
+}
+
+/// Zones de couleur d'un bloc AVM1 : appels `GAC.applyColor(<enfant>, <zone>[, …])` du client, où
+/// l'enfant est lu par son nom d'instance (`GetVariable`) et la zone vaut 1, 2 ou 3 (les trois
+/// couleurs d'un personnage). Une cible calculée (`<nom> - 1`, dans le gfx 1523) n'est pas un clip :
+/// le client ne colore rien, et elle est ignorée comme une zone hors de 1 à 3.
+fn color_calls(code: &[u8]) -> Vec<(String, u8)> {
+    let mut zones = Vec::new();
+    for (event, _) in avm1_events(code) {
+        if let Event::Call(name, args) = event {
+            if !name.eq_ignore_ascii_case("applyColor") {
+                continue;
+            }
+            if let (Some(Val::Var(target)), Some(Val::Num(zone))) = (args.first(), args.get(1)) {
+                if [1.0, 2.0, 3.0].contains(zone) {
+                    zones.push((target.clone(), *zone as u8));
+                }
+            }
+        }
+    }
+    zones
 }
 
 /// Document SVG d'un rendu : le cadre `bounds` est arrondi au pixel (le PNG commence au point
@@ -1496,6 +1676,10 @@ struct Options {
     scene_name: Option<String>,
     /// Enfant seul ou exclu de la timeline demandée (`--instance`, `--sans-instance`).
     instance: Option<Instance>,
+    /// `--zones` : zones de couleur peintes (1 à 3) ; les autres sont rendues en noir.
+    zones: Option<[bool; 3]>,
+    /// `--zones-list` : liste des zones de couleur sans rien rendre.
+    zones_list: bool,
     file: String,
     dir: Option<String>,
     names: Vec<String>,
@@ -1521,8 +1705,33 @@ fn parse_frames(v: &str) -> Result<Frames, String> {
     Ok(Frames::One(number(v)?))
 }
 
+/// Zones peintes de `--zones` : `aucune`, ou les chiffres des zones (1 à 3), sans répétition.
+fn parse_zones(v: &str) -> Result<[bool; 3], String> {
+    let mut zones = [false; 3];
+    if v == "aucune" {
+        return Ok(zones);
+    }
+    let invalid = || format!("--zones attend « aucune » ou des zones parmi 1, 2 et 3 (« 123 »…), « {} » reçu", v);
+    if v.is_empty() {
+        return Err(invalid());
+    }
+    for c in v.chars() {
+        let k = match c {
+            '1' => 0,
+            '2' => 1,
+            '3' => 2,
+            _ => return Err(invalid()),
+        };
+        if zones[k] {
+            return Err(invalid());
+        }
+        zones[k] = true;
+    }
+    Ok(zones)
+}
+
 fn parse_args(args: &[String]) -> Result<Options, String> {
-    let mut o = Options { scene: false, list: false, append_index: false, frames: Frames::One(1), scene_name: None, instance: None, file: String::new(), dir: None, names: Vec::new() };
+    let mut o = Options { scene: false, list: false, append_index: false, frames: Frames::One(1), scene_name: None, instance: None, zones: None, zones_list: false, file: String::new(), dir: None, names: Vec::new() };
     let mut instances = 0;
     let mut positional = Vec::new();
     let mut i = 0;
@@ -1548,7 +1757,14 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
                 o.instance = Some(if a == "--instance" { Instance::Only(v.clone()) } else { Instance::Without(v.clone()) });
                 instances += 1;
             }
+            "--zones" => {
+                i += 1;
+                let v = args.get(i).ok_or("--zones attend les zones peintes (aucune, 1, 2, 3, 12, 123…)")?;
+                o.zones = Some(parse_zones(v)?);
+            }
+            "--zones-list" => o.zones_list = true,
             "-h" | "--help" => return Err(String::new()),
+            _ if a.starts_with("--zones=") => o.zones = Some(parse_zones(&a["--zones=".len()..])?),
             _ if a.starts_with("--frame=") => o.frames = parse_frames(&a["--frame=".len()..])?,
             _ if a.starts_with("--name=") => o.scene_name = Some(a["--name=".len()..].to_string()),
             _ if a.starts_with("--instance=") => {
@@ -1572,12 +1788,19 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
     }
     let mut positional = positional.into_iter();
     o.file = positional.next().ok_or("fichier SWF manquant")?;
-    if o.list && o.instance.is_some() {
-        return Err("--list ne rend rien : --instance et --sans-instance n'y ont pas de sens".into());
+    if o.list && o.zones_list {
+        return Err("--list et --zones-list s'emploient séparément".into());
     }
-    if o.list {
+    let listing = if o.list { "--list" } else { "--zones-list" };
+    if (o.list || o.zones_list) && o.instance.is_some() {
+        return Err(format!("{} ne rend rien : --instance et --sans-instance n'y ont pas de sens", listing));
+    }
+    if (o.list || o.zones_list) && o.zones.is_some() {
+        return Err(format!("{} ne rend rien : --zones n'y a pas de sens", listing));
+    }
+    if o.list || o.zones_list {
         if positional.next().is_some() {
-            return Err("--list n'attend que le fichier SWF".into());
+            return Err(format!("{} n'attend que le fichier SWF", listing));
         }
         return Ok(o);
     }
@@ -1620,7 +1843,24 @@ fn run(o: &Options) -> Result<String, String> {
     }
     let mut exporter = Exporter::new(&movie.tags);
     exporter.instance = o.instance.clone();
+    exporter.zone_mode = o.zones;
     let main_info = timeline_info(&movie.tags);
+
+    if o.zones_list {
+        let mut out = String::from("clip\tinstance\tzone\n");
+        let mut owners: Vec<&u16> = exporter.zones.keys().collect();
+        owners.sort();
+        for owner in owners {
+            let mut seen: Vec<&(String, u8)> = Vec::new();
+            for call in &exporter.zones[owner] {
+                if !seen.contains(&call) {
+                    seen.push(call);
+                    let _ = writeln!(out, "{}\t{}\t{}", owner, call.0, call.1);
+                }
+            }
+        }
+        return Ok(out);
+    }
 
     if o.list {
         let mut out = String::from("nom\tid\ttype\timages\timages_timeline\tfin\n");
@@ -1678,7 +1918,7 @@ fn run(o: &Options) -> Result<String, String> {
         for &n in &frames {
             exporter.reset();
             match target.id {
-                None => exporter.render_timeline(&movie.tags, main_info, &M::identity(), 0, n - 1, true),
+                None => exporter.render_timeline(&movie.tags, main_info, &M::identity(), 0, n - 1, true, 0),
                 Some(id) => exporter.render_symbol(id, n),
             }
             union = union.union(&exporter.bounds);
@@ -1723,7 +1963,7 @@ fn main() {
     };
     match run(&options) {
         Ok(out) => {
-            if options.list {
+            if options.list || options.zones_list {
                 print!("{}", out);
             } else if !out.is_empty() {
                 eprint!("{}", out);
