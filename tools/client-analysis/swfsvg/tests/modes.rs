@@ -1,0 +1,887 @@
+//! Modes de swfsvg sur un SWF fabriqué ici (aucun fichier du client n'est nécessaire) :
+//! scène, image N, liste, cadre commun des séries, index, masques, formes morphées, erreurs.
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
+use swf::*;
+
+fn px(v: f64) -> Twips {
+    Twips::from_pixels(v)
+}
+
+fn rect_records(x0: f64, y0: f64, x1: f64, y1: f64, fill: Option<u32>) -> Vec<ShapeRecord> {
+    vec![
+        ShapeRecord::StyleChange(Box::new(StyleChangeData { move_to: Some(Point::new(px(x0), px(y0))), fill_style_0: None, fill_style_1: fill, line_style: None, new_styles: None })),
+        ShapeRecord::StraightEdge { delta: PointDelta::new(px(x1 - x0), px(0.0)) },
+        ShapeRecord::StraightEdge { delta: PointDelta::new(px(0.0), px(y1 - y0)) },
+        ShapeRecord::StraightEdge { delta: PointDelta::new(px(x0 - x1), px(0.0)) },
+        ShapeRecord::StraightEdge { delta: PointDelta::new(px(0.0), px(y0 - y1)) },
+    ]
+}
+
+fn bounds(x0: f64, y0: f64, x1: f64, y1: f64) -> Rectangle<Twips> {
+    Rectangle { x_min: px(x0), x_max: px(x1), y_min: px(y0), y_max: px(y1) }
+}
+
+/// Rectangle plein de `w`×`h` pixels dont le coin haut-gauche est l'origine du symbole.
+fn rect(id: u16, w: f64, h: f64, r: u8, g: u8, b: u8) -> Tag<'static> {
+    Tag::DefineShape(Shape {
+        version: 1,
+        id,
+        shape_bounds: bounds(0.0, 0.0, w, h),
+        edge_bounds: bounds(0.0, 0.0, w, h),
+        flags: ShapeFlag::empty(),
+        styles: ShapeStyles { fill_styles: vec![FillStyle::Color(Color { r, g, b, a: 255 })], line_styles: vec![] },
+        shape: rect_records(0.0, 0.0, w, h, Some(1)),
+    })
+}
+
+fn place(depth: u16, action: PlaceObjectAction, at: Option<(f64, f64)>) -> PlaceObject<'static> {
+    PlaceObject {
+        version: 2,
+        action,
+        depth,
+        matrix: at.map(|(x, y)| Matrix::translate(px(x), px(y))),
+        color_transform: None,
+        ratio: None,
+        name: None,
+        clip_depth: None,
+        class_name: None,
+        filters: None,
+        background_color: None,
+        blend_mode: None,
+        clip_actions: None,
+        has_image: false,
+        is_bitmap_cached: None,
+        is_visible: None,
+        amf_data: None,
+    }
+}
+
+fn tag(p: PlaceObject<'static>) -> Tag<'static> {
+    Tag::PlaceObject(Box::new(p))
+}
+
+fn sprite(id: u16, tags: Vec<Tag<'static>>) -> Tag<'static> {
+    let frames = tags.iter().filter(|t| matches!(t, Tag::ShowFrame)).count() as u16;
+    Tag::DefineSprite(Sprite { id, num_frames: frames, tags })
+}
+
+const STOP: &[u8] = &[0x07, 0x00];
+
+/// SWF de test :
+/// - scène : rectangle rouge 20×10 posé en (100, 50) ;
+/// - `anim` (3 images) : rouge en x = 0, puis déplacé en x = 30, puis remplacé par un carré bleu ;
+/// - `walkR` : clip d'une image contenant `anim` (comme les cycles de marche du client) ;
+/// - `etats` (5 images, `stop()` à la première) et `etat`, clip d'une image qui le contient ;
+/// - `masque` : carré 40×40 découpé par un masque 10×10 ;
+/// - `morph` : forme morphée de 10 à 30 pixels de large posée à mi-chemin (ratio 32768).
+fn write_test_swf(path: &Path) {
+    let morph_start = rect_records(0.0, 0.0, 10.0, 10.0, Some(1));
+    let morph = DefineMorphShape {
+        version: 1,
+        id: 30,
+        flags: DefineMorphShapeFlag::empty(),
+        start: MorphShape {
+            shape_bounds: bounds(0.0, 0.0, 10.0, 10.0),
+            edge_bounds: bounds(0.0, 0.0, 10.0, 10.0),
+            fill_styles: vec![FillStyle::Color(Color { r: 0, g: 128, b: 0, a: 255 })],
+            line_styles: vec![],
+            shape: morph_start,
+        },
+        end: MorphShape {
+            shape_bounds: bounds(0.0, 0.0, 30.0, 10.0),
+            edge_bounds: bounds(0.0, 0.0, 30.0, 10.0),
+            fill_styles: vec![FillStyle::Color(Color { r: 0, g: 255, b: 0, a: 255 })],
+            line_styles: vec![],
+            shape: rect_records(0.0, 0.0, 30.0, 10.0, None),
+        },
+    };
+    let mut mask = place(1, PlaceObjectAction::Place(2), Some((0.0, 0.0)));
+    mask.clip_depth = Some(2);
+    let mut morph_place = place(1, PlaceObjectAction::Place(30), Some((0.0, 0.0)));
+    morph_place.ratio = Some(32768);
+    let tags = vec![
+        rect(1, 20.0, 10.0, 255, 0, 0),
+        rect(2, 10.0, 10.0, 0, 0, 255),
+        rect(3, 40.0, 40.0, 0, 0, 0),
+        sprite(
+            10,
+            vec![
+                tag(place(1, PlaceObjectAction::Place(1), Some((0.0, 0.0)))),
+                Tag::ShowFrame,
+                tag(place(1, PlaceObjectAction::Modify, Some((30.0, 0.0)))),
+                Tag::ShowFrame,
+                tag(place(1, PlaceObjectAction::Replace(2), None)),
+                Tag::ShowFrame,
+            ],
+        ),
+        sprite(11, vec![tag(place(1, PlaceObjectAction::Place(10), Some((0.0, 0.0)))), Tag::ShowFrame]),
+        sprite(
+            12,
+            vec![
+                Tag::DoAction(STOP),
+                tag(place(1, PlaceObjectAction::Place(1), None)),
+                Tag::ShowFrame,
+                tag(place(1, PlaceObjectAction::Modify, Some((5.0, 0.0)))),
+                Tag::ShowFrame,
+                Tag::ShowFrame,
+                Tag::ShowFrame,
+                Tag::ShowFrame,
+            ],
+        ),
+        sprite(13, vec![tag(place(1, PlaceObjectAction::Place(12), None)), Tag::ShowFrame]),
+        sprite(14, vec![tag(mask), tag(place(2, PlaceObjectAction::Place(3), Some((0.0, 0.0)))), Tag::ShowFrame]),
+        Tag::DefineMorphShape(Box::new(morph)),
+        sprite(15, vec![tag(morph_place), Tag::ShowFrame]),
+        Tag::ExportAssets(vec![
+            ExportedAsset { id: 10, name: SwfStr::from_utf8_str("anim") },
+            ExportedAsset { id: 11, name: SwfStr::from_utf8_str("walkR") },
+            ExportedAsset { id: 12, name: SwfStr::from_utf8_str("etats") },
+            ExportedAsset { id: 13, name: SwfStr::from_utf8_str("etat") },
+            ExportedAsset { id: 14, name: SwfStr::from_utf8_str("masque") },
+            ExportedAsset { id: 15, name: SwfStr::from_utf8_str("morph") },
+        ]),
+        tag(place(1, PlaceObjectAction::Place(1), Some((100.0, 50.0)))),
+        Tag::ShowFrame,
+    ];
+    let header = Header { compression: Compression::None, version: 8, stage_size: bounds(0.0, 0.0, 550.0, 400.0), frame_rate: Fixed8::from_f32(12.0), num_frames: 1 };
+    let mut out = Vec::new();
+    write_swf(&header, &tags, &mut out).expect("écriture du SWF de test");
+    std::fs::write(path, out).expect("SWF de test");
+}
+
+/// Dossier temporaire propre à un test, avec le SWF de test `test.swf`.
+struct Work {
+    dir: PathBuf,
+}
+
+impl Work {
+    fn new(name: &str) -> Work {
+        let dir = std::env::temp_dir().join(format!("swfsvg-test-{}-{}", std::process::id(), name));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        write_test_swf(&dir.join("test.swf"));
+        Work { dir }
+    }
+    fn swf(&self) -> String {
+        self.dir.join("test.swf").to_string_lossy().to_string()
+    }
+    fn out(&self) -> String {
+        self.dir.join("out").to_string_lossy().to_string()
+    }
+    fn read(&self, file: &str) -> String {
+        std::fs::read_to_string(self.dir.join("out").join(file)).unwrap_or_else(|e| panic!("{} : {}", file, e))
+    }
+    /// Lignes de `index.tsv`, découpées en colonnes.
+    fn index(&self) -> Vec<Vec<String>> {
+        self.read("index.tsv").lines().map(|l| l.split('\t').map(String::from).collect()).collect()
+    }
+}
+
+impl Drop for Work {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
+fn swfsvg(args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_swfsvg")).args(args).output().expect("lancement de swfsvg")
+}
+
+fn ok(args: &[&str]) -> String {
+    let o = swfsvg(args);
+    assert!(o.status.success(), "swfsvg {:?} : {}", args, String::from_utf8_lossy(&o.stderr));
+    String::from_utf8_lossy(&o.stdout).to_string()
+}
+
+fn row<'a>(index: &'a [Vec<String>], name: &str, frame: &str) -> &'a Vec<String> {
+    index.iter().find(|r| r[0] == name && r[9] == frame).unwrap_or_else(|| panic!("{} image {} absent de l'index : {:?}", name, frame, index))
+}
+
+fn view_box(svg: &str) -> String {
+    let start = svg.find("viewBox=\"").expect("viewBox") + 9;
+    svg[start..start + svg[start..].find('"').unwrap()].to_string()
+}
+
+#[test]
+fn scene_renders_the_main_timeline() {
+    let w = Work::new("scene");
+    ok(&["--scene", &w.swf(), &w.out()]);
+    let svg = w.read("test.svg");
+    assert!(svg.contains("<path") && svg.contains("#ff0000"), "scène vide : {}", svg);
+    assert_eq!(view_box(&svg), "100 50 20 10");
+    let index = w.index();
+    assert_eq!(index.len(), 1);
+    // nom, id, xmin, ymin, largeur, hauteur, avertissements, xmax, ymax, image, images, fichier
+    assert_eq!(index[0], vec!["test", "0", "100", "50", "20", "10", "", "120", "60", "1", "1", "test.svg"]);
+    // --name remplace le nom du fichier SWF.
+    ok(&["--scene", "--name", "16_1234", &w.swf(), &w.out()]);
+    assert!(w.read("16_1234.svg").contains("#ff0000"));
+    assert_eq!(w.index()[0][0], "16_1234");
+}
+
+#[test]
+fn frame_selects_an_image_of_an_exported_symbol() {
+    let w = Work::new("frame");
+    ok(&["--frame", "1", &w.swf(), &w.out(), "anim"]);
+    let first = w.read("anim.svg");
+    let first_index = w.index();
+    ok(&["--frame", "2", &w.swf(), &w.out(), "anim"]);
+    let second = w.read("anim.svg");
+    assert_ne!(first, second, "--frame 2 doit différer de --frame 1");
+    assert_eq!(row(&first_index, "anim", "1")[2], "0");
+    assert_eq!(row(&w.index(), "anim", "2")[2], "30");
+    ok(&["--frame=3", &w.swf(), &w.out(), "anim"]);
+    assert!(w.read("anim.svg").contains("#0000ff"), "image 3 : carré bleu");
+}
+
+#[test]
+fn nested_cycles_play_like_the_client() {
+    // walkR n'a qu'une image : son clip intérieur joue (cas des cycles de marche du client).
+    let w = Work::new("nested");
+    ok(&["--frame", "2", &w.swf(), &w.out(), "walkR"]);
+    assert_eq!(row(&w.index(), "walkR", "2")[2], "30");
+    ok(&["--frame", "4", &w.swf(), &w.out(), "walkR"]);
+    assert_eq!(row(&w.index(), "walkR", "4")[2], "0", "le cycle boucle après 3 images");
+    // Un clip imbriqué arrêté par stop() reste sur sa première image.
+    ok(&["--frame", "2", &w.swf(), &w.out(), "etat"]);
+    assert_eq!(row(&w.index(), "etat", "2")[2], "0");
+    // Demandé directement, le même clip affiche l'image voulue (comme gotoAndStop).
+    ok(&["--frame", "2", &w.swf(), &w.out(), "etats"]);
+    assert_eq!(row(&w.index(), "etats", "2")[2], "5");
+}
+
+#[test]
+fn list_reports_symbols_and_frame_counts_without_rendering() {
+    let w = Work::new("list");
+    let out = ok(&["--list", &w.swf()]);
+    let rows: Vec<Vec<&str>> = out.lines().map(|l| l.split('\t').collect()).collect();
+    assert_eq!(rows[0], vec!["nom", "id", "type", "images", "images_timeline", "fin"]);
+    let find = |n: &str| rows.iter().find(|r| r[0] == n).unwrap_or_else(|| panic!("{} absent : {}", n, out)).clone();
+    assert_eq!(find("scene"), vec!["scene", "0", "scene", "1", "1", "arret"]);
+    assert_eq!(find("anim"), vec!["anim", "10", "clip", "3", "3", "boucle"]);
+    assert_eq!(find("walkR"), vec!["walkR", "11", "clip", "3", "1", "boucle"]);
+    // Joué par le client, etats s'arrête sur le stop() de sa première image.
+    assert_eq!(find("etats"), vec!["etats", "12", "clip", "5", "5", "arret"]);
+    assert_eq!(find("etat"), vec!["etat", "13", "clip", "1", "1", "arret"]);
+    assert!(!w.dir.join("out").exists(), "--list ne doit rien écrire");
+}
+
+/// Action `Push` d'une suite de valeurs (chaînes, ou entiers précédés de `#`).
+fn push(values: &[&str]) -> Vec<u8> {
+    let mut payload = Vec::new();
+    for v in values {
+        if let Some(n) = v.strip_prefix('#') {
+            payload.push(7);
+            payload.extend_from_slice(&n.parse::<i32>().unwrap().to_le_bytes());
+        } else {
+            payload.push(0);
+            payload.extend_from_slice(v.as_bytes());
+            payload.push(0);
+        }
+    }
+    let mut out = vec![0x96];
+    out.extend_from_slice(&(payload.len() as u16).to_le_bytes());
+    out.extend(payload);
+    out
+}
+
+/// Script `GAC.applyAnim(this, "<anim>")` des clips du client (dernière image de hitR, bonusR…).
+fn apply_anim(anim: &str) -> Vec<u8> {
+    let mut code = push(&[anim, "this"]);
+    code.push(0x1C); // GetVariable
+    code.extend(push(&["#2", "GAC"]));
+    code.push(0x1C);
+    code.extend(push(&["applyAnim"]));
+    code.extend([0x52, 0x17, 0x00]); // CallMethod, Pop, End
+    code
+}
+
+fn action(code: Vec<u8>) -> Tag<'static> {
+    Tag::DoAction(Box::leak(code.into_boxed_slice()))
+}
+
+/// Clip de `n` images (carré rouge) dont la dernière porte le script `last`.
+fn frames(n: usize, last: Option<Vec<u8>>) -> Vec<Tag<'static>> {
+    let mut tags = vec![tag(place(1, PlaceObjectAction::Place(1), None))];
+    for k in 0..n {
+        if k + 1 == n {
+            if let Some(code) = last.clone() {
+                tags.push(action(code));
+            }
+        }
+        tags.push(Tag::ShowFrame);
+    }
+    tags
+}
+
+/// SWF des fins d'animation : `hitR` (clip d'une image qui contient un clip de 3 images terminé
+/// par `GAC.applyAnim(this, "Static")`), `dieR` (4 images, `stop()` à la dernière), `suiteR`
+/// (`applyAnim(this, "anim18End")`), `condR` (le même appel sous un `If` : ignoré), `effet`
+/// (`_parent.removeMovieClip()` puis `stop()`), `boucle` (2 images sans script), `retourR`
+/// (`applyAnim(this, "StaticR")`) ; la scène pose `effet`.
+fn write_ends_swf(path: &Path) {
+    let mut conditional = push(&["#1"]);
+    conditional.extend([0x9D, 0x02, 0x00, 0x00, 0x00]); // If (saut nul) : la suite est sous condition
+    conditional.extend(apply_anim("anim18End"));
+    let mut remove = push(&["#0", "_parent"]);
+    remove.push(0x1C);
+    remove.extend(push(&["removeMovieClip"]));
+    remove.extend([0x52, 0x17, 0x07, 0x00]); // CallMethod, Pop, Stop, End
+    let tags = vec![
+        rect(1, 10.0, 10.0, 255, 0, 0),
+        sprite(50, frames(3, Some(apply_anim("Static")))),
+        sprite(51, vec![tag(place(1, PlaceObjectAction::Place(50), None)), Tag::ShowFrame]),
+        sprite(52, frames(4, Some(STOP.to_vec()))),
+        sprite(53, vec![tag(place(1, PlaceObjectAction::Place(52), None)), Tag::ShowFrame]),
+        sprite(54, frames(2, Some(apply_anim("anim18End")))),
+        sprite(55, frames(2, Some(conditional))),
+        sprite(56, frames(5, Some(remove))),
+        sprite(57, frames(2, None)),
+        sprite(58, frames(2, Some(apply_anim("StaticR")))),
+        Tag::ExportAssets(vec![
+            ExportedAsset { id: 51, name: SwfStr::from_utf8_str("hitR") },
+            ExportedAsset { id: 53, name: SwfStr::from_utf8_str("dieR") },
+            ExportedAsset { id: 54, name: SwfStr::from_utf8_str("suiteR") },
+            ExportedAsset { id: 55, name: SwfStr::from_utf8_str("condR") },
+            ExportedAsset { id: 56, name: SwfStr::from_utf8_str("effet") },
+            ExportedAsset { id: 57, name: SwfStr::from_utf8_str("boucle") },
+            ExportedAsset { id: 58, name: SwfStr::from_utf8_str("retourR") },
+        ]),
+        tag(place(1, PlaceObjectAction::Place(56), None)),
+        Tag::ShowFrame,
+    ];
+    let header = Header { compression: Compression::None, version: 8, stage_size: bounds(0.0, 0.0, 550.0, 400.0), frame_rate: Fixed8::from_f32(40.0), num_frames: 1 };
+    let mut out = Vec::new();
+    write_swf(&header, &tags, &mut out).expect("écriture du SWF de test");
+    std::fs::write(path, out).expect("SWF de test");
+}
+
+#[test]
+fn list_reports_how_each_animation_ends() {
+    let w = Work::new("ends");
+    let swf = w.dir.join("fins.swf").to_string_lossy().to_string();
+    write_ends_swf(Path::new(&swf));
+    let out = ok(&["--list", &swf]);
+    let rows: Vec<Vec<&str>> = out.lines().map(|l| l.split('\t').collect()).collect();
+    let find = |n: &str| rows.iter().find(|r| r[0] == n).unwrap_or_else(|| panic!("{} absent : {}", n, out)).clone();
+    // La fin vient du clip imbriqué qui fixe la durée (hitR, dieR), sinon de la timeline elle-même.
+    assert_eq!(find("hitR")[3..], ["3", "1", "static"]);
+    assert_eq!(find("dieR")[3..], ["4", "1", "arret"]);
+    assert_eq!(find("suiteR")[3..], ["2", "2", "suite:anim18End"]);
+    assert_eq!(find("condR")[3..], ["2", "2", "boucle"], "un appel sous condition ne compte pas");
+    assert_eq!(find("effet")[3..], ["5", "5", "static"], "removeMovieClip l'emporte sur stop()");
+    assert_eq!(find("boucle")[3..], ["2", "2", "boucle"]);
+    // « StaticR » + lettre n'existe pas : le client retombe sur static<lettre>.
+    assert_eq!(find("retourR")[3..], ["2", "2", "static"]);
+    // Ligne de la scène : elle porte aussi la fin de ce qu'elle joue (ici le clip effet).
+    assert_eq!(find("scene"), vec!["scene", "0", "scene", "5", "1", "static"]);
+}
+
+#[test]
+fn several_frames_share_one_frame_box() {
+    let w = Work::new("all");
+    ok(&["--frame", "all", &w.swf(), &w.out(), "walkR"]);
+    let boxes: Vec<String> = (1..=3).map(|n| view_box(&w.read(&format!("walkR_f{:03}.svg", n)))).collect();
+    assert!(boxes.iter().all(|b| b == &boxes[0]), "cadres différents : {:?}", boxes);
+    assert_eq!(boxes[0], "0 0 50 10");
+    let index = w.index();
+    assert_eq!(index.len(), 3);
+    for (n, r) in index.iter().enumerate() {
+        assert_eq!((r[9].as_str(), r[10].as_str()), ((n + 1).to_string().as_str(), "3"));
+        assert_eq!(r[11], format!("walkR_f{:03}.svg", n + 1));
+    }
+    ok(&["--frame", "2-3", &w.swf(), &w.out(), "anim"]);
+    assert_eq!(w.index().len(), 2);
+}
+
+#[test]
+fn historical_mode_is_unchanged_and_index_can_be_appended() {
+    let w = Work::new("index");
+    ok(&[&w.swf(), &w.out()]);
+    let index = w.index();
+    assert_eq!(index.len(), 6, "un SVG par export, image 1");
+    for r in &index {
+        assert_eq!(r.len(), 12);
+        assert_eq!(r[9], "1");
+        assert!(w.dir.join("out").join(&r[11]).exists());
+    }
+    assert_eq!(&row(&index, "anim", "1")[..7], &["anim", "10", "0", "0", "20", "10", ""]);
+    ok(&["--append-index", "--scene", &w.swf(), &w.out()]);
+    assert_eq!(w.index().len(), 7);
+    ok(&[&w.swf(), &w.out(), "anim"]);
+    assert_eq!(w.index().len(), 1, "sans --append-index, l'index est réécrit");
+}
+
+#[test]
+fn masks_clip_their_content() {
+    let w = Work::new("mask");
+    ok(&[&w.swf(), &w.out(), "masque"]);
+    let svg = w.read("masque.svg");
+    assert!(svg.contains("<clipPath") && svg.contains("clip-path=\"url(#"), "masque absent : {}", svg);
+    assert_eq!(view_box(&svg), "0 0 10 10", "le cadre est celui de la partie visible");
+}
+
+#[test]
+fn morph_shapes_are_interpolated() {
+    let w = Work::new("morph");
+    ok(&[&w.swf(), &w.out(), "morph"]);
+    let r = row(&w.index(), "morph", "1").clone();
+    assert_eq!((r[4].as_str(), r[6].as_str()), ("20", ""), "mi-chemin entre 10 et 30 pixels : {:?}", r);
+    assert!(w.read("morph.svg").contains("#008000") || w.read("morph.svg").contains("#00c000"));
+}
+
+#[test]
+fn bad_input_is_reported_without_panic() {
+    let w = Work::new("errors");
+    let junk = w.dir.join("junk.swf");
+    std::fs::write(&junk, b"pas un SWF").unwrap();
+    for args in [vec![junk.to_string_lossy().to_string(), w.out()], vec![w.dir.join("absent.swf").to_string_lossy().to_string(), w.out()]] {
+        let o = swfsvg(&args.iter().map(|s| s.as_str()).collect::<Vec<_>>());
+        let err = String::from_utf8_lossy(&o.stderr);
+        assert_eq!(o.status.code(), Some(1), "{}", err);
+        assert!(err.starts_with("swfsvg : ") && !err.contains("panicked"), "{}", err);
+    }
+    for args in [vec!["--frame", "0", "a.swf", "out"], vec!["--bogus", "a.swf", "out"], vec!["--scene", "a.swf", "out", "x"], vec![]] {
+        assert_eq!(swfsvg(&args).status.code(), Some(2), "{:?}", args);
+    }
+    // Un nom d'export absent est signalé sans faire échouer la série.
+    let o = swfsvg(&[&w.swf(), &w.out(), "anim", "inexistant"]);
+    assert!(o.status.success());
+    assert!(String::from_utf8_lossy(&o.stderr).contains("inexistant"));
+}
+
+/// Forme 20×20 remplie par `fill`, posée ×4 dans le clip exporté `peint` (comme les sprites du
+/// client, dont les formes sont presque toujours mises à l'échelle par leur clip parent).
+fn write_paint_swf(path: &Path, fill: FillStyle, extra: Vec<Tag<'static>>) {
+    let shape = Tag::DefineShape(Shape {
+        version: 3,
+        id: 41,
+        shape_bounds: bounds(0.0, 0.0, 20.0, 20.0),
+        edge_bounds: bounds(0.0, 0.0, 20.0, 20.0),
+        flags: ShapeFlag::empty(),
+        styles: ShapeStyles { fill_styles: vec![fill], line_styles: vec![] },
+        shape: rect_records(0.0, 0.0, 20.0, 20.0, Some(1)),
+    });
+    let mut scaled = place(1, PlaceObjectAction::Place(41), None);
+    scaled.matrix = Some(Matrix::scale(Fixed16::from_f32(4.0), Fixed16::from_f32(4.0)));
+    let mut tags = extra;
+    tags.push(shape);
+    tags.push(sprite(42, vec![tag(scaled), Tag::ShowFrame]));
+    tags.push(Tag::ExportAssets(vec![ExportedAsset { id: 42, name: SwfStr::from_utf8_str("peint") }]));
+    tags.push(Tag::ShowFrame);
+    let header = Header { compression: Compression::None, version: 8, stage_size: bounds(0.0, 0.0, 550.0, 400.0), frame_rate: Fixed8::from_f32(12.0), num_frames: 1 };
+    let mut out = Vec::new();
+    write_swf(&header, &tags, &mut out).expect("écriture du SWF de test");
+    std::fs::write(path, out).expect("SWF de test");
+}
+
+fn attribute(svg: &str, name: &str) -> String {
+    let start = svg.find(&format!("{}=\"", name)).unwrap_or_else(|| panic!("{} absent : {}", name, svg)) + name.len() + 2;
+    svg[start..start + svg[start..].find('"').unwrap()].to_string()
+}
+
+#[test]
+fn fill_matrices_are_not_scaled_twice() {
+    // Le tracé est dans <g transform="matrix(4 …)"> : le motif d'un bitmap et un dégradé
+    // s'expriment dans l'espace de la forme ; leur ajouter la pose du clip les réduisait encore
+    // de 4, d'où des motifs minuscules répétés sur la forme (fumées de l'épée de combat 3).
+    let w = Work::new("paint");
+    let mut argb = Vec::new();
+    for _ in 0..4 {
+        argb.extend_from_slice(&[255, 200, 40, 40]);
+    }
+    let mut zlib = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+    std::io::Write::write_all(&mut zlib, &argb).unwrap();
+    let data = std::borrow::Cow::Owned(zlib.finish().unwrap());
+    let bitmap = Tag::DefineBitsLossless(DefineBitsLossless { version: 2, id: 40, format: BitmapFormat::Rgb32, width: 2, height: 2, data });
+    // Un pixel du bitmap couvre 10 pixels de la forme (matrice d'un remplissage bitmap : 20 × 10).
+    let fill = FillStyle::Bitmap { id: 40, matrix: Matrix::scale(Fixed16::from_f32(200.0), Fixed16::from_f32(200.0)), is_smoothed: false, is_repeating: false };
+    let swf = w.dir.join("bitmap.swf").to_string_lossy().to_string();
+    write_paint_swf(Path::new(&swf), fill, vec![bitmap]);
+    ok(&[&swf, &w.out(), "peint"]);
+    let svg = w.read("peint.svg");
+    assert!(svg.contains("<g transform=\"matrix(4 0 0 4 0 0)\""), "pose du clip absente : {}", svg);
+    assert_eq!(attribute(&svg, "patternTransform"), "matrix(10 0 0 10 0 0)");
+    assert_eq!(view_box(&svg), "0 0 80 80");
+
+    let gradient = FillStyle::LinearGradient(Gradient {
+        matrix: Matrix::scale(Fixed16::from_f32(0.5), Fixed16::from_f32(0.5)),
+        spread: GradientSpread::Pad,
+        interpolation: GradientInterpolation::Rgb,
+        records: vec![GradientRecord { ratio: 0, color: Color { r: 0, g: 0, b: 0, a: 255 } }, GradientRecord { ratio: 255, color: Color { r: 255, g: 255, b: 255, a: 255 } }],
+    });
+    let swf = w.dir.join("degrade.swf").to_string_lossy().to_string();
+    write_paint_swf(Path::new(&swf), gradient, vec![]);
+    ok(&[&swf, &w.out(), "peint"]);
+    assert_eq!(attribute(&w.read("peint.svg"), "gradientTransform"), "matrix(0.5 0 0 0.5 0 0)");
+}
+
+/// Un dégradé est exprimé dans le repère de sa forme : le `<g transform>` de la forme le place
+/// déjà, sa matrice ne doit pas être composée une seconde fois avec celle du placement (les icônes
+/// d'objets réduites à 5 % du client donnaient des dégradés de 0,1 pixel que cairo refusait).
+#[test]
+fn gradient_fills_stay_in_shape_space() {
+    let w = Work::new("gradient");
+    let gradient = Gradient {
+        matrix: Matrix::scale(Fixed16::from_f64(0.015625), Fixed16::from_f64(0.015625)),
+        spread: GradientSpread::Pad,
+        interpolation: GradientInterpolation::Rgb,
+        records: vec![
+            GradientRecord { ratio: 0, color: Color { r: 255, g: 0, b: 0, a: 255 } },
+            GradientRecord { ratio: 255, color: Color { r: 0, g: 0, b: 255, a: 255 } },
+        ],
+    };
+    let shape = Tag::DefineShape(Shape {
+        version: 1,
+        id: 1,
+        shape_bounds: bounds(0.0, 0.0, 20.0, 20.0),
+        edge_bounds: bounds(0.0, 0.0, 20.0, 20.0),
+        flags: ShapeFlag::empty(),
+        styles: ShapeStyles { fill_styles: vec![FillStyle::LinearGradient(gradient)], line_styles: vec![] },
+        shape: rect_records(0.0, 0.0, 20.0, 20.0, Some(1)),
+    });
+    // Lame dégénérée (matrice de 1/65 536 sur un axe, nulle sur l'autre) : une seule couleur.
+    let mut flat = match &shape {
+        Tag::DefineShape(s) => s.clone(),
+        _ => unreachable!(),
+    };
+    flat.id = 3;
+    if let FillStyle::LinearGradient(g) = &mut flat.styles.fill_styles[0] {
+        g.matrix = Matrix::scale(Fixed16::from_f64(1.0 / 65536.0), Fixed16::ZERO);
+    }
+    let mut half = place(1, PlaceObjectAction::Place(1), None);
+    half.matrix = Some(Matrix::scale(Fixed16::from_f64(0.5), Fixed16::from_f64(0.5)));
+    let tags = vec![
+        shape,
+        sprite(2, vec![tag(half), Tag::ShowFrame]),
+        Tag::DefineShape(flat),
+        sprite(4, vec![tag(place(1, PlaceObjectAction::Place(3), None)), Tag::ShowFrame]),
+        Tag::ExportAssets(vec![
+            ExportedAsset { id: 2, name: SwfStr::from_utf8_str("degrade") },
+            ExportedAsset { id: 4, name: SwfStr::from_utf8_str("lame") },
+        ]),
+        Tag::ShowFrame,
+    ];
+    let header = Header { compression: Compression::None, version: 8, stage_size: bounds(0.0, 0.0, 550.0, 400.0), frame_rate: Fixed8::from_f32(12.0), num_frames: 1 };
+    let mut out = Vec::new();
+    write_swf(&header, &tags, &mut out).expect("écriture du SWF de test");
+    let swf = w.dir.join("degrade.swf");
+    std::fs::write(&swf, out).unwrap();
+    ok(&[&swf.to_string_lossy(), &w.out()]);
+    let svg = w.read("degrade.svg");
+    assert!(svg.contains("gradientTransform=\"matrix(0.015625 0 0 0.015625 0 0)\""), "dégradé recomposé avec le placement : {}", svg);
+    assert!(svg.contains("<g transform=\"matrix(0.5 0 0 0.5 0 0)\""), "placement de la forme absent : {}", svg);
+    assert_eq!(view_box(&svg), "0 0 10 10");
+    let flat = w.read("lame.svg");
+    assert!(!flat.contains("Gradient") && flat.contains("fill=\"#0000ff\""), "dégradé dégénéré non remplacé par une couleur : {}", flat);
+}
+
+/// Aplats magenta : omis seuls (emplacement recoloré par le client), gardés sous une
+/// transformation de couleur du SWF qui remplace la teinte (multiplicateurs RGB nuls, comme
+/// `Color.setRGB`) : c'est le cas du cœur des points de vie du bandeau.
+#[test]
+fn magenta_fills_are_kept_under_a_replacing_tint() {
+    let w = Work::new("tint");
+    let mut tinted = place(1, PlaceObjectAction::Place(1), Some((0.0, 0.0)));
+    tinted.color_transform = Some(ColorTransform {
+        r_multiply: Fixed8::ZERO,
+        g_multiply: Fixed8::ZERO,
+        b_multiply: Fixed8::ZERO,
+        a_multiply: Fixed8::ONE,
+        r_add: 0,
+        g_add: 128,
+        b_add: 0,
+        a_add: 0,
+    });
+    let tags = vec![
+        rect(1, 10.0, 10.0, 255, 0, 255),
+        sprite(2, vec![tag(tinted), Tag::ShowFrame]),
+        sprite(3, vec![tag(place(1, PlaceObjectAction::Place(1), Some((0.0, 0.0)))), Tag::ShowFrame]),
+        Tag::ExportAssets(vec![
+            ExportedAsset { id: 2, name: SwfStr::from_utf8_str("teinte") },
+            ExportedAsset { id: 3, name: SwfStr::from_utf8_str("emplacement") },
+        ]),
+        Tag::ShowFrame,
+    ];
+    let header = Header { compression: Compression::None, version: 8, stage_size: bounds(0.0, 0.0, 550.0, 400.0), frame_rate: Fixed8::from_f32(12.0), num_frames: 1 };
+    let mut out = Vec::new();
+    write_swf(&header, &tags, &mut out).expect("écriture du SWF de test");
+    let swf = w.dir.join("teinte.swf");
+    std::fs::write(&swf, out).unwrap();
+    ok(&[&swf.to_string_lossy(), &w.out()]);
+    let tinted = w.read("teinte.svg");
+    assert!(tinted.contains("#ff00ff") && tinted.contains("feColorMatrix"), "aplat teinté omis : {}", tinted);
+    assert!(!w.read("emplacement.svg").contains("#ff00ff"), "un emplacement magenta seul reste omis");
+}
+
+/// SWF des instances nommées : la scène (2 images) pose un rectangle rouge anonyme en (100, 50),
+/// l'enfant `rotate` (clip de 2 images : carré bleu en x = 0 puis x = 5) en (10, 20), et l'enfant
+/// `Fond` (carré noir 40×40) en (200, 0) sous un masque 10×10 anonyme.
+fn write_instances_swf(path: &Path) {
+    let mut rotate = place(2, PlaceObjectAction::Place(20), Some((10.0, 20.0)));
+    rotate.name = Some(SwfStr::from_utf8_str("rotate"));
+    let mut mask = place(3, PlaceObjectAction::Place(2), Some((200.0, 0.0)));
+    mask.clip_depth = Some(4);
+    let mut fond = place(4, PlaceObjectAction::Place(3), Some((200.0, 0.0)));
+    fond.name = Some(SwfStr::from_utf8_str("Fond"));
+    let tags = vec![
+        rect(1, 20.0, 10.0, 255, 0, 0),
+        rect(2, 10.0, 10.0, 0, 0, 255),
+        rect(3, 40.0, 40.0, 0, 0, 0),
+        sprite(
+            20,
+            vec![
+                tag(place(1, PlaceObjectAction::Place(2), Some((0.0, 0.0)))),
+                Tag::ShowFrame,
+                tag(place(1, PlaceObjectAction::Modify, Some((5.0, 0.0)))),
+                Tag::ShowFrame,
+            ],
+        ),
+        tag(place(1, PlaceObjectAction::Place(1), Some((100.0, 50.0)))),
+        tag(rotate),
+        tag(mask),
+        tag(fond),
+        Tag::ShowFrame,
+        Tag::ShowFrame,
+    ];
+    let header = Header { compression: Compression::None, version: 8, stage_size: bounds(0.0, 0.0, 550.0, 400.0), frame_rate: Fixed8::from_f32(12.0), num_frames: 2 };
+    let mut out = Vec::new();
+    write_swf(&header, &tags, &mut out).expect("écriture du SWF de test");
+    std::fs::write(path, out).expect("SWF de test");
+}
+
+#[test]
+fn instance_options_keep_or_drop_a_named_child() {
+    let w = Work::new("instances");
+    let swf = w.dir.join("instances.swf");
+    write_instances_swf(&swf);
+    let swf = swf.to_string_lossy().to_string();
+
+    // --instance : l'enfant seul, à sa place dans la scène et dans le temps de la scène.
+    ok(&["--scene", "--instance", "rotate", "--frame", "all", &swf, &w.out()]);
+    let index = w.index();
+    assert_eq!(index.len(), 2, "deux images de scène : {:?}", index);
+    assert_eq!(&row(&index, "instances", "1")[2..6], &["10", "20", "15", "10"], "cadre commun des deux images");
+    let first = w.read("instances_f001.svg");
+    assert!(first.contains("#0000ff") && !first.contains("#ff0000") && !first.contains("#000000"), "seul rotate : {}", first);
+    assert_ne!(first, w.read("instances_f002.svg"), "le clip rotate joue avec la scène");
+    // Le nom ne tient pas compte de la casse ; un masque suit l'enfant qu'il découpe.
+    ok(&["--scene", "--instance=fond", &swf, &w.out()]);
+    let fond = w.read("instances.svg");
+    assert!(fond.contains("<clipPath") && fond.contains("#000000") && !fond.contains("#0000ff"), "Fond sous son masque : {}", fond);
+    assert_eq!(view_box(&fond), "200 0 10 10");
+
+    // --sans-instance : tout sauf l'enfant.
+    ok(&["--scene", "--sans-instance", "ROTATE", &swf, &w.out()]);
+    let without = w.read("instances.svg");
+    assert!(without.contains("#ff0000") && without.contains("<clipPath") && !without.contains("#0000ff"), "sans rotate : {}", without);
+
+    // Un nom absent est signalé sans échec ; --instance et --sans-instance s'excluent.
+    let o = swfsvg(&["--scene", "--instance", "absent", &swf, &w.out()]);
+    assert!(o.status.success());
+    assert!(String::from_utf8_lossy(&o.stderr).contains("instance absent absente"), "{}", String::from_utf8_lossy(&o.stderr));
+    let o = swfsvg(&["--scene", "--sans-instance", "absent", &swf, &w.out()]);
+    assert!(o.status.success() && w.read("instances.svg").contains("#0000ff"));
+    assert_eq!(swfsvg(&["--scene", "--instance", "a", "--sans-instance", "b", &swf, &w.out()]).status.code(), Some(2));
+    assert_eq!(swfsvg(&["--list", "--instance", "rotate", &swf]).status.code(), Some(2));
+}
+
+/// Script `GAC.applyColor(<instance>, <zone>)` des sprites d'acteurs du client ; `extra` ajoute un
+/// troisième argument (forme du gfx 1108) et `minus` calcule la cible (`<instance> - 1`, forme du
+/// gfx 1523, que le client ne colore pas).
+fn apply_color(instance: &str, zone: i32, extra: bool, minus: bool) -> Vec<u8> {
+    let zone = format!("#{}", zone);
+    let mut code = if extra { push(&["#1", &zone, instance]) } else { push(&[&zone, instance]) };
+    code.push(0x1C); // GetVariable
+    if minus {
+        code.extend(push(&["#1"]));
+        code.push(0x0B); // Subtract
+    }
+    code.extend(push(&[if extra { "#3" } else { "#2" }, "GAC"]));
+    code.push(0x1C);
+    code.extend(push(&["applyColor"]));
+    code.extend([0x52, 0x17, 0x00]); // CallMethod, Pop, End
+    code
+}
+
+fn named(depth: u16, id: u16, at: (f64, f64), name: &'static str) -> Tag<'static> {
+    let mut p = place(depth, PlaceObjectAction::Place(id), Some(at));
+    p.name = Some(SwfStr::from_utf8_str(name));
+    tag(p)
+}
+
+/// SWF des zones de couleur : `staticR` pose `corps` (clip 60, zone 1) en (0, 0), `bras` (clip 61,
+/// zone 3, appel à trois arguments) en (10, 0), `queue` (cible calculée : aucune zone) en (20, 0)
+/// et une forme anonyme en (30, 0). `corps` contient une forme brune, un aplat magenta et l'enfant
+/// `oeil` que son propre script met en zone 2 : la zone 1 de son parent l'emporte. `bras` contient
+/// une forme semi-transparente (alpha 128).
+fn write_zones_swf(path: &Path) {
+    let translucent = Tag::DefineShape(Shape {
+        version: 3,
+        id: 3,
+        shape_bounds: bounds(0.0, 0.0, 10.0, 10.0),
+        edge_bounds: bounds(0.0, 0.0, 10.0, 10.0),
+        flags: ShapeFlag::empty(),
+        styles: ShapeStyles { fill_styles: vec![FillStyle::Color(Color { r: 10, g: 20, b: 30, a: 128 })], line_styles: vec![] },
+        shape: rect_records(0.0, 0.0, 10.0, 10.0, Some(1)),
+    });
+    let tags = vec![
+        rect(1, 10.0, 10.0, 200, 100, 50),
+        rect(2, 4.0, 4.0, 255, 0, 255),
+        translucent,
+        sprite(59, vec![tag(place(1, PlaceObjectAction::Place(1), Some((0.0, 0.0)))), Tag::ShowFrame]),
+        sprite(
+            60,
+            vec![
+                action(apply_color("oeil", 2, false, false)),
+                tag(place(1, PlaceObjectAction::Place(1), Some((0.0, 0.0)))),
+                tag(place(2, PlaceObjectAction::Place(2), Some((1.0, 1.0)))),
+                named(3, 59, (5.0, 5.0), "oeil"),
+                Tag::ShowFrame,
+            ],
+        ),
+        sprite(61, vec![tag(place(1, PlaceObjectAction::Place(3), Some((0.0, 0.0)))), Tag::ShowFrame]),
+        sprite(
+            62,
+            vec![
+                action(apply_color("corps", 1, false, false)),
+                action(apply_color("bras", 3, true, false)),
+                action(apply_color("queue", 2, false, true)),
+                named(1, 60, (0.0, 0.0), "corps"),
+                named(2, 61, (10.0, 0.0), "bras"),
+                named(3, 59, (20.0, 0.0), "queue"),
+                tag(place(4, PlaceObjectAction::Place(1), Some((30.0, 0.0)))),
+                Tag::ShowFrame,
+            ],
+        ),
+        Tag::ExportAssets(vec![ExportedAsset { id: 62, name: SwfStr::from_utf8_str("staticR") }]),
+        Tag::ShowFrame,
+    ];
+    let header = Header { compression: Compression::None, version: 8, stage_size: bounds(0.0, 0.0, 550.0, 400.0), frame_rate: Fixed8::from_f32(40.0), num_frames: 1 };
+    let mut out = Vec::new();
+    write_swf(&header, &tags, &mut out).expect("écriture du SWF de test");
+    std::fs::write(path, out).expect("SWF de test");
+}
+
+fn count(svg: &str, needle: &str) -> usize {
+    svg.matches(needle).count()
+}
+
+#[test]
+fn zones_paint_named_children_for_recolor_masks() {
+    let w = Work::new("zones");
+    let swf = w.dir.join("zones.swf").to_string_lossy().to_string();
+    write_zones_swf(Path::new(&swf));
+
+    // --zones-list : appels reconnus (clip, instance, zone) ; la cible calculée est ignorée.
+    let out = ok(&["--zones-list", &swf]);
+    assert_eq!(out, "clip\tinstance\tzone\n60\toeil\t2\n62\tcorps\t1\n62\tbras\t3\n", "{}", out);
+
+    // Sans --zones : les couleurs du SWF, l'aplat magenta omis comme avant.
+    ok(&[&swf, &w.out(), "staticR"]);
+    let plain = w.read("staticR.svg");
+    assert_eq!(count(&plain, "fill=\"#c86432\""), 4, "{}", plain);
+    assert!(!plain.contains("#ff0000") && !plain.contains("#ff00ff"), "{}", plain);
+
+    // --zones 123 : zone 1 en rouge (l'œil compris : la zone de son parent l'emporte), zone 3 en
+    // bleu avec l'alpha du SWF, le reste inchangé ; même géométrie et même cadre.
+    ok(&["--zones", "123", &swf, &w.out(), "staticR"]);
+    let painted = w.read("staticR.svg");
+    assert_eq!(count(&painted, "fill=\"#ff0000\""), 2, "corps et oeil : {}", painted);
+    assert!(!painted.contains("#00ff00"), "zone 2 de l'œil sous la zone 1 : {}", painted);
+    assert!(painted.contains("fill=\"#0000ff\" fill-opacity=\"0.502\""), "alpha de la zone 3 : {}", painted);
+    assert_eq!(count(&painted, "fill=\"#c86432\""), 2, "queue et forme anonyme : {}", painted);
+    assert_eq!(count(&painted, "<path"), count(&plain, "<path"));
+    assert_eq!(view_box(&painted), view_box(&plain));
+
+    // --zones aucune : zones en noir ; --zones 1 : zone 1 seule peinte, zone 3 en noir.
+    ok(&["--zones", "aucune", &swf, &w.out(), "staticR"]);
+    let black = w.read("staticR.svg");
+    assert_eq!(count(&black, "fill=\"#000000\""), 3, "{}", black);
+    assert!(!black.contains("#ff0000") && !black.contains("#0000ff"));
+    ok(&["--zones=1", &swf, &w.out(), "staticR"]);
+    let one = w.read("staticR.svg");
+    assert_eq!((count(&one, "fill=\"#ff0000\""), count(&one, "fill=\"#000000\"")), (2, 1), "{}", one);
+
+    // Options invalides.
+    for args in [vec!["--zones", "4", &swf, "out"], vec!["--zones", "11", &swf, "out"], vec!["--zones", "", &swf, "out"], vec!["--list", "--zones", "1", &swf], vec!["--zones-list", &swf, "out"], vec!["--zones-list", "--list", &swf]] {
+        assert_eq!(swfsvg(&args).status.code(), Some(2), "{:?}", args);
+    }
+}
+
+/// SWF des durées : `hitR` (une image) contient un clip de 5 images terminé par
+/// `applyAnim(this, "static")` qui contient lui-même un clip de 12 images qui boucle ; `walkR`, un
+/// cycle de 4 images qui boucle avec le même clip de 12 images ; `coupeR`, un clip de 8 images
+/// dont l'image 7 renvoie au repos ; `effetR`, un cycle de 5 images dont l'enfant, créé à la
+/// deuxième, retire son parent par `removeMovieClip` à sa troisième image ; `repriseR`, le même
+/// enfant dans un cycle de 3 images, qui le recrée à chaque tour avant sa troisième image.
+fn write_durations_swf(path: &Path) {
+    let mut long = vec![tag(place(1, PlaceObjectAction::Place(1), None))];
+    for k in 0..12 {
+        long.push(tag(place(1, PlaceObjectAction::Modify, Some((k as f64, 0.0)))));
+        long.push(Tag::ShowFrame);
+    }
+    let mut hit = vec![tag(place(1, PlaceObjectAction::Place(70), None))];
+    for k in 0..5 {
+        if k == 4 {
+            hit.push(action(apply_anim("static")));
+        }
+        hit.push(Tag::ShowFrame);
+    }
+    let mut walk = vec![tag(place(1, PlaceObjectAction::Place(70), None))];
+    walk.extend((0..4).map(|_| Tag::ShowFrame));
+    // frames(8) : PlaceObject puis 8 ShowFrame ; le script se place avant le 7e ShowFrame.
+    let mut cut = frames(8, None);
+    cut.insert(7, action(apply_anim("staticR")));
+    let mut remove = push(&["#0", "_parent"]);
+    remove.push(0x1C);
+    remove.extend(push(&["removeMovieClip"]));
+    remove.extend([0x52, 0x17, 0x00]);
+    let tags = vec![
+        rect(1, 10.0, 10.0, 255, 0, 0),
+        sprite(70, long),
+        sprite(71, hit),
+        sprite(72, vec![tag(place(1, PlaceObjectAction::Place(71), None)), Tag::ShowFrame]),
+        sprite(73, walk),
+        sprite(74, vec![tag(place(1, PlaceObjectAction::Place(73), None)), Tag::ShowFrame]),
+        sprite(75, cut),
+        sprite(76, frames(3, Some(remove))),
+        sprite(77, vec![Tag::ShowFrame, tag(place(1, PlaceObjectAction::Place(76), None)), Tag::ShowFrame, Tag::ShowFrame, Tag::ShowFrame, Tag::ShowFrame]),
+        sprite(78, vec![tag(place(1, PlaceObjectAction::Place(77), None)), Tag::ShowFrame]),
+        sprite(79, vec![Tag::ShowFrame, tag(place(1, PlaceObjectAction::Place(76), None)), Tag::ShowFrame, Tag::ShowFrame]),
+        sprite(80, vec![tag(place(1, PlaceObjectAction::Place(79), None)), Tag::ShowFrame]),
+        Tag::ExportAssets(vec![
+            ExportedAsset { id: 72, name: SwfStr::from_utf8_str("hitR") },
+            ExportedAsset { id: 74, name: SwfStr::from_utf8_str("walkR") },
+            ExportedAsset { id: 75, name: SwfStr::from_utf8_str("coupeR") },
+            ExportedAsset { id: 78, name: SwfStr::from_utf8_str("effetR") },
+            ExportedAsset { id: 80, name: SwfStr::from_utf8_str("repriseR") },
+        ]),
+        Tag::ShowFrame,
+    ];
+    let header = Header { compression: Compression::None, version: 8, stage_size: bounds(0.0, 0.0, 550.0, 400.0), frame_rate: Fixed8::from_f32(40.0), num_frames: 1 };
+    let mut out = Vec::new();
+    write_swf(&header, &tags, &mut out).expect("écriture du SWF de test");
+    std::fs::write(path, out).expect("SWF de test");
+}
+
+#[test]
+fn nested_looping_clips_do_not_lengthen_an_animation() {
+    // Défaut de la 0.2.4 : la durée venait du clip imbriqué le plus long (12 images qui bouclent),
+    // d'où des coups reçus de 116 à 175 images au lieu de quelques dizaines (gfx 1003 à 1009).
+    let w = Work::new("durations");
+    let swf = w.dir.join("durees.swf").to_string_lossy().to_string();
+    write_durations_swf(Path::new(&swf));
+    let out = ok(&["--list", &swf]);
+    let rows: Vec<Vec<&str>> = out.lines().map(|l| l.split('\t').collect()).collect();
+    let find = |n: &str| rows.iter().find(|r| r[0] == n).unwrap_or_else(|| panic!("{} absent : {}", n, out)).clone();
+    assert_eq!(find("hitR")[3..], ["5", "1", "static"], "le clip de la famille fixe la durée");
+    assert_eq!(find("walkR")[3..], ["4", "1", "boucle"], "un cycle qui boucle dure ses propres images");
+    assert_eq!(find("coupeR")[3..], ["7", "8", "static"], "le retour au repos de l'image 7 termine");
+    assert_eq!(find("effetR")[3..], ["4", "1", "static"], "enfant créé à l'image 2, parent retiré à sa 3e image");
+    assert_eq!(find("repriseR")[3..], ["3", "1", "boucle"], "l'enfant recréé à chaque tour n'arrive jamais à son script");
+    // --frame all suit la même durée.
+    ok(&["--frame", "all", &swf, &w.out(), "hitR"]);
+    assert_eq!(w.index().len(), 5);
+}

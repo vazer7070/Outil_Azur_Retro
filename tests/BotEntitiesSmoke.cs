@@ -55,6 +55,8 @@ internal static class BotEntitiesSmoke
         int offset = 0; while (offset < bytes.Length) offset += socket.Send(bytes, offset, bytes.Length - offset, SocketFlags.None);
     }
 
+    // Le bot termine chaque paquet par « \n\0 », la trame qu'attend StarLoco (docs/STARLOCO_SOURCES_ANALYSE.md) :
+    // le « \n » est exigé puis retiré avant la comparaison.
     private static string Read(Socket socket)
     {
         using (var data = new MemoryStream())
@@ -62,7 +64,12 @@ internal static class BotEntitiesSmoke
             byte[] one = new byte[1];
             while (socket.Receive(one) != 0)
             {
-                if (one[0] == 0) return Encoding.UTF8.GetString(data.ToArray());
+                if (one[0] == 0)
+                {
+                    string packet = Encoding.UTF8.GetString(data.ToArray());
+                    Check(packet.EndsWith("\n", StringComparison.Ordinal), "Bot packet is not terminated by \\n\\0: " + packet);
+                    return packet.Substring(0, packet.Length - 1);
+                }
                 data.WriteByte(one[0]);
             }
             throw new Exception("Loopback peer closed before a full packet");
@@ -87,6 +94,7 @@ internal static class BotEntitiesSmoke
 
     private static Bitmap Render(UserMapControl view, string file)
     {
+        view.WaitForActorSprites(5000); // PNG lus hors du fil de l'interface (lot M1)
         var bitmap = new Bitmap(view.Width, view.Height);
         using (Graphics graphics = Graphics.FromImage(bitmap)) view.DrawCells(graphics);
         bitmap.Save(Path.Combine(TestPaths.Work, file + ".png"), ImageFormat.Png);
@@ -163,7 +171,7 @@ internal static class BotEntitiesSmoke
                         Until(() => view.GetActorVisualState(42).IsMoving, "visual movement start");
                         List<Cell> path = account.Game.Manager.Mouvements.ActualPath.ToList();
                         int duration = PathfinderUtils.GetTimeOnMap(path[0], path);
-                        PointF destination = new PointF((source.X + 26.5f), source.Y + 13.25f);
+                        PointF destination = new PointF(source.X + BotMapArtwork.CellWidth / 2, source.Y + BotMapArtwork.CellHeight / 2);
                         clock = duration / 2.0;
                         using (Bitmap middle = Render(view, "bot-acteurs-mouvement"))
                         {
@@ -197,6 +205,7 @@ internal static class BotEntitiesSmoke
                         Check(account.Game.character.Cell.CellID == 6, "Rejected movement changed the authoritative cell");
                         Send(peer, "GM|~10;4;0;-8;100;-4;1001^125x80;0|+15;2;0;44;Visuel absent;1;999999^100;0");
                         Until(() => account.Game.Map.Entites.ContainsKey(44) && ((PNJ)account.Game.Map.Entites[-8]).Orientation == 4, "GM visual update");
+                        view.WaitForActorSprites(5000);
                         var missing = view.GetActorVisualState(44);
                         Check(!missing.HasSprite && missing.SpriteReason.Contains("999999") && view.ArtworkStatus.Contains("999999"),
                             "Missing actor graphic has no explicit diagnostic reason");

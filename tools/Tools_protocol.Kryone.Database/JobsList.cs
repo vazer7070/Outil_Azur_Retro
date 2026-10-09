@@ -3,9 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Runtime.CompilerServices;
-using Tools_protocol.Json;
+using Tools_protocol.Emulators;
 using Tools_protocol.Query;
 
 namespace Tools_protocol.Kryone.Database
@@ -44,11 +43,12 @@ namespace Tools_protocol.Kryone.Database
 			set;
 		}
 
+		/// <summary>Table des métiers selon le profil d'émulateur courant.</summary>
 		public static string TableJobs
 		{
 			get
 			{
-				return JsonManager.SearchAuth("metiers");
+				return EmulatorRegistry.Current.Table("metiers");
 			}
 		}
 
@@ -73,7 +73,7 @@ namespace Tools_protocol.Kryone.Database
 		{
 			string[] args = new string[] { "*" };
 			string query = QueryBuilder.SelectFromQuery(args, TableJobs, "", "");
-			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
+			using (MySqlConnection connection = new MySqlConnection(EmulatorRegistry.ConnectionFor("metiers")))
 			{
 				try
 				{
@@ -99,13 +99,12 @@ namespace Tools_protocol.Kryone.Database
 			string cachedName = AllJobs.FirstOrDefault(job => job.ID == jobId)?.Name;
 			if (!string.IsNullOrWhiteSpace(cachedName)) return cachedName;
 			string table = TableJobs;
-			if (!string.IsNullOrWhiteSpace(DatabaseManager.ConnectionString) &&
-				!string.IsNullOrWhiteSpace(table) &&
-				Regex.IsMatch(table, @"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant))
+			string connectionString = EmulatorRegistry.ConnectionFor("metiers");
+			if (!string.IsNullOrWhiteSpace(connectionString) && QueryBuilder.IsIdentifier(table))
 			{
 				try
 				{
-					using (var connection = new MySqlConnection(DatabaseManager.ConnectionString))
+					using (var connection = new MySqlConnection(connectionString))
 					using (var command = new MySqlCommand($"SELECT `name` FROM `{table}` WHERE `id`=@id", connection))
 					{
 						command.Parameters.AddWithValue("@id", jobId);

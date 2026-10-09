@@ -1,0 +1,569 @@
+<?xml version='1.0' encoding='utf-8'?>
+<BotLang famille="shortcuts" langue="fr" version="228" source="shortcuts_fr_228.swf">
+<entree table="SST" id="1" d="Clavier français - France" i="1" />
+<entree table="SST" id="2" d="Clavier français - France (Linux)" i="2" />
+<entree table="SST" id="3" d="Clavier anglais - USA" i="3" />
+<entree table="SST" id="4" d="Clavier français - Canada" i="4" />
+<entree table="SST" id="6" d="Clavier anglais - Royaume-Uni" i="6" />
+<entree table="SST" id="7" d="Clavier français - Suisse" i="7" />
+<entree table="SST" id="8" d="Clavier français - France (Mac)" i="8" />
+<entree table="SST" id="9" d="Clavier allemand - Allemagne" i="9" />
+<entree table="SSC" id="1" d="Autres raccourcis" i="1" o="99" />
+<entree table="SSC" id="2" d="Discussion" i="2" o="1" />
+<entree table="SSC" id="3" d="Barre de raccourcis rapide" i="3" o="3" />
+<entree table="SSC" id="4" d="Interface" i="4" o="6" />
+<entree table="SSC" id="5" d="Menus" i="5" o="5" />
+<entree table="SSC" id="6" d="Combat" i="6" o="2" />
+<entree table="SSC" id="7" d="Combinaison de porte" i="7" o="7" />
+<entree table="SSC" id="8" d="Barre de raccourcis déplaçable" i="8" o="4" />
+<entree table="SH" id="ACCEPT_CURRENT_DIALOG" c="1" d="Valider la boite de dialogue actuelle." k="" s="true" />
+<entree table="SH" id="ALLOWSCALE" c="1" d="Activer / désactiver le redimensionnement de la zone de jeu." k="" s="true" />
+<entree table="SH" id="AUTOCOMPLETE" c="2" d="Compléter le nom d'un personnage" k="" s="false" />
+<entree table="SH" id="BUFF" c="4" d="Afficher / masquer les buffs et debuffs" k="" s="false" />
+<entree table="SH" id="CHARAC" c="5" d="Caractéristiques" k="" s="false" />
+<entree table="SH" id="CODE_CLEAR" c="7" d="Effacer le chiffre actuel" k="" s="false" />
+<entree table="SH" id="CODE_NEXT" c="7" d="Passer au code suivant" k="" s="false" />
+<entree table="SH" id="CODE_PREVIOUS" c="7" d="Passer au chiffre précédent" k="" s="false" />
+<entree table="SH" id="CONSOLE" c="5" d="Afficher / masquer la Console" k="" s="false" />
+<entree table="SH" id="COORDS" c="4" d="Affiche / masque les coordonnées de la carte" k="" s="false" />
+<entree table="SH" id="ESCAPE" c="1" d="Fermer l'interface ouverte" k="" s="true" />
+<entree table="SH" id="FRIENDS" c="5" d="Liste d'amis / ennemis" k="" s="false" />
+<entree table="SH" id="FULLSCREEN" c="1" d="Activer / désactiver le mode plein écran." k="" s="true" />
+<entree table="SH" id="GRID" c="4" d="Afficher / masquer la grille" k="" s="false" />
+<entree table="SH" id="GUILD" c="5" d="Guilde" k="" s="false" />
+<entree table="SH" id="GUILD_MESSAGE" c="2" d="Message sur le canal Guilde" k="" s="true" />
+<entree table="SH" id="HISTORY_DOWN" c="2" d="Message suivant dans l'historique" k="" s="false" />
+<entree table="SH" id="HISTORY_UP" c="2" d="Message précédent dans l'historique" k="" s="false" />
+<entree table="SH" id="INVENTORY" c="5" d="Inventaire" k="" s="false" />
+<entree table="SH" id="MAP" c="5" d="Carte du monde" k="" s="false" />
+<entree table="SH" id="MAXI" c="4" d="Maximiser la fenêtre de chat" k="" s="false" />
+<entree table="SH" id="MINI" c="4" d="Minimiser la fenêtre de chat" k="" s="false" />
+<entree table="SH" id="MOUNT" c="5" d="Monture" k="" s="false" />
+<entree table="SH" id="MOUNTING" c="1" d="Monter ou descendre de sa monture" k="" s="false" />
+<entree table="SH" id="MOVABLEBAR" c="4" d="Affiche / masque la barre de raccourci deplaçable" k="" s="false" />
+<entree table="SH" id="MOVABLEBAR_SH0" c="8" d="Sort ou objet utilisable case de raccourci 1" k="" s="false" />
+<entree table="SH" id="MOVABLEBAR_SH1" c="8" d="Sort ou objet utilisable case de raccourci 2" k="" s="false" />
+<entree table="SH" id="MOVABLEBAR_SH2" c="8" d="Sort ou objet utilisable case de raccourci 3" k="" s="false" />
+<entree table="SH" id="MOVABLEBAR_SH3" c="8" d="Sort ou objet utilisable case de raccourci 4" k="" s="false" />
+<entree table="SH" id="MOVABLEBAR_SH4" c="8" d="Sort ou objet utilisable case de raccourci 5" k="" s="false" />
+<entree table="SH" id="MOVABLEBAR_SH5" c="8" d="Sort ou objet utilisable case de raccourci 6" k="" s="false" />
+<entree table="SH" id="MOVABLEBAR_SH6" c="8" d="Sort ou objet utilisable case de raccourci 7" k="" s="false" />
+<entree table="SH" id="MOVABLEBAR_SH7" c="8" d="Sort ou objet utilisable case de raccourci 8" k="" s="false" />
+<entree table="SH" id="MOVABLEBAR_SH8" c="8" d="Sort ou objet utilisable case de raccourci 9" k="" s="false" />
+<entree table="SH" id="NEXTTURN" c="6" d="Passer son tour" k="" s="false" />
+<entree table="SH" id="QUESTS" c="5" d="Liste des quêtes" k="" s="false" />
+<entree table="SH" id="SEND_CHAT_MSG" c="2" d="Envoyer le message en cours" k="" s="true" />
+<entree table="SH" id="SH0" c="6" d="Attaquer au corps à corps" k="" s="false" />
+<entree table="SH" id="SH1" c="3" d="Sort ou objet utilisable case de raccourci 1" k="" s="false" />
+<entree table="SH" id="SH10" c="3" d="Sort ou objet utilisable case de raccourci C" k="" s="false" />
+<entree table="SH" id="SH11" c="3" d="Sort ou objet utilisable case de raccourci D" k="" s="false" />
+<entree table="SH" id="SH12" c="3" d="Sort ou objet utilisable case de raccourci E" k="" s="false" />
+<entree table="SH" id="SH13" c="3" d="Sort ou objet utilisable case de raccourci F" k="" s="false" />
+<entree table="SH" id="SH14" c="3" d="Sort ou objet utilisable case de raccourci G" k="" s="false" />
+<entree table="SH" id="SH2" c="3" d="Sort ou objet utilisable case de raccourci 2" k="" s="false" />
+<entree table="SH" id="SH3" c="3" d="Sort ou objet utilisable case de raccourci 3" k="" s="false" />
+<entree table="SH" id="SH4" c="3" d="Sort ou objet utilisable case de raccourci 4" k="" s="false" />
+<entree table="SH" id="SH5" c="3" d="Sort ou objet utilisable case de raccourci 5" k="" s="false" />
+<entree table="SH" id="SH6" c="3" d="Sort ou objet utilisable case de raccourci 6" k="" s="false" />
+<entree table="SH" id="SH7" c="3" d="Sort ou objet utilisable case de raccourci 7" k="" s="false" />
+<entree table="SH" id="SH8" c="3" d="Sort ou objet utilisable case de raccourci A" k="" s="false" />
+<entree table="SH" id="SH9" c="3" d="Sort ou objet utilisable case de raccourci B" k="" s="false" />
+<entree table="SH" id="SPELLS" c="5" d="Liste des sorts" k="" s="false" />
+<entree table="SH" id="SPRITEINFOS" c="4" d="Activer / désactiver les infos complémentaires sur un joueur en combat" k="" s="false" />
+<entree table="SH" id="STRINGCOURSE" c="4" d="Activer / désactiver l'illustration en début de tour" k="" s="false" />
+<entree table="SH" id="SWAP" c="3" d="Basculer entre les raccourcis rapides de sorts et objets" k="" s="false" />
+<entree table="SH" id="TEAM_MESSAGE" c="2" d="Message sur le canal Équipe" k="" s="true" />
+<entree table="SH" id="TOGGLE_FIGHT_INFOS" c="4" d="Affiche / masque les informations de combat dans le chat." k="" s="false" />
+<entree table="SH" id="TRANSPARENCY" c="4" d="Activer / désactiver la transparence des joueurs" k="" s="false" />
+<entree table="SH" id="WHISPER_HISTORY_DOWN" c="2" d="Correspondant suivant dans l'historique" k="" s="false" />
+<entree table="SH" id="WHISPER_HISTORY_UP" c="2" d="Correspondant précédent dans l'historique" k="" s="false" />
+<entree table="SSK" id="1|ACCEPT_CURRENT_DIALOG" c="0" d="ACCEPT_CURRENT_DIALOG" k="13" o="false" s="Entrée" />
+<entree table="SSK" id="1|ALLOWSCALE" c="1" d="ALLOWSCALE" k="83" o="false" s="Ctrl+S" />
+<entree table="SSK" id="1|AUTOCOMPLETE" c="1" d="AUTOCOMPLETE" k="39" o="false" s="Ctrl+Droite" />
+<entree table="SSK" id="1|BUFF" c="2" d="BUFF" k="109" o="true" s="Maj+-" />
+<entree table="SSK" id="1|CHARAC" c="0" d="CHARAC" k="67" o="true" s="c" />
+<entree table="SSK" id="1|CODE_CLEAR" c="0" c2="0" d="CODE_CLEAR" k="32" k2="46" o="true" o2="true" s="Espace" s2="Suppr" />
+<entree table="SSK" id="1|CODE_NEXT" c="0" d="CODE_NEXT" k="39" o="true" s="Droite" />
+<entree table="SSK" id="1|CODE_PREVIOUS" c="0" d="CODE_PREVIOUS" k="37" o="true" s="Gauche" />
+<entree table="SSK" id="1|CONSOLE" c="1" d="CONSOLE" k="222" o="false" s="Ctrl+²" />
+<entree table="SSK" id="1|COORDS" c="2" d="COORDS" k="52" o="true" s="Maj+'" />
+<entree table="SSK" id="1|ESCAPE" c="0" d="ESCAPE" k="27" o="false" s="Échap." />
+<entree table="SSK" id="1|FRIENDS" c="0" d="FRIENDS" k="70" o="true" s="f" />
+<entree table="SSK" id="1|FULLSCREEN" c="1" d="FULLSCREEN" k="70" o="false" s="Ctrl+F" />
+<entree table="SSK" id="1|GRID" c="2" d="GRID" k="49" o="true" s="Maj+&amp;" />
+<entree table="SSK" id="1|GUILD" c="0" d="GUILD" k="71" o="true" s="g" />
+<entree table="SSK" id="1|GUILD_MESSAGE" c="1" d="GUILD_MESSAGE" k="13" o="false" s="Ctrl+Entrée" />
+<entree table="SSK" id="1|HISTORY_DOWN" c="0" d="HISTORY_DOWN" k="40" o="false" s="Bas" />
+<entree table="SSK" id="1|HISTORY_UP" c="0" d="HISTORY_UP" k="38" o="false" s="Haut" />
+<entree table="SSK" id="1|INVENTORY" c="0" d="INVENTORY" k="73" o="true" s="i" />
+<entree table="SSK" id="1|MAP" c="0" d="MAP" k="77" o="true" s="m" />
+<entree table="SSK" id="1|MAXI" c="0" d="MAXI" k="107" o="true" s="+" />
+<entree table="SSK" id="1|MINI" c="0" d="MINI" k="109" o="true" s="-" />
+<entree table="SSK" id="1|MOUNT" c="0" d="MOUNT" k="68" o="true" s="d" />
+<entree table="SSK" id="1|MOUNTING" c="2" d="MOUNTING" k="68" o="true" s="Maj+d" />
+<entree table="SSK" id="1|MOVABLEBAR" c="2" d="MOVABLEBAR" k="55" o="true" s="Maj+è" />
+<entree table="SSK" id="1|MOVABLEBAR_SH0" c="2" d="MOVABLEBAR_SH0" k="49" o="true" s="Maj+1" />
+<entree table="SSK" id="1|MOVABLEBAR_SH1" c="2" d="MOVABLEBAR_SH1" k="50" o="true" s="Maj+2" />
+<entree table="SSK" id="1|MOVABLEBAR_SH2" c="2" d="MOVABLEBAR_SH2" k="51" o="true" s="Maj+3" />
+<entree table="SSK" id="1|MOVABLEBAR_SH3" c="2" d="MOVABLEBAR_SH3" k="52" o="true" s="Maj+4" />
+<entree table="SSK" id="1|MOVABLEBAR_SH4" c="2" d="MOVABLEBAR_SH4" k="53" o="true" s="Maj+5" />
+<entree table="SSK" id="1|MOVABLEBAR_SH5" c="2" d="MOVABLEBAR_SH5" k="54" o="true" s="Maj+6" />
+<entree table="SSK" id="1|MOVABLEBAR_SH6" c="2" d="MOVABLEBAR_SH6" k="55" o="true" s="Maj+7" />
+<entree table="SSK" id="1|MOVABLEBAR_SH7" c="2" d="MOVABLEBAR_SH7" k="56" o="true" s="Maj+8" />
+<entree table="SSK" id="1|MOVABLEBAR_SH8" c="2" d="MOVABLEBAR_SH8" k="57" o="true" s="Maj+9" />
+<entree table="SSK" id="1|NEXTTURN" c="1" d="NEXTTURN" k="35" o="false" s="Ctrl+Fin" />
+<entree table="SSK" id="1|QUESTS" c="0" d="QUESTS" k="81" o="true" s="q" />
+<entree table="SSK" id="1|SEND_CHAT" c="0" d="SEND_CHAT" k="13" o="true" s="Entrée" />
+<entree table="SSK" id="1|SEND_CHAT_MSG" c="0" d="SEND_CHAT_MSG" k="13" o="false" s="Entrée" />
+<entree table="SSK" id="1|SH0" c="0" d="SH0" k="222" o="true" s="²" />
+<entree table="SSK" id="1|SH1" c="0" d="SH1" k="49" o="true" s="&amp;" />
+<entree table="SSK" id="1|SH10" c="1" d="SH10" k="51" o="true" s="Ctrl+&quot;" />
+<entree table="SSK" id="1|SH11" c="1" d="SH11" k="52" o="true" s="Ctrl+'" />
+<entree table="SSK" id="1|SH12" c="1" d="SH12" k="53" o="true" s="Ctrl+(" />
+<entree table="SSK" id="1|SH13" c="1" d="SH13" k="54" o="true" s="Ctrl+-" />
+<entree table="SSK" id="1|SH14" c="1" d="SH14" k="55" o="true" s="Ctrl+è" />
+<entree table="SSK" id="1|SH2" c="0" d="SH2" k="50" o="true" s="é" />
+<entree table="SSK" id="1|SH3" c="0" d="SH3" k="51" o="true" s="3" />
+<entree table="SSK" id="1|SH4" c="0" d="SH4" k="52" o="true" s="'" />
+<entree table="SSK" id="1|SH5" c="0" d="SH5" k="53" o="true" s="(" />
+<entree table="SSK" id="1|SH6" c="0" d="SH6" k="54" o="true" s="-" />
+<entree table="SSK" id="1|SH7" c="0" d="SH7" k="55" o="true" s="è" />
+<entree table="SSK" id="1|SH8" c="1" d="SH8" k="49" o="true" s="Ctrl+&amp;" />
+<entree table="SSK" id="1|SH9" c="1" d="SH9" k="50" o="true" s="Ctrl+é" />
+<entree table="SSK" id="1|SPELLS" c="0" d="SPELLS" k="83" o="true" s="s" />
+<entree table="SSK" id="1|SPRITEINFOS" c="2" d="SPRITEINFOS" k="51" o="true" s="Maj+&quot;" />
+<entree table="SSK" id="1|STRINGCOURSE" c="2" d="STRINGCOURSE" k="53" o="true" s="Maj+(" />
+<entree table="SSK" id="1|SWAP" c="0" d="SWAP" k="226" o="true" s="&lt;" />
+<entree table="SSK" id="1|TEAM_MESSAGE" c="2" d="TEAM_MESSAGE" k="13" o="false" s="Maj+Entrée" />
+<entree table="SSK" id="1|TOGGLE_FIGHT_INFOS" c="1" d="TOGGLE_FIGHT_INFOS" k="73" o="true" s="Ctrl+I" />
+<entree table="SSK" id="1|TRANSPARENCY" c="2" d="TRANSPARENCY" k="50" o="true" s="Maj+é" />
+<entree table="SSK" id="1|WHISPER_HISTORY_DOWN" c="2" c2="0" d="WHISPER_HISTORY_DOWN" k="40" k2="34" o="false" o2="false" s="Maj+Bas" s2="Page préc." />
+<entree table="SSK" id="1|WHISPER_HISTORY_UP" c="2" c2="0" d="WHISPER_HISTORY_UP" k="38" k2="33" o="false" o2="false" s="Maj+Haut" s2="Page suiv." />
+<entree table="SSK" id="2|ACCEPT_CURRENT_DIALOG" c="0" d="ACCEPT_CURRENT_DIALOG" k="13" o="false" s="Entrée" />
+<entree table="SSK" id="2|ALLOWSCALE" c="1" d="ALLOWSCALE" k="83" o="false" s="Ctrl+S" />
+<entree table="SSK" id="2|AUTOCOMPLETE" c="1" d="AUTOCOMPLETE" k="39" o="false" s="Ctrl+Droite" />
+<entree table="SSK" id="2|BUFF" c="2" d="BUFF" k="109" o="true" s="Maj+-" />
+<entree table="SSK" id="2|CHARAC" c="0" d="CHARAC" k="67" o="true" s="c" />
+<entree table="SSK" id="2|CODE_CLEAR" c="0" c2="0" d="CODE_CLEAR" k="32" k2="46" o="true" o2="true" s="Espace" s2="Suppr" />
+<entree table="SSK" id="2|CODE_NEXT" c="0" d="CODE_NEXT" k="39" o="true" s="Droite" />
+<entree table="SSK" id="2|CODE_PREVIOUS" c="0" d="CODE_PREVIOUS" k="37" o="true" s="Gauche" />
+<entree table="SSK" id="2|CONSOLE" c="1" d="CONSOLE" k="178" o="false" s="Ctrl+²" />
+<entree table="SSK" id="2|COORDS" c="2" d="COORDS" k="222" o="true" s="Maj+'" />
+<entree table="SSK" id="2|ESCAPE" c="0" d="ESCAPE" k="27" o="false" s="Échap." />
+<entree table="SSK" id="2|FRIENDS" c="0" d="FRIENDS" k="70" o="true" s="f" />
+<entree table="SSK" id="2|FULLSCREEN" c="1" d="FULLSCREEN" k="70" o="false" s="Ctrl+F" />
+<entree table="SSK" id="2|GRID" c="2" d="GRID" k="55" o="true" s="Maj+&amp;" />
+<entree table="SSK" id="2|GUILD" c="0" d="GUILD" k="71" o="true" s="g" />
+<entree table="SSK" id="2|GUILD_MESSAGE" c="1" d="GUILD_MESSAGE" k="13" o="false" s="Ctrl+Entrée" />
+<entree table="SSK" id="2|HISTORY_DOWN" c="0" d="HISTORY_DOWN" k="40" o="false" s="Bas" />
+<entree table="SSK" id="2|HISTORY_UP" c="0" d="HISTORY_UP" k="38" o="false" s="Haut" />
+<entree table="SSK" id="2|INVENTORY" c="0" d="INVENTORY" k="73" o="true" s="i" />
+<entree table="SSK" id="2|MAP" c="0" d="MAP" k="77" o="true" s="m" />
+<entree table="SSK" id="2|MAXI" c="0" d="MAXI" k="107" o="true" s="+" />
+<entree table="SSK" id="2|MINI" c="0" d="MINI" k="109" o="true" s="-" />
+<entree table="SSK" id="2|MOUNT" c="0" d="MOUNT" k="68" o="true" s="d" />
+<entree table="SSK" id="2|MOUNTING" c="2" d="MOUNTING" k="68" o="true" s="Maj+d" />
+<entree table="SSK" id="2|MOVABLEBAR" c="2" d="MOVABLEBAR" k="232" o="true" s="Maj+è" />
+<entree table="SSK" id="2|MOVABLEBAR_SH0" c="2" d="MOVABLEBAR_SH0" k="49" o="true" s="Maj+1" />
+<entree table="SSK" id="2|MOVABLEBAR_SH1" c="2" d="MOVABLEBAR_SH1" k="50" o="true" s="Maj+2" />
+<entree table="SSK" id="2|MOVABLEBAR_SH2" c="2" d="MOVABLEBAR_SH2" k="51" o="true" s="Maj+3" />
+<entree table="SSK" id="2|MOVABLEBAR_SH3" c="2" d="MOVABLEBAR_SH3" k="52" o="true" s="Maj+4" />
+<entree table="SSK" id="2|MOVABLEBAR_SH4" c="2" d="MOVABLEBAR_SH4" k="53" o="true" s="Maj+5" />
+<entree table="SSK" id="2|MOVABLEBAR_SH5" c="2" d="MOVABLEBAR_SH5" k="54" o="true" s="Maj+6" />
+<entree table="SSK" id="2|MOVABLEBAR_SH6" c="2" d="MOVABLEBAR_SH6" k="55" o="true" s="Maj+7" />
+<entree table="SSK" id="2|MOVABLEBAR_SH7" c="2" d="MOVABLEBAR_SH7" k="56" o="true" s="Maj+8" />
+<entree table="SSK" id="2|MOVABLEBAR_SH8" c="2" d="MOVABLEBAR_SH8" k="57" o="true" s="Maj+9" />
+<entree table="SSK" id="2|NEXTTURN" c="1" d="NEXTTURN" k="35" o="false" s="Ctrl+Fin" />
+<entree table="SSK" id="2|QUESTS" c="0" d="QUESTS" k="81" o="true" s="q" />
+<entree table="SSK" id="2|SEND_CHAT_MSG" c="0" d="SEND_CHAT_MSG" k="13" o="false" s="Entrée" />
+<entree table="SSK" id="2|SH0" c="0" d="SH0" k="178" o="true" s="²" />
+<entree table="SSK" id="2|SH1" c="0" d="SH1" k="112" o="true" s="F1" />
+<entree table="SSK" id="2|SH10" c="1" d="SH10" k="114" o="true" s="Maj+F3" />
+<entree table="SSK" id="2|SH11" c="1" d="SH11" k="115" o="true" s="Ctrl+F4" />
+<entree table="SSK" id="2|SH12" c="1" d="SH12" k="116" o="true" s="Ctrl+F5" />
+<entree table="SSK" id="2|SH13" c="1" d="SH13" k="116" o="true" s="Ctrl+F6" />
+<entree table="SSK" id="2|SH14" c="1" d="SH14" k="118" o="true" s="Ctrl+F7" />
+<entree table="SSK" id="2|SH2" c="0" d="SH2" k="113" o="true" s="F2" />
+<entree table="SSK" id="2|SH3" c="0" d="SH3" k="114" o="true" s="3" />
+<entree table="SSK" id="2|SH4" c="0" d="SH4" k="115" o="true" s="F4" />
+<entree table="SSK" id="2|SH5" c="0" d="SH5" k="116" o="true" s="F5" />
+<entree table="SSK" id="2|SH6" c="0" d="SH6" k="117" o="true" s="F6" />
+<entree table="SSK" id="2|SH7" c="0" d="SH7" k="118" o="true" s="F7" />
+<entree table="SSK" id="2|SH8" c="1" d="SH8" k="112" o="true" s="Ctrl+F1" />
+<entree table="SSK" id="2|SH9" c="1" d="SH9" k="113" o="true" s="Maj+F2" />
+<entree table="SSK" id="2|SPELLS" c="0" d="SPELLS" k="83" o="true" s="s" />
+<entree table="SSK" id="2|SPRITEINFOS" c="2" d="SPRITEINFOS" k="51" o="true" s="Maj+&quot;" />
+<entree table="SSK" id="2|STRINGCOURSE" c="2" d="STRINGCOURSE" k="53" o="true" s="Maj+(" />
+<entree table="SSK" id="2|SWAP" c="0" d="SWAP" k="190" o="true" s="&lt;" />
+<entree table="SSK" id="2|TEAM_MESSAGE" c="2" d="TEAM_MESSAGE" k="13" o="false" s="Maj+Entrée" />
+<entree table="SSK" id="2|TOGGLE_FIGHT_INFOS" c="1" d="TOGGLE_FIGHT_INFOS" k="73" o="true" s="Ctrl+I" />
+<entree table="SSK" id="2|TRANSPARENCY" c="2" d="TRANSPARENCY" k="84" o="true" s="Maj+é" />
+<entree table="SSK" id="2|WHISPER_HISTORY_DOWN" c="2" c2="0" d="WHISPER_HISTORY_DOWN" k="40" k2="34" o="false" o2="false" s="Maj+Bas" s2="Page suiv." />
+<entree table="SSK" id="2|WHISPER_HISTORY_UP" c="2" c2="0" d="WHISPER_HISTORY_UP" k="38" k2="33" o="false" o2="false" s="Maj+Haut" s2="Page préc." />
+<entree table="SSK" id="3|ACCEPT_CURRENT_DIALOG" c="0" d="ACCEPT_CURRENT_DIALOG" k="13" o="false" s="Entrée" />
+<entree table="SSK" id="3|ALLOWSCALE" c="1" d="ALLOWSCALE" k="83" o="false" s="Ctrl+S" />
+<entree table="SSK" id="3|AUTOCOMPLETE" c="1" d="AUTOCOMPLETE" k="39" o="false" s="Ctrl+Droite" />
+<entree table="SSK" id="3|BUFF" c="2" d="BUFF" k="54" o="true" s="Maj+^" />
+<entree table="SSK" id="3|CHARAC" c="0" d="CHARAC" k="67" o="true" s="c" />
+<entree table="SSK" id="3|CODE_CLEAR" c="0" c2="0" d="CODE_CLEAR" k="32" k2="46" o="true" o2="true" s="Espace" s2="Suppr" />
+<entree table="SSK" id="3|CODE_NEXT" c="0" d="CODE_NEXT" k="39" o="true" s="Droite" />
+<entree table="SSK" id="3|CODE_PREVIOUS" c="0" d="CODE_PREVIOUS" k="37" o="true" s="Gauche" />
+<entree table="SSK" id="3|CONSOLE" c="1" d="CONSOLE" k="192" o="false" s="Ctrl+`" />
+<entree table="SSK" id="3|COORDS" c="2" d="COORDS" k="55" o="true" s="Maj+&amp;" />
+<entree table="SSK" id="3|ESCAPE" c="0" d="ESCAPE" k="27" o="false" s="Échap." />
+<entree table="SSK" id="3|FRIENDS" c="0" d="FRIENDS" k="70" o="true" s="f" />
+<entree table="SSK" id="3|FULLSCREEN" c="1" d="FULLSCREEN" k="70" o="false" s="Ctrl+F" />
+<entree table="SSK" id="3|GRID" c="2" d="GRID" k="53" o="true" s="Maj+%" />
+<entree table="SSK" id="3|GUILD" c="0" d="GUILD" k="71" o="true" s="g" />
+<entree table="SSK" id="3|GUILD_MESSAGE" c="1" d="GUILD_MESSAGE" k="13" o="false" s="Ctrl+Entrée" />
+<entree table="SSK" id="3|HISTORY_DOWN" c="0" d="HISTORY_DOWN" k="40" o="false" s="Bas" />
+<entree table="SSK" id="3|HISTORY_UP" c="0" d="HISTORY_UP" k="38" o="false" s="Haut" />
+<entree table="SSK" id="3|INVENTORY" c="0" d="INVENTORY" k="73" o="true" s="i" />
+<entree table="SSK" id="3|MAP" c="0" d="MAP" k="77" o="true" s="m" />
+<entree table="SSK" id="3|MAXI" c="0" d="MAXI" k="107" o="true" s="+" />
+<entree table="SSK" id="3|MINI" c="0" d="MINI" k="109" o="true" s="-" />
+<entree table="SSK" id="3|MOUNT" c="0" d="MOUNT" k="68" o="true" s="d" />
+<entree table="SSK" id="3|MOUNTING" c="2" d="MOUNTING" k="68" o="true" s="Maj+d" />
+<entree table="SSK" id="3|MOVABLEBAR" c="2" d="MOVABLEBAR" k="52" o="true" s="Maj+$" />
+<entree table="SSK" id="3|MOVABLEBAR_SH0" c="2" d="MOVABLEBAR_SH0" k="49" o="true" s="Maj+1" />
+<entree table="SSK" id="3|MOVABLEBAR_SH1" c="2" d="MOVABLEBAR_SH1" k="50" o="true" s="Maj+2" />
+<entree table="SSK" id="3|MOVABLEBAR_SH2" c="2" d="MOVABLEBAR_SH2" k="51" o="true" s="Maj+3" />
+<entree table="SSK" id="3|MOVABLEBAR_SH3" c="2" d="MOVABLEBAR_SH3" k="52" o="true" s="Maj+4" />
+<entree table="SSK" id="3|MOVABLEBAR_SH4" c="2" d="MOVABLEBAR_SH4" k="53" o="true" s="Maj+5" />
+<entree table="SSK" id="3|MOVABLEBAR_SH5" c="2" d="MOVABLEBAR_SH5" k="54" o="true" s="Maj+6" />
+<entree table="SSK" id="3|MOVABLEBAR_SH6" c="2" d="MOVABLEBAR_SH6" k="55" o="true" s="Maj+7" />
+<entree table="SSK" id="3|MOVABLEBAR_SH7" c="2" d="MOVABLEBAR_SH7" k="56" o="true" s="Maj+8" />
+<entree table="SSK" id="3|MOVABLEBAR_SH8" c="2" d="MOVABLEBAR_SH8" k="57" o="true" s="Maj+9" />
+<entree table="SSK" id="3|NEXTTURN" c="1" d="NEXTTURN" k="35" o="false" s="Ctrl+Fin" />
+<entree table="SSK" id="3|QUESTS" c="0" d="QUESTS" k="81" o="true" s="q" />
+<entree table="SSK" id="3|SEND_CHAT_MSG" c="0" d="SEND_CHAT_MSG" k="13" o="false" s="Entrée" />
+<entree table="SSK" id="3|SH0" c="0" d="SH0" k="192" o="true" s="`" />
+<entree table="SSK" id="3|SH1" c="0" d="SH1" k="49" o="true" s="1" />
+<entree table="SSK" id="3|SH10" c="1" d="SH10" k="51" o="true" s="Ctrl+3" />
+<entree table="SSK" id="3|SH11" c="1" d="SH11" k="52" o="true" s="Ctrl+4" />
+<entree table="SSK" id="3|SH12" c="1" d="SH12" k="53" o="true" s="Ctrl+5" />
+<entree table="SSK" id="3|SH13" c="1" d="SH13" k="54" o="true" s="Ctrl+6" />
+<entree table="SSK" id="3|SH14" c="1" d="SH14" k="55" o="true" s="Ctrl+7" />
+<entree table="SSK" id="3|SH2" c="0" d="SH2" k="50" o="true" s="2" />
+<entree table="SSK" id="3|SH3" c="0" d="SH3" k="51" o="true" s="3" />
+<entree table="SSK" id="3|SH4" c="0" d="SH4" k="52" o="true" s="4" />
+<entree table="SSK" id="3|SH5" c="0" d="SH5" k="53" o="true" s="5" />
+<entree table="SSK" id="3|SH6" c="0" d="SH6" k="54" o="true" s="6" />
+<entree table="SSK" id="3|SH7" c="0" d="SH7" k="55" o="true" s="7" />
+<entree table="SSK" id="3|SH8" c="1" d="SH8" k="49" o="true" s="Ctrl+1" />
+<entree table="SSK" id="3|SH9" c="1" d="SH9" k="50" o="true" s="Ctrl+2" />
+<entree table="SSK" id="3|SPELLS" c="0" d="SPELLS" k="83" o="true" s="s" />
+<entree table="SSK" id="3|SPRITEINFOS" c="2" d="SPRITEINFOS" k="51" o="true" s="Maj+#" />
+<entree table="SSK" id="3|STRINGCOURSE" c="2" d="STRINGCOURSE" k="49" o="true" s="Maj+!" />
+<entree table="SSK" id="3|SWAP" c="0" d="SWAP" k="226" o="true" s="\" />
+<entree table="SSK" id="3|TEAM_MESSAGE" c="2" d="TEAM_MESSAGE" k="13" o="false" s="Maj+Entrée" />
+<entree table="SSK" id="3|TOGGLE_FIGHT_INFOS" c="1" d="TOGGLE_FIGHT_INFOS" k="73" o="true" s="Ctrl+I" />
+<entree table="SSK" id="3|TRANSPARENCY" c="2" d="TRANSPARENCY" k="50" o="true" s="Maj+@" />
+<entree table="SSK" id="3|WHISPER_HISTORY_DOWN" c="2" c2="0" d="WHISPER_HISTORY_DOWN" k="40" k2="34" o="false" o2="false" s="Maj+Bas" s2="Page préc." />
+<entree table="SSK" id="3|WHISPER_HISTORY_UP" c="2" c2="0" d="WHISPER_HISTORY_UP" k="38" k2="33" o="false" o2="false" s="Maj+Haut" s2="Page suiv." />
+<entree table="SSK" id="4|ACCEPT_CURRENT_DIALOG" c="0" d="ACCEPT_CURRENT_DIALOG" k="13" o="false" s="Entrée" />
+<entree table="SSK" id="4|ALLOWSCALE" c="1" d="ALLOWSCALE" k="83" o="false" s="Ctrl+S" />
+<entree table="SSK" id="4|AUTOCOMPLETE" c="1" d="AUTOCOMPLETE" k="39" o="false" s="Ctrl+Droite" />
+<entree table="SSK" id="4|BUFF" c="2" d="BUFF" k="54" o="true" s="Maj+?" />
+<entree table="SSK" id="4|CHARAC" c="0" d="CHARAC" k="67" o="true" s="c" />
+<entree table="SSK" id="4|CODE_CLEAR" c="0" c2="0" d="CODE_CLEAR" k="32" k2="46" o="true" o2="true" s="Espace" s2="Suppr" />
+<entree table="SSK" id="4|CODE_NEXT" c="0" d="CODE_NEXT" k="39" o="true" s="Droite" />
+<entree table="SSK" id="4|CODE_PREVIOUS" c="0" d="CODE_PREVIOUS" k="37" o="true" s="Gauche" />
+<entree table="SSK" id="4|CONSOLE" c="1" d="CONSOLE" k="222" o="false" s="Ctrl+/" />
+<entree table="SSK" id="4|COORDS" c="2" d="COORDS" k="55" o="true" s="Maj+&amp;" />
+<entree table="SSK" id="4|ESCAPE" c="0" d="ESCAPE" k="27" o="false" s="Échap." />
+<entree table="SSK" id="4|FRIENDS" c="0" d="FRIENDS" k="70" o="true" s="f" />
+<entree table="SSK" id="4|FULLSCREEN" c="1" d="FULLSCREEN" k="70" o="false" s="Ctrl+F" />
+<entree table="SSK" id="4|GRID" c="2" d="GRID" k="53" o="true" s="Maj+%" />
+<entree table="SSK" id="4|GUILD" c="0" d="GUILD" k="71" o="true" s="g" />
+<entree table="SSK" id="4|GUILD_MESSAGE" c="1" d="GUILD_MESSAGE" k="13" o="false" s="Ctrl+Entrée" />
+<entree table="SSK" id="4|HISTORY_DOWN" c="0" d="HISTORY_DOWN" k="40" o="false" s="Bas" />
+<entree table="SSK" id="4|HISTORY_UP" c="0" d="HISTORY_UP" k="38" o="false" s="Haut" />
+<entree table="SSK" id="4|INVENTORY" c="0" d="INVENTORY" k="73" o="true" s="i" />
+<entree table="SSK" id="4|MAP" c="0" d="MAP" k="77" o="true" s="m" />
+<entree table="SSK" id="4|MAXI" c="0" d="MAXI" k="107" o="true" s="+" />
+<entree table="SSK" id="4|MINI" c="0" d="MINI" k="109" o="true" s="-" />
+<entree table="SSK" id="4|MOUNT" c="0" d="MOUNT" k="68" o="true" s="d" />
+<entree table="SSK" id="4|MOUNTING" c="2" d="MOUNTING" k="68" o="true" s="Maj+d" />
+<entree table="SSK" id="4|MOVABLEBAR" c="2" d="MOVABLEBAR" k="52" o="true" s="Maj+$" />
+<entree table="SSK" id="4|MOVABLEBAR_SH0" c="2" d="MOVABLEBAR_SH0" k="49" o="true" s="Maj+1" />
+<entree table="SSK" id="4|MOVABLEBAR_SH1" c="2" d="MOVABLEBAR_SH1" k="50" o="true" s="Maj+2" />
+<entree table="SSK" id="4|MOVABLEBAR_SH2" c="2" d="MOVABLEBAR_SH2" k="51" o="true" s="Maj+3" />
+<entree table="SSK" id="4|MOVABLEBAR_SH3" c="2" d="MOVABLEBAR_SH3" k="52" o="true" s="Maj+4" />
+<entree table="SSK" id="4|MOVABLEBAR_SH4" c="2" d="MOVABLEBAR_SH4" k="53" o="true" s="Maj+5" />
+<entree table="SSK" id="4|MOVABLEBAR_SH5" c="2" d="MOVABLEBAR_SH5" k="54" o="true" s="Maj+6" />
+<entree table="SSK" id="4|MOVABLEBAR_SH6" c="2" d="MOVABLEBAR_SH6" k="55" o="true" s="Maj+7" />
+<entree table="SSK" id="4|MOVABLEBAR_SH7" c="2" d="MOVABLEBAR_SH7" k="56" o="true" s="Maj+8" />
+<entree table="SSK" id="4|MOVABLEBAR_SH8" c="2" d="MOVABLEBAR_SH8" k="57" o="true" s="Maj+9" />
+<entree table="SSK" id="4|NEXTTURN" c="1" d="NEXTTURN" k="35" o="false" s="Ctrl+Fin" />
+<entree table="SSK" id="4|QUESTS" c="0" d="QUESTS" k="81" o="true" s="q" />
+<entree table="SSK" id="4|SEND_CHAT_MSG" c="0" d="SEND_CHAT_MSG" k="13" o="false" s="Entrée" />
+<entree table="SSK" id="4|SH0" c="0" d="SH0" k="222" o="true" s="/" />
+<entree table="SSK" id="4|SH1" c="0" d="SH1" k="49" o="true" s="1" />
+<entree table="SSK" id="4|SH10" c="1" d="SH10" k="51" o="true" s="Ctrl+3" />
+<entree table="SSK" id="4|SH11" c="1" d="SH11" k="52" o="true" s="Ctrl+4" />
+<entree table="SSK" id="4|SH12" c="1" d="SH12" k="53" o="true" s="Ctrl+5" />
+<entree table="SSK" id="4|SH13" c="1" d="SH13" k="54" o="true" s="Ctrl+6" />
+<entree table="SSK" id="4|SH14" c="1" d="SH14" k="55" o="true" s="Ctrl+7" />
+<entree table="SSK" id="4|SH2" c="0" d="SH2" k="50" o="true" s="2" />
+<entree table="SSK" id="4|SH3" c="0" d="SH3" k="51" o="true" s="3" />
+<entree table="SSK" id="4|SH4" c="0" d="SH4" k="52" o="true" s="4" />
+<entree table="SSK" id="4|SH5" c="0" d="SH5" k="53" o="true" s="5" />
+<entree table="SSK" id="4|SH6" c="0" d="SH6" k="54" o="true" s="6" />
+<entree table="SSK" id="4|SH7" c="0" d="SH7" k="55" o="true" s="7" />
+<entree table="SSK" id="4|SH8" c="1" d="SH8" k="49" o="true" s="Ctrl+1" />
+<entree table="SSK" id="4|SH9" c="1" d="SH9" k="50" o="true" s="Ctrl+2" />
+<entree table="SSK" id="4|SPELLS" c="0" d="SPELLS" k="83" o="true" s="s" />
+<entree table="SSK" id="4|SPRITEINFOS" c="2" d="SPRITEINFOS" k="51" o="true" s="Maj+#" />
+<entree table="SSK" id="4|STRINGCOURSE" c="2" d="STRINGCOURSE" k="49" o="true" s="Maj+!" />
+<entree table="SSK" id="4|SWAP" c="0" d="SWAP" k="226" o="true" s="ù" />
+<entree table="SSK" id="4|TEAM_MESSAGE" c="2" d="TEAM_MESSAGE" k="13" o="false" s="Maj+Entrée" />
+<entree table="SSK" id="4|TOGGLE_FIGHT_INFOS" c="1" d="TOGGLE_FIGHT_INFOS" k="73" o="true" s="Ctrl+I" />
+<entree table="SSK" id="4|TRANSPARENCY" c="2" d="TRANSPARENCY" k="50" o="true" s="Maj+@" />
+<entree table="SSK" id="4|WHISPER_HISTORY_DOWN" c="2" c2="0" d="WHISPER_HISTORY_DOWN" k="40" k2="34" o="false" o2="false" s="Maj+Bas" s2="Page suiv." />
+<entree table="SSK" id="4|WHISPER_HISTORY_UP" c="2" c2="0" d="WHISPER_HISTORY_UP" k="38" k2="33" o="false" o2="false" s="Maj+Haut" s2="Page préc." />
+<entree table="SSK" id="6|ACCEPT_CURRENT_DIALOG" c="0" d="ACCEPT_CURRENT_DIALOG" k="13" o="false" s="Entrée" />
+<entree table="SSK" id="6|ALLOWSCALE" c="1" d="ALLOWSCALE" k="83" o="false" s="Ctrl+S" />
+<entree table="SSK" id="6|AUTOCOMPLETE" c="1" d="AUTOCOMPLETE" k="39" o="false" s="Ctrl+Droite" />
+<entree table="SSK" id="6|BUFF" c="2" d="BUFF" k="54" o="true" s="Maj+^" />
+<entree table="SSK" id="6|CHARAC" c="0" d="CHARAC" k="67" o="true" s="c" />
+<entree table="SSK" id="6|CODE_CLEAR" c="0" c2="0" d="CODE_CLEAR" k="32" k2="46" o="true" o2="true" s="Espace" s2="Suppr" />
+<entree table="SSK" id="6|CODE_NEXT" c="0" d="CODE_NEXT" k="39" o="true" s="Droite" />
+<entree table="SSK" id="6|CODE_PREVIOUS" c="0" d="CODE_PREVIOUS" k="37" o="true" s="Gauche" />
+<entree table="SSK" id="6|CONSOLE" c="1" d="CONSOLE" k="223" o="false" s="Ctrl+`" />
+<entree table="SSK" id="6|COORDS" c="2" d="COORDS" k="55" o="true" s="Maj+&amp;" />
+<entree table="SSK" id="6|ESCAPE" c="0" d="ESCAPE" k="27" o="false" s="Échap." />
+<entree table="SSK" id="6|FRIENDS" c="0" d="FRIENDS" k="70" o="true" s="f" />
+<entree table="SSK" id="6|FULLSCREEN" c="1" d="FULLSCREEN" k="70" o="false" s="Ctrl+F" />
+<entree table="SSK" id="6|GRID" c="2" d="GRID" k="53" o="true" s="Maj+%" />
+<entree table="SSK" id="6|GUILD" c="0" d="GUILD" k="71" o="true" s="g" />
+<entree table="SSK" id="6|GUILD_MESSAGE" c="1" d="GUILD_MESSAGE" k="13" o="false" s="Ctrl+Entrée" />
+<entree table="SSK" id="6|HISTORY_DOWN" c="0" d="HISTORY_DOWN" k="40" o="false" s="Bas" />
+<entree table="SSK" id="6|HISTORY_UP" c="0" d="HISTORY_UP" k="38" o="false" s="Haut" />
+<entree table="SSK" id="6|INVENTORY" c="0" d="INVENTORY" k="73" o="true" s="i" />
+<entree table="SSK" id="6|MAP" c="0" d="MAP" k="77" o="true" s="m" />
+<entree table="SSK" id="6|MAXI" c="0" d="MAXI" k="107" o="true" s="+" />
+<entree table="SSK" id="6|MINI" c="0" d="MINI" k="109" o="true" s="-" />
+<entree table="SSK" id="6|MOUNT" c="0" d="MOUNT" k="68" o="true" s="d" />
+<entree table="SSK" id="6|MOUNTING" c="2" d="MOUNTING" k="68" o="true" s="Maj+d" />
+<entree table="SSK" id="6|MOVABLEBAR" c="2" d="MOVABLEBAR" k="52" o="true" s="Maj+$" />
+<entree table="SSK" id="6|MOVABLEBAR_SH0" c="2" d="MOVABLEBAR_SH0" k="49" o="true" s="Maj+1" />
+<entree table="SSK" id="6|MOVABLEBAR_SH1" c="2" d="MOVABLEBAR_SH1" k="50" o="true" s="Maj+2" />
+<entree table="SSK" id="6|MOVABLEBAR_SH2" c="2" d="MOVABLEBAR_SH2" k="51" o="true" s="Maj+3" />
+<entree table="SSK" id="6|MOVABLEBAR_SH3" c="2" d="MOVABLEBAR_SH3" k="52" o="true" s="Maj+4" />
+<entree table="SSK" id="6|MOVABLEBAR_SH4" c="2" d="MOVABLEBAR_SH4" k="53" o="true" s="Maj+5" />
+<entree table="SSK" id="6|MOVABLEBAR_SH5" c="2" d="MOVABLEBAR_SH5" k="54" o="true" s="Maj+6" />
+<entree table="SSK" id="6|MOVABLEBAR_SH6" c="2" d="MOVABLEBAR_SH6" k="55" o="true" s="Maj+7" />
+<entree table="SSK" id="6|MOVABLEBAR_SH7" c="2" d="MOVABLEBAR_SH7" k="56" o="true" s="Maj+8" />
+<entree table="SSK" id="6|MOVABLEBAR_SH8" c="2" d="MOVABLEBAR_SH8" k="57" o="true" s="Maj+9" />
+<entree table="SSK" id="6|NEXTTURN" c="1" d="NEXTTURN" k="35" o="false" s="Ctrl+Fin" />
+<entree table="SSK" id="6|QUESTS" c="0" d="QUESTS" k="81" o="true" s="q" />
+<entree table="SSK" id="6|SEND_CHAT_MSG" c="0" d="SEND_CHAT_MSG" k="13" o="false" s="Entrée" />
+<entree table="SSK" id="6|SH0" c="0" d="SH0" k="223" o="true" s="`" />
+<entree table="SSK" id="6|SH1" c="0" d="SH1" k="49" o="true" s="1" />
+<entree table="SSK" id="6|SH10" c="1" d="SH10" k="51" o="true" s="Ctrl+3" />
+<entree table="SSK" id="6|SH11" c="1" d="SH11" k="52" o="true" s="Ctrl+4" />
+<entree table="SSK" id="6|SH12" c="1" d="SH12" k="53" o="true" s="Ctrl+5" />
+<entree table="SSK" id="6|SH13" c="1" d="SH13" k="54" o="true" s="Ctrl+6" />
+<entree table="SSK" id="6|SH14" c="1" d="SH14" k="55" o="true" s="Ctrl+7" />
+<entree table="SSK" id="6|SH2" c="0" d="SH2" k="50" o="true" s="2" />
+<entree table="SSK" id="6|SH3" c="0" d="SH3" k="51" o="true" s="3" />
+<entree table="SSK" id="6|SH4" c="0" d="SH4" k="52" o="true" s="4" />
+<entree table="SSK" id="6|SH5" c="0" d="SH5" k="53" o="true" s="5" />
+<entree table="SSK" id="6|SH6" c="0" d="SH6" k="54" o="true" s="6" />
+<entree table="SSK" id="6|SH7" c="0" d="SH7" k="55" o="true" s="7" />
+<entree table="SSK" id="6|SH8" c="1" d="SH8" k="49" o="true" s="Ctrl+1" />
+<entree table="SSK" id="6|SH9" c="1" d="SH9" k="50" o="true" s="Ctrl+2" />
+<entree table="SSK" id="6|SPELLS" c="0" d="SPELLS" k="83" o="true" s="s" />
+<entree table="SSK" id="6|SPRITEINFOS" c="2" d="SPRITEINFOS" k="51" o="true" s="Maj+£" />
+<entree table="SSK" id="6|STRINGCOURSE" c="2" d="STRINGCOURSE" k="49" o="true" s="Maj+!" />
+<entree table="SSK" id="6|SWAP" c="0" d="SWAP" k="220" o="true" s="\" />
+<entree table="SSK" id="6|TEAM_MESSAGE" c="2" d="TEAM_MESSAGE" k="13" o="false" s="Maj+Entrée" />
+<entree table="SSK" id="6|TOGGLE_FIGHT_INFOS" c="1" d="TOGGLE_FIGHT_INFOS" k="73" o="true" s="Ctrl+I" />
+<entree table="SSK" id="6|TRANSPARENCY" c="2" d="TRANSPARENCY" k="50" o="true" s="Maj+&quot;" />
+<entree table="SSK" id="6|WHISPER_HISTORY_DOWN" c="2" c2="0" d="WHISPER_HISTORY_DOWN" k="40" k2="34" o="false" o2="false" s="Maj+Bas" s2="Page suiv." />
+<entree table="SSK" id="6|WHISPER_HISTORY_UP" c="2" c2="0" d="WHISPER_HISTORY_UP" k="38" k2="33" o="false" o2="false" s="Maj+Haut" s2="Page préc." />
+<entree table="SSK" id="7|ACCEPT_CURRENT_DIALOG" c="0" d="ACCEPT_CURRENT_DIALOG" k="13" o="false" s="Entrée" />
+<entree table="SSK" id="7|ALLOWSCALE" c="1" d="ALLOWSCALE" k="83" o="false" s="Ctrl+S" />
+<entree table="SSK" id="7|AUTOCOMPLETE" c="1" d="AUTOCOMPLETE" k="39" o="false" s="Ctrl+Droite" />
+<entree table="SSK" id="7|BUFF" c="2" d="BUFF" k="54" o="true" s="Maj+6" />
+<entree table="SSK" id="7|CHARAC" c="0" d="CHARAC" k="67" o="true" s="c" />
+<entree table="SSK" id="7|CODE_CLEAR" c="0" c2="0" d="CODE_CLEAR" k="32" k2="46" o="true" o2="true" s="Espace" s2="Suppr" />
+<entree table="SSK" id="7|CODE_NEXT" c="0" d="CODE_NEXT" k="39" o="true" s="Droite" />
+<entree table="SSK" id="7|CODE_PREVIOUS" c="0" d="CODE_PREVIOUS" k="37" o="true" s="Gauche" />
+<entree table="SSK" id="7|CONSOLE" c="1" d="CONSOLE" k="191" o="false" s="Ctrl+§" />
+<entree table="SSK" id="7|COORDS" c="2" d="COORDS" k="55" o="true" s="Maj+7" />
+<entree table="SSK" id="7|ESCAPE" c="0" d="ESCAPE" k="27" o="false" s="Échap." />
+<entree table="SSK" id="7|FRIENDS" c="0" d="FRIENDS" k="70" o="true" s="f" />
+<entree table="SSK" id="7|FULLSCREEN" c="1" d="FULLSCREEN" k="70" o="false" s="Ctrl+F" />
+<entree table="SSK" id="7|GRID" c="2" d="GRID" k="53" o="true" s="Maj+5" />
+<entree table="SSK" id="7|GUILD" c="0" d="GUILD" k="71" o="true" s="g" />
+<entree table="SSK" id="7|GUILD_MESSAGE" c="1" d="GUILD_MESSAGE" k="13" o="false" s="Ctrl+Entrée" />
+<entree table="SSK" id="7|HISTORY_DOWN" c="0" d="HISTORY_DOWN" k="40" o="false" s="Bas" />
+<entree table="SSK" id="7|HISTORY_UP" c="0" d="HISTORY_UP" k="38" o="false" s="Haut" />
+<entree table="SSK" id="7|INVENTORY" c="0" d="INVENTORY" k="73" o="true" s="i" />
+<entree table="SSK" id="7|MAP" c="0" d="MAP" k="77" o="true" s="m" />
+<entree table="SSK" id="7|MAXI" c="0" d="MAXI" k="107" o="true" s="+" />
+<entree table="SSK" id="7|MINI" c="0" d="MINI" k="109" o="true" s="-" />
+<entree table="SSK" id="7|MOUNT" c="0" d="MOUNT" k="68" o="true" s="d" />
+<entree table="SSK" id="7|MOUNTING" c="2" d="MOUNTING" k="68" o="true" s="Maj+d" />
+<entree table="SSK" id="7|MOVABLEBAR" c="2" d="MOVABLEBAR" k="52" o="true" s="Maj+4" />
+<entree table="SSK" id="7|MOVABLEBAR_SH0" c="2" d="MOVABLEBAR_SH0" k="49" o="true" s="Maj+1" />
+<entree table="SSK" id="7|MOVABLEBAR_SH1" c="2" d="MOVABLEBAR_SH1" k="50" o="true" s="Maj+2" />
+<entree table="SSK" id="7|MOVABLEBAR_SH2" c="2" d="MOVABLEBAR_SH2" k="51" o="true" s="Maj+3" />
+<entree table="SSK" id="7|MOVABLEBAR_SH3" c="2" d="MOVABLEBAR_SH3" k="52" o="true" s="Maj+4" />
+<entree table="SSK" id="7|MOVABLEBAR_SH4" c="2" d="MOVABLEBAR_SH4" k="53" o="true" s="Maj+5" />
+<entree table="SSK" id="7|MOVABLEBAR_SH5" c="2" d="MOVABLEBAR_SH5" k="54" o="true" s="Maj+6" />
+<entree table="SSK" id="7|MOVABLEBAR_SH6" c="2" d="MOVABLEBAR_SH6" k="55" o="true" s="Maj+7" />
+<entree table="SSK" id="7|MOVABLEBAR_SH7" c="2" d="MOVABLEBAR_SH7" k="56" o="true" s="Maj+8" />
+<entree table="SSK" id="7|MOVABLEBAR_SH8" c="2" d="MOVABLEBAR_SH8" k="57" o="true" s="Maj+9" />
+<entree table="SSK" id="7|NEXTTURN" c="1" d="NEXTTURN" k="35" o="false" s="Ctrl+Fin" />
+<entree table="SSK" id="7|QUESTS" c="0" d="QUESTS" k="81" o="true" s="q" />
+<entree table="SSK" id="7|SEND_CHAT_MSG" c="0" d="SEND_CHAT_MSG" k="13" o="false" s="Entrée" />
+<entree table="SSK" id="7|SH0" c="0" d="SH0" k="191" o="true" s="§" />
+<entree table="SSK" id="7|SH1" c="0" d="SH1" k="49" o="true" s="1" />
+<entree table="SSK" id="7|SH10" c="1" d="SH10" k="51" o="true" s="Ctrl+3" />
+<entree table="SSK" id="7|SH11" c="1" d="SH11" k="52" o="true" s="Ctrl+4" />
+<entree table="SSK" id="7|SH12" c="1" d="SH12" k="53" o="true" s="Ctrl+5" />
+<entree table="SSK" id="7|SH13" c="1" d="SH13" k="54" o="true" s="Ctrl+6" />
+<entree table="SSK" id="7|SH14" c="1" d="SH14" k="55" o="true" s="Ctrl+7" />
+<entree table="SSK" id="7|SH2" c="0" d="SH2" k="50" o="true" s="2" />
+<entree table="SSK" id="7|SH3" c="0" d="SH3" k="51" o="true" s="3" />
+<entree table="SSK" id="7|SH4" c="0" d="SH4" k="52" o="true" s="4" />
+<entree table="SSK" id="7|SH5" c="0" d="SH5" k="53" o="true" s="5" />
+<entree table="SSK" id="7|SH6" c="0" d="SH6" k="54" o="true" s="6" />
+<entree table="SSK" id="7|SH7" c="0" d="SH7" k="55" o="true" s="7" />
+<entree table="SSK" id="7|SH8" c="1" d="SH8" k="49" o="true" s="Ctrl+1" />
+<entree table="SSK" id="7|SH9" c="1" d="SH9" k="50" o="true" s="Ctrl+2" />
+<entree table="SSK" id="7|SPELLS" c="0" d="SPELLS" k="83" o="true" s="s" />
+<entree table="SSK" id="7|SPRITEINFOS" c="2" d="SPRITEINFOS" k="51" o="true" s="Maj+3" />
+<entree table="SSK" id="7|STRINGCOURSE" c="2" d="STRINGCOURSE" k="49" o="true" s="Maj+1" />
+<entree table="SSK" id="7|SWAP" c="0" d="SWAP" k="226" o="true" s="&lt;" />
+<entree table="SSK" id="7|TEAM_MESSAGE" c="2" d="TEAM_MESSAGE" k="13" o="false" s="Maj+Entrée" />
+<entree table="SSK" id="7|TOGGLE_FIGHT_INFOS" c="1" d="TOGGLE_FIGHT_INFOS" k="73" o="true" s="Ctrl+I" />
+<entree table="SSK" id="7|TRANSPARENCY" c="2" d="TRANSPARENCY" k="50" o="true" s="Maj+2" />
+<entree table="SSK" id="7|WHISPER_HISTORY_DOWN" c="2" c2="0" d="WHISPER_HISTORY_DOWN" k="40" k2="34" o="false" o2="false" s="Maj+Bas" s2="Page suiv." />
+<entree table="SSK" id="7|WHISPER_HISTORY_UP" c="2" c2="0" d="WHISPER_HISTORY_UP" k="38" k2="33" o="false" o2="false" s="Maj+Haut" s2="Page préc." />
+<entree table="SSK" id="8|ACCEPT_CURRENT_DIALOG" c="0" d="ACCEPT_CURRENT_DIALOG" k="13" o="false" s="Entrée" />
+<entree table="SSK" id="8|ALLOWSCALE" c="1" d="ALLOWSCALE" k="83" o="false" s="Ctrl+S" />
+<entree table="SSK" id="8|AUTOCOMPLETE" c="1" d="AUTOCOMPLETE" k="39" o="false" s="Ctrl+Droite" />
+<entree table="SSK" id="8|BUFF" c="2" d="BUFF" k="54" o="true" s="Maj+-§" />
+<entree table="SSK" id="8|CHARAC" c="0" d="CHARAC" k="67" o="true" s="c" />
+<entree table="SSK" id="8|CODE_CLEAR" c="0" c2="0" d="CODE_CLEAR" k="32" k2="46" o="true" o2="true" s="Espace" s2="Suppr" />
+<entree table="SSK" id="8|CODE_NEXT" c="0" d="CODE_NEXT" k="39" o="true" s="Droite" />
+<entree table="SSK" id="8|CODE_PREVIOUS" c="0" d="CODE_PREVIOUS" k="37" o="true" s="Gauche" />
+<entree table="SSK" id="8|CONSOLE" c="1" d="CONSOLE" k="122" o="false" s="F1" />
+<entree table="SSK" id="8|COORDS" c="2" d="COORDS" k="55" o="true" s="Maj+è" />
+<entree table="SSK" id="8|ESCAPE" c="0" d="ESCAPE" k="27" o="false" s="Échap." />
+<entree table="SSK" id="8|FRIENDS" c="0" d="FRIENDS" k="70" o="true" s="f" />
+<entree table="SSK" id="8|FULLSCREEN" c="1" d="FULLSCREEN" k="70" o="false" s="Ctrl+F" />
+<entree table="SSK" id="8|GRID" c="2" d="GRID" k="53" o="true" s="Maj+(" />
+<entree table="SSK" id="8|GUILD" c="0" d="GUILD" k="71" o="true" s="g" />
+<entree table="SSK" id="8|GUILD_MESSAGE" c="1" d="GUILD_MESSAGE" k="13" o="false" s="Ctrl+Entrée" />
+<entree table="SSK" id="8|HISTORY_DOWN" c="0" d="HISTORY_DOWN" k="40" o="false" s="Bas" />
+<entree table="SSK" id="8|HISTORY_UP" c="0" d="HISTORY_UP" k="38" o="false" s="Haut" />
+<entree table="SSK" id="8|INVENTORY" c="0" d="INVENTORY" k="73" o="true" s="i" />
+<entree table="SSK" id="8|MAP" c="0" d="MAP" k="77" o="true" s="m" />
+<entree table="SSK" id="8|MAXI" c="0" d="MAXI" k="107" o="true" s="+" />
+<entree table="SSK" id="8|MINI" c="0" d="MINI" k="109" o="true" s="-" />
+<entree table="SSK" id="8|MOUNT" c="0" d="MOUNT" k="68" o="true" s="d" />
+<entree table="SSK" id="8|MOUNTING" c="2" d="MOUNTING" k="68" o="true" s="Maj+d" />
+<entree table="SSK" id="8|MOVABLEBAR" c="2" d="MOVABLEBAR" k="52" o="true" s="Maj+'" />
+<entree table="SSK" id="8|MOVABLEBAR_SH0" c="2" d="MOVABLEBAR_SH0" k="49" o="true" s="Maj+1" />
+<entree table="SSK" id="8|MOVABLEBAR_SH1" c="2" d="MOVABLEBAR_SH1" k="50" o="true" s="Maj+2" />
+<entree table="SSK" id="8|MOVABLEBAR_SH2" c="2" d="MOVABLEBAR_SH2" k="51" o="true" s="Maj+3" />
+<entree table="SSK" id="8|MOVABLEBAR_SH3" c="2" d="MOVABLEBAR_SH3" k="52" o="true" s="Maj+4" />
+<entree table="SSK" id="8|MOVABLEBAR_SH4" c="2" d="MOVABLEBAR_SH4" k="53" o="true" s="Maj+5" />
+<entree table="SSK" id="8|MOVABLEBAR_SH5" c="2" d="MOVABLEBAR_SH5" k="54" o="true" s="Maj+6" />
+<entree table="SSK" id="8|MOVABLEBAR_SH6" c="2" d="MOVABLEBAR_SH6" k="55" o="true" s="Maj+7" />
+<entree table="SSK" id="8|MOVABLEBAR_SH7" c="2" d="MOVABLEBAR_SH7" k="56" o="true" s="Maj+8" />
+<entree table="SSK" id="8|MOVABLEBAR_SH8" c="2" d="MOVABLEBAR_SH8" k="57" o="true" s="Maj+9" />
+<entree table="SSK" id="8|NEXTTURN" c="1" d="NEXTTURN" k="35" o="false" s="Ctrl+Fin" />
+<entree table="SSK" id="8|QUESTS" c="0" d="QUESTS" k="81" o="true" s="q" />
+<entree table="SSK" id="8|SEND_CHAT_MSG" c="0" d="SEND_CHAT_MSG" k="13" o="false" s="Entrée" />
+<entree table="SSK" id="8|SH0" c="0" d="SH0" k="50" o="true" s="@" />
+<entree table="SSK" id="8|SH1" c="0" d="SH1" k="49" o="true" s="&amp;" />
+<entree table="SSK" id="8|SH10" c="1" d="SH10" k="51" o="true" s="Ctrl+3" />
+<entree table="SSK" id="8|SH11" c="1" d="SH11" k="52" o="true" s="Ctrl+4" />
+<entree table="SSK" id="8|SH12" c="1" d="SH12" k="53" o="true" s="Ctrl+5" />
+<entree table="SSK" id="8|SH13" c="1" d="SH13" k="54" o="true" s="Ctrl+6" />
+<entree table="SSK" id="8|SH14" c="1" d="SH14" k="55" o="true" s="Ctrl+7" />
+<entree table="SSK" id="8|SH2" c="0" d="SH2" k="50" o="true" s="é" />
+<entree table="SSK" id="8|SH3" c="0" d="SH3" k="51" o="true" s="3" />
+<entree table="SSK" id="8|SH4" c="0" d="SH4" k="52" o="true" s="'" />
+<entree table="SSK" id="8|SH5" c="0" d="SH5" k="53" o="true" s="(" />
+<entree table="SSK" id="8|SH6" c="0" d="SH6" k="54" o="true" s="-" />
+<entree table="SSK" id="8|SH7" c="0" d="SH7" k="55" o="true" s="è" />
+<entree table="SSK" id="8|SH8" c="1" d="SH8" k="49" o="true" s="Ctrl+1" />
+<entree table="SSK" id="8|SH9" c="1" d="SH9" k="50" o="true" s="Ctrl+2" />
+<entree table="SSK" id="8|SPELLS" c="0" d="SPELLS" k="83" o="true" s="s" />
+<entree table="SSK" id="8|SPRITEINFOS" c="2" d="SPRITEINFOS" k="51" o="true" s="Maj+&quot;" />
+<entree table="SSK" id="8|STRINGCOURSE" c="2" d="STRINGCOURSE" k="49" o="true" s="Maj+&amp;" />
+<entree table="SSK" id="8|SWAP" c="0" d="SWAP" k="192" o="true" s="&lt;" />
+<entree table="SSK" id="8|TEAM_MESSAGE" c="2" d="TEAM_MESSAGE" k="13" o="false" s="Maj+Entrée" />
+<entree table="SSK" id="8|TOGGLE_FIGHT_INFOS" c="1" d="TOGGLE_FIGHT_INFOS" k="73" o="true" s="Ctrl+I" />
+<entree table="SSK" id="8|TRANSPARENCY" c="2" d="TRANSPARENCY" k="50" o="true" s="Maj+é" />
+<entree table="SSK" id="8|WHISPER_HISTORY_DOWN" c="2" c2="0" d="WHISPER_HISTORY_DOWN" k="40" k2="34" o="false" o2="false" s="Maj+Bas" s2="Page suiv." />
+<entree table="SSK" id="8|WHISPER_HISTORY_UP" c="2" c2="0" d="WHISPER_HISTORY_UP" k="38" k2="33" o="false" o2="false" s="Maj+Haut" s2="Page préc." />
+<entree table="SSK" id="9|ACCEPT_CURRENT_DIALOG" c="0" d="ACCEPT_CURRENT_DIALOG" k="13" o="false" s="Entrée" />
+<entree table="SSK" id="9|ALLOWSCALE" c="1" d="ALLOWSCALE" k="83" o="false" s="Ctrl+S" />
+<entree table="SSK" id="9|AUTOCOMPLETE" c="1" d="AUTOCOMPLETE" k="39" o="false" s="Ctrl+Droite" />
+<entree table="SSK" id="9|BUFF" c="2" d="BUFF" k="54" o="true" s="Maj+&amp;" />
+<entree table="SSK" id="9|CHARAC" c="0" d="CHARAC" k="67" o="true" s="c" />
+<entree table="SSK" id="9|CODE_CLEAR" c="0" c2="0" d="CODE_CLEAR" k="32" k2="46" o="true" o2="true" s="Espace" s2="Suppr" />
+<entree table="SSK" id="9|CODE_NEXT" c="0" d="CODE_NEXT" k="39" o="true" s="Droite" />
+<entree table="SSK" id="9|CODE_PREVIOUS" c="0" d="CODE_PREVIOUS" k="37" o="true" s="Gauche" />
+<entree table="SSK" id="9|CONSOLE" c="1" d="CONSOLE" k="220" o="false" s="Ctrl+^" />
+<entree table="SSK" id="9|COORDS" c="2" d="COORDS" k="55" o="true" s="Maj+/" />
+<entree table="SSK" id="9|ESCAPE" c="0" d="ESCAPE" k="27" o="false" s="Échap." />
+<entree table="SSK" id="9|FRIENDS" c="0" d="FRIENDS" k="70" o="true" s="f" />
+<entree table="SSK" id="9|FULLSCREEN" c="1" d="FULLSCREEN" k="70" o="false" s="Ctrl+F" />
+<entree table="SSK" id="9|GRID" c="2" d="GRID" k="53" o="true" s="Maj+%" />
+<entree table="SSK" id="9|GUILD" c="0" d="GUILD" k="71" o="true" s="g" />
+<entree table="SSK" id="9|GUILD_MESSAGE" c="1" d="GUILD_MESSAGE" k="13" o="false" s="Ctrl+Entrée" />
+<entree table="SSK" id="9|HISTORY_DOWN" c="0" d="HISTORY_DOWN" k="40" o="false" s="Bas" />
+<entree table="SSK" id="9|HISTORY_UP" c="0" d="HISTORY_UP" k="38" o="false" s="Haut" />
+<entree table="SSK" id="9|INVENTORY" c="0" d="INVENTORY" k="73" o="true" s="i" />
+<entree table="SSK" id="9|MAP" c="0" d="MAP" k="77" o="true" s="m" />
+<entree table="SSK" id="9|MAXI" c="0" d="MAXI" k="107" o="true" s="+" />
+<entree table="SSK" id="9|MINI" c="0" d="MINI" k="109" o="true" s="-" />
+<entree table="SSK" id="9|MOUNT" c="0" d="MOUNT" k="68" o="true" s="d" />
+<entree table="SSK" id="9|MOUNTING" c="2" d="MOUNTING" k="68" o="true" s="Maj+d" />
+<entree table="SSK" id="9|MOVABLEBAR" c="2" d="MOVABLEBAR" k="52" o="true" s="Maj+$" />
+<entree table="SSK" id="9|MOVABLEBAR_SH0" c="2" d="MOVABLEBAR_SH0" k="49" o="true" s="Maj+1" />
+<entree table="SSK" id="9|MOVABLEBAR_SH1" c="2" d="MOVABLEBAR_SH1" k="50" o="true" s="Maj+2" />
+<entree table="SSK" id="9|MOVABLEBAR_SH2" c="2" d="MOVABLEBAR_SH2" k="51" o="true" s="Maj+3" />
+<entree table="SSK" id="9|MOVABLEBAR_SH3" c="2" d="MOVABLEBAR_SH3" k="52" o="true" s="Maj+4" />
+<entree table="SSK" id="9|MOVABLEBAR_SH4" c="2" d="MOVABLEBAR_SH4" k="53" o="true" s="Maj+5" />
+<entree table="SSK" id="9|MOVABLEBAR_SH5" c="2" d="MOVABLEBAR_SH5" k="54" o="true" s="Maj+6" />
+<entree table="SSK" id="9|MOVABLEBAR_SH6" c="2" d="MOVABLEBAR_SH6" k="55" o="true" s="Maj+7" />
+<entree table="SSK" id="9|MOVABLEBAR_SH7" c="2" d="MOVABLEBAR_SH7" k="56" o="true" s="Maj+8" />
+<entree table="SSK" id="9|MOVABLEBAR_SH8" c="2" d="MOVABLEBAR_SH8" k="57" o="true" s="Maj+9" />
+<entree table="SSK" id="9|NEXTTURN" c="1" d="NEXTTURN" k="35" o="false" s="Ctrl+Fin" />
+<entree table="SSK" id="9|QUESTS" c="0" d="QUESTS" k="81" o="true" s="q" />
+<entree table="SSK" id="9|SEND_CHAT_MSG" c="0" d="SEND_CHAT_MSG" k="13" o="false" s="Entrée" />
+<entree table="SSK" id="9|SH0" c="0" d="SH0" k="220" o="true" s="^" />
+<entree table="SSK" id="9|SH1" c="0" d="SH1" k="49" o="true" s="1" />
+<entree table="SSK" id="9|SH10" c="1" d="SH10" k="51" o="true" s="Ctrl+3" />
+<entree table="SSK" id="9|SH11" c="1" d="SH11" k="52" o="true" s="Ctrl+4" />
+<entree table="SSK" id="9|SH12" c="1" d="SH12" k="53" o="true" s="Ctrl+5" />
+<entree table="SSK" id="9|SH13" c="1" d="SH13" k="54" o="true" s="Ctrl+6" />
+<entree table="SSK" id="9|SH14" c="1" d="SH14" k="55" o="true" s="Ctrl+7" />
+<entree table="SSK" id="9|SH2" c="0" d="SH2" k="50" o="true" s="2" />
+<entree table="SSK" id="9|SH3" c="0" d="SH3" k="51" o="true" s="3" />
+<entree table="SSK" id="9|SH4" c="0" d="SH4" k="52" o="true" s="4" />
+<entree table="SSK" id="9|SH5" c="0" d="SH5" k="53" o="true" s="5" />
+<entree table="SSK" id="9|SH6" c="0" d="SH6" k="54" o="true" s="6" />
+<entree table="SSK" id="9|SH7" c="0" d="SH7" k="55" o="true" s="7" />
+<entree table="SSK" id="9|SH8" c="1" d="SH8" k="49" o="true" s="Ctrl+1" />
+<entree table="SSK" id="9|SH9" c="1" d="SH9" k="50" o="true" s="Ctrl+2" />
+<entree table="SSK" id="9|SPELLS" c="0" d="SPELLS" k="83" o="true" s="s" />
+<entree table="SSK" id="9|SPRITEINFOS" c="2" d="SPRITEINFOS" k="51" o="true" s="Maj+§" />
+<entree table="SSK" id="9|STRINGCOURSE" c="2" d="STRINGCOURSE" k="49" o="true" s="Maj+!" />
+<entree table="SSK" id="9|SWAP" c="0" d="SWAP" k="226" o="true" s="&lt;" />
+<entree table="SSK" id="9|TEAM_MESSAGE" c="2" d="TEAM_MESSAGE" k="13" o="false" s="Maj+Entrée" />
+<entree table="SSK" id="9|TOGGLE_FIGHT_INFOS" c="1" d="TOGGLE_FIGHT_INFOS" k="73" o="true" s="Ctrl+I" />
+<entree table="SSK" id="9|TRANSPARENCY" c="2" d="TRANSPARENCY" k="50" o="true" s="Maj+&quot;" />
+<entree table="SSK" id="9|WHISPER_HISTORY_DOWN" c="2" c2="0" d="WHISPER_HISTORY_DOWN" k="40" k2="34" o="false" o2="false" s="Maj+Bas" s2="Page suiv." />
+<entree table="SSK" id="9|WHISPER_HISTORY_UP" c="2" c2="0" d="WHISPER_HISTORY_UP" k="38" k2="33" o="false" o2="false" s="Maj+Haut" s2="Page préc." />
+</BotLang>

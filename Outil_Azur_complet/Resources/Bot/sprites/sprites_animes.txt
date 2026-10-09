@@ -1,0 +1,141 @@
+# Familles animées que tools/client-analysis/exporter_sprites.py exporte en bandes, en plus des
+# poses static<O> : une ligne par gfx, « <gfx> <famille>[:<pas>],... » ; # commence un commentaire.
+# Un gfx seul vaut « walk,run » (format d'origine). Le pas garde une image sur N (ips = 40 / pas).
+# Familles : walk, run (marche, course, 5 orientations), hit, die (coup reçu, mort : R et L),
+# anim<n>, emote<n>, bonus... (tout symbole exporté <famille><O> du SWF).
+# Ajouter un gfx (monstre, PNJ, monture...) ou une famille puis relancer l'export avec
+# --gfx <id> [--anims <familles>] : compter environ 0,3 à 0,6 Mo par gfx pour walk et run.
+#
+# Personnages joueurs : gfx = classe x 10 + sexe (0 masculin, 1 féminin), classes 1 à 12.
+# hit et die (lot AN2) : 96 bandes, 3 444 images au pas 1.
+# anim0 à anim2 (sorts), anim3 (outil hors combat) et anim10 à anim18 (armes, outils) (lot AN4) : 624
+# bandes, 13 994 images au pas 2. anim8 (ballons et feux d'artifice, GA208 et GA228) : non exporté (budget).
+10 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+11 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+20 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+21 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+30 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+31 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+40 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+41 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+50 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+51 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+60 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+61 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+70 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+71 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+80 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+81 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+90 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+91 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+100 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+101 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+110 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+111 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+120 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+121 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+#
+# Monstres (lot AN3) : les 100 gfx les plus présents sur les cartes de StarLoco, au pas 2 (20 ips), lignes
+# écrites par tools/client-analysis/choisir_gfx_animes.py (commande dans PROVENANCE.md, section AN3).
+# choisir_gfx_animes.py : 100 gfx de monstres sur 410 présents, 84.2 % des 110862 présences (entrées de maps.monsters et monstres de mobgroups_fix)
+# taille estimée : 53.0 Mio (2.5 Kio par image, pas 2) ; arrêt : 100 gfx atteints
+1001 walk:2,run:2,hit:2,die:2,anim0:2
+1002 walk:2,run:2,hit:2,die:2,anim0:2
+1003 walk:2,run:2,hit:2,die:2,anim0:2
+1004 walk:2,run:2,hit:2,die:2,anim0:2
+1007 walk:2,run:2,hit:2,die:2,anim0:2
+1009 walk:2,run:2,hit:2,die:2,anim0:2
+1012 walk:2,run:2,hit:2,die:2,anim0:2
+1013 walk:2,run:2,hit:2,die:2,anim0:2
+1014 walk:2,run:2,hit:2,die:2,anim0:2
+1020 walk:2,run:2,hit:2,die:2,anim0:2
+1039 walk:2,run:2,hit:2,die:2,anim0:2
+1040 walk:2,run:2,hit:2,die:2,anim0:2
+1047 walk:2,run:2,hit:2,die:2,anim0:2
+1049 walk:2,run:2,hit:2,die:2,anim0:2
+1062 walk:2,run:2,hit:2,die:2,anim0:2
+1067 walk:2,run:2,hit:2,die:2,anim0:2
+1073 walk:2,run:2,hit:2,die:2,anim0:2
+1074 walk:2,run:2,hit:2,die:2,anim0:2
+1075 walk:2,run:2,hit:2,die:2,anim0:2
+1080 walk:2,run:2,hit:2,die:2,anim0:2
+1085 walk:2,run:2,hit:2,die:2,anim0:2
+1095 walk:2,run:2,hit:2,die:2,anim0:2
+1107 walk:2,run:2,hit:2,die:2,anim0:2
+1108 walk:2,run:2,hit:2,die:2,anim0:2
+1116 walk:2,run:2,hit:2,die:2,anim0:2
+1118 walk:2,run:2,hit:2,die:2,anim0:2
+1119 walk:2,run:2,hit:2,die:2,anim0:2
+1120 walk:2,run:2,hit:2,die:2,anim0:2
+1153 walk:2,run:2,hit:2,die:2,anim0:2
+1160 walk:2,run:2,hit:2,die:2,anim0:2
+1161 walk:2,run:2,hit:2,die:2,anim0:2
+1171 walk:2,run:2,hit:2,die:2,anim0:2
+1172 walk:2,run:2,hit:2,die:2,anim0:2
+1173 walk:2,run:2,hit:2,die:2,anim0:2
+1174 walk:2,run:2,hit:2,die:2,anim0:2
+1175 walk:2,run:2,hit:2,die:2,anim0:2
+1176 walk:2,run:2,hit:2,die:2,anim0:2
+1177 walk:2,run:2,hit:2,die:2,anim0:2
+1178 walk:2,run:2,hit:2,die:2,anim0:2
+1179 walk:2,run:2,hit:2,die:2,anim0:2
+1190 walk:2,run:2,hit:2,die:2,anim0:2
+1192 walk:2,run:2,hit:2,die:2,anim0:2
+1196 walk:2,run:2,hit:2,die:2,anim0:2
+1198 walk:2,run:2,hit:2,die:2,anim0:2
+1201 walk:2,run:2,hit:2,die:2,anim0:2
+1205 walk:2,run:2,hit:2,die:2,anim0:2
+1209 walk:2,run:2,hit:2,die:2,anim0:2
+1212 walk:2,run:2,hit:2,die:2,anim0:2
+1226 walk:2,run:2,hit:2,die:2,anim0:2
+1227 walk:2,run:2,hit:2,die:2,anim0:2
+1255 walk:2,run:2,hit:2,die:2,anim0:2
+1260 walk:2,run:2,hit:2,die:2,anim0:2
+1265 walk:2,run:2,hit:2,die:2,anim0:2
+1266 walk:2,run:2,hit:2,die:2,anim0:2
+1267 walk:2,run:2,hit:2,die:2,anim0:2
+1268 walk:2,run:2,hit:2,die:2,anim0:2
+1269 walk:2,run:2,hit:2,die:2,anim0:2
+1270 walk:2,run:2,hit:2,die:2,anim0:2
+1271 walk:2,run:2,hit:2,die:2,anim0:2
+1274 walk:2,run:2,hit:2,die:2,anim0:2
+1285 walk:2,run:2,hit:2,die:2,anim0:2
+1288 walk:2,run:2,hit:2,die:2,anim0:2
+1335 walk:2,run:2,hit:2,die:2,anim0:2
+1359 walk:2,run:2,hit:2,die:2,anim0:2
+1364 walk:2,run:2,hit:2,die:2,anim0:2
+1365 walk:2,run:2,hit:2,die:2,anim0:2
+1366 walk:2,run:2,hit:2,die:2,anim0:2
+1445 walk:2,run:2,hit:2,die:2,anim0:2
+1449 walk:2,run:2,hit:2,die:2,anim0:2
+1480 walk:2,run:2,hit:2,die:2,anim0:2
+1497 walk:2,run:2,hit:2,die:2,anim0:2
+1505 walk:2,run:2,hit:2,die:2,anim0:2
+1506 walk:2,run:2,hit:2,die:2,anim0:2
+1510 walk:2,run:2,hit:2,die:2,anim0:2
+1513 walk:2,run:2,hit:2,die:2,anim0:2
+1514 walk:2,run:2,hit:2,die:2,anim0:2
+1518 walk:2,run:2,hit:2,die:2,anim0:2
+1519 walk:2,run:2,hit:2,die:2,anim0:2
+1520 walk:2,run:2,hit:2,die:2,anim0:2
+1521 walk:2,run:2,hit:2,die:2,anim0:2
+1522 walk:2,run:2,hit:2,die:2,anim0:2
+1523 walk:2,run:2,hit:2,die:2,anim0:2
+1558 walk:2,run:2,hit:2,die:2,anim0:2
+1560 walk:2,run:2,hit:2,die:2,anim0:2
+1561 walk:2,run:2,hit:2,die:2,anim0:2
+1562 walk:2,run:2,hit:2,die:2,anim0:2
+1563 walk:2,run:2,hit:2,die:2,anim0:2
+1564 walk:2,run:2,hit:2,die:2,anim0:2
+1565 walk:2,run:2,hit:2,die:2,anim0:2
+1566 walk:2,run:2,hit:2,die:2,anim0:2
+1567 walk:2,run:2,hit:2,die:2,anim0:2
+1568 walk:2,run:2,hit:2,die:2,anim0:2
+1569 walk:2,run:2,hit:2,die:2,anim0:2
+1570 walk:2,run:2,hit:2,die:2,anim0:2
+1571 walk:2,run:2,hit:2,die:2,anim0:2
+1572 walk:2,run:2,hit:2,die:2,anim0:2
+1603 walk:2,run:2,hit:2,die:2,anim0:2
+1629 walk:2,run:2,hit:2,die:2,anim0:2
+8010 walk:2,run:2,hit:2,die:2
+8011 walk:2,run:2,hit:2,die:2,anim0:2

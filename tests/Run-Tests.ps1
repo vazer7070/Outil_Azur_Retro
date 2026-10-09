@@ -1,7 +1,8 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [switch]$Integration,
     [switch]$NoBuild,
+    [switch]$Outils,
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Debug',
     [ValidateRange(10, 600)]
@@ -31,7 +32,20 @@ try {
 
     $env:AZUR_TEST_BIN = $azurBin
     $env:AZUR_TEST_WORK = $azurWork
-    $azurCompiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+    # Les tests sont écrits en C# 6 et 7 ($"…", out var, membres =>) : le csc.exe du .NET Framework s'arrête à C# 5.
+    # Compilateur Roslyn de Visual Studio ou des Build Tools (vswhere), sinon repli sur l'ancien avec un avertissement.
+    $azurCompiler = $null
+    if (${env:ProgramFiles(x86)}) {
+        $azurVsWhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+        if (Test-Path -LiteralPath $azurVsWhere) {
+            $azurCompiler = & $azurVsWhere -latest -products '*' -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\Roslyn\csc.exe' | Select-Object -First 1
+        }
+    }
+    if (!$azurCompiler) {
+        $azurCompiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+        Write-Warning "Compilateur Roslyn introuvable (vswhere, MSBuild\**\Bin\Roslyn\csc.exe) : repli sur $azurCompiler, limité à C# 5, qui refusera les tests écrits en C# 6 ou 7. Installez Visual Studio ou ses Build Tools avec MSBuild."
+    }
+    else { Write-Host "Compilateur des tests : $azurCompiler" }
     $azurReferences = @('Outil_Azur_complet.exe', 'Tools_protocol.dll', 'Tool_Editor.dll', 'Tool_BotProtocol.dll', 'MySql.Data.dll') |
         ForEach-Object { '/r:' + (Join-Path $azurBin $_) }
     $azurSwfLibrary = Join-Path $azurRoot 'packages\SwfDotNet.IO.1.0.0.1\lib\net40-full\SwfDotNet.IO.dll'
@@ -45,10 +59,51 @@ try {
     $azurTests += 'AllEditorsWorkflowSmoke'
     $azurTests += 'ItemClientSwfSmoke'
     $azurTests += @('NetworkCaptureSmoke', 'BotTransportSmoke')
-    $azurTests += @('BotConfigSmoke', 'BotHandshakeSmoke', 'BotGameplaySmoke', 'BotSpellsSmoke', 'BotSpellXmlSmoke', 'BotMapViewSmoke', 'BotUiSmoke')
+    $azurTests += @('BotConfigSmoke', 'BotHandshakeSmoke', 'BotGameplaySmoke', 'BotSpellsSmoke', 'BotSpellXmlSmoke', 'BotMapViewSmoke', 'BotUiSmoke', 'BotClientSkinSmoke')
     $azurTests += @('BotCombatSmoke', 'BotCombatUiSmoke', 'BotEntitiesSmoke')
+    $azurTests += @('BotDialogsSmoke', 'BotShopSmoke')
     $azurTests += 'ResourceManagerSmoke'
     $azurTests += 'EmulatorProfileSmoke'
+    $azurTests += 'BotSessionSmoke'
+    $azurTests += 'BotActorsModelSmoke'
+    $azurTests += 'BotPanelsSmoke'
+    $azurTests += 'BotServerExportsSmoke'
+    $azurTests += 'BotLangDataSmoke'
+    $azurTests += 'BotDecorAnchorsSmoke'
+    $azurTests += 'BotFightProtocolSmoke'
+    $azurTests += 'BotChatProtocolSmoke'
+    $azurTests += 'BotNpcDialogTextsSmoke'
+    $azurTests += 'BotSpriteSheetsSmoke'
+    $azurTests += 'BotMovementSmoke'
+    $azurTests += 'BotExchangeSmoke'
+    $azurTests += 'BotMapActionsSmoke'
+    $azurTests += 'BotClientIconsSmoke'
+    $azurTests += 'BotInteractivesSmoke'
+    $azurTests += 'BotPartySmoke'
+    $azurTests += 'BotActorRenderSmoke'
+    $azurTests += 'BotFriendsSmoke'
+    $azurTests += 'BotChatUiSmoke'
+    $azurTests += 'BotServerCommandsSmoke'
+    $azurTests += 'BotBannerSmoke'
+    $azurTests += 'BotFightUiSmoke'
+    $azurTests += 'BotInventoryGridSmoke'
+    $azurTests += 'BotWorldMapSmoke'
+    $azurTests += 'BotHouseMerchantSmoke'
+    $azurTests += 'BotGuildSmoke'
+    $azurTests += 'BotAuctionSmoke'
+    $azurTests += 'BotAlignmentSmoke'
+    $azurTests += 'BotCraftSmoke'
+    $azurTests += 'BotMountSmoke'
+    $azurTests += 'BotQuestsSmoke'
+    $azurTests += 'BotStatsSheetSmoke'
+    # Bot sur un vrai StarLoco local (deux comptes inventés, sans base de test) : réussi sans rien lancer si AZUR_STARLOCO_LOGIN
+    # n'est pas défini ; avec le serveur, prévoir -TestTimeoutSeconds 300 (voir tests/README.md).
+    $azurTests += 'BotStarLocoLiveSmoke'
+    $azurTests += 'BotAnimationQueueSmoke'
+    $azurTests += 'BotPointsHitDeathSmoke'
+    $azurTests += 'BotSpellEffectsSmoke'
+    $azurTests += 'BotSpellProjectilesSmoke'
+    $azurTests += 'BotRecolorSmoke'
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'
@@ -75,6 +130,7 @@ try {
         $azurTests += @('InventoryIntegrationSmoke', 'ModerationIntegrationSmoke', 'ItemCreationIntegrationSmoke', 'ResourceExportIntegrationSmoke', 'MapActionIntegrationSmoke', 'ServerEditingIntegrationSmoke')
         $azurTests += 'AllEditorsIntegrationSmoke'
         $azurTests += 'KauthSchemaIntegrationSmoke'
+        $azurTests += 'StarLocoSchemaIntegrationSmoke'
     }
 
     Push-Location -LiteralPath $azurWork
@@ -106,6 +162,28 @@ try {
         }
     }
     finally { Pop-Location }
+    if ($Outils) {
+        # Outils d'analyse du client (Rust) : swfsvg se teste sur un SWF fabriqué par ses tests.
+        if (!(Get-Command cargo -ErrorAction SilentlyContinue)) { throw 'cargo est introuvable : installez Rust ou retirez -Outils.' }
+        & cargo test --release --quiet --manifest-path (Join-Path $azurRoot 'tools\client-analysis\swfsvg\Cargo.toml')
+        if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de swfsvg.' }
+        Write-Host 'Tests de swfsvg réussis.'
+        # Export des sprites d'acteurs (Python, cairosvg et Pillow) : faux swfsvg, aucun fichier du client.
+        $azurPython = Get-Command python3, python -ErrorAction SilentlyContinue | Select-Object -First 1
+        if (!$azurPython) { throw 'Python 3 est introuvable : installez-le avec cairosvg et Pillow ou retirez -Outils.' }
+        & $azurPython.Source (Join-Path $azurRoot 'tools\client-analysis\tests\test_exporter_sprites.py')
+        if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de exporter_sprites.py.' }
+        & $azurPython.Source (Join-Path $azurRoot 'tools\client-analysis\tests\test_exporter_icons.py')
+        if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de exporter_icons.py.' }
+        & $azurPython.Source (Join-Path $azurRoot 'tools\client-analysis\test_docs2xml.py')
+        if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de docs2xml.py.' }
+        & $azurPython.Source (Join-Path $azurRoot 'tools\client-analysis\tests\test_exporter_etats_interactifs.py')
+        if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de exporter_etats_interactifs.py.' }
+        & $azurPython.Source (Join-Path $azurRoot 'tools\client-analysis\tests\test_exporter_artworks.py')
+        if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de exporter_artworks.py.' }
+        & $azurPython.Source (Join-Path $azurRoot 'tools\client-analysis\tests\test_choisir_gfx_animes.py')
+        if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de choisir_gfx_animes.py.' }
+    }
     Write-Host "$($azurTests.Count) tests réussis. Fichiers temporaires et journaux : $azurWork"
 }
 finally {

@@ -5,7 +5,7 @@ using System.Data;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using Tools_protocol.Data;
-using Tools_protocol.Json;
+using Tools_protocol.Emulators;
 using Tools_protocol.Query;
 
 namespace Tools_protocol.Kryone.Database
@@ -114,7 +114,7 @@ namespace Tools_protocol.Kryone.Database
 		{
 			get
 			{
-				return JsonManager.SearchAuth("Template");
+				return EmulatorRegistry.Current.Table("Template");
 			}
 		}
 
@@ -163,7 +163,7 @@ namespace Tools_protocol.Kryone.Database
 		{
 			string query = QueryBuilder.SelectFromQuery(new string[] { "name" }, TableTemplate, "type", type.ToString());
 
-			using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
+			using (MySqlConnection connection = new MySqlConnection(EmulatorRegistry.ConnectionFor("Template")))
 			{
 				try
 				{
@@ -188,8 +188,18 @@ namespace Tools_protocol.Kryone.Database
 		public static void DeleteItem(string name)
 		{
 			int id = ReturnItemId(name);
-			DatabaseManager2.UpdateQuery(QueryBuilder.DeleteFromQuery(ItemList.TableItems, "template", id.ToString()));
-			DatabaseManager.UpdateQuery(QueryBuilder.DeleteFromQuery(TableTemplate, "id", id.ToString()));
+			Execute(EmulatorRegistry.ConnectionFor("items"), QueryBuilder.DeleteFromQuery(ItemList.TableItems, "template", id.ToString()));
+			Execute(EmulatorRegistry.ConnectionFor("Template"), QueryBuilder.DeleteFromQuery(TableTemplate, "id", id.ToString()));
+		}
+
+		private static void Execute(string connectionString, string query)
+		{
+			using (var connection = new MySqlConnection(connectionString))
+			using (var command = new MySqlCommand(query, connection))
+			{
+				connection.Open();
+				command.ExecuteNonQuery();
+			}
 		}
 
 		public static string GetItem(int template, int sw)
@@ -263,7 +273,7 @@ namespace Tools_protocol.Kryone.Database
         public static void Load_Item()
         {
             var loaded = new Dictionary<int, ItemTemplateList>();
-            using(var connection = new MySqlConnection(DatabaseManager.ConnectionString))
+            using(var connection = new MySqlConnection(EmulatorRegistry.ConnectionFor("Template")))
             using(var command = new MySqlCommand(QueryBuilder.SelectFromQuery(new[]{"*"},TableTemplate,"",""),connection))
             {
                 connection.Open(); using(var reader=command.ExecuteReader())while(reader.Read()){var item=new ItemTemplateList(reader);loaded.Add(item.Id,item);}

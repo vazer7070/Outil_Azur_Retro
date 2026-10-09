@@ -18,7 +18,7 @@ using Tool_BotProtocol.Game.Perso;
 
 namespace Tool_BotProtocol.Game.Maps
 {
-    public class Map: IEliminable, IDisposable
+    public partial class Map: IEliminable, IDisposable
     {
         public int MapID { get; set; }
         public byte MapWidth { get; set; }
@@ -33,8 +33,9 @@ namespace Tool_BotProtocol.Game.Maps
         public string LoadError { get; private set; }
         public Cell[] MapCells;
         public Dictionary<TeleportCellsEnum, List<short>> TeleportCells;
-        public ConcurrentDictionary<int, Entites> Entites;
         public ConcurrentDictionary<int, Interactives.Interactives> Interactives;
+        /// <summary>Cellules déclencheurs de la carte (<c>BotTriggers</c>) : cellule → action du serveur, dont la téléportation.</summary>
+        public IReadOnlyDictionary<int, Trigger> Triggers { get; private set; } = global::Tool_BotProtocol.Game.Maps.Triggers.None;
         public static ConcurrentDictionary<int, Map> AllBotMaps = new ConcurrentDictionary<int, Map>();
         public event Action RefreshMap;
         public event Action RefreshEntities;
@@ -42,7 +43,7 @@ namespace Tool_BotProtocol.Game.Maps
         public bool Disposed = false;
         public Map()
         {
-            Entites = new ConcurrentDictionary<int, Entites>();
+            InitActors();
             Interactives = new ConcurrentDictionary<int, Interactives.Interactives>();
             TeleportCells = new Dictionary<TeleportCellsEnum, List<short>>();
         }
@@ -98,6 +99,7 @@ namespace Tool_BotProtocol.Game.Maps
             if (!int.TryParse(P[0], out int id)) throw new FormatException("Identifiant de carte invalide.");
             Clear();
             MapID = id;
+            Triggers = global::Tool_BotProtocol.Game.Maps.Triggers.ForMap(MapID);
             Map info = ReturnMapInfo(MapID);
             if (info == null)
             {
@@ -130,10 +132,11 @@ namespace Tool_BotProtocol.Game.Maps
         }
         public bool IsInMap(string position) => position == MapID.ToString() || position == GetCoordinates;
         public Cell GetCellByposition(int x, int y) => MapCells?.FirstOrDefault(Cell => Cell.X == x && Cell.Y == y);
-        public List<PNJ> NPC_List() => Entites.Values.Where(x => x is PNJ).Select( x => x as PNJ ).ToList();
-        public List<Cell>CellsOccuped() => Entites.Values.Where( x => x is Monstres.Monstres).Select(x => x.Cell).ToList();
-        public List<Monstres.Monstres> MonsterList() => Entites.Values.Where(x => x is Monstres.Monstres).Select(x => x as Monstres.Monstres).ToList();
-        public List<Personnages> PersoList() => Entites.Values.Where( x => x is Personnages).Select(x => x as Personnages).ToList();
+        // Vues historiques sur Actors : seulement les acteurs dont la cellule est résolue sur la carte chargée.
+        public List<PNJ> NPC_List() => AllActors.OfType<PNJ>().Where(x => x.Cell != null).ToList();
+        public List<Cell>CellsOccuped() => AllActors.OfType<Monstres.Monstres>().Where(x => x.Cell != null).Select(x => x.Cell).ToList();
+        public List<Monstres.Monstres> MonsterList() => AllActors.OfType<Monstres.Monstres>().Where(x => x.Cell != null).ToList();
+        public List<Personnages> PersoList() => AllActors.OfType<Personnages>().Where(x => x.Cell != null).ToList();
         public List <Monstres.Monstres>GetMobsGroup(int min, int max, int level_min, int level_max, List<int> Mobs_forbidden, List<int> MobsYouNeed)
         {
             List<Monstres.Monstres> MobsAvailable = new List<Monstres.Monstres>();
@@ -315,8 +318,9 @@ namespace Tool_BotProtocol.Game.Maps
             MapID = 0;
             X = 0;
             Y = 0;
-            Entites.Clear();
+            ClearActors();
             Interactives.Clear();
+            Triggers = global::Tool_BotProtocol.Game.Maps.Triggers.None;
             TeleportCells.Clear();
             MapCells = null;
             MapWidth = MapHeight = 0;
@@ -328,10 +332,9 @@ namespace Tool_BotProtocol.Game.Maps
         {
             if (Disposed)
                 return;
-            Entites.Clear ();
+            DisposeActors();
             Interactives.Clear ();
             MapCells = null;
-            Entites = null;
             TeleportCells = null;
             Disposed = true;
             RefreshMap = null;

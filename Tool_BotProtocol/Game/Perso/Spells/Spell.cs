@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.IO;
 using System.Linq;
 using System.Globalization;
@@ -7,6 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Xml.Linq;
+using Tool_BotProtocol.Game.Data;
 using Tool_BotProtocol.Game.Perso.Inventory;
 
 namespace Tool_BotProtocol.Game.Perso.Spells
@@ -19,7 +22,7 @@ namespace Tool_BotProtocol.Game.Perso.Spells
         public string Position { get; set; }
         public bool HasMetadata => Stats.Count > 0;
         public Dictionary<byte, SpellStats> Stats;
-        static string SpellsPath = @".\ressources\Bot\BotSorts";
+        static string SpellsPath = Path.Combine(".", "ressources", "Bot", "BotSorts");
 
         public static Dictionary<short, Spell>AllSpells = new Dictionary<short, Spell>();
 
@@ -40,10 +43,28 @@ namespace Tool_BotProtocol.Game.Perso.Spells
                 Stats.Remove(level);
             Stats.Add(level, spellStats);
         }
+        /// <summary>
+        /// Caractéristiques du niveau appris. Comme le client 1.34 (<c>Spell.getSpellLevelText</c>), elles viennent d'abord des
+        /// attributs <c>niveau1</c>…<c>niveau6</c> de <c>spells.xml</c> ; <c>BotSorts</c> ne sert que sans fichiers de langue
+        /// (ses anciens exports donnent d'autres PA et portées et rangent tous les effets parmi les critiques).
+        /// </summary>
         public SpellStats GetStats()
         {
+            SpellStats fromLang = LangStats(ID, Level);
+            if (fromLang != null) return fromLang;
             SpellStats value;
             return Stats.TryGetValue(Level, out value) ? value : null;
+        }
+
+        private static readonly ConditionalWeakTable<object, ConcurrentDictionary<int, SpellStats>> langStats =
+            new ConditionalWeakTable<object, ConcurrentDictionary<int, SpellStats>>();
+
+        /// <summary>Caractéristiques d'un niveau d'après les fichiers de langue chargés (null s'ils ne le décrivent pas).</summary>
+        public static SpellStats LangStats(short id, byte level)
+        {
+            if (level < 1 || level > SpellBook.MaxSpellLevel) return null;
+            ConcurrentDictionary<int, SpellStats> cache = langStats.GetValue(LangData.CurrentSnapshot, snapshot => new ConcurrentDictionary<int, SpellStats>());
+            return cache.GetOrAdd(id * 8 + level, key => SpellLevelInfo.LangLevel(id, level)?.ToStats());
         }
         public static Spell ForCharacter(short id, byte level, string position = null)
         {

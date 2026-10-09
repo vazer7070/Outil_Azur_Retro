@@ -55,8 +55,17 @@ namespace Tool_BotProtocol.Frames.Auth
         public void ServerFull(TcpClient client, string message) => Refuse(client, "Le serveur choisi est complet ou exige un abonnement.");
         [MessageAttribution("AXEs")]
         public void MerchantCharacter(TcpClient client, string message) => Refuse(client, "Le personnage est en mode marchand sur un autre serveur.");
+        /// <summary>
+        /// StarLoco répond <c>ATE</c> puis ferme la session quand le compte en attente (<c>WA</c> du Login) n'est pas encore arrivé :
+        /// tant qu'un ticket est en cours et qu'il reste des essais, c'est la même course qu'une fermeture avant <c>ATK</c>, et le
+        /// ticket est renvoyé sur une nouvelle connexion. Sinon le refus est définitif.
+        /// </summary>
         [MessageAttribution("ATE")]
-        public void InvalidTicket(TcpClient client, string message) => Refuse(client, "Le serveur de jeu a refusé le ticket de connexion.");
+        public void InvalidTicket(TcpClient client, string message)
+        {
+            if (client.RetryTicketAfterRefusal()) return;
+            Refuse(client, "Le serveur de jeu a refusé le ticket de connexion.");
+        }
         [MessageAttribution("AlE")]
         public void OtherLoginRefusal(TcpClient client, string message) => Refuse(client, "La connexion a été refusée par le serveur d’authentification.");
         [MessageAttribution("AXE")]

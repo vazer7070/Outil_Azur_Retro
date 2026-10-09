@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Text.RegularExpressions;
 using Tools_protocol.Managers;
 using Tools_protocol.Query;
 using Tools_protocol.Emulators;
@@ -48,14 +47,24 @@ namespace Outil_Azur_complet.editeur_items
             return QueryBuilder.InsertIntoQuery(table, columns.ToArray(), values.ToArray(), "");
         }
 
+        /// <summary>INSERT d'un exemplaire vide du modèle, avec les noms de colonnes du profil courant.</summary>
+        internal static string BuildItemQuery(string table, int templateId, int itemGuid)
+        {
+            EmulatorProfile emulator = EmulatorRegistry.Current;
+            return QueryBuilder.InsertIntoQuery(table,
+                new[] { emulator.ItemColumn("guid"), "template", emulator.ItemColumn("qua"), emulator.ItemColumn("pos"), "stats", "puit" },
+                new[] { itemGuid.ToString(), templateId.ToString(), "0", "-1", "", "0" }, "");
+        }
+
         private static HashSet<string> ReadTemplateColumns(string table)
         {
             Identifier(table);
-            if (string.IsNullOrWhiteSpace(DatabaseManager.ConnectionString))
+            string connectionString = EmulatorRegistry.ConnectionFor("Template");
+            if (string.IsNullOrWhiteSpace(connectionString))
                 return new HashSet<string>(CommonTemplateColumns.Concat(new[] {
                     "doplons", "exchangeable", "heroique" }), StringComparer.OrdinalIgnoreCase);
 
-            var configuration = new MySqlConnectionStringBuilder(DatabaseManager.ConnectionString);
+            var configuration = new MySqlConnectionStringBuilder(connectionString);
             var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             using (var connection = new MySqlConnection(configuration.ConnectionString))
             using (var command = new MySqlCommand(
@@ -88,27 +97,28 @@ namespace Outil_Azur_complet.editeur_items
             if (queries == null || !queries.ContainsKey("template") || !queries.ContainsKey("item") ||
                 templateId <= 0 || itemGuid <= 0)
                 throw new ArgumentException("La création d'objet est incomplète.");
-            if (string.IsNullOrWhiteSpace(DatabaseManager.ConnectionString) ||
-                string.IsNullOrWhiteSpace(DatabaseManager2.ConnectionString))
-                throw new InvalidOperationException("Les connexions auth et world doivent être actives.");
-            var auth = new MySqlConnectionStringBuilder(DatabaseManager.ConnectionString);
-            var world = new MySqlConnectionStringBuilder(DatabaseManager2.ConnectionString);
-            if (!string.Equals(auth.Server, world.Server, StringComparison.OrdinalIgnoreCase) || auth.Port != world.Port ||
-                !string.Equals(auth.UserID, world.UserID, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Les bases auth et world doivent être sur le même serveur SQL et accessibles avec le même compte.");
 
-            var targets = new Dictionary<string, Tuple<string, string>>(StringComparer.Ordinal)
+            // Chaque table est écrite dans la base que le profil lui attribue (auth ou world) ;
+            // la transaction s'ouvre sur la base des modèles et nomme les autres tables par leur base.
+            var logical = new[] { Tuple.Create("template", "Template"), Tuple.Create("item", "items"),
+                Tuple.Create("craft", "crafts"), Tuple.Create("pano", "panoplies") };
+            var targets = new Dictionary<string, Tuple<string, string>>(StringComparer.Ordinal);
+            MySqlConnectionStringBuilder main = null;
+            foreach (var entry in logical)
             {
-                { "template", Tuple.Create(Identifier(auth.Database), Identifier(EmulatorRegistry.Current.Table("Template"))) },
-                { "item", Tuple.Create(Identifier(world.Database), Identifier(EmulatorRegistry.Current.Table("items"))) },
-                { "craft", Tuple.Create(Identifier(auth.Database), Identifier(EmulatorRegistry.Current.Table("crafts"))) },
-                { "pano", Tuple.Create(Identifier(auth.Database), Identifier(EmulatorRegistry.Current.Table("panoplies"))) }
-            };
+                string connectionString = EmulatorRegistry.ConnectionFor(entry.Item2);
+                if (string.IsNullOrWhiteSpace(connectionString))
+                    throw new InvalidOperationException("Les connexions auth et world doivent être actives.");
+                var builder = new MySqlConnectionStringBuilder(connectionString);
+                if (main == null) main = builder;
+                else ServerSql.RequireSameServer(main, builder);
+                targets[entry.Item1] = Tuple.Create(Identifier(builder.Database), Identifier(EmulatorRegistry.Current.Table(entry.Item2)));
+            }
             foreach (var query in queries)
                 if (!targets.ContainsKey(query.Key) || string.IsNullOrWhiteSpace(query.Value))
                     throw new ArgumentException("Une requête de création est invalide.");
 
-            using (var connection = new MySqlConnection(auth.ConnectionString))
+            using (var connection = new MySqlConnection(main.ConnectionString))
             {
                 connection.Open();
                 foreach (string key in queries.Keys)
@@ -116,7 +126,7 @@ namespace Outil_Azur_complet.editeur_items
                 using (var transaction = connection.BeginTransaction(IsolationLevel.Serializable))
                 {
                     RequireUnusedId(connection, transaction, targets["template"], "id", templateId);
-                    RequireUnusedId(connection, transaction, targets["item"], "guid", itemGuid);
+                    RequireUnusedId(connection, transaction, targets["item"], EmulatorRegistry.Current.ItemColumn("guid"), itemGuid);
                     foreach (string key in new[] { "template", "craft", "pano", "item" })
                     {
                         if (!queries.TryGetValue(key, out string sql)) continue;
@@ -167,7 +177,7 @@ namespace Outil_Azur_complet.editeur_items
 
         private static string Identifier(string value)
         {
-            if (string.IsNullOrWhiteSpace(value) || !Regex.IsMatch(value, @"\A[A-Za-z_][A-Za-z0-9_]*\z"))
+            if (!QueryBuilder.IsIdentifier(value))
                 throw new ArgumentException("Un nom SQL est invalide.");
             return value;
         }

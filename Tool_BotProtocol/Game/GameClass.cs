@@ -23,6 +23,14 @@ namespace Tool_BotProtocol.Game
         public CharacterClass character { get; private set; }
         public Fights Fight { get; private set; }
         public Manager Manager { get; private set; }
+        /// <summary>Fenêtres ouvertes par le serveur : dialogue PNJ, zaaps, boutique PNJ.</summary>
+        public Interactions.InteractionsClass Interactions { get; private set; }
+        /// <summary>État de session annoncé par le serveur (GCK, AR, Ac, BT, AN, Im) et invitations reçues.</summary>
+        public Session.GameSession Session { get; private set; }
+        /// <summary>Chat : canaux, chuchotements, smileys, émotes et commandes de la console (lot C1).</summary>
+        public Chat.ChatService Chat { get; private set; }
+        /// <summary>États « absent » (<c>BYA</c>) et « invisible » (<c>BYI</c>) annoncés par le serveur (lot F14).</summary>
+        public Chat.PlayerPresence Presence { get; private set; }
         public ConcurrentDictionary<int, Dictionary<string, Cell>> PersoInWorld;
          internal GameClass(Accounts.Accounts A)
         {
@@ -31,6 +39,10 @@ namespace Tool_BotProtocol.Game
             character= new CharacterClass(A);
             Manager = new Manager(A, Map, character);
             Fight = new Fights(A);
+            Interactions = new Interactions.InteractionsClass(A);
+            Session = new Session.GameSession(A);
+            Chat = new Chat.ChatService(A);
+            Presence = new Chat.PlayerPresence(A, Session);
             PersoInWorld = new ConcurrentDictionary<int, Dictionary<string, Cell>>();
         }
         public void Clear()
@@ -38,6 +50,10 @@ namespace Tool_BotProtocol.Game
             lock (lifecycleSync)
             {
                 if (disposed) return;
+           Interactions.Clear();
+           Session.Clear();
+           Chat.Clear();
+           Presence.Clear();
            Manager.Clear();
            Fight.Clear(false);
            Map.Clear();

@@ -4,8 +4,8 @@ Azur décrit chaque émulateur par un **profil** (`tools/Tools_protocol.Emulator
 
 | Émulateur | Pris en charge aujourd'hui |
 | --- | --- |
-| **Kryone V2** (kauth / kworld) | Tous les outils : comptes, personnages, inventaires, création d'objets, 24 éditeurs de ressources, recherche, placements et export XML vers le bot. C'est la seule cible vérifiée par les tests d'intégration. |
-| **StarLoco** | Le client bot (connexion Login/Game, personnages, déplacements, sorts). Les éditeurs SQL attendent la correspondance de ses tables `login`/`game`, qui ne sont pas interchangeables avec celles de Kryone. L'éditeur de cartes, les objets du client et le gestionnaire fonctionnent sans base. |
+| **Kryone V2** (kauth / kworld) | Tous les outils : comptes, personnages, inventaires, création d'objets, 24 éditeurs de ressources, recherche, placements et export XML vers le bot. C'est la cible de référence des tests d'intégration. |
+| **StarLoco** (login / game) | Les mêmes outils SQL que Kryone sur ses deux bases : comptes, personnages et exemplaires d'objets (`world.entity.objects`) dans `login` ; modèles d'objets, panoplies, recettes, 24 éditeurs de ressources, recherche, placements et export XML vers le bot dans `game`. Le profil porte les noms de ses 58 tables et les colonnes renommées ; pas de titres ni de paroli. Vérifié par un test d'intégration sur ses schémas `login`/`game` ; voir [la compatibilité StarLoco](docs/STARLOCO_COMPATIBILITE.md). Le client bot (connexion Login/Game, personnages, déplacements, sorts) reste à valider sur un vrai serveur. |
 | **Sunshine** | Consultation des comptes uniquement. |
 | **Codebreak** | Connexion aux bases uniquement ; les outils SQL ne sont pas encore adaptés à son schéma. |
 
@@ -66,7 +66,7 @@ Je vous présente les outils un à un, les fonctions peuvent changer au gré des
  Un outil permet de créer un compte avec le format de mot de passe attendu par le serveur : texte, MD5 ou SHA512. La création lit les colonnes réelles, initialise le pseudo avec le nom du compte et la date d'inscription avec la date du jour, puis relit la ligne avant de valider sa transaction. Le pseudo reste modifiable. `pass_no_crypt` reste vide ; un champ obligatoire inconnu ou un moteur différent d'InnoDB bloque la création avec un diagnostic. Le cache est actualisé après validation SQL.
 
  ### Éditeur de personnage
- *Il n'est pas possible depuis l'outil de créer un personnage sauf depuis le bot qui simule la page de création de personnage lors de la connexion à son compte (depuis officiel comme privé).*
+ *Il n'est pas possible depuis l'outil de créer un personnage, sauf depuis le bot, qui reprend la page de création de personnage du client lors de la connexion à un compte. Cette création n'a pas encore été validée sur un vrai serveur.*
 
 Cet outil recense tout les personnages du serveur ainsi que toute les informations qui les concernent, ça va de l'id à la liste de son inventaire et de ses sorts.
 
@@ -125,11 +125,29 @@ Le bouton **Placements serveur** superpose les PNJ, groupes fixes, zaaps et encl
 L'éditeur ne peut pas être lancé si l'application ne détecte pas les fichiers d'images nécéssaires à son bon fonctionnement, il est donc important de vérifier leurs présence et que ce soit bien des images de tuiles de carte correspondantes aux dossiers présents à la racine d'AzurToolRetro.
 
 ### Client AzurToolBot
-Le client est une re-création en C# du client Dofus Retro, qui parle directement le protocole **Login/Game de StarLoco** (connexion, serveurs, sélection et création de personnage, cartes, déplacements, discussion, caractéristiques, inventaire, sorts et métiers). Il reprend des éléments du bot de **Salesprendes**. Son interface suit la composition du client d'origine : grande carte, bandeau de jeu en bas, fiches refermables. Le [guide du bot](docs/BOT_STARLOCO.md) décrit son utilisation et ses limites.
+Le client est une re-création en C# du client Dofus Retro, qui parle directement le protocole **Login/Game de StarLoco** (connexion, serveurs, sélection et création de personnage, cartes, déplacements, discussion, caractéristiques, inventaire, dialogues PNJ, zaaps, boutique PNJ, sorts et métiers). Il reprend des éléments du bot de **Salesprendes**. Son interface suit la composition du client d'origine : grande carte, bandeau de jeu en bas, fiches refermables. Ses boutons, le bandeau de connexion, le socle de l'aperçu de création et les icônes du bandeau de jeu sont les éléments graphiques du client Dofus 1.34 fourni, exportés de `core.swf` ([provenance](Outil_Azur_complet/Resources/Bot/Client/PROVENANCE.md)). Les formats de paquets que le bot suit sont ceux relevés dans le code du client : [référence du protocole](docs/PROTOCOLE_CLIENT_1_34.md), produite par les outils de [`tools/client-analysis`](tools/client-analysis/README.md). Le [guide du bot](docs/BOT_STARLOCO.md) décrit son utilisation et ses limites.
 
-Ce qui est vérifié aujourd'hui l'est par des tests sur boucle locale avec des serveurs fictifs ; la connexion à un vrai StarLoco reste à valider. Le combat et les interactions sont partiels.
+La plupart des fonctions ne sont vérifiées que par des tests sur boucle locale avec des serveurs fictifs. `BotStarLocoLiveSmoke` fait en plus jouer deux comptes à la fois sur un vrai StarLoco local : connexion, déplacements, chat, groupe, échange, ami, défi, combat contre des monstres, dialogue PNJ, boutique et zaap (voir les [limites du guide du bot](docs/BOT_STARLOCO.md#limites-avant-validation-en-jeu)). Le combat reste partiel ; les actions d'inventaire (équiper, utiliser, jeter) ne sont vérifiées qu'avec des paquets fictifs aux formats du client 1.34 et de StarLoco.
 
-Les trois modes historiquement annoncés ne sont **pas disponibles** et ne sont pas proposés dans l'interface :
+#### Interface de jeu
+
+La fenêtre de jeu reprend celle du client 1.34 : la carte au centre, le bandeau en bas (chat, vie, PA et PM, boutons des volets, barre de raccourcis) et les volets dans un tiroir à droite. Les fonctions suivantes sont vérifiées par les tests cités, contre un serveur fictif local. Aucune n'a encore été rejouée sur un vrai StarLoco.
+
+* Carte : décor du client, joueurs, PNJ et groupes de monstres, survol, déplacements (`BotDecorAnchorsSmoke`, `BotActorRenderSmoke`, `BotMovementSmoke`).
+* Interactions : dialogues PNJ, zaaps, zaapis, récolte manuelle, codes de coffre, documents, menus des joueurs, duels et combats de la carte (`BotDialogsSmoke`, `BotNpcDialogTextsSmoke`, `BotInteractivesSmoke`, `BotMapActionsSmoke`).
+* Chat, canaux, smileys et émotes (`BotChatProtocolSmoke`, `BotChatUiSmoke`).
+* Bandeau, options et raccourcis du client (`BotBannerSmoke`).
+* Fiches des caractéristiques et des sorts, inventaire en grille (`BotStatsSheetSmoke`, `BotInventoryGridSmoke`).
+* Groupe, amis et guilde (`BotPartySmoke`, `BotFriendsSmoke`, `BotGuildSmoke`).
+* Échanges, coffre et banque, hôtel de vente, artisanat, montures, maisons et mode marchand (`BotExchangeSmoke`, `BotAuctionSmoke`, `BotCraftSmoke`, `BotMountSmoke`, `BotHouseMerchantSmoke`).
+* Alignement et conquête, quêtes, carte du monde, commandes du serveur (`BotAlignmentSmoke`, `BotQuestsSmoke`, `BotWorldMapSmoke`, `BotServerCommandsSmoke`).
+* Combat : placement, tours, sorts, ligne de temps, options, abandon et résultat (`BotCombatSmoke`, `BotFightProtocolSmoke`, `BotFightUiSmoke`). Les défis, l'attaque au corps à corps et le mode tactique ne sont pas faits.
+
+Le [guide du bot](docs/BOT_STARLOCO.md) décrit chaque fonction et ses limites. Le [plan de l'interface du bot](docs/PLAN_INTERFACE_BOT.md) donne la couverture des fonctions du client et ce qui reste à faire. Des [captures de la fenêtre de jeu](docs/captures/README.md) montrent l'interface contre un serveur fictif.
+
+#### Modes
+
+Des trois modes historiquement annoncés, seul le mode manuel existe ; les deux autres ne sont **pas disponibles** et ne sont pas proposés dans l'interface :
 
 * **Manuel** : jouer avec le client comme alternative au client officiel. C'est le mode actuel, en cours de validation.
 * **Admin** : moderer son serveur depuis le client (bannir, invoquer, modifier les joueurs) en le reliant aux bases d'Azur. Non réalisé.

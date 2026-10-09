@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="..\packages\Microsoft.NetFramework.Analyzers.3.3.2\build\Microsoft.NetFramework.Analyzers.props" Condition="Exists('..\packages\Microsoft.NetFramework.Analyzers.3.3.2\build\Microsoft.NetFramework.Analyzers.props')" />
   <Import Project="..\packages\Microsoft.CodeAnalysis.VersionCheckAnalyzer.3.3.2\build\Microsoft.CodeAnalysis.VersionCheckAnalyzer.props" Condition="Exists('..\packages\Microsoft.CodeAnalysis.VersionCheckAnalyzer.3.3.2\build\Microsoft.CodeAnalysis.VersionCheckAnalyzer.props')" />
@@ -237,14 +237,22 @@
     </Compile>
     <Compile Include="Bot\Controls\Animations.cs" />
     <Compile Include="Bot\Controls\AnimationType.cs" />
+    <Compile Include="Bot\Controls\ActorSprites.cs" />
+    <Compile Include="Bot\Controls\SpriteRecolor.cs" />
+    <Compile Include="Bot\Controls\ActorAnimationQueue.cs" />
+    <Compile Include="Bot\Controls\FightVisualSequencer.cs" />
+    <Compile Include="Bot\Controls\MapEffects.cs" />
+    <Compile Include="Bot\Controls\SpellEffects.cs" />
+    <Compile Include="Bot\Controls\SpellProjectiles.cs" />
+    <Compile Include="Bot\Controls\BubbleLayer.cs" />
+    <Compile Include="Bot\Controls\PointsLayer.cs" />
+    <Compile Include="Bot\Controls\OverheadImages.cs" />
+    <Compile Include="Bot\Controls\OverheadLayer.cs" />
     <Compile Include="Bot\Controls\buttons\RoundedButton.cs">
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Bot\Controls\CellState.cs" />
     <Compile Include="Bot\Controls\MapQuality.cs" />
-    <Compile Include="Bot\Controls\tooltip\CustomToolTip.cs">
-      <SubType>Component</SubType>
-    </Compile>
     <Compile Include="Bot\Controls\UserMapCell.cs" />
     <Compile Include="Bot\Controls\BotMapArtwork.cs" />
     <Compile Include="Bot\Controls\SpellShortcutButton.cs">
@@ -278,6 +286,12 @@
     <Compile Include="Bot\Interfaces\MapControl.Designer.cs">
       <DependentUpon>MapControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="Bot\Interfaces\MapControl.Fight.cs">
+      <DependentUpon>MapControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Bot\Interfaces\MapControl.Effects.cs">
+      <DependentUpon>MapControl.cs</DependentUpon>
+    </Compile>
     <Compile Include="Bot\LoadingBotForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -288,6 +302,131 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Bot\BotUi.cs" />
+    <Compile Include="Bot\ClientAssets.cs" />
+    <Compile Include="Bot\BotFonts.cs" />
+    <Compile Include="Bot\BotDialogs.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Bot\MapActionPrompts.cs" />
+    <Compile Include="Bot\Panels\IGamePanel.cs" />
+    <Compile Include="Bot\Panels\GamePanel.cs" />
+    <Compile Include="Bot\Panels\PanelHost.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Panels\DialoguePanel.cs" />
+    <Compile Include="Bot\Panels\NpcPortraits.cs" />
+    <Compile Include="Bot\Panels\FightsListPanel.cs" />
+    <Compile Include="Bot\Panels\ZaapsPanel.cs" />
+    <Compile Include="Bot\Panels\ShopPanel.cs" />
+    <Compile Include="Bot\Panels\ExchangeItemGrid.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Panels\ExchangePanel.cs" />
+    <Compile Include="Bot\Panels\StoragePanel.cs" />
+    <Compile Include="Bot\Panels\ZaapiPanel.cs" />
+    <Compile Include="Bot\Panels\KeyCodePanel.cs" />
+    <Compile Include="Bot\Panels\DocumentPanel.cs" />
+    <Compile Include="Bot\Panels\PartyArtworks.cs" />
+    <Compile Include="Bot\Panels\PartyPanel.cs" />
+    <Compile Include="Bot\Panels\FriendsPanel.cs" />
+    <Compile Include="Bot\Panels\GuildPanel.cs" />
+    <Compile Include="Bot\Panels\CollectorPanel.cs" />
+    <Compile Include="Bot\Panels\ConquestPanel.cs" />
+    <Compile Include="Bot\Panels\PrismTravelPanel.cs" />
+    <Compile Include="Bot\Panels\CommandsHelpPanel.cs" />
+    <Compile Include="Bot\Panels\InventoryPanel.cs" />
+    <Compile Include="Bot\Controls\ItemSlot.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\ItemGrid.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\ItemTooltip.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Panels\StatsPanel.cs" />
+    <Compile Include="Bot\Panels\SpellsPanel.cs" />
+    <Compile Include="Bot\Panels\JobsPanel.cs" />
+    <Compile Include="Bot\Panels\CraftPanel.cs" />
+    <Compile Include="Bot\Panels\CrafterListPanel.cs" />
+    <Compile Include="Bot\Panels\JournalPanel.cs" />
+    <Compile Include="Bot\Panels\FightResultPanel.cs" />
+    <Compile Include="Bot\Panels\MerchantPanel.cs" />
+    <Compile Include="Bot\Panels\HouseIndoorPanel.cs" />
+    <Compile Include="Bot\Panels\WorldMapPanel.cs" />
+    <Compile Include="Bot\Panels\AuctionBuyPanel.cs" />
+    <Compile Include="Bot\Panels\AuctionSellPanel.cs" />
+    <Compile Include="Bot\Panels\MountPanel.cs" />
+    <Compile Include="Bot\Panels\PaddockPanel.cs" />
+    <Compile Include="Bot\Panels\QuestsPanel.cs" />
+    <Compile Include="Bot\Controls\TitleBadge.cs" />
+    <Compile Include="Bot\Controls\ActorMenuRegistry.cs" />
+    <Compile Include="Bot\Controls\ActorContextMenu.cs" />
+    <Compile Include="Bot\Controls\HudPanel.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Chat\ChatLangBridge.cs" />
+    <Compile Include="Bot\Controls\Chat\ChatLinks.cs" />
+    <Compile Include="Bot\Controls\Chat\ChatView.cs" />
+    <Compile Include="Bot\Controls\Chat\ChatFilterBar.cs" />
+    <Compile Include="Bot\Controls\Chat\ChatInput.cs" />
+    <Compile Include="Bot\Controls\Chat\ChannelMenu.cs" />
+    <Compile Include="Bot\Controls\Chat\SmileyPicker.cs" />
+    <Compile Include="Bot\Controls\Chat\ChatPanel.cs" />
+    <Compile Include="Bot\Interfaces\InteractionRouter.cs" />
+    <Compile Include="Bot\Menus\FightSwordsMenuProvider.cs" />
+    <Compile Include="Bot\Menus\MonsterGroupMenuProvider.cs" />
+    <Compile Include="Bot\Menus\NpcMenuProvider.cs" />
+    <Compile Include="Bot\Menus\InteractiveMenuProvider.cs" />
+    <Compile Include="Bot\Menus\PartyMenuProvider.cs" />
+    <Compile Include="Bot\Menus\FriendsMenuProvider.cs" />
+    <Compile Include="Bot\Menus\GuildMenuProvider.cs" />
+    <Compile Include="Bot\Menus\CollectorMenuProvider.cs" />
+    <Compile Include="Bot\Menus\PrismMenuProvider.cs" />
+    <Compile Include="Bot\Menus\PlayerMenuProvider.cs" />
+    <Compile Include="Bot\Menus\HouseDoorMenuProvider.cs" />
+    <Compile Include="Bot\Menus\MerchantMenuProvider.cs" />
+    <Compile Include="Bot\Menus\ParkMountMenuProvider.cs" />
+    <Compile Include="Bot\Menus\PaddockMenuProvider.cs" />
+    <Compile Include="Bot\Shortcuts.cs" />
+    <Compile Include="Bot\OptionsForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Banner\BannerArt.cs" />
+    <Compile Include="Bot\Controls\Banner\LifeHeart.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Banner\PointsViewer.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Banner\CircleGauge.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Banner\XtraBox.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Banner\ShortcutBar.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Banner\CenterText.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Banner\MainMenuPopup.cs" />
+    <Compile Include="Bot\Controls\Banner\BannerPanel.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Fight\TimelineControl.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Fight\FightOptionButtons.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\Fight\ChallengeMenu.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\WorldMapView.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Bot\LoginForm.Designer.cs">
       <DependentUpon>LoginForm.cs</DependentUpon>
     </Compile>
@@ -656,21 +795,43 @@
     </BootstrapperPackage>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Target Name="CopyBotSelectionAssets" AfterTargets="Build">
+  <!-- Images exportées du client (Resources\Bot\<Famille>\..., voir chaque PROVENANCE.md) copiées vers
+       ressources\Bot\<Famille>\... à côté de l'exécutable et lues par ClientAssets.Get(famille, nom) : sorts,
+       sprites (avec ancres.tsv), Items, Portraits, Smileys, Emotes, Jobs, Alignments, Emblems, WorldMap (avec ses .tsv).
+       Client et Selection gardent leur chemin historique ressources\Bot\UI\... ; Decor part dans ressources\maps
+       (CopyBotDecorAssets) ; les anciens PNG de Resources\Bot\UI et Resources\Bot\*.png ne sont pas copiés (comme avant). -->
+  <Target Name="CopyBotAssets" AfterTargets="Build">
     <ItemGroup>
+      <BotAsset Include="$(ProjectDir)Resources\Bot\**\*.png;$(ProjectDir)Resources\Bot\**\*.tsv" Exclude="$(ProjectDir)Resources\Bot\*.png;$(ProjectDir)Resources\Bot\UI\**;$(ProjectDir)Resources\Bot\Client\**;$(ProjectDir)Resources\Bot\Selection\**;$(ProjectDir)Resources\Bot\Decor\**" />
+      <BotClientAsset Include="$(ProjectDir)Resources\Bot\Client\**\*.png" />
       <BotSelectionAsset Include="$(ProjectDir)Resources\Bot\Selection\**\*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(BotSelectionAsset)" DestinationFiles="@(BotSelectionAsset->'$(OutDir)ressources\Bot\UI\Selection\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
-  </Target>
-  <Target Name="CopyBotSpellAssets" AfterTargets="Build">
-    <ItemGroup>
       <BotSpellAsset Include="$(ProjectDir)Resources\Bot\BotSorts\**\*.xml" />
-      <BotSpellIcon Include="$(ProjectDir)Resources\Bot\sorts\**\*.png" />
-      <BotSpriteAsset Include="$(ProjectDir)Resources\Bot\sprites\**\*.png" />
     </ItemGroup>
+    <Copy SourceFiles="@(BotAsset)" DestinationFiles="@(BotAsset->'$(OutDir)ressources\Bot\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(BotClientAsset)" DestinationFiles="@(BotClientAsset->'$(OutDir)ressources\Bot\UI\Client\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(BotSelectionAsset)" DestinationFiles="@(BotSelectionAsset->'$(OutDir)ressources\Bot\UI\Selection\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(BotSpellAsset)" DestinationFiles="@(BotSpellAsset->'$(OutDir)ressources\Bot\BotSorts\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(BotSpellIcon)" DestinationFiles="@(BotSpellIcon->'$(OutDir)ressources\Bot\sorts\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(BotSpriteAsset)" DestinationFiles="@(BotSpriteAsset->'$(OutDir)ressources\Bot\sprites\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+  <!-- Textes des fichiers de langue du client (lang2xml.py) : lus par Tool_BotProtocol.Game.Data.LangData. -->
+  <Target Name="CopyBotLangAssets" AfterTargets="Build">
+    <ItemGroup>
+      <BotLangAsset Include="$(ProjectDir)Resources\Bot\BotLang\*.xml" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BotLangAsset)" DestinationFolder="$(OutDir)ressources\Bot\BotLang" SkipUnchangedFiles="true" />
+  </Target>
+  <!-- Documents du client (livres, parchemins, pancartes) exportés par tools/client-analysis/docs2xml.py : lus par DocumentDialog. -->
+  <Target Name="CopyBotDocsAssets" AfterTargets="Build">
+    <ItemGroup>
+      <BotDocsAsset Include="$(ProjectDir)Resources\Bot\BotDocs\*.xml" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BotDocsAsset)" DestinationFolder="$(OutDir)ressources\Bot\BotDocs" SkipUnchangedFiles="true" />
+  </Target>
+  <!-- Décor exporté du client par tools/client-analysis/exporter_decor.py (PNG et ancres.tsv) et exporter_etats_interactifs.py (ancres-etats.tsv), voir Resources\Bot\Decor\PROVENANCE.md. -->
+  <Target Name="CopyBotDecorAssets" AfterTargets="Build">
+    <ItemGroup>
+      <BotDecorAsset Include="$(ProjectDir)Resources\Bot\Decor\**\*.png;$(ProjectDir)Resources\Bot\Decor\ancres.tsv;$(ProjectDir)Resources\Bot\Decor\ancres-etats.tsv" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BotDecorAsset)" DestinationFiles="@(BotDecorAsset->'$(OutDir)ressources\maps\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
   <!-- The supplied image/sound libraries historically live under bin/Debug.
        Make other build configurations usable with the same runtime assets. -->
