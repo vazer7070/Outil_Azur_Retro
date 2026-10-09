@@ -8,30 +8,32 @@
 #
 # Personnages joueurs : gfx = classe x 10 + sexe (0 masculin, 1 féminin), classes 1 à 12.
 # hit et die (lot AN2) : 96 bandes, 3 444 images au pas 1.
-10 walk,run,hit,die
-11 walk,run,hit,die
-20 walk,run,hit,die
-21 walk,run,hit,die
-30 walk,run,hit,die
-31 walk,run,hit,die
-40 walk,run,hit,die
-41 walk,run,hit,die
-50 walk,run,hit,die
-51 walk,run,hit,die
-60 walk,run,hit,die
-61 walk,run,hit,die
-70 walk,run,hit,die
-71 walk,run,hit,die
-80 walk,run,hit,die
-81 walk,run,hit,die
-90 walk,run,hit,die
-91 walk,run,hit,die
-100 walk,run,hit,die
-101 walk,run,hit,die
-110 walk,run,hit,die
-111 walk,run,hit,die
-120 walk,run,hit,die
-121 walk,run,hit,die
+# anim0 à anim2 (sorts), anim3 (outil hors combat) et anim10 à anim18 (armes, outils) (lot AN4) : 624
+# bandes, 13 994 images au pas 2. anim8 (ballons et feux d'artifice, GA208 et GA228) : non exporté (budget).
+10 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+11 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+20 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+21 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+30 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+31 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+40 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+41 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+50 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+51 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+60 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+61 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+70 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+71 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+80 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+81 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+90 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+91 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+100 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+101 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+110 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+111 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+120 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
+121 walk,run,hit,die,anim0:2,anim1:2,anim2:2,anim3:2,anim10:2,anim11:2,anim12:2,anim13:2,anim14:2,anim15:2,anim16:2,anim17:2,anim18:2
 #
 # Monstres (lot AN3) : les 100 gfx les plus présents sur les cartes de StarLoco, au pas 2 (20 ips), lignes
 # écrites par tools/client-analysis/choisir_gfx_animes.py (commande dans PROVENANCE.md, section AN3).

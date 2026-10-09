@@ -241,6 +241,7 @@
     <Compile Include="Bot\Controls\ActorAnimationQueue.cs" />
     <Compile Include="Bot\Controls\FightVisualSequencer.cs" />
     <Compile Include="Bot\Controls\MapEffects.cs" />
+    <Compile Include="Bot\Controls\SpellEffects.cs" />
     <Compile Include="Bot\Controls\BubbleLayer.cs" />
     <Compile Include="Bot\Controls\PointsLayer.cs" />
     <Compile Include="Bot\Controls\OverheadImages.cs" />

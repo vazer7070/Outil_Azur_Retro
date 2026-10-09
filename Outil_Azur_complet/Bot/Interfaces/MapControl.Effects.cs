@@ -1,10 +1,15 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
+using System.Linq;
 using System.Windows.Forms;
 using Outil_Azur_complet.Bot.Controls;
 using Tool_BotProtocol.Game;
 using Tool_BotProtocol.Game.Combats;
+using Tool_BotProtocol.Game.Data;
+using Tool_BotProtocol.Game.Maps.Entities;
+using Tool_BotProtocol.Game.Perso;
 
 namespace Outil_Azur_complet.Bot.Interfaces
 {
@@ -359,19 +364,237 @@ namespace Outil_Azur_complet.Bot.Interfaces
             return UserMap.Sprites.Duration(body.Gfx, animation, body.Direction).HasValue;
         }
 
-        /// <summary>Sort, arme, piège, glyphe : animation du lanceur et effet (AN4, AN5).</summary>
-        private void OnSpell(VisualEvent visual) { }
+        // Sorts, armes, coups et échecs critiques, récolte, ballons et feux d'artifice (lot AN4) : GameActions.onActions
+        // (300 à 305, 501, 208, 228), SpriteHandler.launchVisualEffect et VisualEffectHandler.addEffect du client 1.34.
 
-        /// <summary>Coup critique (clip du dessus) et échec critique (bulle) (AN4).</summary>
-        private void OnCritical(VisualEvent visual) { }
+        /// <summary>Texte de la bulle d'échec critique quand <c>lang.xml</c> n'a pas <c>CRITICAL_MISS</c>.</summary>
+        public const string CriticalMissFallback = "Échec critique";
+
+        private readonly SpellEffects spellEffects = new SpellEffects();
+        /// <summary>Clip du coup critique en cours, par acteur (un nouveau remplace l'ancien, comme le clip du dessus du client).</summary>
+        private readonly Dictionary<long, IMapEffect> criticalClips = new Dictionary<long, IMapEffect>();
+
+        /// <summary>Index et profondeurs des effets de sorts de la carte (tests, diagnostic).</summary>
+        public SpellEffects SpellEffects => spellEffects;
+
+        /// <summary>
+        /// Sort lancé (GA300) et coup d'arme (GA303). GA300 <c>sort,cellule,fichier,niveau,type,anim,devant</c> : <c>anim</c>
+        /// <c>-1</c> n'affiche rien, <c>-2</c> tourne le lanceur et pose l'effet sans animation ; sinon, dans la file propre du
+        /// lanceur : direction vers la cellule, <c>anim&lt;n&gt;</c> bloquante (fin de la bande, au plus 1 000 ms), puis l'effet
+        /// du type (10 et 12 au lanceur, 11 à la cellule ; 12 retient la file jusqu'à sa fin, au plus 1 000 ms). GA303 sans
+        /// fichier (StarLoco n'envoie que la cellule) : direction puis <c>ToolAnimation</c> bloquante, dans la file du GA ;
+        /// avec fichier : comme un sort de niveau 1 animé par <c>ToolAnimation</c>. 306 et 307 (pièges, glyphes) : rien,
+        /// StarLoco y envoie le fichier 0, qui n'existe pas.
+        /// </summary>
+        private void OnSpell(VisualEvent visual)
+        {
+            if (visual.Source != VisualSource.GameAction) return;
+            SpellLaunch launch;
+            switch (visual.ActionId)
+            {
+                case 300:
+                    if (!SpellLaunch.TryParseSpell(visual.Fields, out launch)) { IgnoredVisual(visual); return; }
+                    if (!SpellEffects.TryParseAnimation(launch.Animation, true, out string animation)) return;
+                    LaunchSpellVisual(visual.ActorId, launch.CellId, launch.File, launch.Type, launch.InFront, animation);
+                    break;
+                case 303:
+                    if (!SpellLaunch.TryParseWeapon(visual.Fields, out launch)) { IgnoredVisual(visual); return; }
+                    string tool = ToolAnimation(visual.ActorId);
+                    if (!string.IsNullOrEmpty(launch.File))
+                    {
+                        LaunchSpellVisual(visual.ActorId, launch.CellId, launch.File, launch.Type, launch.InFront, tool);
+                        break;
+                    }
+                    long actor = visual.ActorId;
+                    short cell = launch.CellId;
+                    PrefetchAnimation(actor, cell, tool);
+                    TryEnqueueVisual(visual.QueueId, VisualStep.Instant("Direction", now => TurnTowards(actor, cell)));
+                    TryEnqueueVisual(visual.QueueId, CasterAnimationStep("Arme", actor, tool));
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Coup critique (301, 304) : clip <c>extra/5</c> au-dessus du lanceur pendant 5 000 ms, visible sur un personnage
+        /// seulement en <c>staticF</c> (<c>xtraClipTopAnimations</c>). Échec critique (302, 305) : bulle « Échec critique » au-dessus
+        /// du lanceur. Étapes non bloquantes de la file du GA.
+        /// </summary>
+        private void OnCritical(VisualEvent visual)
+        {
+            if (visual.Source != VisualSource.GameAction) return;
+            long actor = visual.ActorId;
+            switch (visual.ActionId)
+            {
+                case 301: case 304:
+                    using (UserMap.Sprites.ResolveFixed(SpellEffects.ExtraFamily, SpellEffects.CriticalHitClip, SpellEffects.SceneAnimation)) { }
+                    TryEnqueueVisual(visual.QueueId, VisualStep.Instant("CoupCritique", now => AddCriticalClip(actor, now)));
+                    break;
+                case 302: case 305:
+                    TryEnqueueVisual(visual.QueueId, VisualStep.Instant("EchecCritique", now => UserMap.ShowBubble(actor, CriticalMissText())));
+                    break;
+            }
+        }
 
         /// <summary>Émote, durée facultative (AN8).</summary>
         private void OnEmote(VisualEvent visual) { }
 
-        /// <summary>Utilisation d'un objet interactif : boucle d'outil pendant la durée (AN4).</summary>
-        private void OnHarvest(VisualEvent visual) { }
+        /// <summary>
+        /// Utilisation d'un objet interactif (GA501 <c>cellule,durée[,anim]</c>), dans la file du GA : direction vers l'objet,
+        /// puis <c>anim&lt;n&gt;</c> (troisième champ) ou <c>ToolAnimation</c> en boucle pendant la durée, puis retour à
+        /// <c>static</c>. L'étape dure exactement la durée pour le personnage du compte et ne retient pas la file des autres.
+        /// </summary>
+        private void OnHarvest(VisualEvent visual)
+        {
+            if (visual.Source != VisualSource.GameAction || visual.ActionId != 501) return;
+            int duration = visual.DurationMs ?? (visual.TryField(1, out int field) ? field : -1);
+            if (visual.CellId < 0 || duration < 0) { IgnoredVisual(visual); return; }
+            long actor = visual.ActorId;
+            short cell = visual.CellId;
+            // Troisième champ : anim<n> s'il est lisible (un nom illisible ne donne aucune animation), sinon ToolAnimation.
+            string extra = visual.Fields.Count > 2 ? visual.Fields[2] : null;
+            string animation = string.IsNullOrEmpty(extra) ? ToolAnimation(actor)
+                : SpellEffects.IsAnimationName("anim" + extra) ? "anim" + extra : null;
+            bool self = actor == (Account.Game?.character?.id ?? long.MinValue);
+            PrefetchAnimation(actor, cell, animation);
+            TryEnqueueVisual(visual.QueueId, VisualStep.Instant("Direction", now => TurnTowards(actor, cell)));
+            Action<double> loop = now => { if (animation != null) TryPlayAnimation(actor, animation, ActorAnimationMode.Loop, duration); };
+            TryEnqueueVisual(visual.QueueId, self ? VisualStep.Timed("Recolte", loop, duration) : VisualStep.Instant("Recolte", loop));
+        }
 
-        /// <summary>Ballons (208) et feux d'artifice (228) (AN4).</summary>
-        private void OnMapEffect(VisualEvent visual) { }
+        /// <summary>
+        /// Ballons (208) et feux d'artifice (228) <c>cellule,fichier,type,anim[,niveau]</c>, hors combat : comme un sort, dans la
+        /// file propre de l'acteur, effet toujours devant le sprite ; <c>anim</c> vaut <c>anim</c> suivi du champ, sans les codes
+        /// <c>-1</c> et <c>-2</c> du GA300. La couleur à 200 % de 208 n'est pas reproduite.
+        /// </summary>
+        private void OnMapEffect(VisualEvent visual)
+        {
+            if (visual.Source != VisualSource.GameAction) return;
+            if (!SpellLaunch.TryParseMapEffect(visual.Fields, out SpellLaunch launch)) { IgnoredVisual(visual); return; }
+            if (!SpellEffects.TryParseAnimation(launch.Animation, false, out string animation)) return;
+            LaunchSpellVisual(visual.ActorId, launch.CellId, launch.File, launch.Type, true, animation);
+        }
+
+        /// <summary>
+        /// <c>launchVisualEffect</c> : direction (non bloquante), animation du lanceur (bloquante, au plus 1 000 ms) puis effet,
+        /// dans la file propre du lanceur. Lanceur absent de la carte : rien ; invisible : pas d'effet (<c>_visible</c> du
+        /// client lu à la réception). L'effet et l'animation sont demandés au pool dès la réception.
+        /// </summary>
+        private void LaunchSpellVisual(long caster, short cell, string file, int type, bool inFront, string animation)
+        {
+            if (!UserMap.TryGetActorAnchor(caster, out ActorAnchor anchor) || anchor.IsGhost) return;
+            bool visible = anchor.IsVisible;
+            int gfx = int.TryParse(file, NumberStyles.None, CultureInfo.InvariantCulture, out int parsed) ? parsed : -1;
+            bool hasEffect = SpellEffects.HasEffect(type);
+            bool drawn = hasEffect && SpellEffects.IsDrawn(type) && gfx >= 0 && visible;
+            if (drawn) using (UserMap.Sprites.ResolveFixed(SpellEffects.SpellFamily, gfx, SpellEffects.SceneAnimation)) { }
+            if (animation != null) PrefetchAnimation(caster, cell, animation);
+            if (!TryEnqueueVisual(caster, VisualStep.Instant("Direction", now => TurnTowards(caster, cell)))) return;
+            if (animation != null) TryEnqueueVisual(caster, CasterAnimationStep("Sort", caster, animation));
+            if (!hasEffect) return;
+            StripEffect effect = null;
+            Action<double> start = now => { if (drawn) effect = AddSpellEffect(caster, cell, gfx, type, inFront, now); };
+            TryEnqueueVisual(caster, SpellEffects.IsBlocking(type)
+                ? VisualStep.Waiting("Effet", start, now => effect == null || effect.Finished)
+                : VisualStep.Instant("Effet", start));
+        }
+
+        /// <summary>Étape bloquante de l'animation du lanceur : libérée à la fin de la bande, au plus tard à 1 000 ms ; sautée sans bande.</summary>
+        private VisualStep CasterAnimationStep(string name, long actor, string animation)
+        {
+            bool started = false;
+            return VisualStep.Waiting(name, now => started = TryPlayAnimation(actor, animation, ActorAnimationMode.Once),
+                now => !started || !AnimationQueue.Override(actor, now, out string playing, out double _, out bool _)
+                    || !string.Equals(playing, animation, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>Scène du sort au lanceur (types 10 et 12, pied au départ de l'étape) ou au centre de la cellule (11).</summary>
+        private StripEffect AddSpellEffect(long caster, short cell, int gfx, int type, bool inFront, double now)
+        {
+            PointF world;
+            if (SpellEffects.AtCaster(type))
+            {
+                if (!UserMap.TryGetActorAnchor(caster, out ActorAnchor anchor)) return null;
+                world = anchor.WorldFoot;
+            }
+            else if (!UserMap.TryGetCellCenter(cell, out world)) return null;
+            return spellEffects.Add(UserMap.Sprites, Effects, TryAddEffect, gfx, world, cell, inFront, now);
+        }
+
+        /// <summary>Clip du coup critique au-dessus de l'acteur pendant 5 000 ms, à la place du précédent s'il est encore là.</summary>
+        private void AddCriticalClip(long actor, double now)
+        {
+            if (criticalClips.TryGetValue(actor, out IMapEffect previous)) { criticalClips.Remove(actor); Effects.Remove(previous); }
+            var clip = new ActorAttachedEffect(actor, UserMap.Sprites.ResolveFixed(SpellEffects.ExtraFamily, SpellEffects.CriticalHitClip,
+                SpellEffects.SceneAnimation), true, now, SpellEffects.CriticalHitDuration);
+            if (TryAddEffect(clip)) criticalClips[actor] = clip;
+            foreach (long id in criticalClips.Where(pair => !Effects.Active.Contains(pair.Value)).Select(pair => pair.Key).ToArray())
+                criticalClips.Remove(id);
+        }
+
+        private static string CriticalMissText()
+        {
+            try { if (LangData.Text.Has("CRITICAL_MISS")) return LangData.Text.Get("CRITICAL_MISS"); }
+            catch (Exception error) when (!(error is OutOfMemoryException)) { /* textes illisibles : repli */ }
+            return CriticalMissFallback;
+        }
+
+        /// <summary>
+        /// <c>ToolAnimation</c> du client : <c>anim</c> suivi de l'attribut <c>an</c> de l'arme (premier accessoire du
+        /// <c>GM</c>, <c>items.xml</c>), sinon <c>anim0</c> en combat et <c>anim3</c> hors combat ; null si l'attribut n'est
+        /// pas un nom lisible (<see cref="SpellEffects.IsAnimationName"/>).
+        /// </summary>
+        private string ToolAnimation(long actorId)
+        {
+            Tool_BotProtocol.Game.Maps.Map map = Account.Game?.Map;
+            MapActor actor = map?.GetActor(actorId);
+            if (actor == null && actorId == (Account.Game?.character?.id ?? long.MinValue)) actor = map?.Self;
+            IReadOnlyList<ActorAccessory> accessories = (actor as PlayerActor)?.Accessories ?? (actor as NpcActor)?.Accessories
+                ?? (actor as FightMonsterActor)?.Accessories;
+            ActorAccessory weapon = accessories?.FirstOrDefault(accessory => accessory.Slot == 0);
+            string an = null;
+            if (weapon != null)
+            {
+                IReadOnlyDictionary<string, string> item = LangData.Raw("items", "objet", weapon.TemplateId.ToString(CultureInfo.InvariantCulture));
+                if (item != null) item.TryGetValue("an", out an);
+            }
+            // Attribut illisible (le nom deviendrait un nom de fichier) : aucune animation, le lanceur garde sa pose.
+            if (!string.IsNullOrEmpty(an)) return SpellEffects.IsAnimationName("anim" + an) ? "anim" + an : null;
+            return Account.Game?.Fight?.IsInFight == true ? "anim0" : "anim3";
+        }
+
+        /// <summary>
+        /// <c>autoCalculateSpriteDirection</c> : tourne l'acteur vers la cellule (1, 3, 5 ou 7), rien sur sa propre cellule.
+        /// L'orientation n'est qu'un état d'affichage du modèle (aucun paquet n'est envoyé).
+        /// </summary>
+        private void TurnTowards(long actorId, short cell)
+        {
+            Tool_BotProtocol.Game.Maps.Map map = Account.Game?.Map;
+            if (map == null) return;
+            CharacterClass self = Account.Game.character;
+            bool isSelf = self != null && self.id == actorId;
+            MapActor actor = map.GetActor(actorId) ?? (isSelf ? map.Self : null);
+            int from = isSelf ? self.Cell?.CellID ?? -1 : actor?.Cell?.CellID ?? actor?.CellId ?? -1;
+            int direction = SpellEffects.DirectionTo(from, cell, map.MapWidth);
+            if (direction < 0) return;
+            if (isSelf) self.Orientation = direction;
+            if (actor != null) actor.Orientation = direction;
+        }
+
+        /// <summary>Lecture anticipée de la bande du lanceur dans l'orientation qu'il prendra (rien n'est décodé sur ce fil).</summary>
+        private void PrefetchAnimation(long actorId, short cell, string animation)
+        {
+            if (string.IsNullOrEmpty(animation)) return;
+            UserMapControl.ActorVisualState state = UserMap.GetActorVisualStates()
+                .FirstOrDefault(s => s.ActorId == actorId && s.MemberIndex < 0 && !s.IsGhost);
+            if (state == null || state.GFX <= 0) return;
+            int direction = SpellEffects.DirectionTo(state.CellId, cell, Account.Game?.Map?.MapWidth ?? 0);
+            UserMap.Sprites.Prefetch(state.GFX, direction < 0 ? state.Orientation : direction, animation);
+        }
+
+        private void IgnoredVisual(VisualEvent visual)
+        {
+            try { Account.Logger?.LogDebug("CARTE", "Effet visuel illisible ignoré : " + visual); }
+            catch (Exception) { /* journal fermé */ }
+        }
     }
 }
