@@ -278,6 +278,37 @@ class ExporterSprites(unittest.TestCase):
         self.assertFalse([f for f in os.listdir(self.sortie) if f.endswith(".couleurs.png")])
         self.assertEqual(self.couleurs(), {})
 
+    def test_conserver_garde_les_bandes_inchangees(self):
+        # Premier export sans masques, puis retouches : une nuance d'anticrénelage sur 10_walkR (gardée),
+        # un pixel devenu opaque sur 10_staticR (réécrite), un ancrage décalé pour 10_hitR (réécrite).
+        self.swf("10", {"staticR": 3, "walkR": 4, "hitR": 2}, zones=[1, 3], fins={"hitR": "static"})
+        self.animes("10 walk,hit\n")
+        self.exporter("--gfx", "10")
+        walk = self.png("10_walkR.png")
+        p = walk.getpixel((1, 12))
+        walk.putpixel((1, 12), (p[0] + 1, p[1], p[2], p[3]))
+        walk.save(os.path.join(self.sortie, "10_walkR.png"))
+        retouche = self.octets("10_walkR.png")
+        static = self.png("10_staticR.png")
+        static.putpixel((0, 0), (255, 255, 255, 255) if static.getpixel((0, 0))[3] == 0 else (0, 0, 0, 0))
+        static.save(os.path.join(self.sortie, "10_staticR.png"))
+        tache = self.octets("10_staticR.png")
+        hit = self.ancres()[("10", "hitR")]
+        chemin = os.path.join(self.sortie, "ancres.tsv")
+        with open(chemin, encoding="utf-8") as f:
+            lignes = f.read().splitlines()
+        lignes = [l if not l.startswith("10\thitR\t") else "\t".join(c if i != 2 else str(int(c) + 1) for i, c in enumerate(l.split("\t")))
+                  for l in lignes]
+        with open(chemin, "w", encoding="utf-8") as f:
+            f.write("\n".join(lignes) + "\n")
+        sortie = self.exporter("--gfx", "10", "--masques", "--conserver")
+        self.assertIn("1 PNG gardés tels quels", sortie)
+        self.assertEqual(self.octets("10_walkR.png"), retouche, "bande proche gardée")
+        self.assertNotEqual(self.octets("10_staticR.png"), tache, "pose dont l'alpha change réécrite")
+        self.assertEqual(self.ancres()[("10", "hitR")], hit, "ligne d'ancres décalée corrigée")
+        for nom in ("10_staticR", "10_walkR", "10_hitR"):
+            self.assertEqual(Image.open(os.path.join(self.sortie, nom + ".couleurs.png")).size, self.png(nom + ".png").size)
+
     def test_disposition(self):
         self.assertEqual(exporter_sprites.disposition(10, 100, 50), (10, 1))
         self.assertEqual(exporter_sprites.disposition(100, 400, 300), (50, 2))

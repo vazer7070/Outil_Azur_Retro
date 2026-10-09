@@ -3,7 +3,7 @@
 
 usage : exporter_sprites.py <client>/clips/sprites <sortie> [--swfsvg CHEMIN] [--animes FICHIER]
                             [--gfx 10,11,...] [--anims hit,die[:pas],...] [--pas N]
-                            [--echelle 1] [--jobs N] [--sans-palette] [--masques]
+                            [--echelle 1] [--jobs N] [--sans-palette] [--masques] [--conserver]
 
 Pour chaque <gfx>.swf du dossier (cairosvg et Pillow requis, swfsvg 0.2.3 ou plus, 0.2.5 avec
 --masques) :
@@ -58,6 +58,12 @@ une ligne d'en-tête), une ligne par index de chaque masque :
     gfx  anim  index  zone  couleur
 couleur : couleur d'origine du SWF en hexadécimal RRGGBB. Sans --masques, les masques et les lignes
 des familles réexportées sont retirés (leur cadre ne correspondrait plus).
+
+--conserver : un PNG déjà présent est gardé tel quel quand sa ligne d'ancres.tsv (cadre, taille et
+nombre d'images) ne change pas et que le nouveau rendu ne s'en écarte que par l'anticrénelage
+(alpha à 32 près, écart moyen des couleurs visibles sous 2/255) : refaire les masques d'un dossier
+exporté par une version plus ancienne de swfsvg ne réécrit que les bandes qui changent vraiment.
+Le masque, lui, est toujours écrit d'après le nouveau rendu (même cadre, même disposition).
 """
 import argparse, collections, concurrent.futures, io, os, re, shutil, subprocess, sys, tempfile
 
@@ -79,6 +85,8 @@ PAS_COUVERTURE = 17  # couverture des masques sur 16 niveaux (0, 17, ..., 255) :
 FIABLE = 240  # couverture à partir de laquelle la couleur d'origine d'un pixel sert de référence
 ECART_REFERENCE = 8  # deux références plus proches (écart par canal) sont une même couleur
 INDEX_MAX = 255  # index de couleur d'origine par masque (composante verte)
+ECART_ALPHA_CONSERVE = 32  # --conserver : écart d'alpha maximal (anticrénelage) d'un PNG gardé
+ECART_MOYEN_CONSERVE = 2.0  # --conserver : écart moyen maximal des couleurs sur les pixels visibles
 
 
 def trouver_swfsvg(chemin):
@@ -237,6 +245,43 @@ def enregistrer(image, chemin, palette):
     with open(chemin, "wb") as f:
         f.write(meilleur)
     return len(meilleur)
+
+
+class Conservation:
+    """--conserver : lignes de l'ancien ancres.tsv {(gfx, anim): 7 premières colonnes} et nombre de
+    PNG gardés tels quels pendant l'export d'un gfx."""
+
+    def __init__(self, anciennes):
+        self.anciennes = anciennes
+        self.gardes = 0
+
+    def proche(self, chemin, image):
+        """Vrai si le PNG existant a la taille de image et ne s'en écarte que par l'anticrénelage."""
+        try:
+            with Image.open(chemin) as f:
+                ancien = f.convert("RGBA")
+        except (OSError, ValueError):
+            return False
+        if ancien.size != image.size:
+            return False
+        ecart = ImageChops.difference(ancien, image)
+        if ecart.getchannel("A").getextrema()[1] > ECART_ALPHA_CONSERVE:
+            return False
+        visibles = seuil(ImageChops.lighter(ancien.getchannel("A"), image.getchannel("A")), lambda v: v > 0)
+        if not visibles.getbbox():
+            return True
+        return max(ImageStat.Stat(ecart.convert("RGB"), mask=visibles).mean) <= ECART_MOYEN_CONSERVE
+
+
+def ecrire_png(image, chemin, palette, ligne, conserver):
+    """Enregistre image (voir enregistrer) sauf, avec conserver, si le PNG existant a la même ligne
+    d'ancres (7 premières colonnes) et un rendu proche : il est alors gardé. Renvoie sa taille."""
+    if conserver and conserver.anciennes.get((ligne[0], ligne[1])) == tuple(ligne[2:7]) and os.path.isfile(chemin):
+        image = nettoyer(image)
+        if conserver.proche(chemin, image):
+            conserver.gardes += 1
+            return os.path.getsize(chemin)
+    return enregistrer(image, chemin, palette)
 
 
 NON_NUL = re.compile(rb"[^\x00]")
@@ -418,11 +463,13 @@ class Masques:
             self.nombre += 1
 
 
-def exporter_gfx(gfx, swf, sortie, familles, echelle, palette, swfsvg, temporaire, masques=False):
+def exporter_gfx(gfx, swf, sortie, familles, echelle, palette, swfsvg, temporaire, masques=False, anciennes=None):
     """Exporte un SWF ; renvoie (lignes d'ancres.tsv, messages, octets écrits, lignes de couleurs.tsv,
-    nombre et octets des masques). Ne lève jamais."""
+    nombre et octets des masques, PNG gardés). anciennes : lignes de l'ancien ancres.tsv
+    (--conserver), ou None. Ne lève jamais."""
     lignes, messages, octets = [], [], 0
     zones = None
+    conserver = Conservation(anciennes) if anciennes is not None else None
     try:
         symboles = lister(swfsvg, swf)
         if masques and zones_de(swfsvg, swf):
@@ -430,7 +477,7 @@ def exporter_gfx(gfx, swf, sortie, familles, echelle, palette, swfsvg, temporair
         noms = {nom.lower() for nom, _ in familles}
         with tempfile.TemporaryDirectory(dir=temporaire) as dossier:
             if "static" in noms:
-                l, m, o = exporter_statiques(gfx, swf, sortie, symboles, echelle, palette, swfsvg, dossier, zones)
+                l, m, o = exporter_statiques(gfx, swf, sortie, symboles, echelle, palette, swfsvg, dossier, zones, conserver)
                 lignes += l; messages += m; octets += o
             for famille, pas in familles:
                 if famille.lower() == "static":
@@ -450,7 +497,8 @@ def exporter_gfx(gfx, swf, sortie, familles, echelle, palette, swfsvg, temporair
                     fichiers = sorted((f for f in index if f.startswith(s[0] + "_f")), key=lambda f: int(index[f][9]))
                     fichiers = fichiers[::pas]
                     try:
-                        ligne, taille = bande([os.path.join(sous, f) for f in fichiers], gfx, anim, sortie, echelle, palette, zones)
+                        ligne, taille = bande([os.path.join(sous, f) for f in fichiers], gfx, anim, sortie, echelle, palette, zones,
+                                              conserver)
                     except RuntimeError as erreur:
                         messages.append("%s : %s refusée (%s)" % (gfx, anim, erreur))
                         continue
@@ -463,12 +511,13 @@ def exporter_gfx(gfx, swf, sortie, familles, echelle, palette, swfsvg, temporair
                     messages.append("%s : aucun symbole %s<O>" % (gfx, famille))
     except Exception as erreur:  # un SWF illisible ne doit pas arrêter la série
         messages.append("%s : %s" % (gfx, erreur))
+    gardes = conserver.gardes if conserver else 0
     if not zones:
-        return lignes, messages, octets, [], 0, 0
-    return lignes, messages, octets, zones.lignes, zones.nombre, zones.octets
+        return lignes, messages, octets, [], 0, 0, gardes
+    return lignes, messages, octets, zones.lignes, zones.nombre, zones.octets, gardes
 
 
-def exporter_statiques(gfx, swf, sortie, symboles, echelle, palette, swfsvg, dossier, zones=None):
+def exporter_statiques(gfx, swf, sortie, symboles, echelle, palette, swfsvg, dossier, zones=None, conserver=None):
     lignes, messages, octets = [], [], 0
     # Statiques : une commande par nombre d'images, puisque --frame vaut pour tous les noms.
     statiques = {o: symboles.get("static" + o.lower()) for o in ORIENTATIONS}
@@ -487,7 +536,8 @@ def exporter_statiques(gfx, swf, sortie, symboles, echelle, palette, swfsvg, dos
             for o, nom in liste:
                 ligne, taille = None, 0
                 if nom + ".svg" in index:
-                    ligne, taille = poser(os.path.join(sous, nom + ".svg"), gfx, "static" + o, sortie, echelle, palette, zones)
+                    ligne, taille = poser(os.path.join(sous, nom + ".svg"), gfx, "static" + o, sortie, echelle, palette, zones,
+                                          conserver)
                 if ligne:
                     lignes.append(ligne); octets += taille
                     if image != n: messages.append("%s : %s vide à l'image %d, image 1 retenue" % (gfx, nom, n))
@@ -502,13 +552,13 @@ def exporter_statiques(gfx, swf, sortie, symboles, echelle, palette, swfsvg, dos
         rendre_svg(swfsvg, ["--scene", "--name", "scene", swf, sous], sous)
         if zones:
             zones.rendre_noms(["--scene", "--name", "scene"], sous, [])
-        ligne, taille = poser(os.path.join(sous, "scene.svg"), gfx, "scene", sortie, echelle, palette, zones)
+        ligne, taille = poser(os.path.join(sous, "scene.svg"), gfx, "scene", sortie, echelle, palette, zones, conserver)
         if ligne: lignes.append(ligne); octets += taille
         else: messages.append("%s : aucun static<O> et scène vide, rien d'exporté" % gfx)
     return lignes, messages, octets
 
 
-def poser(svg, gfx, anim, sortie, echelle, palette, zones=None):
+def poser(svg, gfx, anim, sortie, echelle, palette, zones=None, conserver=None):
     image, x0, y0 = svg_vers_image(svg, echelle)
     cadre = image.getchannel("A").getbbox()
     if not cadre:
@@ -519,12 +569,12 @@ def poser(svg, gfx, anim, sortie, echelle, palette, zones=None):
             raise RuntimeError("%s : rendus des zones de %s dans un autre cadre" % (gfx, anim))
         zones.ecrire(image.crop(cadre), w.crop(cadre), b.crop(cadre), gfx, anim, sortie)
     image = image.crop(cadre)
-    taille = enregistrer(image, os.path.join(sortie, "%s_%s.png" % (gfx, anim)), palette)
     # Une image seule reste affichée telle quelle : ips de la cadence du client, fin « arret ».
-    return (gfx, anim, x0 + cadre[0], y0 + cadre[1], image.width, image.height, 1, IPS, "arret"), taille
+    ligne = (gfx, anim, x0 + cadre[0], y0 + cadre[1], image.width, image.height, 1, IPS, "arret")
+    return ligne, ecrire_png(image, os.path.join(sortie, "%s_%s.png" % (gfx, anim)), palette, ligne, conserver)
 
 
-def bande(svgs, gfx, anim, sortie, echelle, palette, zones=None):
+def bande(svgs, gfx, anim, sortie, echelle, palette, zones=None, conserver=None):
     """Assemble les images d'une bande (une ligne, ou une grille au-delà de 32 767 px) ; renvoie les
     sept premières colonnes de sa ligne d'ancres.tsv. RuntimeError si elle est trop grande. Avec
     zones (--masques), écrit aussi son masque, de même taille et de même disposition."""
@@ -555,8 +605,8 @@ def bande(svgs, gfx, anim, sortie, echelle, palette, zones=None):
             b.paste(ib.crop(union), position)
         zones.ecrire(feuille, w, b, gfx, anim, sortie)
     _, x0, y0 = images[0]
-    taille = enregistrer(feuille, os.path.join(sortie, "%s_%s.png" % (gfx, anim)), palette)
-    return (gfx, anim, x0 + union[0], y0 + union[1], largeur, hauteur, len(images)), taille
+    ligne = (gfx, anim, x0 + union[0], y0 + union[1], largeur, hauteur, len(images))
+    return ligne, ecrire_png(feuille, os.path.join(sortie, "%s_%s.png" % (gfx, anim)), palette, ligne, conserver)
 
 
 PRODUIT = re.compile(r"^(\d+)_([A-Za-z][A-Za-z0-9]*)(?:\.couleurs)?\.png$")
@@ -655,6 +705,8 @@ def main():
     p.add_argument("--sans-palette", action="store_true", help="garder tous les PNG en RGBA 32 bits")
     p.add_argument("--masques", action="store_true", help="écrire aussi les masques de recoloration "
                                                           "<gfx>_<anim>.couleurs.png et couleurs.tsv (swfsvg 0.2.5+)")
+    p.add_argument("--conserver", action="store_true", help="garder un PNG existant dont la ligne d'ancres ne change "
+                                                            "pas et dont le rendu ne diffère que par l'anticrénelage")
     a = p.parse_args()
 
     if a.pas < 1 or IPS % a.pas:
@@ -685,15 +737,20 @@ def main():
 
     familles = {g: anims if anims is not None else [("static", 1)] + animes.get(g, []) for g in choisis}
     lignes, messages, octets = [], [], 0
-    couleurs, masques, octets_masques = [], 0, 0
+    couleurs, masques, octets_masques, conserves = [], 0, 0, 0
+    anciennes = None
+    if a.conserver:
+        anciennes = {(l[0], l[1]): tuple(l[2:7]) for l in lire_ancres(os.path.join(a.sortie, "ancres.tsv"))}
     with tempfile.TemporaryDirectory(prefix="sprites-") as temporaire:
         with concurrent.futures.ProcessPoolExecutor(max_workers=max(1, a.jobs)) as pool:
             taches = [pool.submit(exporter_gfx, g, os.path.join(a.sprites, g + ".swf"), a.sortie, familles[g],
-                                  a.echelle, not a.sans_palette, swfsvg, temporaire, a.masques) for g in choisis]
+                                  a.echelle, not a.sans_palette, swfsvg, temporaire, a.masques,
+                                  None if anciennes is None else {k: v for k, v in anciennes.items() if k[0] == g})
+                      for g in choisis]
             for t in taches:
-                l, m, o, c, n, om = t.result()
+                l, m, o, c, n, om, k = t.result()
                 lignes += l; messages += m; octets += o
-                couleurs += c; masques += n; octets_masques += om
+                couleurs += c; masques += n; octets_masques += om; conserves += k
 
     partiel = bool(a.gfx) or anims is not None
     choix = set(choisis)
@@ -727,6 +784,8 @@ def main():
     print("%d SWF, %d PNG (%.1f Mo), %d lignes dans %s, %d messages" % (
         len(choisis), sum(1 for l in lignes if l[0] in choix and (not partiel or cible(l[0], famille_de(l[1])))),
         octets / 1e6, len(lignes), ancres, len(messages)))
+    if a.conserver:
+        print("%d PNG gardés tels quels (--conserver)" % conserves)
     if a.masques:
         print("%d masques (%.1f Mo), %d lignes dans %s" % (masques, octets_masques / 1e6, len(couleurs), chemin_couleurs))
 
