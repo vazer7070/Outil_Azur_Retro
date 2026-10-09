@@ -93,7 +93,7 @@ internal static class BotPointsHitDeathSmoke
         }
     }
 
-    /// <summary>Bandes hit/die livrées (classes) lues par le chargeur du bot : 24 images, fin static ; die tenu (arret).</summary>
+    /// <summary>Bandes hit/die livrées (classes) lues par le chargeur du bot : 23 images (durée swfsvg 0.2.5, lot AN6), fin static ; die tenu (arret).</summary>
     private static void ShippedStrips()
     {
         string shipped = Path.Combine(TestPaths.ApplicationBin, "ressources", "Bot", "sprites");
@@ -104,8 +104,8 @@ internal static class BotPointsHitDeathSmoke
             Check(library.WaitForPending(20000), "Shipped strips decoding did not finish");
             SpritePose hit = library.Resolve(10, 1, false, "hit"), hitF = library.Resolve(10, 2, false, "hit"), hitL = library.Resolve(10, 5, false, "hit");
             SpritePose die = library.Resolve(10, 1, false, "die");
-            Check(hit.State == SpriteLoadState.Ready && hit.FullName == "hitR" && hit.Sheet.Frames == 24 && hit.Sheet.End == SpriteEnd.Static
-                && hit.Sheet.DurationMs == 600, "Shipped 10_hitR: 24 frames, 600 ms, fin static");
+            Check(hit.State == SpriteLoadState.Ready && hit.FullName == "hitR" && hit.Sheet.Frames == 23 && hit.Sheet.End == SpriteEnd.Static
+                && hit.Sheet.DurationMs == 575, "Shipped 10_hitR: 23 frames, 575 ms, fin static");
             Check(hitF.FullName == "hitR" && hitF.Mirrored && hitL.FullName == "hitL" && !hitL.Mirrored, "Direction 2 plays hitR mirrored (d|1), direction 5 hitL");
             Check(die.State == SpriteLoadState.Ready && die.Sheet.Frames == 79 && die.Sheet.End == SpriteEnd.Stop && library.Duration(10, "die", 1) == 1975,
                 "Shipped 10_dieR: 79 frames (1 975 ms, cut at 1 500 ms by the Die step), fin arret");

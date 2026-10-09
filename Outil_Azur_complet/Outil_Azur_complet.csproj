@@ -238,6 +238,7 @@
     <Compile Include="Bot\Controls\Animations.cs" />
     <Compile Include="Bot\Controls\AnimationType.cs" />
     <Compile Include="Bot\Controls\ActorSprites.cs" />
+    <Compile Include="Bot\Controls\SpriteRecolor.cs" />
     <Compile Include="Bot\Controls\ActorAnimationQueue.cs" />
     <Compile Include="Bot\Controls\FightVisualSequencer.cs" />
     <Compile Include="Bot\Controls\MapEffects.cs" />
