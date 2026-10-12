@@ -235,6 +235,7 @@ réécrit que les bandes qui changent vraiment.
 | `--gfx <24 classes> --anims hit,die --jobs 4` (lot AN2) | 28 s | 96 PNG, 3,5 Mo, 3 444 images ; `ancres.tsv` de 2 652 lignes |
 | `--gfx <100 monstres> --anims walk,run,hit,die,anim0 --pas 2 --jobs 4` (lot AN3) | 2 min 38 s | 1 034 PNG, 35,2 Mo, 21 691 images ; `ancres.tsv` de 3 686 lignes |
 | `--gfx <24 classes> --masques --conserver --jobs 4` (lot AN6, familles de `sprites_animes.txt`) | 8 min 18 s | 1 080 PNG dont 576 gardés, 1 080 masques (7,0 Mo) |
+| `--gfx <24 classes> --anims emote1,…,emoteStatic21 --pas 2 --masques --conserver --jobs 4` (lot AN8, 16 familles) | 2 min 41 s | 720 PNG (7,7 Mo), 720 masques (1,5 Mo) ; 24 familles absentes des SWF |
 
 Tests : `python3 tests/test_exporter_sprites.py` (faux `swfsvg` écrit en Python dans `tests/`, aucun
 fichier du client) : image de repos, casse, scène, bandes, magenta, rognage, échelle, `--gfx`,

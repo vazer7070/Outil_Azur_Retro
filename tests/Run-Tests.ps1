@@ -104,6 +104,7 @@ try {
     $azurTests += 'BotSpellEffectsSmoke'
     $azurTests += 'BotSpellProjectilesSmoke'
     $azurTests += 'BotRecolorSmoke'
+    $azurTests += 'BotExtraClipsSmoke'
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'
