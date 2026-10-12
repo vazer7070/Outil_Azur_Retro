@@ -9,6 +9,7 @@ using Tool_BotProtocol.Game;
 using Tool_BotProtocol.Game.Combats;
 using Tool_BotProtocol.Game.Data;
 using Tool_BotProtocol.Game.Maps.Entities;
+using Tool_BotProtocol.Game.Maps.Interfaces;
 using Tool_BotProtocol.Game.Perso;
 
 namespace Outil_Azur_complet.Bot.Interfaces
@@ -123,9 +124,19 @@ namespace Outil_Azur_complet.Bot.Interfaces
             visualsHooked = true;
             visualsInFight = game.Fight?.IsInFight == true;
             if (game.Fight != null) { game.Fight.VisualEvent += OnProtocolVisual; game.Fight.CombatChanged += ResetVisualsOnCombat; }
-            if (game.Map != null) game.Map.VisualEvent += OnProtocolVisual;
+            if (game.Map != null)
+            {
+                game.Map.VisualEvent += OnProtocolVisual;
+                // Clips annexes et émotes d'entrée (lot AN8) : relus à chaque changement du modèle.
+                game.Map.ActorAdded += OnActorForClips; game.Map.ActorUpdated += OnActorForClips; game.Map.ActorRemoved += OnActorRemovedForClips;
+                game.Map.ActorsCleared += OnActorsClearedForClips; game.Map.RefreshEntities += OnEntitiesForClips; game.Map.RefreshMap += OnMapForClips;
+                game.Map.EntityMovement += OnMovementForClips;
+            }
             if (game.Interactions?.Interactive != null) game.Interactions.Interactive.VisualEvent += OnProtocolVisual;
             if (game.Chat != null) game.Chat.EmoteVisualReceived += OnProtocolVisual;
+            UserMap.ActorHovered += OnHoverForWings;
+            HookOptions();
+            UpdatePvpViewer();
         }
 
         private void UnsubscribeVisuals(GameClass game)
@@ -133,9 +144,17 @@ namespace Outil_Azur_complet.Bot.Interfaces
             if (!visualsHooked) return;
             visualsHooked = false;
             if (game.Fight != null) { game.Fight.VisualEvent -= OnProtocolVisual; game.Fight.CombatChanged -= ResetVisualsOnCombat; }
-            if (game.Map != null) game.Map.VisualEvent -= OnProtocolVisual;
+            if (game.Map != null)
+            {
+                game.Map.VisualEvent -= OnProtocolVisual;
+                game.Map.ActorAdded -= OnActorForClips; game.Map.ActorUpdated -= OnActorForClips; game.Map.ActorRemoved -= OnActorRemovedForClips;
+                game.Map.ActorsCleared -= OnActorsClearedForClips; game.Map.RefreshEntities -= OnEntitiesForClips; game.Map.RefreshMap -= OnMapForClips;
+                game.Map.EntityMovement -= OnMovementForClips;
+            }
             if (game.Interactions?.Interactive != null) game.Interactions.Interactive.VisualEvent -= OnProtocolVisual;
             if (game.Chat != null) game.Chat.EmoteVisualReceived -= OnProtocolVisual;
+            UserMap.ActorHovered -= OnHoverForWings;
+            UnhookOptions();
         }
 
         /// <summary>Fil réseau → fil de l'interface ; l'événement est immuable, rien n'est relu du modèle ici.</summary>
@@ -152,9 +171,16 @@ namespace Outil_Azur_complet.Bot.Interfaces
         private void ResetVisualsOnCombat() => OnUi(() =>
         {
             bool inFight = Account.Game?.Fight?.IsInFight == true;
-            if (inFight == visualsInFight) return;
-            visualsInFight = inFight;
-            UserMap.ClearVisuals();
+            if (inFight != visualsInFight)
+            {
+                visualsInFight = inFight;
+                UserMap.ClearVisuals();
+                extraClips.Forget(Effects);
+                emoteTimers.Clear();
+            }
+            // Le cercle d'équipe dépend du combat lancé (GS), qui change sans entrée ni sortie de combat.
+            RefreshExtraClips();
+            ApplyEntryEmotes();
         });
 
         /// <summary>
@@ -261,7 +287,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
         public Tool_BotProtocol.Config.BotOptions Options
         {
             get => options ?? Tool_BotProtocol.Config.BotOptions.Current;
-            set => options = value;
+            set { options = value; if (visualsHooked) HookOptions(); }
         }
 
         /// <summary>Couche des chiffres en cours, ou <c>null</c> s'il n'y en a pas (tests, diagnostic).</summary>
@@ -435,8 +461,170 @@ namespace Outil_Azur_complet.Bot.Interfaces
             }
         }
 
-        /// <summary>Émote, durée facultative (AN8).</summary>
-        private void OnEmote(VisualEvent visual) { }
+        // Émotes, auras, cercle d'équipe, sac de marchand, clip des PNJ et ailes (lot AN8) : Emotes.onUse, setSpriteTimerAnim,
+        // onSpriteMovement / addExtraClip et la surtête (TextOverHead.drawGfx, pvpGain du GM) du client 1.34.
+
+        private readonly ActorExtraClips extraClips = new ActorExtraClips();
+        /// <summary>Minuteur de l'émote à durée en cours, par acteur (une nouvelle émote le remplace).</summary>
+        private readonly Dictionary<long, EmoteTimer> emoteTimers = new Dictionary<long, EmoteTimer>();
+        /// <summary>Acteurs dont l'émote d'entrée (champ émote du <c>GM</c>) est passée : déplacement ou <c>eUK</c> depuis.</summary>
+        private readonly HashSet<long> staleEntryEmotes = new HashSet<long>();
+        private Tool_BotProtocol.Config.BotOptions hookedOptions;
+
+        /// <summary>Clips annexes en place (tests, diagnostic).</summary>
+        public ActorExtraClips ExtraClips => extraClips;
+
+        /// <summary>
+        /// Émote <c>eUK&lt;id&gt;|&lt;n&gt;[|&lt;durée&gt;]</c> (<c>Emotes.onUse</c>) : rien en combat ; <c>n</c> à 0 (se relever) annule
+        /// l'animation en cours (<c>emote0</c> n'existe pas : <c>static</c>) ; sinon la bande <c>emote&lt;n&gt;</c> remplace la
+        /// pose jusqu'au prochain déplacement ou à la prochaine émote (<see cref="ActorAnimationMode.Hold"/> : la colonne
+        /// <c>fin</c> de la bande décide, <c>arret</c> tient la dernière image, <c>static</c> revient à la pose fixe) et, avec une
+        /// durée, un minuteur (<see cref="EmoteTimer"/>) remet <c>static</c> à son terme. Sans bande pour ce gfx, l'icône
+        /// d'émote déjà affichée reste (repli du lot AN1) ; avec une bande, l'icône est retirée.
+        /// </summary>
+        private void OnEmote(VisualEvent visual)
+        {
+            if (visual.Source != VisualSource.Emote) return;
+            long actor = visual.ActorId;
+            int emote = visual.Value;
+            staleEntryEmotes.Add(actor);
+            if (emoteTimers.TryGetValue(actor, out EmoteTimer previous)) { emoteTimers.Remove(actor); Effects.Remove(previous); }
+            if (visual.InFight || Account.Game?.Fight?.IsInFight == true) return;
+            if (emote <= 0)
+            {
+                AnimationQueue.Cancel(actor);
+                UserMap.WakeAnimations();
+                return;
+            }
+            string animation = "emote" + emote.ToString(CultureInfo.InvariantCulture);
+            if (!TryPlayAnimation(actor, animation, ActorAnimationMode.Hold)) return;
+            UserMap.ShowEmote(actor, 0);
+            if (!visual.DurationMs.HasValue) return;
+            var timer = new EmoteTimer(AnimationQueue, actor, animation, UserMap.Now + Math.Max(0, visual.DurationMs.Value));
+            if (TryAddEffect(timer)) emoteTimers[actor] = timer;
+        }
+
+        /// <summary>
+        /// Émote d'entrée : le champ émote du <c>GM</c> d'un joueur (« 1 » pour assis) est son animation de départ,
+        /// <c>emoteStatic&lt;n&gt;</c> (<c>setAnim</c> du client à la création du sprite), tenue jusqu'au premier déplacement ou à
+        /// la première <c>eUK</c>. Posée dès que l'acteur est dessiné sans animation ponctuelle ; sans bande, l'icône du lot
+        /// AN1 reste. Rien en combat (les <c>GM</c> de combat n'ont pas ce champ).
+        /// </summary>
+        private void ApplyEntryEmote(MapActor actor)
+        {
+            if (!(actor is PlayerActor player) || staleEntryEmotes.Contains(player.Id)) return;
+            if (!int.TryParse(player.Emote, NumberStyles.Integer, CultureInfo.InvariantCulture, out int emote) || emote <= 0) return;
+            if (Account.Game?.Fight?.IsInFight == true || AnimationQueue.IsPlaying(player.Id)) return;
+            TryPlayAnimation(player.Id, "emoteStatic" + emote.ToString(CultureInfo.InvariantCulture), ActorAnimationMode.Hold);
+        }
+
+        private void ApplyEntryEmotes()
+        {
+            if (IsDisposed || !IsMapShown) return;
+            foreach (MapActor actor in MapActors()) ApplyEntryEmote(actor);
+        }
+
+        /// <summary>Acteurs du modèle, personnage du compte compris (<c>Map.Self</c> n'est pas dans <c>AllActors</c>).</summary>
+        private List<MapActor> MapActors()
+        {
+            var result = new List<MapActor>();
+            Tool_BotProtocol.Game.Maps.Map map = Account.Game?.Map;
+            if (map == null) return result;
+            result.AddRange(map.AllActors);
+            MapActor self = map.Self;
+            if (self != null && result.All(actor => actor.Id != self.Id)) result.Add(self);
+            return result;
+        }
+
+        /// <summary>
+        /// Clips annexes au niveau du modèle (<see cref="ActorExtraClips.Reconcile"/>) : cercle d'équipe en combat lancé,
+        /// aura hors combat selon l'option, sac des marchands, clip des PNJ. Carte cachée : les clips sont oubliés
+        /// (<c>ClearVisuals</c> les a retirés) et reviendront au prochain changement du modèle carte affichée.
+        /// </summary>
+        private void RefreshExtraClips()
+        {
+            if (IsDisposed) return;
+            if (!IsMapShown) { extraClips.Forget(Effects); return; }
+            Fights fight = Account.Game?.Fight;
+            bool running = fight != null && fight.IsInFight && !fight.IsPlacement;
+            IReadOnlyDictionary<int, CombatFighter> fighters = running ? fight.Fighters : null;
+            Func<long, int?> teamOf = id => fighters != null && fighters.TryGetValue(unchecked((int)id), out CombatFighter fighter) && fighter.Team >= 0
+                ? fighter.Team : (int?)null;
+            bool aura = Options.Aura;
+            IEnumerable<ActorExtraClips.Wanted> wanted = MapActors().SelectMany(actor => ActorExtraClips.WantedFor(actor, running, aura, teamOf)).ToList();
+            extraClips.Reconcile(wanted, Effects, UserMap.Sprites, TryAddEffect, UserMap.Now);
+            UserMap.WakeAnimations();
+        }
+
+        private void OnActorForClips(MapActor actor) => OnUi(() => { ApplyEntryEmote(actor); RefreshExtraClips(); UpdatePvpViewer(); });
+
+        private void OnActorRemovedForClips(MapActor actor)
+        {
+            long id = actor?.Id ?? 0;
+            OnUi(() =>
+            {
+                if (actor != null)
+                {
+                    staleEntryEmotes.Remove(id);
+                    if (emoteTimers.TryGetValue(id, out EmoteTimer timer)) { emoteTimers.Remove(id); Effects.Remove(timer); }
+                }
+                RefreshExtraClips();
+            });
+        }
+
+        private void OnActorsClearedForClips() => OnUi(() => { staleEntryEmotes.Clear(); emoteTimers.Clear(); RefreshExtraClips(); });
+
+        private void OnEntitiesForClips() => OnUi(() => { ApplyEntryEmotes(); RefreshExtraClips(); UpdatePvpViewer(); });
+
+        private void OnMapForClips() => OnUi(() =>
+        {
+            staleEntryEmotes.Clear();
+            emoteTimers.Clear();
+            extraClips.Forget(Effects);
+            RefreshExtraClips();
+            ApplyEntryEmotes();
+            UpdatePvpViewer();
+        });
+
+        /// <summary>Un déplacement termine l'émote d'entrée (comme <c>AddMain</c> retire l'icône au premier pas).</summary>
+        private void OnMovementForClips(int id, List<Tool_BotProtocol.Game.Maps.Cell> cells, int duration) => OnUi(() => staleEntryEmotes.Add(id));
+
+        private void OnHoverForWings(Entites entity) => UpdatePvpViewer();
+
+        /// <summary>
+        /// Personnage du compte vu par la surtête (<see cref="OverheadLayer.Viewer"/>) pour le <c>pvpGain</c> des ailes : niveau et
+        /// camp, relus à chaque survol et changement du modèle (plusieurs comptes dans un même processus : le dernier survolé).
+        /// </summary>
+        private void UpdatePvpViewer()
+        {
+            try
+            {
+                CharacterClass self = Account.Game?.character;
+                int side = Account.Game?.Interactions?.Alignment?.Alignment?.Side ?? 0;
+                OverheadLayer.Viewer = new OverheadLayer.PvpViewer(self?.id ?? 0, self?.Level ?? 0, side);
+            }
+            catch (Exception error) when (!(error is OutOfMemoryException)) { /* modèle en cours de fermeture : ailes sans pvpGain */ }
+        }
+
+        private void HookOptions()
+        {
+            Tool_BotProtocol.Config.BotOptions current = Options;
+            if (ReferenceEquals(current, hookedOptions)) return;
+            UnhookOptions();
+            hookedOptions = current;
+            if (current != null) current.OptionChanged += OnOptionChangedForClips;
+        }
+
+        private void UnhookOptions()
+        {
+            if (hookedOptions != null) hookedOptions.OptionChanged -= OnOptionChangedForClips;
+            hookedOptions = null;
+        }
+
+        private void OnOptionChangedForClips(object sender, Tool_BotProtocol.Config.BotOptionChangedEventArgs e)
+        {
+            if (e != null && e.Name == "Aura") OnUi(RefreshExtraClips);
+        }
 
         /// <summary>
         /// Utilisation d'un objet interactif (GA501 <c>cellule,durée[,anim]</c>), dans la file du GA : direction vers l'objet,

@@ -22,7 +22,7 @@ namespace Outil_Azur_complet.Bot
             { "Transparency", "SpriteInfos", "SpriteMove" };
 
         private static readonly string[] GeneralOptions = { "BannerShortcuts", "ChatEffects", "TimestampInChat", "CensorshipFilter", "ViewAllMonsterInGroup" };
-        private static readonly string[] DisplayOptions = { "Grid", "MapInfos", "Transparency", "SpriteInfos", "SpriteMove", "PointsOverHead" };
+        private static readonly string[] DisplayOptions = { "Grid", "MapInfos", "Transparency", "SpriteInfos", "SpriteMove", "PointsOverHead", "Aura" };
 
         private readonly BotOptions options;
         private readonly Dictionary<string, CheckBox> checks = new Dictionary<string, CheckBox>(StringComparer.Ordinal);
@@ -301,6 +301,7 @@ namespace Outil_Azur_complet.Bot
                 case "MapInfos": return Lang("OPTION_MAPINFOS", "Afficher les coordonnées de la carte");
                 case "ChatEffects": return Lang("OPTION_CHATEFFECTS", "Afficher les infos de combat dans le chat");
                 case "PointsOverHead": return Lang("OPTION_POINTSOVERHEAD", "Afficher les valeurs au dessus des persos");
+                case "Aura": return Lang("OPTION_AURA", "Afficher les auras des joueurs");
                 case "ViewAllMonsterInGroup": return Lang("OPTION_VIEWALLMONSTERINGROUP", "Afficher tous les monstres d'un groupe");
                 case "TimestampInChat": return Lang("OPTION_USE_CHATTIMESTAMP", "Afficher l'heure de réception des messages dans le chat");
                 case "BannerShortcuts": return Lang("OPTION_BANNERSHORTCUTS", "Activer les raccourcis (caractéristiques, inventaire, ...)");
