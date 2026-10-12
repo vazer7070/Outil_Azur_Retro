@@ -800,7 +800,7 @@ Le client accroche des clips annexes à ses sprites (`addExtraClip` : teinte `Co
 
 Limites :
 
-- rien n'a été comparé au client sur un vrai StarLoco (l'essai live rejoue seulement la connexion et les scénarios des lots précédents) ;
+- sur le vrai StarLoco, seule l'émote assise a été rejouée (scénario c2 de `BotStarLocoLiveSmoke`, 12 octobre 2026 : A reçoit `eUK<id de B>|1`, dessine B en bande `emote1R` sans icône, puis `eUK<id de B>|0` le ramène en `static`) ; auras, cercle d'équipe, sac, clip de PNJ et ailes n'ont pas été comparés au client sur un vrai serveur. Ce passage a fait corriger `EmoteTimer` : sans durée, il se retirait sans fin et la carte se redessinait à 30 images par seconde pour un personnage assis, ce qui, sous Mono, empêchait `Application.DoEvents` de rendre la main ;
 - `OverheadLayer.Viewer` est unique : avec plusieurs comptes ouverts, le bonus PvP est calculé du point de vue du dernier compte qui a redessiné ou survolé sa carte ;
 - l'aura 3 ne dessine rien (scène vide) ; les émotes non exportées et celles des autres gfx restent en icône ; le cercle d'équipe prend l'équipe du `GM` de combat ou de `Fights.Fighters` : un acteur dont l'équipe est inconnue garde le cercle sans teinte (blanc à 10 %) ;
 - la lueur du bonus PvP est un flou en boîte en trois passes, pas le filtre gaussien du lecteur Flash.
