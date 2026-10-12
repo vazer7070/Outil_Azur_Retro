@@ -52,6 +52,7 @@ python3 exporter_sprites.py <client>/clips/sprites ../../Outil_Azur_complet/Reso
 | `exporter_artworks.py` | Exporte les bustes des classes `clips/artworks/faces/<gfx>.swf` (scène principale, gfx = classe × 10 + sexe) vers `Outil_Azur_complet/Resources/Bot/Artworks/Faces` pour la fiche du conjoint du volet Amis ; commande et provenance dans son `PROVENANCE.md`, tests dans `tests/test_exporter_artworks.py`. |
 | `exporter_quetes.py` | Exporte de `modules/core.swf` les pièces de la fenêtre des quêtes (icône d'expérience, coche, marque en cours, flèche d'étape, boussole d'objectif) vers `Outil_Azur_complet/Resources/Bot/Client`, en réutilisant le rendu d'`exporter_icons.py` ; commande dans le `PROVENANCE.md` de ce dossier. |
 | `choisir_gfx_animes.py` | Classe les gfx de monstres par présences sur les cartes d'un dump SQL de StarLoco et écrit les lignes de `sprites_animes.txt` des plus présents, dans la limite d'un nombre de gfx et d'un budget estimé. Voir la section « Choix des gfx animés ». |
+| `exporter_accessoires.py` | Exporte en bandes PNG les accessoires des personnages (`clips/sprites/accessories/a1.swf`…`a5.swf` : une bande par étiquette de chaque symbole `<type>_<gfx>`) vers `Outil_Azur_complet/Resources/Bot/Accessoires`, avec `ancres.tsv` ; les clips réservés des sprites viennent d'`exporter_sprites.py --emplacements`. Voir la section « Accessoires des personnages ». |
 | `exporter_sorts.py` | Exporte en bandes PNG les effets de sorts (`clips/spells/<gfx>.swf` : scène, `shoot`, `move`, `duplicate`) et `clips/extra/5.swf` vers `Outil_Azur_complet/Resources/Bot/Effets/<famille>`, avec `effets.tsv` et `exclusions.tsv` ; `--starloco` écrit `sorts_utilises.txt`. Voir la section « Effets de sorts ». |
 
 ## `swfsvg` : symboles, scène, images et index
@@ -61,6 +62,9 @@ swfsvg [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier> [nomExport .
 swfsvg --scene [--name NOM] [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier>
 swfsvg --list <fichier.swf>
 swfsvg --zones-list <fichier.swf>
+swfsvg --emplacements [--frame N|A-B|all] <fichier.swf> [nomExport ...]
+swfsvg --etiquettes-list <fichier.swf> [nomExport ...]
+swfsvg --etiquettes <fichier.swf> <dossier> [nomExport ...]
 # les deux premières formes acceptent aussi --instance NOM ou --sans-instance NOM, et --zones aucune|1|12|123…
 ```
 
@@ -123,6 +127,21 @@ swfsvg --zones-list <fichier.swf>
   différence des deux rendus donne la part de chaque zone dans chaque pixel (masques de
   recoloration d'`exporter_sprites.py --masques`). L'enfant est cherché par son nom d'instance :
   une cible calculée ou un clip posé sans nom n'est pas peint, et le client ne le colore pas non plus.
+- **`--emplacements`** (version 0.2.6) écrit, sans rien rendre, les clips réservés aux accessoires des
+  symboles demandés (tous les exports sans nom), image par image (`--frame`, `all` pour toutes les images
+  utiles) : `nom image emplacement etiquette miroir tete a b c d tx ty tx_miroir ty_miroir rang formes`. Un
+  clip réservé est un clip vide dont le DoAction appelle `GAC.applyAccessory(this, <emplacement 0-4>,
+  "<étiquette>"[, tête][, miroir])` ; la matrice `a b c d tx ty` cumule les poses jusqu'au symbole (pixels),
+  `tx_miroir ty_miroir` est la translation avec `_x` du clip inversé (ce que fait le client pour un clip
+  `miroir` quand le sprite est retourné), `rang` le nombre de formes dessinées avant le clip et `formes`
+  le nombre de formes de l'image (devant ou derrière le corps). Les appels dont la cible n'est pas `this`
+  ou l'emplacement hors de 0..4 sont ignorés.
+- **`--etiquettes-list`** (version 0.2.6) écrit les étiquettes d'images (`FrameLabel`) des symboles demandés :
+  `nom etiquette image images fin`, `images` étant le nombre d'images que l'étiquette tient quand le
+  client fait `gotoAndStop(étiquette)` (1, ou la durée du plus long clip que contient cette image : un
+  familier qui marche), `fin` `boucle` ou `arret`. **`--etiquettes <swf> <dossier>`** rend chacune de ces
+  images, `<nom>_<étiquette>_a001.svg`…, toutes les images d'une étiquette dans le même cadre, avec
+  l'`index.tsv` habituel (colonne 10 : image tenue à partir de 1, colonne 11 : images tenues).
 
 `index.tsv` (sans ligne d'en-tête) compte une ligne par SVG écrit, colonnes séparées par des
 tabulations ; les sept premières sont celles des versions précédentes :
@@ -157,8 +176,8 @@ par la couleur de son milieu, et un aplat magenta sous une transformation de cou
 donne le nombre d'images et `--frame` permet de choisir une image représentative. Un SWF illisible
 arrête la commande avec un message et le code 1 (2 pour une option invalide), jamais une panique.
 
-Tests : `cargo test` dans `swfsvg/` (21 tests, dont les zones de `--zones` et la durée des clips
-imbriqués de la 0.2.5 ; le SWF de test est fabriqué par les tests avec la
+Tests : `cargo test` dans `swfsvg/` (22 tests, dont les zones de `--zones`, la durée des clips
+imbriqués de la 0.2.5 et les clips réservés et étiquettes de la 0.2.6 ; le SWF de test est fabriqué par les tests avec la
 crate `swf`, aucun fichier du client n'est nécessaire).
 
 Temps mesurés (conteneur 4 cœurs, un processus par SWF, binaire `--release`) :
@@ -182,6 +201,7 @@ les exports d'un sprite sur dix (93 SWF, 260 s) : aucun échec, aucune panique.
 exporter_sprites.py <client>/clips/sprites <sortie> [--swfsvg CHEMIN] [--animes FICHIER]
                     [--gfx 10,11,...] [--anims hit,die[:pas],...] [--pas N]
                     [--echelle 1] [--jobs N] [--sans-palette] [--masques] [--conserver]
+                    [--emplacements DOSSIER]
 ```
 
 Requiert swfsvg 0.2.3 ou plus (0.2.5 avec `--masques`) (colonne `fin` de `--list` ; `--swfsvg`, sinon `$SWFSVG`, le `PATH` ou
@@ -229,17 +249,27 @@ d'`ancres.tsv` ne change pas et que le nouveau rendu ne s'en écarte que par l'a
 32 près, écart moyen des couleurs visibles sous 2/255) : refaire les masques d'un dossier ne
 réécrit que les bandes qui changent vraiment.
 
+`--emplacements DOSSIER` (lot AN7, swfsvg 0.2.6) relève en plus, pour chaque image gardée de chaque bande
+exportée (poses `static` comprises), les clips réservés aux accessoires (`swfsvg --emplacements --frame all`)
+et écrit `<DOSSIER>/<gfx>.tsv` : `anim image emplacement etiquette miroir a b c d tx ty tx_miroir ty_miroir
+devant`, `image` étant le rang dans la bande (au pas), les translations à l'échelle des PNG, `devant` valant 1
+quand au moins la moitié des formes de l'image sont dessinées avant le clip. Un export partiel (`--gfx`,
+`--anims`) ne remplace que les lignes des bandes réexportées ; un fichier qui n'a plus de ligne est retiré.
+Le bot lit ces tables depuis `Accessoires/emplacements` (voir `Accessoires/PROVENANCE.md`).
+
 | Commande | Durée (4 cœurs) | Sortie |
 |---|---|---|
 | tous les sprites, `--jobs 4`, 24 gfx animés | 3 min 10 s | 2 556 PNG, 16,1 Mo, `ancres.tsv` de 2 556 lignes |
 | `--gfx <24 classes> --anims hit,die --jobs 4` (lot AN2) | 28 s | 96 PNG, 3,5 Mo, 3 444 images ; `ancres.tsv` de 2 652 lignes |
 | `--gfx <100 monstres> --anims walk,run,hit,die,anim0 --pas 2 --jobs 4` (lot AN3) | 2 min 38 s | 1 034 PNG, 35,2 Mo, 21 691 images ; `ancres.tsv` de 3 686 lignes |
 | `--gfx <24 classes> --masques --conserver --jobs 4` (lot AN6, familles de `sprites_animes.txt`) | 8 min 18 s | 1 080 PNG dont 576 gardés, 1 080 masques (7,0 Mo) |
+| idem avec `--emplacements …/Accessoires/emplacements` (lot AN7) | 10 min 57 s | 1 080 PNG et masques gardés, 94 627 lignes d'emplacements dans 24 fichiers (6,1 Mo) |
 
 Tests : `python3 tests/test_exporter_sprites.py` (faux `swfsvg` écrit en Python dans `tests/`, aucun
 fichier du client) : image de repos, casse, scène, bandes, magenta, rognage, échelle, `--gfx`,
 `--anims` et pas, colonnes `ips` et `fin`, relecture d'un ancien `ancres.tsv`, grille au-delà de
-32 767 px, masques et `couleurs.tsv` de `--masques`, PNG gardés par `--conserver`.
+32 767 px, masques et `couleurs.tsv` de `--masques`, PNG gardés par `--conserver`, tables de
+`--emplacements` (export complet, partiel, échelle), réduction prémultipliée du repli cairo.
 
 ### Choix des gfx animés : `choisir_gfx_animes.py`
 
@@ -268,6 +298,34 @@ une ligne `<gfx> <famille>[:<pas>],...` par gfx (triées par gfx), prête à ajo
 Tests : `python3 tests/test_choisir_gfx_animes.py` (mini dump SQL inventé et faux `swfsvg` de
 `tests/`, aucun fichier du client ni du serveur) : comptage avec et sans groupes fixes, grades et
 cartes ignorés, familles gardées selon le SWF, budget, exclusions, erreurs.
+
+## Accessoires des personnages (`exporter_accessoires.py`)
+
+```text
+exporter_accessoires.py <client>/clips/sprites/accessories <sortie> [--swfsvg CHEMIN]
+                        [--fichiers a1,a2,a3,a4,a5] [--types 16,17,18] [--symboles 16_2,18_61]
+                        [--pas N] [--echelle 1] [--jobs N] [--sans-palette]
+```
+
+Lot AN7. Requiert swfsvg 0.2.6 ou plus, cairosvg et Pillow. Le client ne charge que `accessories.swf`,
+qui importe `a1.swf` à `a5.swf` ; chaque accessoire y est un symbole exporté `<type>_<gfx>` (type et gfx
+de l'objet dans `items.xml`) dont les images portent des étiquettes (`S`, `R`, `L`, `F`, `B` ; `RR`, `RL` ;
+`WL`…`WB` ; `R0`…`R19`). Pour chaque étiquette de chaque symbole (`--etiquettes-list`), l'outil rend les
+images tenues (`--etiquettes`), les rogne à leur cadre commun et les assemble en bande (une image sur
+`--pas`, comme `exporter_sprites.py`) dans `<sortie>/<type>_<gfx>_<étiquette>.png`, puis écrit
+`<sortie>/ancres.tsv` au format des sprites (`gfx` = symbole, `anim` = étiquette, ancre = origine du
+symbole, `ips` = 40 / pas, `fin` `boucle` ou `arret`). `--fichiers`, `--types` et `--symboles` limitent
+l'export et ne remplacent que les lignes et PNG des symboles exportés ; sans filtre, le dossier est refait.
+Une étiquette sans pixel ou illisible est signalée sans PNG, un SWF illisible n'arrête pas la série.
+Les images qu'un dégradé presque singulier fait refuser par cairo (`CAIRO_STATUS_NO_MEMORY`) sont rendues
+sur-échantillonnées puis réduites (alpha prémultiplié), à défaut sans leurs formes de surface nulle
+(`exporter_sprites.svg_vers_image`, commun aux deux exporteurs). Commande et mesures du dépôt dans
+`Outil_Azur_complet/Resources/Bot/Accessoires/PROVENANCE.md` (1 min 41 s pour 4 200 bandes, 9,3 Mo).
+
+Tests : `python3 tests/test_exporter_accessoires.py` (faux `swfsvg`) : export complet au pas 2, tri,
+une image seule en `arret`, magenta effacé, symboles qui ne sont pas `<type>_<gfx>` ignorés, exports
+partiels (`--symboles`, `--types`, `--fichiers`) qui gardent le reste, PNG orphelins retirés par un export
+complet, erreurs (SWF absent, pas invalide, aucun symbole, SWF illisible).
 
 ## Limites connues
 

@@ -104,6 +104,7 @@ try {
     $azurTests += 'BotSpellEffectsSmoke'
     $azurTests += 'BotSpellProjectilesSmoke'
     $azurTests += 'BotRecolorSmoke'
+    $azurTests += 'BotAccessoriesSmoke'
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'
@@ -183,6 +184,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de exporter_artworks.py.' }
         & $azurPython.Source (Join-Path $azurRoot 'tools\client-analysis\tests\test_choisir_gfx_animes.py')
         if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de choisir_gfx_animes.py.' }
+        & $azurPython.Source (Join-Path $azurRoot 'tools\client-analysis\tests\test_exporter_accessoires.py')
+        if ($LASTEXITCODE -ne 0) { throw 'Échec des tests de exporter_accessoires.py.' }
     }
     Write-Host "$($azurTests.Count) tests réussis. Fichiers temporaires et journaux : $azurWork"
 }

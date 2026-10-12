@@ -319,7 +319,11 @@ Mesuré le 9 octobre 2026 (4 cœurs ; `swfsvg` 0.2.5, cairosvg 2.9, Pillow 12) :
 | 4. poses fixes colorées | 4,5 s | 121 | 118 | 101 (0,1 Mo) | aucun |
 
 Total : 1 296 masques pour 7 322 972 octets et `couleurs.tsv` (23 825 lignes) pour 524 695 octets, soit
-7 847 667 octets (≈ 12 Mo prévus). Les bandes réexportées sont plus courtes : classes 34 510 269 →
+7 847 667 octets (≈ 12 Mo prévus). Le 12 octobre 2026 (lot AN7), la commande 1 a été relancée avec
+`--emplacements Outil_Azur_complet/Resources/Bot/Accessoires/emplacements` (`swfsvg` 0.2.6, 10 min 57 s) :
+les 1 080 bandes et 1 080 masques ont été gardés tels quels, `ancres.tsv` et `couleurs.tsv` sont inchangés,
+seuls les 24 fichiers `Accessoires/emplacements/<gfx>.tsv` ont été écrits (voir `../Accessoires/PROVENANCE.md`).
+Les bandes réexportées sont plus courtes : classes 34 510 269 →
 34 144 300 octets, familles animées des monstres 35 206 465 → 34 688 832. Le dossier passe de
 83 075 211 à 90 039 320 octets (+ 6 964 109). Sept gfx de la commande 4 (1281, 9003, 9046, 9047, 9050,
 9073, 9093) n'ont aucun pixel de zone dans leur pose fixe : leurs appels `applyColor` visent des noms

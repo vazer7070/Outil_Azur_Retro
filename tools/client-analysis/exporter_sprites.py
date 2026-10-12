@@ -4,9 +4,10 @@
 usage : exporter_sprites.py <client>/clips/sprites <sortie> [--swfsvg CHEMIN] [--animes FICHIER]
                             [--gfx 10,11,...] [--anims hit,die[:pas],...] [--pas N]
                             [--echelle 1] [--jobs N] [--sans-palette] [--masques] [--conserver]
+                            [--emplacements DOSSIER]
 
 Pour chaque <gfx>.swf du dossier (cairosvg et Pillow requis, swfsvg 0.2.3 ou plus, 0.2.5 avec
---masques) :
+--masques, 0.2.6 avec --emplacements) :
 
 - famille « static » : <gfx>_static<O>.png, O dans S, R, L, F, B : le symbole exporté static<O> (la
   casse du nom d'export est ignorée : quelques SWF exportent StaticR). On rend sa dernière image
@@ -64,6 +65,24 @@ nombre d'images) ne change pas et que le nouveau rendu ne s'en écarte que par l
 (alpha à 32 près, écart moyen des couleurs visibles sous 2/255) : refaire les masques d'un dossier
 exporté par une version plus ancienne de swfsvg ne réécrit que les bandes qui changent vraiment.
 Le masque, lui, est toujours écrit d'après le nouveau rendu (même cadre, même disposition).
+
+--emplacements DOSSIER : emplacements des accessoires (lot AN7). Les sprites des personnages réservent
+des clips vides dont le script appelle `GAC.applyAccessory(this, <emplacement>, "<étiquette>", ...)` ;
+le client y attache l'accessoire porté (0 arme, 1 coiffe, 2 cape, 3 familier, 4 bouclier), arrêté
+sur l'étiquette. `swfsvg --emplacements` (0.2.6) relève, pour chaque image rendue, la matrice de chaque
+clip réservé dans le repère du symbole (origine : le pied du personnage) et son rang parmi les formes
+dessinées. Pour chaque gfx exporté qui en a, <DOSSIER>/<gfx>.tsv (UTF-8, tabulations, une ligne
+d'en-tête) donne une ligne par clip réservé de chaque image gardée de chaque bande :
+    anim  image  emplacement  etiquette  miroir  a  b  c  d  tx  ty  tx_miroir  ty_miroir  devant
+anim : nom de la bande (staticR, walkL...) ; image : rang de l'image dans la bande, à partir de 0 ;
+etiquette : image de l'accessoire à montrer (S, R, L, F, B, WR, RR, RL...) ; miroir : 1 si le client
+oppose le x du clip quand le sprite est retourné (familier) ; a b c d tx ty : matrice du clip réservé
+(x' = a x + c y + tx, y' = b x + d y + ty, tx et ty en pixels du PNG, donc multipliés par --echelle) ;
+tx_miroir ty_miroir : position pour un sprite retourné et un clip en miroir ; devant : 1 si le clip
+est dessiné après au moins la moitié des formes du corps (accessoire devant le corps), 0 sinon.
+Avec --gfx ou --anims, seules les lignes des bandes réexportées sont remplacées. Sans --emplacements,
+les fichiers du dossier ne sont pas touchés (ils peuvent ne plus correspondre à des bandes
+réexportées à un autre pas : relancer avec --emplacements).
 """
 import argparse, collections, concurrent.futures, io, os, re, shutil, subprocess, sys, tempfile
 
@@ -87,6 +106,8 @@ ECART_REFERENCE = 8  # deux références plus proches (écart par canal) sont un
 INDEX_MAX = 255  # index de couleur d'origine par masque (composante verte)
 ECART_ALPHA_CONSERVE = 32  # --conserver : écart d'alpha maximal (anticrénelage) d'un PNG gardé
 ECART_MOYEN_CONSERVE = 2.0  # --conserver : écart moyen maximal des couleurs sur les pixels visibles
+EN_TETE_EMPLACEMENTS = ("anim", "image", "emplacement", "etiquette", "miroir", "a", "b", "c", "d", "tx", "ty",
+                        "tx_miroir", "ty_miroir", "devant")
 
 
 def trouver_swfsvg(chemin):
@@ -176,6 +197,51 @@ def zones_de(swfsvg, swf):
     return {int(c[2]) for c in (l.split("\t") for l in lignes[1:]) if len(c) == 3 and c[2] in ("1", "2", "3")}
 
 
+def emplacements_de(swfsvg, swf, noms):
+    """Clips réservés aux accessoires des symboles noms (`swfsvg --emplacements --frame all`) :
+    {nom en minuscules: {image: [ligne]}} ; une ligne vaut (emplacement, étiquette, miroir, a, b, c,
+    d, tx, ty, tx_miroir, ty_miroir, rang, formes), les nombres en texte tels que swfsvg les écrit."""
+    if not noms:
+        return {}
+    lignes = lancer(swfsvg + ["--emplacements", "--frame", "all", swf] + list(noms)).splitlines()
+    if not lignes or lignes[0].split("\t")[:4] != ["nom", "image", "emplacement", "etiquette"]:
+        raise RuntimeError("swfsvg --emplacements illisible : swfsvg 0.2.6 ou plus requis")
+    resultat = {}
+    for ligne in lignes[1:]:
+        col = ligne.split("\t")
+        if len(col) != 16 or not col[1].isdigit():
+            continue
+        resultat.setdefault(col[0].lower(), {}).setdefault(int(col[1]), []).append(tuple(col[2:]))
+    return resultat
+
+
+def nombre(texte, facteur=1.0, decimales=4):
+    """Nombre de swfsvg mis à l'échelle et arrondi, écrit sans zéros inutiles (« -5 », « 0.72 »)."""
+    valeur = round(float(texte) * facteur, decimales)
+    if valeur == int(valeur):
+        return str(int(valeur))
+    return ("%%.%df" % decimales % valeur).rstrip("0")
+
+
+def lignes_emplacements(releve, nom_symbole, anim, images, echelle):
+    """Lignes de <gfx>.tsv (sans gfx) d'une bande : anim, rang k de chaque image gardée, et pour
+    chaque clip réservé de l'image images[k] du symbole, ses colonnes (voir --emplacements)."""
+    lignes = []
+    par_image = releve.get(nom_symbole.lower(), {})
+    for k, image in enumerate(images):
+        for c in par_image.get(image, []):
+            # c : emplacement, étiquette, miroir, tête, a, b, c, d, tx, ty, tx_miroir, ty_miroir, rang, formes.
+            try:
+                rang, formes = int(c[12]), int(c[13])
+                devant = 1 if 2 * rang >= formes else 0
+                lignes.append((anim, k, int(c[0]), c[1], 1 if c[2] == "1" else 0,
+                               nombre(c[4]), nombre(c[5]), nombre(c[6]), nombre(c[7]),
+                               nombre(c[8], echelle, 2), nombre(c[9], echelle, 2), nombre(c[10], echelle, 2), nombre(c[11], echelle, 2), devant))
+            except ValueError:
+                continue
+    return lignes
+
+
 def rendre_svg(swfsvg, args, dossier):
     """Lance swfsvg et renvoie les lignes de son index.tsv par nom de fichier SVG (colonne 12)."""
     lancer(swfsvg + args)
@@ -202,8 +268,81 @@ def svg_vers_image(chemin, echelle, magenta=True):
     if not m:
         raise RuntimeError("viewBox absent : " + os.path.basename(chemin))
     x0, y0 = round(float(m.group(1)) * echelle), round(float(m.group(2)) * echelle)
-    image = Image.open(io.BytesIO(cairosvg.svg2png(url=chemin, scale=echelle, background_color=None))).convert("RGBA")
+    try:
+        image = Image.open(io.BytesIO(cairosvg.svg2png(url=chemin, scale=echelle, background_color=None))).convert("RGBA")
+    except MemoryError:
+        # cairo refuse (NO_MEMORY) un dégradé dont la matrice, en pixels, est presque singulière (reflets des
+        # familiers 18_62 et 18_55, arme 6_87) : rendu sur-échantillonné puis réduit par moyenne des blocs ;
+        # sinon sans les formes à dégradé posées par une matrice singulière (surface nulle, invisibles).
+        image = None
+        with open(chemin, "rb") as f:
+            source = f.read()
+        for contenu, facteur in ((source, 4), (source, 16), (sans_degrades_plats(source), 1), (sans_degrades_plats(source), 4)):
+            try:
+                rendu = cairosvg.svg2png(bytestring=contenu, scale=echelle * facteur, background_color=None)
+            except MemoryError:
+                continue
+            image = Image.open(io.BytesIO(rendu)).convert("RGBA")
+            if facteur > 1:
+                image = reduire(image, facteur)
+            break
+        if image is None:
+            raise RuntimeError("rendu refusé par cairo : " + os.path.basename(chemin))
+        attendu = (int(float(m.group(3)) * echelle), int(float(m.group(4)) * echelle))
+        if image.size != attendu:
+            cadre = Image.new("RGBA", attendu, (0, 0, 0, 0))
+            cadre.paste(image, (0, 0))
+            image = cadre
     return (effacer_magenta(image) if magenta else image), x0, y0
+
+
+MATRICE = re.compile(r"^\s*matrix\(\s*([-\d.e]+)[\s,]+([-\d.e]+)[\s,]+([-\d.e]+)[\s,]+([-\d.e]+)[\s,]+([-\d.e]+)[\s,]+([-\d.e]+)\s*\)\s*$")
+
+
+def sans_degrades_plats(source, seuil=1e-5):
+    """SVG (octets) sans les formes peintes d'un dégradé dont la matrice cumulée des groupes a un
+    déterminant inférieur à seuil (surface nulle : rien de visible, mais cairo n'en vient pas à bout)."""
+    import xml.etree.ElementTree as ET
+    ET.register_namespace("", "http://www.w3.org/2000/svg")
+    racine = ET.fromstring(source)
+
+    def produit(m, n):
+        a, b, c, d, e, f = m
+        a2, b2, c2, d2, e2, f2 = n
+        return (a * a2 + c * b2, b * a2 + d * b2, a * c2 + c * d2, b * c2 + d * d2, a * e2 + c * f2 + e, b * e2 + d * f2 + f)
+
+    def parcourir(element, matrice):
+        m = MATRICE.match(element.get("transform", ""))
+        if m:
+            try:
+                matrice = produit(matrice, tuple(float(v) for v in m.groups()))
+            except ValueError:
+                pass
+        for enfant in list(element):
+            peinture = enfant.get("fill", "") + " " + enfant.get("stroke", "")
+            if "url(#" in peinture and abs(matrice[0] * matrice[3] - matrice[1] * matrice[2]) < seuil and not list(enfant):
+                element.remove(enfant)
+            else:
+                parcourir(enfant, matrice)
+
+    parcourir(racine, (1.0, 0.0, 0.0, 1.0, 0.0, 0.0))
+    return ET.tostring(racine)
+
+
+def reduire(image, facteur):
+    """Réduit une image RGBA d'un facteur entier : moyenne de chaque bloc, alpha prémultiplié (une
+    couleur sous un pixel transparent ne déteint pas)."""
+    alpha = image.getchannel("A")
+    couvert = ImageChops.multiply(image.convert("RGB"), Image.merge("RGB", (alpha, alpha, alpha))).reduce(facteur)
+    alpha = alpha.reduce(facteur)
+    rgb, a = couvert.tobytes(), alpha.tobytes()
+    pixels = bytearray(len(a) * 4)
+    for k in range(len(a)):
+        if a[k]:
+            for c in range(3):
+                pixels[4 * k + c] = min(255, (rgb[3 * k + c] * 255 + a[k] // 2) // a[k])
+            pixels[4 * k + 3] = a[k]
+    return Image.frombytes("RGBA", alpha.size, bytes(pixels))
 
 
 def seuil(canal, test):
@@ -463,22 +602,31 @@ class Masques:
             self.nombre += 1
 
 
-def exporter_gfx(gfx, swf, sortie, familles, echelle, palette, swfsvg, temporaire, masques=False, anciennes=None):
+def exporter_gfx(gfx, swf, sortie, familles, echelle, palette, swfsvg, temporaire, masques=False, anciennes=None,
+                 emplacements=False):
     """Exporte un SWF ; renvoie (lignes d'ancres.tsv, messages, octets écrits, lignes de couleurs.tsv,
-    nombre et octets des masques, PNG gardés). anciennes : lignes de l'ancien ancres.tsv
-    (--conserver), ou None. Ne lève jamais."""
+    nombre et octets des masques, PNG gardés, lignes d'emplacements). anciennes : lignes de l'ancien
+    ancres.tsv (--conserver), ou None. emplacements : relever aussi les clips réservés aux
+    accessoires (lignes de <gfx>.tsv, sans gfx). Ne lève jamais."""
     lignes, messages, octets = [], [], 0
     zones = None
+    places = []
     conserver = Conservation(anciennes) if anciennes is not None else None
     try:
         symboles = lister(swfsvg, swf)
         if masques and zones_de(swfsvg, swf):
             zones = Masques(swfsvg, swf, echelle)
         noms = {nom.lower() for nom, _ in familles}
+        releve = {}
+        if emplacements:
+            voulus = [s[0] for _, s in sorted(symboles.items()) if famille_de(s[0]).lower() in noms]
+            releve = emplacements_de(swfsvg, swf, voulus)
         with tempfile.TemporaryDirectory(dir=temporaire) as dossier:
             if "static" in noms:
-                l, m, o = exporter_statiques(gfx, swf, sortie, symboles, echelle, palette, swfsvg, dossier, zones, conserver)
+                l, m, o, retenues = exporter_statiques(gfx, swf, sortie, symboles, echelle, palette, swfsvg, dossier, zones, conserver)
                 lignes += l; messages += m; octets += o
+                for anim, (nom_symbole, image) in retenues.items():
+                    places += lignes_emplacements(releve, nom_symbole, anim, [image], echelle)
             for famille, pas in familles:
                 if famille.lower() == "static":
                     continue
@@ -505,6 +653,7 @@ def exporter_gfx(gfx, swf, sortie, familles, echelle, palette, swfsvg, temporair
                     if ligne:
                         ligne += (IPS // pas, "arret" if ligne[6] == 1 else fin_valide(s[2], gfx, anim, messages))
                         lignes.append(ligne); octets += taille
+                        places += lignes_emplacements(releve, s[0], anim, [int(index[f][9]) for f in fichiers], echelle)
                     else:
                         messages.append("%s : %s vide" % (gfx, anim))
                 if not trouve and famille.lower() not in CYCLES:
@@ -513,12 +662,14 @@ def exporter_gfx(gfx, swf, sortie, familles, echelle, palette, swfsvg, temporair
         messages.append("%s : %s" % (gfx, erreur))
     gardes = conserver.gardes if conserver else 0
     if not zones:
-        return lignes, messages, octets, [], 0, 0, gardes
-    return lignes, messages, octets, zones.lignes, zones.nombre, zones.octets, gardes
+        return lignes, messages, octets, [], 0, 0, gardes, places
+    return lignes, messages, octets, zones.lignes, zones.nombre, zones.octets, gardes, places
 
 
 def exporter_statiques(gfx, swf, sortie, symboles, echelle, palette, swfsvg, dossier, zones=None, conserver=None):
+    """Poses fixes ; renvoie (lignes d'ancres.tsv, messages, octets, {anim: (nom du symbole, image retenue)})."""
     lignes, messages, octets = [], [], 0
+    retenues = {}
     # Statiques : une commande par nombre d'images, puisque --frame vaut pour tous les noms.
     statiques = {o: symboles.get("static" + o.lower()) for o in ORIENTATIONS}
     par_image = {}
@@ -540,6 +691,7 @@ def exporter_statiques(gfx, swf, sortie, symboles, echelle, palette, swfsvg, dos
                                           conserver)
                 if ligne:
                     lignes.append(ligne); octets += taille
+                    retenues["static" + o] = (nom, image)
                     if image != n: messages.append("%s : %s vide à l'image %d, image 1 retenue" % (gfx, nom, n))
                 else:
                     restants.append((o, nom))
@@ -555,7 +707,7 @@ def exporter_statiques(gfx, swf, sortie, symboles, echelle, palette, swfsvg, dos
         ligne, taille = poser(os.path.join(sous, "scene.svg"), gfx, "scene", sortie, echelle, palette, zones, conserver)
         if ligne: lignes.append(ligne); octets += taille
         else: messages.append("%s : aucun static<O> et scène vide, rien d'exporté" % gfx)
-    return lignes, messages, octets
+    return lignes, messages, octets, retenues
 
 
 def poser(svg, gfx, anim, sortie, echelle, palette, zones=None, conserver=None):
@@ -641,6 +793,39 @@ def lire_couleurs(chemin):
     return lignes
 
 
+def lire_emplacements(chemin):
+    """Lignes d'un <gfx>.tsv d'emplacements (sans gfx), lignes illisibles ignorées."""
+    lignes = []
+    if os.path.isfile(chemin):
+        with open(chemin, encoding="utf-8") as f:
+            for ligne in f:
+                col = ligne.rstrip("\r\n").split("\t")
+                if col[0] == EN_TETE_EMPLACEMENTS[0] or len(col) != len(EN_TETE_EMPLACEMENTS):
+                    continue
+                if col[1].isdigit() and col[2].isdigit() and col[4] in ("0", "1") and col[13] in ("0", "1"):
+                    lignes.append((col[0], int(col[1]), int(col[2]), col[3], int(col[4])) + tuple(col[5:13]) + (int(col[13]),))
+    return lignes
+
+
+def ecrire_emplacements(dossier, gfx, lignes, cible):
+    """Écrit <dossier>/<gfx>.tsv : les lignes relevées, plus celles des bandes non réexportées d'un
+    fichier existant (export partiel : cible(gfx, famille) faux). Sans ligne, le fichier est retiré."""
+    chemin = os.path.join(dossier, "%s.tsv" % gfx)
+    if cible is not None:
+        lignes = [l for l in lire_emplacements(chemin) if not cible(gfx, famille_de(l[0]))] + list(lignes)
+    if not lignes:
+        if os.path.isfile(chemin):
+            os.remove(chemin)
+        return 0
+    lignes.sort(key=lambda l: (l[0], l[1], l[2]))
+    os.makedirs(dossier, exist_ok=True)
+    with open(chemin, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\t".join(EN_TETE_EMPLACEMENTS) + "\n")
+        for l in lignes:
+            f.write("\t".join(str(v) for v in l) + "\n")
+    return len(lignes)
+
+
 def cle_gfx(valeur):
     return (0, int(valeur)) if valeur.isdigit() else (1, valeur)
 
@@ -707,6 +892,8 @@ def main():
                                                           "<gfx>_<anim>.couleurs.png et couleurs.tsv (swfsvg 0.2.5+)")
     p.add_argument("--conserver", action="store_true", help="garder un PNG existant dont la ligne d'ancres ne change "
                                                             "pas et dont le rendu ne diffère que par l'anticrénelage")
+    p.add_argument("--emplacements", metavar="DOSSIER", help="écrire aussi les emplacements des accessoires de chaque "
+                                                             "gfx dans DOSSIER/<gfx>.tsv (swfsvg 0.2.6+)")
     a = p.parse_args()
 
     if a.pas < 1 or IPS % a.pas:
@@ -735,22 +922,32 @@ def main():
             if "option inconnue" in str(erreur) or "0.2.5" in str(erreur):
                 sys.exit("--masques : swfsvg 0.2.5 ou plus requis (%s)" % erreur)
 
+    if a.emplacements:
+        try:
+            emplacements_de(swfsvg, os.path.join(a.sprites, choisis[0] + ".swf"), ["scene"])
+        except RuntimeError as erreur:
+            if "option inconnue" in str(erreur) or "0.2.6" in str(erreur):
+                sys.exit("--emplacements : swfsvg 0.2.6 ou plus requis (%s)" % erreur)
+
     familles = {g: anims if anims is not None else [("static", 1)] + animes.get(g, []) for g in choisis}
     lignes, messages, octets = [], [], 0
     couleurs, masques, octets_masques, conserves = [], 0, 0, 0
+    places = {}
     anciennes = None
     if a.conserver:
         anciennes = {(l[0], l[1]): tuple(l[2:7]) for l in lire_ancres(os.path.join(a.sortie, "ancres.tsv"))}
     with tempfile.TemporaryDirectory(prefix="sprites-") as temporaire:
         with concurrent.futures.ProcessPoolExecutor(max_workers=max(1, a.jobs)) as pool:
-            taches = [pool.submit(exporter_gfx, g, os.path.join(a.sprites, g + ".swf"), a.sortie, familles[g],
-                                  a.echelle, not a.sans_palette, swfsvg, temporaire, a.masques,
-                                  None if anciennes is None else {k: v for k, v in anciennes.items() if k[0] == g})
+            taches = [(g, pool.submit(exporter_gfx, g, os.path.join(a.sprites, g + ".swf"), a.sortie, familles[g],
+                                      a.echelle, not a.sans_palette, swfsvg, temporaire, a.masques,
+                                      None if anciennes is None else {k: v for k, v in anciennes.items() if k[0] == g},
+                                      bool(a.emplacements)))
                       for g in choisis]
-            for t in taches:
-                l, m, o, c, n, om, k = t.result()
+            for g, t in taches:
+                l, m, o, c, n, om, k, e = t.result()
                 lignes += l; messages += m; octets += o
                 couleurs += c; masques += n; octets_masques += om; conserves += k
+                places[g] = e
 
     partiel = bool(a.gfx) or anims is not None
     choix = set(choisis)
@@ -788,6 +985,9 @@ def main():
         print("%d PNG gardés tels quels (--conserver)" % conserves)
     if a.masques:
         print("%d masques (%.1f Mo), %d lignes dans %s" % (masques, octets_masques / 1e6, len(couleurs), chemin_couleurs))
+    if a.emplacements:
+        total = sum(ecrire_emplacements(a.emplacements, g, places[g], cible) for g in choisis)
+        print("%d lignes d'emplacements dans %s (%d gfx)" % (total, a.emplacements, sum(1 for g in choisis if places[g])))
 
 
 if __name__ == "__main__":

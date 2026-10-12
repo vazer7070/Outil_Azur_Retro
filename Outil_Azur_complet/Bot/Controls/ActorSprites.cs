@@ -165,6 +165,9 @@ namespace Outil_Azur_complet.Bot.Controls
     /// Lot AN6 : <see cref="Resolve"/> reçoit les couleurs de l'acteur ; la bande recolorée (<see cref="SpriteRecolor"/>) est
     /// calculée une fois sur le pool et gardée dans le même cache, par gfx, animation, orientation et couleurs : deux acteurs
     /// de mêmes couleurs partagent la même image. Sans masque (ou sans couleur qui touche une zone), la bande d'origine.
+    /// Lot AN7 : troisième bibliothèque, celle des accessoires (<c>Accessoires/&lt;type&gt;_&lt;gfx&gt;_&lt;étiquette&gt;.png</c> et
+    /// <c>ancres.tsv</c>, <see cref="ResolveAccessory"/>) et les tables de clips réservés des gfx
+    /// (<c>Accessoires/emplacements/&lt;gfx&gt;.tsv</c>, <see cref="Placements"/>), lues sur le pool comme les bandes.
     /// </summary>
     public sealed class ActorSprites : IDisposable
     {
@@ -176,6 +179,8 @@ namespace Outil_Azur_complet.Bot.Controls
         public const long MaxImagePixels = 16L * 1024 * 1024;
         /// <summary>Budget des bandes d'effets que plus aucun effet n'utilise (taille décodée, largeur × hauteur × 4).</summary>
         public const long EffectBudget = 32L * 1024 * 1024;
+        /// <summary>Budget des bandes d'accessoires que plus aucune vue ne tient (lot AN7).</summary>
+        public const long AccessoryBudget = 16L * 1024 * 1024;
         /// <summary>Dossier local non versionné, à côté de l'exécutable, lu avant <c>ressources/Bot/sprites</c>.</summary>
         public const string LocalFolderName = "sprites-local";
         /// <summary>Dossier des effets (<c>Effets/&lt;famille&gt;/&lt;id&gt;_&lt;anim&gt;.png</c> + <c>effets.tsv</c>).</summary>
@@ -196,7 +201,9 @@ namespace Outil_Azur_complet.Bot.Controls
 
         private readonly Library library;
         private readonly Library effects;
+        private readonly Library accessories;
         private readonly HashSet<Entry> held = new HashSet<Entry>();
+        private readonly HashSet<Entry> heldAccessories = new HashSet<Entry>();
         private readonly HashSet<FixedStrip> strips = new HashSet<FixedStrip>();
         private bool disposed;
 
@@ -207,14 +214,18 @@ namespace Outil_Azur_complet.Bot.Controls
         /// <param name="directory">Dossier des sprites (<c>null</c> = <see cref="DefaultDirectory"/>).</param>
         /// <param name="localDirectory">Dossier lu avant <paramref name="directory"/> (<c>null</c> : aucun).</param>
         /// <param name="effectsDirectory">Dossier des effets (<c>null</c> : dossier <c>Effets</c> voisin de <paramref name="directory"/>).</param>
-        public ActorSprites(string directory, string localDirectory, string effectsDirectory = null)
+        /// <param name="accessoriesDirectory">Dossier des accessoires (<c>null</c> : dossier <c>Accessoires</c> voisin de <paramref name="directory"/>).</param>
+        public ActorSprites(string directory, string localDirectory, string effectsDirectory = null, string accessoriesDirectory = null)
         {
             Directory = string.IsNullOrEmpty(directory) ? DefaultDirectory : directory;
             LocalDirectory = string.IsNullOrEmpty(localDirectory) ? null : localDirectory;
             EffectsDirectory = string.IsNullOrEmpty(effectsDirectory) ? Sibling(Directory, EffectsFolderName) : effectsDirectory;
+            AccessoriesDirectory = string.IsNullOrEmpty(accessoriesDirectory) ? Sibling(Directory, ActorAccessories.FolderName) : accessoriesDirectory;
             library = Shared(new[] { LocalDirectory, Directory }, "ancres.tsv", IdleBudget);
             effects = Shared(new[] { LocalDirectory == null ? null : Path.Combine(LocalDirectory, EffectsFolderName), EffectsDirectory },
                 "effets.tsv", EffectBudget);
+            accessories = Shared(new[] { LocalDirectory == null ? null : Path.Combine(LocalDirectory, ActorAccessories.FolderName), AccessoriesDirectory },
+                "ancres.tsv", AccessoryBudget);
         }
 
         public static string DefaultDirectory => Path.Combine(ExecutableDirectory, "ressources", "Bot", "sprites");
@@ -229,6 +240,8 @@ namespace Outil_Azur_complet.Bot.Controls
         public string LocalDirectory { get; }
         /// <summary>Racine des familles d'effets (<c>Effets/&lt;famille&gt;</c>).</summary>
         public string EffectsDirectory { get; }
+        /// <summary>Dossier des accessoires (<c>Accessoires</c> : bandes, <c>ancres.tsv</c> et <c>emplacements/&lt;gfx&gt;.tsv</c>), lot AN7.</summary>
+        public string AccessoriesDirectory { get; }
 
         /// <summary>Une image demandée par cette vue vient d'être chargée (ou s'est révélée absente). Levé sur le pool.</summary>
         public event EventHandler SheetsLoaded;
@@ -295,6 +308,11 @@ namespace Outil_Azur_complet.Bot.Controls
                 int count = 0;
                 lock (library.Sync) foreach (Entry entry in held) if (entry.State == SpriteLoadState.Loading) count++;
                 lock (effects.Sync) foreach (FixedStrip strip in strips) if (strip.Entry.State == SpriteLoadState.Loading) count++;
+                lock (accessories.Sync)
+                {
+                    foreach (Entry entry in heldAccessories) if (entry.State == SpriteLoadState.Loading) count++;
+                    foreach (PlacementEntry entry in accessories.Placements.Values) if (!entry.Done && entry.Waiters.Contains(this)) count++;
+                }
                 return count;
             }
         }
@@ -419,13 +437,88 @@ namespace Outil_Azur_complet.Bot.Controls
             return strip;
         }
 
-        /// <summary>Rend à la bibliothèque toutes les images d'acteurs tenues par cette vue (changement de carte).</summary>
+        /// <summary>
+        /// Bande d'un accessoire (lot AN7) : <c>Accessoires/&lt;symbole&gt;_&lt;étiquette&gt;.png</c> et sa ligne d'<c>ancres.tsv</c>
+        /// (<c>16_2</c>, <c>R</c>), sans orientation ni miroir (le clip réservé les porte). Ne lit jamais le disque : état
+        /// <see cref="SpriteLoadState.Loading"/> le temps de la lecture sur le pool, puis <see cref="SheetsLoaded"/>. Un nom qui
+        /// n'est pas <c>&lt;type&gt;_&lt;gfx&gt;</c> ou une étiquette illisible rend <see cref="SpriteLoadState.Missing"/> sans rien lire.
+        /// Les bandes sont tenues par la vue jusqu'à <see cref="ReleaseAll"/>, puis gardées jusqu'à <see cref="AccessoryBudget"/>.
+        /// </summary>
+        public SpritePose ResolveAccessory(string symbol, string label)
+        {
+            string name = (symbol ?? string.Empty) + "_" + (label ?? string.Empty);
+            if (disposed) return new SpritePose(null, false, SpriteLoadState.Missing, "Vue de la carte fermée.", label ?? string.Empty);
+            if (!ActorAccessories.IsSymbol(symbol) || !ActorAccessories.IsLabel(label))
+                return new SpritePose(null, false, SpriteLoadState.Missing, "Nom d'accessoire invalide : " + name + ".", label ?? string.Empty);
+            string key = symbol + "|" + label;
+            Entry entry; bool start = false; SpriteLoadState state; LoadResult result;
+            lock (accessories.Sync)
+            {
+                if (!accessories.Entries.TryGetValue(key, out entry))
+                {
+                    entry = new Entry(key);
+                    accessories.Entries[key] = entry;
+                    start = true;
+                }
+                if (heldAccessories.Add(entry)) accessories.Use(entry);
+                if (entry.State == SpriteLoadState.Loading && !entry.Waiters.Contains(this)) entry.Waiters.Add(this);
+                state = entry.State;
+                result = entry.Result;
+            }
+            if (start)
+            {
+                Library owner = accessories;
+                Task.Factory.StartNew(() => owner.Complete(entry, owner.Load(() => owner.LoadAccessory(symbol, label), name)),
+                    CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            }
+            if (state == SpriteLoadState.Loading) return new SpritePose(null, false, SpriteLoadState.Loading, null, label);
+            if (result?.Sheet == null) return new SpritePose(null, false, SpriteLoadState.Missing, result?.Reason, label);
+            return new SpritePose(result.Sheet, false, SpriteLoadState.Ready, result.Reason, label);
+        }
+
+        /// <summary>
+        /// Table des clips réservés du gfx (<c>Accessoires/emplacements/&lt;gfx&gt;.tsv</c>, dossier local d'abord), lue une fois sur
+        /// le pool et partagée : <c>null</c> tant qu'elle est en lecture (<see cref="SheetsLoaded"/> suit), vide (avec sa raison)
+        /// si le fichier manque ou est illisible. Ne lit jamais le disque sur ce fil.
+        /// </summary>
+        public AccessoryPlacements Placements(int gfx)
+        {
+            if (gfx <= 0 || disposed) return AccessoryPlacements.Empty;
+            string key = gfx.ToString(CultureInfo.InvariantCulture);
+            PlacementEntry entry; bool start = false;
+            lock (accessories.Sync)
+            {
+                if (!accessories.Placements.TryGetValue(key, out entry))
+                {
+                    entry = new PlacementEntry();
+                    accessories.Placements[key] = entry;
+                    start = true;
+                }
+                if (entry.Done) return entry.Table;
+                if (!entry.Waiters.Contains(this)) entry.Waiters.Add(this);
+            }
+            if (start)
+            {
+                Library owner = accessories;
+                Task.Factory.StartNew(() => owner.CompletePlacements(entry, owner.LoadPlacements(key)),
+                    CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            }
+            return null;
+        }
+
+        /// <summary>Rend à la bibliothèque toutes les images d'acteurs et d'accessoires tenues par cette vue (changement de carte).</summary>
         public void ReleaseAll()
         {
             lock (library.Sync)
             {
                 foreach (Entry entry in held) library.Release(entry, this);
                 held.Clear();
+            }
+            lock (accessories.Sync)
+            {
+                foreach (Entry entry in heldAccessories) accessories.Release(entry, this);
+                heldAccessories.Clear();
+                foreach (PlacementEntry entry in accessories.Placements.Values) entry.Waiters.Remove(this);
             }
         }
 
@@ -570,6 +663,14 @@ namespace Outil_Azur_complet.Bot.Controls
             public bool Uncolored;
         }
 
+        /// <summary>Table d'emplacements d'un gfx en lecture ou lue (lot AN7).</summary>
+        internal sealed class PlacementEntry
+        {
+            public AccessoryPlacements Table;
+            public bool Done;
+            public readonly List<ActorSprites> Waiters = new List<ActorSprites>();
+        }
+
         internal sealed class Entry
         {
             public Entry(string key) { Key = key; }
@@ -605,6 +706,8 @@ namespace Outil_Azur_complet.Bot.Controls
         {
             public readonly object Sync = new object();
             public readonly Dictionary<string, Entry> Entries = new Dictionary<string, Entry>(StringComparer.Ordinal);
+            /// <summary>Tables d'emplacements par gfx (bibliothèque des accessoires seulement).</summary>
+            public readonly Dictionary<string, PlacementEntry> Placements = new Dictionary<string, PlacementEntry>(StringComparer.Ordinal);
             private readonly LinkedList<Entry> idle = new LinkedList<Entry>();
             private readonly string[] roots;
             private readonly string anchorFile;
@@ -774,6 +877,40 @@ namespace Outil_Azur_complet.Bot.Controls
                 SpriteSheet sheet = ReadSheet(Folders(family).ToArray(), id.ToString(CultureInfo.InvariantCulture), animation, allowLegacy: false);
                 return sheet != null ? new LoadResult { Sheet = sheet }
                     : new LoadResult { Reason = "Effet " + family + "/" + id + "_" + animation + " absent du dossier des effets." };
+            }
+
+            /// <summary>Bande <c>&lt;symbole&gt;_&lt;étiquette&gt;.png</c> du dossier des accessoires (lot AN7), ancre de son <c>ancres.tsv</c>.</summary>
+            public LoadResult LoadAccessory(string symbol, string label)
+            {
+                SpriteSheet sheet = ReadSheet(Folders(null).ToArray(), symbol, label, allowLegacy: false);
+                return sheet != null ? new LoadResult { Sheet = sheet }
+                    : new LoadResult { Reason = "Accessoire " + symbol + "_" + label + " absent du dossier des accessoires." };
+            }
+
+            /// <summary><c>emplacements/&lt;gfx&gt;.tsv</c> du premier dossier qui l'a (local d'abord) ; table vide sinon. Ne lève jamais.</summary>
+            public AccessoryPlacements LoadPlacements(string gfx)
+            {
+                foreach (string root in roots)
+                {
+                    string path;
+                    try { path = Path.Combine(root, ActorAccessories.PlacementsFolderName, gfx + ".tsv"); }
+                    catch (ArgumentException) { continue; }
+                    if (File.Exists(path)) return AccessoryPlacements.Read(path);
+                }
+                return AccessoryPlacements.Read(Path.Combine(roots.Length > 0 ? roots[roots.Length - 1] : ".", ActorAccessories.PlacementsFolderName, gfx + ".tsv"));
+            }
+
+            public void CompletePlacements(PlacementEntry entry, AccessoryPlacements table)
+            {
+                ActorSprites[] waiters;
+                lock (Sync)
+                {
+                    entry.Table = table ?? AccessoryPlacements.Empty;
+                    entry.Done = true;
+                    waiters = entry.Waiters.ToArray();
+                    entry.Waiters.Clear();
+                }
+                foreach (ActorSprites view in waiters) view.OnLoaded();
             }
 
             /// <summary>Durée tirée des ancres déjà lues (dossier local d'abord) ; lance leur lecture sur le pool sinon.</summary>

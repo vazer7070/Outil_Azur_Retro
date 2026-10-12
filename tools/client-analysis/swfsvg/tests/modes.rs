@@ -885,3 +885,191 @@ fn nested_looping_clips_do_not_lengthen_an_animation() {
     ok(&["--frame", "all", &swf, &w.out(), "hitR"]);
     assert_eq!(w.index().len(), 5);
 }
+
+/// Action `Push` de valeurs mêlées : `true` (type 5), `undefined` (type 3), chaînes et entiers (voir [`push`]).
+fn push_mixed(values: &[&str]) -> Vec<u8> {
+    let mut payload = Vec::new();
+    for v in values {
+        match *v {
+            "true" => payload.extend([5, 1]),
+            "undefined" => payload.push(3),
+            _ if v.starts_with('#') => {
+                payload.push(7);
+                payload.extend_from_slice(&v[1..].parse::<i32>().unwrap().to_le_bytes());
+            }
+            _ => {
+                payload.push(0);
+                payload.extend_from_slice(v.as_bytes());
+                payload.push(0);
+            }
+        }
+    }
+    let mut out = vec![0x96];
+    out.extend_from_slice(&(payload.len() as u16).to_le_bytes());
+    out.extend(payload);
+    out
+}
+
+/// Script `GAC.applyAccessory(<cible>, <emplacement>, "<étiquette>"[, _parent.<tête>][, true])` des
+/// clips réservés aux accessoires : la tête (coiffe) est lue par `GetMember`, le miroir (familier)
+/// est un booléen précédé d'un `undefined` à la place de la tête.
+fn apply_accessory(target: &str, slot: i32, label: &str, head: Option<&str>, mirror: bool) -> Vec<u8> {
+    let slot = format!("#{}", slot);
+    let mut code = Vec::new();
+    let argc = if mirror { 5 } else if head.is_some() { 4 } else { 3 };
+    if mirror {
+        code.extend(push_mixed(&["true"]));
+    }
+    match head {
+        Some(name) => {
+            code.extend(push(&["_parent"]));
+            code.push(0x1C); // GetVariable
+            code.extend(push(&[name]));
+            code.push(0x4E); // GetMember
+        }
+        None if mirror => code.extend(push_mixed(&["undefined"])),
+        None => {}
+    }
+    code.extend(push(&[label, &slot, target]));
+    code.push(0x1C);
+    code.extend(push(&[&format!("#{}", argc), "GAC"]));
+    code.push(0x1C);
+    code.extend(push(&["applyAccessory"]));
+    code.extend([0x52, 0x17, 0x00]); // CallMethod, Pop, End
+    code
+}
+
+fn label(name: &'static str) -> Tag<'static> {
+    Tag::FrameLabel(FrameLabel { label: SwfStr::from_utf8_str(name), is_anchor: false })
+}
+
+/// SWF des accessoires : `staticR` pose le clip réservé à la cape (40, `applyAccessory(this, 2, "L")`)
+/// en (-5, -20) sous le corps (forme rouge), puis celui de la coiffe (41, emplacement 1, étiquette
+/// `R`, tête `_parent.R_Tete`) à l'échelle 0,5 en (3, -30) et celui du familier (42, `WR`, miroir)
+/// en (-12, 0) ; `walkR` (2 images) déplace la cape de (-5, -20) à (-6, -21) ; un clip dont l'appel
+/// vise `_parent` (43) ou un emplacement 9 (44) n'est pas réservé. L'accessoire `16_7` (60) a
+/// l'étiquette `R` à l'image 1 (carré bleu) et `L` à l'image 2 (clip 61 de 3 images qui boucle :
+/// carré vert en x = 0, 10, 20).
+fn write_accessories_swf(path: &Path) {
+    let mut hat = place(3, PlaceObjectAction::Place(41), None);
+    hat.matrix = Some(Matrix { a: Fixed16::from_f32(0.5), b: Fixed16::ZERO, c: Fixed16::ZERO, d: Fixed16::from_f32(0.5), tx: px(3.0), ty: px(-30.0) });
+    let mut moving = vec![tag(place(1, PlaceObjectAction::Place(3), Some((0.0, 0.0)))), Tag::ShowFrame];
+    for x in [10.0, 20.0] {
+        moving.push(tag(place(1, PlaceObjectAction::Modify, Some((x, 0.0)))));
+        moving.push(Tag::ShowFrame);
+    }
+    let tags = vec![
+        rect(1, 10.0, 10.0, 255, 0, 0),
+        rect(2, 4.0, 4.0, 0, 0, 255),
+        rect(3, 6.0, 6.0, 0, 255, 0),
+        sprite(40, vec![action(apply_accessory("this", 2, "L", None, false)), Tag::ShowFrame]),
+        sprite(41, vec![action(apply_accessory("this", 1, "R", Some("R_Tete"), false)), Tag::ShowFrame]),
+        sprite(42, vec![action(apply_accessory("this", 3, "WR", None, true)), Tag::ShowFrame]),
+        sprite(43, vec![action(apply_accessory("_parent", 4, "R", None, false)), Tag::ShowFrame]),
+        sprite(44, vec![action(apply_accessory("this", 9, "R", None, false)), Tag::ShowFrame]),
+        sprite(
+            50,
+            vec![
+                tag(place(1, PlaceObjectAction::Place(40), Some((-5.0, -20.0)))),
+                tag(place(2, PlaceObjectAction::Place(1), Some((0.0, 0.0)))),
+                tag(hat),
+                tag(place(4, PlaceObjectAction::Place(42), Some((-12.0, 0.0)))),
+                tag(place(5, PlaceObjectAction::Place(43), Some((1.0, 1.0)))),
+                tag(place(6, PlaceObjectAction::Place(44), Some((2.0, 2.0)))),
+                Tag::ShowFrame,
+            ],
+        ),
+        sprite(
+            51,
+            vec![
+                tag(place(1, PlaceObjectAction::Place(40), Some((-5.0, -20.0)))),
+                tag(place(2, PlaceObjectAction::Place(1), Some((0.0, 0.0)))),
+                Tag::ShowFrame,
+                tag(place(1, PlaceObjectAction::Modify, Some((-6.0, -21.0)))),
+                Tag::ShowFrame,
+            ],
+        ),
+        sprite(61, moving),
+        sprite(
+            60,
+            vec![
+                label("R"),
+                tag(place(1, PlaceObjectAction::Place(2), Some((0.0, 0.0)))),
+                Tag::ShowFrame,
+                label("L"),
+                tag(place(1, PlaceObjectAction::Replace(61), Some((0.0, 0.0)))),
+                Tag::ShowFrame,
+            ],
+        ),
+        Tag::ExportAssets(vec![
+            ExportedAsset { id: 50, name: SwfStr::from_utf8_str("staticR") },
+            ExportedAsset { id: 51, name: SwfStr::from_utf8_str("walkR") },
+            ExportedAsset { id: 60, name: SwfStr::from_utf8_str("16_7") },
+        ]),
+        Tag::ShowFrame,
+    ];
+    let header = Header { compression: Compression::None, version: 8, stage_size: bounds(0.0, 0.0, 550.0, 400.0), frame_rate: Fixed8::from_f32(40.0), num_frames: 1 };
+    let mut out = Vec::new();
+    write_swf(&header, &tags, &mut out).expect("écriture du SWF de test");
+    std::fs::write(path, out).expect("SWF de test");
+}
+
+#[test]
+fn accessory_slots_are_listed_with_their_matrices() {
+    let w = Work::new("accessoires");
+    let swf = w.dir.join("accessoires.swf").to_string_lossy().to_string();
+    write_accessories_swf(Path::new(&swf));
+
+    // --emplacements : un clip réservé par ligne, dans l'ordre du dessin, avec sa matrice dans le
+    // repère du symbole, son rang (formes dessinées avant lui) et le total des formes.
+    let out = ok(&["--emplacements", &swf, "staticR"]);
+    let rows: Vec<&str> = out.lines().collect();
+    assert_eq!(rows[0], "nom\timage\templacement\tetiquette\tmiroir\ttete\ta\tb\tc\td\ttx\tty\ttx_miroir\tty_miroir\trang\tformes");
+    assert_eq!(rows[1], "staticR\t1\t2\tL\t0\t0\t1\t0\t0\t1\t-5\t-20\t5\t-20\t0\t1", "cape sous le corps : {}", out);
+    assert_eq!(rows[2], "staticR\t1\t1\tR\t0\t1\t0.5\t0\t0\t0.5\t3\t-30\t-3\t-30\t1\t1", "coiffe à l'échelle 0,5, avec tête : {}", out);
+    assert_eq!(rows[3], "staticR\t1\t3\tWR\t1\t0\t1\t0\t0\t1\t-12\t0\t12\t0\t1\t1", "familier en miroir : {}", out);
+    assert_eq!(rows.len(), 4, "les appels vers _parent ou l'emplacement 9 ne comptent pas : {}", out);
+
+    // --frame all : une ligne par image ; la cape suit son déplacement.
+    let out = ok(&["--emplacements", "--frame", "all", &swf, "walkR"]);
+    let rows: Vec<&str> = out.lines().collect();
+    assert_eq!(rows.len(), 3, "{}", out);
+    assert!(rows[1].starts_with("walkR\t1\t2\tL\t0\t0\t1\t0\t0\t1\t-5\t-20\t"), "{}", out);
+    assert!(rows[2].starts_with("walkR\t2\t2\tL\t0\t0\t1\t0\t0\t1\t-6\t-21\t"), "{}", out);
+    // Un symbole sans clip réservé : l'en-tête seul, et un symbole absent est signalé.
+    let o = swfsvg(&["--emplacements", &swf, "16_7", "absent"]);
+    assert!(o.status.success());
+    assert_eq!(String::from_utf8_lossy(&o.stdout).lines().count(), 1);
+    assert!(String::from_utf8_lossy(&o.stderr).contains("absent"));
+
+    // --etiquettes-list : étiquettes d'images et durée de l'animation tenue.
+    let out = ok(&["--etiquettes-list", &swf, "16_7"]);
+    assert_eq!(out, "nom\tetiquette\timage\timages\tfin\n16_7\tR\t1\t1\tarret\n16_7\tL\t2\t3\tboucle\n", "{}", out);
+
+    // --etiquettes : chaque étiquette tenue, image par image de ses clips, dans un même cadre.
+    ok(&["--etiquettes", &swf, &w.out(), "16_7"]);
+    let index = w.index();
+    assert_eq!(index.len(), 4, "{:?}", index);
+    let r = row(&index, "16_7_R", "1");
+    assert_eq!((r[1].as_str(), r[10].as_str(), r[11].as_str()), ("60", "1", "16_7_R_a001.svg"));
+    assert_eq!(view_box(&w.read("16_7_R_a001.svg")), "0 0 4 4");
+    for k in 1..=3 {
+        let r = row(&index, "16_7_L", &k.to_string());
+        assert_eq!((r[10].as_str(), r[11].as_str()), ("3", &format!("16_7_L_a{:03}.svg", k)[..]));
+    }
+    assert_eq!(view_box(&w.read("16_7_L_a001.svg")), "0 0 26 6", "cadre commun des trois images");
+    assert!(w.read("16_7_L_a002.svg").contains("matrix(1 0 0 1 10 0)"), "{}", w.read("16_7_L_a002.svg"));
+    assert!(w.read("16_7_L_a003.svg").contains("matrix(1 0 0 1 20 0)"), "{}", w.read("16_7_L_a003.svg"));
+
+    // Options invalides.
+    for args in [
+        vec!["--emplacements", "--list", &swf],
+        vec!["--etiquettes", &swf],
+        vec!["--etiquettes-list", "--frame", "2", &swf],
+        vec!["--etiquettes", "--scene", &swf, "out"],
+        vec!["--emplacements", "--zones", "1", &swf],
+        vec!["--emplacements", "--append-index", &swf],
+    ] {
+        assert_eq!(swfsvg(&args).status.code(), Some(2), "{:?}", args);
+    }
+}
