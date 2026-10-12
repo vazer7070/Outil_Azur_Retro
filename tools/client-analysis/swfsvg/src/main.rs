@@ -2039,6 +2039,33 @@ fn load(path: &str) -> Result<swf::SwfBuf, String> {
     swf::decompress_swf(file).map_err(|e| format!("{} : SWF illisible ({})", path, e))
 }
 
+/// Nombre d'images utiles de la cible : la scène, un clip exporté ou un autre caractère.
+fn target_cycle(exporter: &mut Exporter, tags: &[Tag], main_info: Timeline, id: Option<u16>) -> usize {
+    match id {
+        None => exporter.cycle_of_timeline(tags, main_info, true, 0),
+        Some(id) => match exporter.chars.get(&id).copied() {
+            Some(Tag::DefineSprite(sp)) => {
+                let info = exporter.sprite_timeline(sp);
+                exporter.cycle_of_timeline(&sp.tags, info, true, 0)
+            }
+            _ => exporter.cycle(id, 0),
+        },
+    }
+}
+
+/// Écrit (ou complète, `append`) `index.tsv` dans `dir`.
+fn write_index(dir: &str, index: &str, append: bool) -> Result<(), String> {
+    let index_path = std::path::Path::new(dir).join("index.tsv");
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .append(append)
+        .truncate(!append)
+        .open(&index_path)
+        .map_err(|e| format!("{} : écriture impossible ({})", index_path.display(), e))?;
+    f.write_all(index.as_bytes()).map_err(|e| format!("{} : écriture impossible ({})", index_path.display(), e))
+}
+
 fn run(o: &Options) -> Result<String, String> {
     let buf = load(&o.file)?;
     let movie = swf::parse_swf(&buf).map_err(|e| format!("{} : SWF illisible ({})", o.file, e))?;
@@ -2196,16 +2223,7 @@ fn run(o: &Options) -> Result<String, String> {
     let mut index = String::new();
     for target in &targets {
         exporter.instance_found = false;
-        let total = match target.id {
-            None => exporter.cycle_of_timeline(&movie.tags, main_info, true, 0),
-            Some(id) => match exporter.chars.get(&id).copied() {
-                Some(Tag::DefineSprite(sp)) => {
-                    let info = exporter.sprite_timeline(sp);
-                    exporter.cycle_of_timeline(&sp.tags, info, true, 0)
-                }
-                _ => exporter.cycle(id, 0),
-            },
-        };
+        let total = target_cycle(&mut exporter, &movie.tags, main_info, target.id);
         let (frames, several): (Vec<usize>, bool) = match o.frames {
             Frames::One(n) => (vec![n], false),
             Frames::Range(a, b) => ((a..=b).collect(), true),
@@ -2237,15 +2255,7 @@ fn run(o: &Options) -> Result<String, String> {
             }
         }
     }
-    let index_path = std::path::Path::new(dir).join("index.tsv");
-    let mut f = std::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .append(o.append_index)
-        .truncate(!o.append_index)
-        .open(&index_path)
-        .map_err(|e| format!("{} : écriture impossible ({})", index_path.display(), e))?;
-    f.write_all(index.as_bytes()).map_err(|e| format!("{} : écriture impossible ({})", index_path.display(), e))?;
+    write_index(dir, &index, o.append_index)?;
     Ok(messages)
 }
 
@@ -2263,7 +2273,7 @@ fn main() {
     };
     match run(&options) {
         Ok(out) => {
-            if options.list || options.zones_list {
+            if options.list || options.zones_list || options.emplacements || options.etiquettes_list {
                 print!("{}", out);
             } else if !out.is_empty() {
                 eprint!("{}", out);
