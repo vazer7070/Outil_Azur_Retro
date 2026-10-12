@@ -53,7 +53,7 @@ namespace Tool_BotProtocol.Config
         private static readonly KeyValuePair<string, object>[] DefaultValues =
         {
             Pair("Grid", false), Pair("Transparency", false), Pair("SpriteInfos", true), Pair("SpriteMove", true),
-            Pair("MapInfos", true), Pair("ChatEffects", true), Pair("PointsOverHead", true), Pair("ViewAllMonsterInGroup", true),
+            Pair("MapInfos", true), Pair("ChatEffects", true), Pair("PointsOverHead", true), Pair("Aura", true), Pair("ViewAllMonsterInGroup", true),
             Pair("TimestampInChat", true), Pair("BannerShortcuts", true), Pair("CensorshipFilter", true),
             Pair("DefaultQuality", "high"), Pair("BannerGaugeMode", "xp"), Pair("BannerIllustrationMode", "artwork"),
         };
@@ -112,6 +112,8 @@ namespace Tool_BotProtocol.Config
         public bool MapInfos { get => GetBool("MapInfos"); set => Set("MapInfos", value); }
         public bool ChatEffects { get => GetBool("ChatEffects"); set => Set("ChatEffects", value); }
         public bool PointsOverHead { get => GetBool("PointsOverHead"); set => Set("PointsOverHead", value); }
+        /// <summary>Option <c>Aura</c> du client : aura des joueurs hors combat (clip du dessus <c>auras/&lt;n&gt;.swf</c>, lot AN8).</summary>
+        public bool Aura { get => GetBool("Aura"); set => Set("Aura", value); }
         public bool ViewAllMonsterInGroup { get => GetBool("ViewAllMonsterInGroup"); set => Set("ViewAllMonsterInGroup", value); }
         public bool TimestampInChat { get => GetBool("TimestampInChat"); set => Set("TimestampInChat", value); }
         public bool BannerShortcuts { get => GetBool("BannerShortcuts"); set => Set("BannerShortcuts", value); }

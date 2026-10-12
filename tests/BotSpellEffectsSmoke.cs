@@ -182,7 +182,8 @@ internal static class BotSpellEffectsSmoke
         Check(File.Exists(Path.Combine(source, "PROVENANCE.md")), "Effets/PROVENANCE.md missing");
         List<EffectRow> spells = ReadEffects(Path.Combine(source, "sorts"), 20);
         List<EffectRow> extra = ReadEffects(Path.Combine(source, "extra"), 40);
-        Check(extra.Count == 1 && extra[0].Gfx == "5" && extra[0].Anim == "scene" && extra[0].Fin == "boucle", "extra/5_scene (critical hit clip, loop) missing");
+        // Le dossier extra accueille aussi le sac du marchand (0) et le clip de PNJ (4) du lot AN8.
+        Check(extra.Any(row => row.Gfx == "5" && row.Anim == "scene" && row.Fin == "boucle"), "extra/5_scene (critical hit clip, loop) missing");
 
         // Exclusions : une ligne par gfx de la liste sans scène, avec sa raison.
         string[] exclusionLines = File.ReadAllLines(Path.Combine(source, "sorts", "exclusions.tsv"), Encoding.UTF8);

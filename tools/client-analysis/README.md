@@ -264,6 +264,7 @@ Le bot lit ces tables depuis `Accessoires/emplacements` (voir `Accessoires/PROVE
 | `--gfx <100 monstres> --anims walk,run,hit,die,anim0 --pas 2 --jobs 4` (lot AN3) | 2 min 38 s | 1 034 PNG, 35,2 Mo, 21 691 images ; `ancres.tsv` de 3 686 lignes |
 | `--gfx <24 classes> --masques --conserver --jobs 4` (lot AN6, familles de `sprites_animes.txt`) | 8 min 18 s | 1 080 PNG dont 576 gardés, 1 080 masques (7,0 Mo) |
 | idem avec `--emplacements …/Accessoires/emplacements` (lot AN7) | 10 min 57 s | 1 080 PNG et masques gardés, 94 627 lignes d'emplacements dans 24 fichiers (6,1 Mo) |
+| `--gfx <24 classes> --anims emote1,…,emoteStatic21 --pas 2 --masques --conserver --jobs 4` (lot AN8, 16 familles) | 2 min 41 s | 720 PNG (7,7 Mo), 720 masques (1,5 Mo) ; 24 familles absentes des SWF |
 
 Tests : `python3 tests/test_exporter_sprites.py` (faux `swfsvg` écrit en Python dans `tests/`, aucun
 fichier du client) : image de repos, casse, scène, bandes, magenta, rognage, échelle, `--gfx`,

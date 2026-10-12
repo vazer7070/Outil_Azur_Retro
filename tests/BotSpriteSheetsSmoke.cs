@@ -44,8 +44,9 @@ internal static class BotSpriteSheetsSmoke
     // classes, soit 23 Mo au plus. Dossier : 21,5 + 3,5 + 7 + 11 + 55 + 6 (marge) Mo ; AN6 (masques) et AN8 (émotes) le relèvent.
     private const long MonsterBudget = 55L * 1000 * 1000;
     private const long ClassAttackBudget = 23L * 1000 * 1000;
-    // Lot AN6 : masques de recoloration et couleurs.tsv, 7,85 Mo mesurés (≈ 12 Mo prévus), ajoutés au dossier.
-    private const long MaskBudget = 9L * 1000 * 1000;
+    // Lot AN6 : masques de recoloration et couleurs.tsv, 7,85 Mo mesurés (≈ 12 Mo prévus), ajoutés au dossier ; le lot AN8
+    // (masques des émotes, 1,5 Mo) le porte à 9,53 Mo.
+    private const long MaskBudget = 10L * 1000 * 1000;
     private const long FolderBudget = 113L * 1000 * 1000;
     private const string MaskSuffix = ".couleurs.png";
     private static readonly string[] ColorHeader = { "gfx", "anim", "index", "zone", "couleur" };
@@ -270,7 +271,10 @@ internal static class BotSpriteSheetsSmoke
         foreach (var entry in animated)
             foreach (var family in entry.Value)
             {
-                Row[] strips = rows.Where(r => r.Gfx == entry.Key && r.Images > 1 && Family(r.Anim) == family.Key).ToArray();
+                // Lot AN8 : les poses emoteStatic<n> tiennent en une image, et les émotes 14 et 15 sont une pose tenue
+                // (une image, fin « arret ») dans la plupart des gfx : une bande d'une image compte pour ces familles.
+                bool pose = family.Key.StartsWith("emote", StringComparison.Ordinal);
+                Row[] strips = rows.Where(r => r.Gfx == entry.Key && (r.Images > 1 || pose) && Family(r.Anim) == family.Key).ToArray();
                 Check(strips.Length > 0, "No " + family.Key + " strip for animated gfx " + entry.Key);
                 foreach (Row strip in strips)
                     Check(strip.Fps == family.Value, "Strip " + strip.File + " plays at " + strip.Fps + " fps, sprites_animes.txt asks " + family.Value);

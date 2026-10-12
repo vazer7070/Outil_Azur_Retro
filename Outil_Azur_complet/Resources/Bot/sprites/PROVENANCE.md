@@ -330,3 +330,29 @@ Les bandes réexportées sont plus courtes : classes 34 510 269 →
 d'instance absents du SWF (vérifié sur 9003 : les clips visés n'ont pas de nom), le client ne les colore
 pas non plus. Les montures et leurs couleurs (`GM` d'un joueur monté), les accessoires et les familiers
 ne sont pas recolorés.
+
+## Émotes des classes (lot AN8)
+
+Le client joue `emote<n>` à la réception d'`eUK<id>|<n>[|<durée>]` (`Emotes.onUse` →
+`setSpriteTimerAnim`) et prend `emoteStatic<n>` comme animation de départ quand le champ émote du
+`GM` vaut `n`. Sous-ensemble du plan (section 3.8) : émotes 1, 2, 3, 9, 14, 15, 19, 20 et 21 et poses
+`emoteStatic` 1, 14, 15, 16, 19, 20 et 21 des 24 classes, au pas 2 (20 images par seconde), avec
+masques de recoloration. Les autres émotes (4 à 8, 10 à 13, 16 à 18) restent dans `sprites-local`.
+
+```sh
+SW=tools/client-analysis/swfsvg/target/release/swfsvg   # 0.2.5
+OUT=Outil_Azur_complet/Resources/Bot/sprites
+python3 tools/client-analysis/exporter_sprites.py "<client>/clips/sprites" $OUT --swfsvg $SW \
+    --gfx 10,11,20,21,30,31,40,41,50,51,60,61,70,71,80,81,90,91,100,101,110,111,120,121 \
+    --anims emote1,emote2,emote3,emote9,emote14,emote15,emote19,emote20,emote21,emoteStatic1,emoteStatic14,emoteStatic15,emoteStatic16,emoteStatic19,emoteStatic20,emoteStatic21 \
+    --pas 2 --masques --conserver --jobs 4
+```
+
+Mesuré le 12 octobre 2026 (4 cœurs) : 2 min 41 s, 720 bandes pour 7 735 539 octets et 720 masques pour
+1 472 000 octets (≈ 7 Mo prévus pour l'ensemble), 720 lignes de plus dans `ancres.tsv` et 8 208 dans
+`couleurs.tsv`. 24 messages `aucun symbole` : `emoteStatic16` n'existe que dans les gfx 10 et 60, et le
+gfx 80 n'a ni `emote20` ni `emoteStatic20` ; `sprites_animes.txt` ne liste pas ces familles pour ces gfx.
+Images par bande : `emote1` 9 à 13 (fin `arret`), `emote2` 20 à 31, `emote3` 17 à 25 et `emote9` 15 à
+30 (fin `static` : retour à la pose de repos), `emote19` 7 à 20, `emote20` 3 à 9 et `emote21` 20 à 26
+(`arret`) ; `emote14` et `emote15` sont une pose tenue d'une image (4 gfx : 4 images en `boucle`) ;
+chaque `emoteStatic<n>` tient en une image (1 à 4 pour 14 et 15).

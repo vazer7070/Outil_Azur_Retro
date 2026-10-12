@@ -90,6 +90,7 @@ BotSpellEffectsSmoke
 BotSpellProjectilesSmoke
 BotRecolorSmoke
 BotAccessoriesSmoke
+BotExtraClipsSmoke
 BotStarLocoLiveSmoke
 "
 TESTS=${*:-$DEFAULT_TESTS}

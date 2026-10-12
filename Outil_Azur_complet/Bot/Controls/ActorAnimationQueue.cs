@@ -86,6 +86,11 @@ namespace Outil_Azur_complet.Bot.Controls
         public bool IsPlaying(long actorId, string animation = null) =>
             playing.TryGetValue(actorId, out Playing entry) && (animation == null || string.Equals(entry.Animation, animation, StringComparison.OrdinalIgnoreCase));
 
+        /// <summary>Vrai si l'animation ponctuelle de l'acteur a déjà été dessinée (bande lue, première image observée).</summary>
+        public bool IsShown(long actorId, string animation = null) =>
+            playing.TryGetValue(actorId, out Playing entry) && entry.Shown.HasValue
+            && (animation == null || string.Equals(entry.Animation, animation, StringComparison.OrdinalIgnoreCase));
+
         /// <summary>
         /// Animation à afficher pour l'acteur à <paramref name="now"/> : nom, temps écoulé depuis sa première image et
         /// boucle ou non (sinon la dernière image est tenue). Faux si aucune animation ponctuelle n'est en cours.

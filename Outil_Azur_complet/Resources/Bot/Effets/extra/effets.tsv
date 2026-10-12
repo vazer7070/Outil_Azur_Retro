@@ -1,2 +1,4 @@
 gfx	anim	xmin	ymin	largeur	hauteur	images	ips	fin
+0	scene	-3	-12	21	23	1	40	arret
+4	scene	-6	-72	12	20	102	40	boucle
 5	scene	-17	-83	39	38	62	40	boucle
