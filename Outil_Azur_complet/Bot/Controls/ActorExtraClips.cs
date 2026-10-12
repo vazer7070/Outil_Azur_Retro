@@ -88,7 +88,7 @@ namespace Outil_Azur_complet.Bot.Controls
         }
 
         /// <summary>Copie de la bande avec les composantes RVB remplacées par <paramref name="rgb"/>, alpha gardé (<c>Color.setRGB</c>).</summary>
-        internal static SpriteSheet Tint(SpriteSheet source, int rgb, out Bitmap image)
+        public static SpriteSheet Tint(SpriteSheet source, int rgb, out Bitmap image)
         {
             image = null;
             if (source?.Image == null) return null;
@@ -153,24 +153,30 @@ namespace Outil_Azur_complet.Bot.Controls
     }
 
     /// <summary>
-    /// Minuteur d'une émote à durée (<c>eUK&lt;id&gt;|&lt;n&gt;|&lt;durée&gt;</c>, lot AN8) : <c>setSpriteTimerAnim</c> du client remet
-    /// <c>defaultAnimation</c> (<c>static</c>) au terme de la durée. Effet sans dessin ; à son terme, l'animation ponctuelle
-    /// de l'acteur est annulée si c'est encore cette émote (une autre émote ou un déplacement l'ont déjà remplacée sinon).
+    /// Suivi d'une émote jouée en bande (<c>eUK&lt;id&gt;|&lt;n&gt;[|&lt;durée&gt;]</c>, lot AN8). Effet sans dessin, sur le fil de
+    /// l'interface : la bande se lit sur le pool, donc l'icône d'émote du lot AN1 n'est effacée (<paramref name="onShown"/>)
+    /// qu'à sa première image dessinée ; si la bande manque ou n'est pas lue à temps, la file abandonne l'animation et
+    /// l'icône reste. Avec une durée, <c>setSpriteTimerAnim</c> du client remet <c>defaultAnimation</c> (<c>static</c>) au
+    /// terme : l'animation ponctuelle est annulée à <see cref="End"/> si c'est encore cette émote (une autre émote ou un
+    /// déplacement l'ont déjà remplacée sinon).
     /// </summary>
     public sealed class EmoteTimer : IMapEffect
     {
         private readonly ActorAnimationQueue queue;
+        private readonly Action onShown;
+        private bool shown;
 
-        public EmoteTimer(ActorAnimationQueue queue, long actorId, string animation, double end)
+        public EmoteTimer(ActorAnimationQueue queue, long actorId, string animation, double? end, Action onShown = null)
         {
             this.queue = queue ?? throw new ArgumentNullException(nameof(queue));
+            this.onShown = onShown;
             ActorId = actorId; Animation = animation; End = end;
         }
 
         public long ActorId { get; }
         public string Animation { get; }
-        /// <summary>Heure de l'horloge de la vue à laquelle l'émote se termine.</summary>
-        public double End { get; }
+        /// <summary>Heure de l'horloge de la vue à laquelle l'émote se termine ; null sans durée (bande tenue).</summary>
+        public double? End { get; }
         public bool Finished { get; private set; }
         public EffectLayer Layer => EffectLayer.Screen;
         public int Depth => 0;
@@ -179,9 +185,11 @@ namespace Outil_Azur_complet.Bot.Controls
         public bool Update(double now, MapView view)
         {
             if (Finished) return false;
-            if (now < End) return true;
+            if (!queue.IsPlaying(ActorId, Animation)) { Finished = true; return false; }
+            if (!shown && queue.IsShown(ActorId, Animation)) { shown = true; onShown?.Invoke(); }
+            if (!End.HasValue || now < End.Value) return true;
             Finished = true;
-            if (queue.IsPlaying(ActorId, Animation)) queue.Cancel(ActorId);
+            queue.Cancel(ActorId);
             return false;
         }
 

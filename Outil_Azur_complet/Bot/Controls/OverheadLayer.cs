@@ -643,7 +643,7 @@ namespace Outil_Azur_complet.Bot.Controls
         /// à 50 % ; 1, lueur de la couleur du camp derrière l'image (alpha de l'image flouté en boîte 10 × 10 sur 3 passes, × 2,
         /// alpha 0,5) ; 0, l'image telle quelle. Pool de threads ; null si la bande ou sa ligne d'<c>effets.tsv</c> manque.
         /// </summary>
-        internal static Bitmap RenderWings(string root, string key, bool fallen, int frame, int pvpGain)
+        public static Bitmap RenderWings(string root, string key, bool fallen, int frame, int pvpGain)
         {
             string folder = Path.Combine(root ?? string.Empty, WingsFolder.Replace('/', Path.DirectorySeparatorChar));
             int id = fallen ? 2 : 1;
@@ -685,7 +685,7 @@ namespace Outil_Azur_complet.Bot.Controls
         }
 
         /// <summary>Ligne <c>gfx scene</c> d'<c>effets.tsv</c> (colonnes d'<c>ancres.tsv</c>), null si elle manque ou est illisible.</summary>
-        internal static WingsBand ReadWingsBand(string table, int id)
+        public static WingsBand ReadWingsBand(string table, int id)
         {
             try
             {

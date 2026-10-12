@@ -489,7 +489,12 @@ namespace Outil_Azur_complet.Bot.Interfaces
             int emote = visual.Value;
             staleEntryEmotes.Add(actor);
             if (emoteTimers.TryGetValue(actor, out EmoteTimer previous)) { emoteTimers.Remove(actor); Effects.Remove(previous); }
-            if (visual.InFight || Account.Game?.Fight?.IsInFight == true) return;
+            if (visual.InFight || Account.Game?.Fight?.IsInFight == true)
+            {
+                // Emotes.onUse du client ignore l'émote en combat : ni bande ni icône (celle que le lot AN1 vient de poser).
+                UserMap.ShowEmote(actor, 0);
+                return;
+            }
             if (emote <= 0)
             {
                 AnimationQueue.Cancel(actor);
@@ -498,9 +503,9 @@ namespace Outil_Azur_complet.Bot.Interfaces
             }
             string animation = "emote" + emote.ToString(CultureInfo.InvariantCulture);
             if (!TryPlayAnimation(actor, animation, ActorAnimationMode.Hold)) return;
-            UserMap.ShowEmote(actor, 0);
-            if (!visual.DurationMs.HasValue) return;
-            var timer = new EmoteTimer(AnimationQueue, actor, animation, UserMap.Now + Math.Max(0, visual.DurationMs.Value));
+            // L'icône du lot AN1 ne s'efface qu'à la première image dessinée de la bande (lue sur le pool) : sans bande, elle reste.
+            double? end = visual.DurationMs.HasValue ? UserMap.Now + Math.Max(0, visual.DurationMs.Value) : (double?)null;
+            var timer = new EmoteTimer(AnimationQueue, actor, animation, end, () => UserMap.ShowEmote(actor, 0));
             if (TryAddEffect(timer)) emoteTimers[actor] = timer;
         }
 
