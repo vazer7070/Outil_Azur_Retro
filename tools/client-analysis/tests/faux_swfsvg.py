@@ -14,7 +14,15 @@ index.tsv (12 colonnes) que swfsvg 0.2.3 ; --list a sa colonne fin.
 Zones de couleur (swfsvg 0.2.5) : "zones": [1, 3] fait du rectangle brun la zone 1 et ajoute en haut
 de chaque image un chapeau bleu (#2040c0, 4 x 3 px) qui est la zone 3 ; --zones-list les énumère.
 --zones <mode> (« 123 », « aucune », « 13 »...) peint tout en noir, sauf les zones du mode dans leur
-couleur unité (1 rouge, 2 vert, 3 bleu), alpha gardé, comme swfsvg."""
+couleur unité (1 rouge, 2 vert, 3 bleu), alpha gardé, comme swfsvg.
+
+Accessoires (swfsvg 0.2.6) : "emplacements": {"walkR": [[2, "L", 0, 0, "1", "0", "0", "1", "-5", "-20", "5",
+"-20", 0, 1]]} donne les clips réservés d'un symbole (emplacement, étiquette, miroir, tête, a, b, c, d, tx,
+ty, tx_miroir, ty_miroir, rang, formes) ; --emplacements les écrit pour chaque image demandée, tx avancé
+d'un pixel par image (comme le rectangle). "etiquettes": {"16_2": [["R", 1, 1, "arret"], ["L", 4, 3,
+"boucle"]]} donne les étiquettes d'images d'un symbole d'accessoire (étiquette, image, images tenues,
+fin) ; --etiquettes-list les écrit, --etiquettes rend <nom>_<étiquette>_a<k>.svg (image k comme ci-dessus)
+avec un index.tsv dont la colonne 10 est k et la colonne 11 le nombre d'images."""
 import json, os, sys
 
 CADRE = (-10, -30, 20, 32)
@@ -49,13 +57,16 @@ def svg(image, vide, cadre=CADRE, zones=(), mode=None):
 
 
 def main(args):
-    liste = scene = ajout = liste_zones = False
+    liste = scene = ajout = liste_zones = emplacements = etiquettes_liste = etiquettes = False
     nom = image = mode = None
     reste = []
     i = 0
     while i < len(args):
         a = args[i]
         if a == "--list": liste = True
+        elif a == "--emplacements": emplacements = True
+        elif a == "--etiquettes-list": etiquettes_liste = True
+        elif a == "--etiquettes": etiquettes = True
         elif a == "--scene": scene = True
         elif a == "--append-index": ajout = True
         elif a == "--name": i += 1; nom = args[i]
@@ -76,6 +87,49 @@ def main(args):
         print("clip\tinstance\tzone")
         for z in zones:
             print("1\tz%d\t%d" % (z, z))
+        return 0
+    if emplacements:
+        print("\t".join(("nom", "image", "emplacement", "etiquette", "miroir", "tete", "a", "b", "c", "d", "tx", "ty",
+                         "tx_miroir", "ty_miroir", "rang", "formes")))
+        for n in reste[1:]:
+            if n not in symboles:
+                sys.stderr.write("swfsvg : %s absent\n" % n)
+                continue
+            images = range(1, symboles[n] + 1) if image == "all" else [int(image or 1)]
+            for k in images:
+                for c in desc.get("emplacements", {}).get(n, []):
+                    c = list(c)
+                    c[8] = str(float(c[8]) + k - 1).rstrip("0").rstrip(".")
+                    print("\t".join([n, str(k)] + [str(v) for v in c]))
+        return 0
+    if etiquettes_liste or etiquettes:
+        if etiquettes:
+            dossier = reste[1]
+            os.makedirs(dossier, exist_ok=True)
+            noms = reste[2:]
+        else:
+            noms = reste[1:]
+            print("nom\tetiquette\timage\timages\tfin")
+        lignes = []
+        for n in noms:
+            if n not in symboles:
+                sys.stderr.write("swfsvg : %s absent\n" % n)
+                continue
+            for etiquette, premiere, total, fin in desc.get("etiquettes", {}).get(n, []):
+                if not etiquettes:
+                    print("%s\t%s\t%d\t%d\t%s" % (n, etiquette, premiere, total, fin))
+                    continue
+                for k in range(1, total + 1):
+                    fichier = "%s_%s_a%03d.svg" % (n, etiquette, k)
+                    with open(os.path.join(dossier, fichier), "w", encoding="utf-8") as f:
+                        f.write(svg(k, n in desc.get("vides", [])))
+                    x0, y0, w, h = CADRE
+                    lignes.append(["%s_%s" % (n, etiquette), "1", str(x0), str(y0), str(w), str(h), "", str(x0 + w), str(y0 + h),
+                                   str(k), str(total), fichier])
+        if etiquettes:
+            with open(os.path.join(dossier, "index.tsv"), "a" if ajout else "w", encoding="utf-8") as f:
+                for l in lignes:
+                    f.write("\t".join(l) + "\n")
         return 0
     if liste:
         print("nom\tid\ttype\timages\timages_timeline\tfin")

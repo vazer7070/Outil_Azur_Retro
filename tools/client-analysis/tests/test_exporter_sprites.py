@@ -36,10 +36,10 @@ class ExporterSprites(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.dossier, ignore_errors=True)
 
-    def swf(self, gfx, symboles, scene=False, vides=(), vides_images=None, fins=None, larges=None, zones=()):
+    def swf(self, gfx, symboles, scene=False, vides=(), vides_images=None, fins=None, larges=None, zones=(), emplacements=None):
         with open(os.path.join(self.sprites, gfx + ".swf"), "w", encoding="utf-8") as f:
             json.dump({"symboles": symboles, "scene": scene, "vides": list(vides), "vides_images": vides_images or {},
-                       "fins": fins or {}, "larges": larges or {}, "zones": list(zones)}, f)
+                       "fins": fins or {}, "larges": larges or {}, "zones": list(zones), "emplacements": emplacements or {}}, f)
 
     def animes(self, texte):
         with open(os.path.join(self.sortie, "sprites_animes.txt"), "w", encoding="utf-8") as f:
@@ -277,6 +277,62 @@ class ExporterSprites(unittest.TestCase):
         self.exporter()
         self.assertFalse([f for f in os.listdir(self.sortie) if f.endswith(".couleurs.png")])
         self.assertEqual(self.couleurs(), {})
+
+    def emplacements(self, gfx):
+        """<emplacements>/<gfx>.tsv : {(anim, image, emplacement): (etiquette, miroir, a, b, c, d, tx, ty, tx_miroir, ty_miroir, devant)}."""
+        chemin = os.path.join(self.dossier, "emplacements", gfx + ".tsv")
+        if not os.path.exists(chemin):
+            return None
+        with open(chemin, encoding="utf-8") as f:
+            lignes = f.read().splitlines()
+        self.assertEqual(lignes[0], "anim\timage\templacement\tetiquette\tmiroir\ta\tb\tc\td\ttx\tty\ttx_miroir\tty_miroir\tdevant")
+        resultat = {}
+        for l in lignes[1:]:
+            c = l.split("\t")
+            self.assertEqual(len(c), 14, l)
+            resultat[(c[0], int(c[1]), int(c[2]))] = (c[3], int(c[4])) + tuple(c[5:13]) + (int(c[13]),)
+        return resultat
+
+    def test_emplacements_des_accessoires(self):
+        # 10 : cape derrière (rang 0 sur 38 formes) et coiffe devant (rang 32), familier en miroir ; staticR à 3 images
+        # (la 3e est retenue) ; walkR à 4 images, hitR au pas 2 ; 11 sans clip réservé : pas de fichier.
+        cape = [2, "L", 0, 0, "1", "0", "0", "1", "-5", "-20", "5", "-20", 0, 38]
+        coiffe = [1, "R", 0, 1, "0.719984", "0", "0.019624", "0.719984", "-0.18", "-35.1", "0.18", "-35.1", 32, 38]
+        familier = [3, "WR", 1, 0, "0.899994", "0", "0", "0.899994", "-10.305", "0", "10.305", "0", 38, 38]
+        self.swf("10", {"staticR": 3, "StaticL": 1, "walkR": 4, "runR": 2, "hitR": 5},
+                 emplacements={"staticR": [cape, coiffe, familier], "walkR": [cape, coiffe], "hitR": [coiffe], "runR": [cape]})
+        self.animes("10 walk,run,hit:2\n11\n")
+        dossier = os.path.join(self.dossier, "emplacements")
+        sortie = self.exporter("--emplacements", dossier)
+        self.assertIn("lignes d'emplacements", sortie)
+        self.assertIsNone(self.emplacements("11"))
+        e = self.emplacements("10")
+        # Pose fixe : image 3 du symbole (tx avancé de 2), rang 0 dans la bande ; devant selon le rang.
+        self.assertEqual(e[("staticR", 0, 2)], ("L", 0, "1", "0", "0", "1", "-3", "-20", "5", "-20", 0))
+        self.assertEqual(e[("staticR", 0, 1)], ("R", 0, "0.72", "0", "0.0196", "0.72", "1.82", "-35.1", "0.18", "-35.1", 1))
+        self.assertEqual(e[("staticR", 0, 3)][:2], ("WR", 1))
+        self.assertEqual(e[("staticR", 0, 3)][10], 1, "rang égal au nombre de formes : devant")
+        # Bande : une ligne par image gardée ; au pas 2, les images 1, 3, 5 du symbole deviennent 0, 1, 2.
+        self.assertEqual([e[("walkR", k, 2)][6] for k in range(4)], ["-5", "-4", "-3", "-2"])
+        self.assertEqual([e[("hitR", k, 1)][6] for k in range(3)], ["-0.18", "1.82", "3.82"])
+        self.assertNotIn(("hitR", 3, 1), e)
+        self.assertEqual(sum(1 for k in e if k[0] == "runR"), 2)
+        self.assertEqual(sum(1 for k in e if k[0] == "staticL"), 0, "StaticL sans clip réservé")
+        # Réexport partiel : seules les lignes des bandes refaites changent ; sans --emplacements, rien ne bouge.
+        self.swf("10", {"staticR": 3, "StaticL": 1, "walkR": 2, "runR": 2, "hitR": 5}, emplacements={"walkR": [familier], "runR": [cape]})
+        self.exporter("--gfx", "10", "--anims", "walk")
+        self.assertEqual(self.emplacements("10"), e)
+        self.exporter("--gfx", "10", "--anims", "walk", "--emplacements", dossier)
+        e2 = self.emplacements("10")
+        self.assertEqual([k for k in e2 if k[0] == "walkR"], [("walkR", 0, 3), ("walkR", 1, 3)])
+        self.assertEqual({k: v for k, v in e2.items() if k[0] != "walkR"}, {k: v for k, v in e.items() if k[0] != "walkR"})
+        # Échelle 2 : tx et ty doublés, la matrice inchangée.
+        self.exporter("--gfx", "10", "--anims", "run", "--echelle", "2", "--emplacements", dossier)
+        self.assertEqual(self.emplacements("10")[("runR", 0, 2)][2:8], ("1", "0", "0", "1", "-10", "-40"))
+        # Plus aucun clip réservé : le fichier disparaît.
+        self.swf("10", {"staticR": 3, "walkR": 2, "runR": 2, "hitR": 5})
+        self.exporter("--emplacements", dossier)
+        self.assertIsNone(self.emplacements("10"))
 
     def test_conserver_garde_les_bandes_inchangees(self):
         # Premier export sans masques, puis retouches : une nuance d'anticrénelage sur 10_walkR (gardée),
