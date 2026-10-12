@@ -1,6 +1,6 @@
 # Plan de l’interface du bot
 
-État au 8 octobre 2026. Ce document résume le chantier de l’interface de jeu du bot : la demande, les 33 lots du plan et le travail de départ qui les a précédés, la couverture des fonctions du client et ce qui reste à faire. Le détail de chaque fonction (formats, règles, limites) est dans [le guide du bot](BOT_STARLOCO.md). Les formats des paquets du client sont relevés dans [la référence du protocole du client 1.34](PROTOCOLE_CLIENT_1_34.md). Des captures de l’interface sont dans [docs/captures](captures/README.md).
+État au 12 octobre 2026. Ce document résume le chantier de l’interface de jeu du bot : la demande, les 33 lots du plan, le travail de départ qui les a précédés et les dix lots d’animations et de corrections qui les ont suivis, la couverture des fonctions du client et ce qui reste à faire. Le détail de chaque fonction (formats, règles, limites) est dans [le guide du bot](BOT_STARLOCO.md). Les formats des paquets du client sont relevés dans [la référence du protocole du client 1.34](PROTOCOLE_CLIENT_1_34.md). Des captures de l’interface sont dans [docs/captures](captures/README.md).
 
 ## Objectif
 
@@ -115,6 +115,30 @@ Après la fusion des 33 lots du plan, une relecture a corrigé les défauts d’
 - défauts visibles corrigés : la barre du haut passe à « En jeu » après la première carte, icône des kamas séparée du montant, noms d’objets sans espaces de bord, filtre et icône de l’atelier, niveau des monstres tiré de leur grade, séparateur des milliers des caractéristiques, noms de personnages trop longs réduits, bouton « Jouer » sans rectangle gris, croix de fermeture des quêtes, étiquettes des raccourcis, bande du menu de placement, bouton principal désactivé sans orange, cellules de placement rouges et bleues des deux équipes.
 
 L’outil `tools/captures` produit 18 captures de la fenêtre de jeu sous Mono et Xvfb, contre un serveur fictif local, et `BotStarLocoLiveSmoke` deux captures `19-reel-*` contre un vrai StarLoco local : [docs/captures](captures/README.md).
+
+## Validation sur un vrai StarLoco, animations et corrections
+
+Après la relecture, le bot a été joué sur une copie locale du StarLoco du kit (`BotStarLocoLiveSmoke`, deux comptes à la fois ; douze scénarios réussis le 12 octobre 2026, voir [le guide](BOT_STARLOCO.md#limites-avant-validation-en-jeu)), puis complété par dix lots qui lui donnent les animations du client. Mêmes règles que les lots du plan : images exportées du client par `swfsvg` et les exporteurs de `tools/client-analysis`, provenance notée, budget de 150 Mo pour l’ensemble des bandes, un test Mono par lot, et un passage sur le vrai serveur après chaque fusion.
+
+**AN1 — Socle des animations.** Événements visuels tirés du protocole (`FightVisuals`), file d’animations par acteur, séquenceur des actions de combat, effets de carte, horloge injectable ; cadence et fin de chaque bande dans `ancres.tsv`. Tests : `BotAnimationQueueSmoke`, `BotSpriteSheetsSmoke`.
+
+**AN2 — Chiffres, coups reçus et morts.** Chiffres au-dessus des têtes, bandes `hit` et `die` des 24 classes ; `swfsvg` 0.2.3 et `exporter_sprites.py --anims`. Test : `BotPointsHitDeathSmoke`.
+
+**AN3 — Bandes des monstres.** `walk`, `run`, `hit`, `die` et `anim0` des 100 gfx de monstres les plus présents sur les cartes de StarLoco (`choisir_gfx_animes.py`). Test : `BotSpriteSheetsSmoke`.
+
+**AN4 — Effets de sorts.** Scènes des sorts (`GA300`), attaques à l’arme (`GA303`), coups et échecs critiques, récolte et effets de carte ; `swfsvg` 0.2.4 et `exporter_sorts.py`. Test : `BotSpellEffectsSmoke`.
+
+**AN5 — Projectiles des sorts.** Types 20 à 51 de `GA300`, à 40 images par seconde. Test : `BotSpellProjectilesSmoke`.
+
+**AN6 — Recoloration des sprites.** Les trois couleurs du `GM` appliquées par masques aux zones des sprites ; `swfsvg` 0.2.5. Test : `BotRecolorSmoke`.
+
+**AN7 — Accessoires des personnages.** Coiffe, cape, arme, bouclier, familier et objet vivant posés aux emplacements que chaque classe réserve ; `swfsvg` 0.2.6 et `exporter_accessoires.py`. Test : `BotAccessoriesSmoke`.
+
+**AN8 — Émotes et clips annexes.** Émotes jouées en bande, auras, cercle d’équipe, sac du marchand, clip des PNJ, ailes d’alignement et bonus PvP ; option Aura. Test : `BotExtraClipsSmoke`.
+
+**AN9 — Son (évaluation).** Mesure de ce que le client fait entendre et de ce que coûterait sa lecture ; aucun son n’est joué. Note : [SON_BOT.md](SON_BOT.md).
+
+**CORR — Corrections relevées sur le vrai StarLoco.** Ticket renvoyé après `ATE`, carte vidée à `GJK` en gardant les états des cellules, barre d’état des PA et PM, test réel durci. Tests : `BotTransportSmoke`, `BotFightProtocolSmoke`, `BotFightUiSmoke`.
 
 ## Couverture des fonctions
 
@@ -234,7 +258,7 @@ Liste consolidée des points non faits relevés par les lots et par la relecture
 
 ### À rejouer sur un vrai serveur StarLoco
 
-Préalable : une copie isolée d’un vrai StarLoco, avec des comptes et des personnages de test. `BotStarLocoLiveSmoke` en rejoue déjà la connexion et la création, la carte de départ et un changement de carte, le chat général et privé, un groupe, un échange de kamas, un ami, un défi et un combat contre des monstres (placement, tours, déplacement, un sort, résultat), un dialogue, un achat en boutique et un zaap. Puis rejouer le reste :
+Préalable : une copie isolée d’un vrai StarLoco, avec des comptes et des personnages de test. `BotStarLocoLiveSmoke` en rejoue déjà la connexion et la création, la carte de départ et un changement de carte, le chat général et privé, une émote assise vue en bande par l’autre compte, un groupe, un échange de kamas, un ami, un défi et un combat contre des monstres (placement, tours, déplacement, un sort, résultat), un dialogue, un achat en boutique et un zaap. Puis rejouer le reste :
 
 - la connexion, la création et la suppression de personnages, la réponse secrète ;
 - les cartes, les déplacements, les changements de carte et les formats `GM` des marchands, percepteurs, prismes, montures d’enclos et portes (`GDC`) ;
@@ -242,6 +266,7 @@ Préalable : une copie isolée d’un vrai StarLoco, avec des comptes et des per
 - le combat : placement, tours, sorts, effets, résultat, et la réaction du serveur aux refus ;
 - le chat, les groupes, les amis, la guilde, les échanges, l’hôtel de vente, l’artisanat, les montures, les maisons, la conquête, les quêtes, les commandes du serveur, les pierres d’âme ;
 - les augmentations de caractéristiques et de sorts ;
+- les animations : sur le vrai serveur, seules la bande de l’émote assise et l’arrivée de projectiles (sans vérification d’image) ont été vues ; coups, morts, effets de sorts, recoloration, accessoires, auras et ailes n’ont pas été comparés au client en jeu ;
 - la comparaison des textes et des images avec l’affichage du client 1.34 en jeu (textes de langue, sprites, surtêtes, bulles, marges) ;
 - la suite complète `tests/Run-Tests.ps1` sous Windows, en Debug et en Release : sa dernière exécution complète date du 2 octobre 2026, avant les tests du bot ;
 - les captures sur la vraie carte : l’outil la lit dans l’export SQL du serveur et dans le client au moment de la capture, sans rien versionner ; sans eux, il compose une prairie synthétique.
@@ -313,7 +338,7 @@ Préalable : une copie isolée d’un vrai StarLoco, avec des comptes et des per
 
 ### Tests
 
-- Huit tests ne passent que sous Windows (`CharacterEditSmoke`, `MapEditorSmoke`, `EditorWorkflowSmoke`, `AllEditorsWorkflowSmoke`, `BotHandshakeSmoke`, `BotUiSmoke`, `BotCombatUiSmoke`, `BotEntitiesSmoke`).
+- Six tests ne passent que sous Windows (`CharacterEditSmoke`, `AllEditorsWorkflowSmoke`, `MapEditorSmoke`, `BotUiSmoke`, `BotCombatUiSmoke`, `BotHandshakeSmoke`) ; sous Mono, chacun passe ses vérifications jusqu’à l’appel propre à Windows.
 - `MapActionIntegrationSmoke` échoue sous Mono seulement : l’éditeur de cartes crée un contrôle Syncfusion dont la vérification de licence appelle `Dispatcher.BeginInvoke`, que Mono n’implémente pas.
 - Les envois de création (`AA`) et de suppression (`AD`) d’un personnage ne sont vérifiés par aucun test.
 - `test_lang2xml.py` n’est pas lancé par `Run-Tests.ps1 -Outils`.
