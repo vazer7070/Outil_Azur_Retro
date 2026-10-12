@@ -5,6 +5,9 @@
 //!   swfsvg --scene [--name NOM] [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier>
 //!   swfsvg --list <fichier.swf>
 //!   swfsvg --zones-list <fichier.swf>
+//!   swfsvg --emplacements [--scene] [--frame N|A-B|all] <fichier.swf> [nomExport ...]
+//!   swfsvg --etiquettes-list <fichier.swf> [nomExport ...]
+//!   swfsvg --etiquettes [--append-index] <fichier.swf> <dossier> [nomExport ...]
 //!   (avec --instance NOM ou --sans-instance NOM, et --zones aucune|123…, pour les deux premières formes)
 //!
 //! Sans nom d'export, tous les symboles d'`ExportAssets` sont rendus. `--scene` rend la timeline
@@ -22,6 +25,15 @@
 //! zone) ; `--zones 123` peint chaque zone de sa couleur unitaire (1 rouge, 2 vert, 3 bleu) et
 //! `--zones aucune` les peint en noir, le reste du rendu étant inchangé : la différence des deux
 //! rendus donne, pour chaque pixel, la part de chaque zone (masques de recoloration).
+//!
+//! Accessoires (version 0.2.6) : les sprites d'acteurs réservent des clips vides dont le script
+//! appelle `GAC.applyAccessory(this, <emplacement>, "<étiquette>", [tête], [miroir])` ; le client y
+//! attache l'accessoire porté (0 arme, 1 coiffe, 2 cape, 3 familier, 4 bouclier) arrêté sur
+//! l'étiquette. `--emplacements` écrit, pour chaque image rendue, la matrice de chaque clip réservé
+//! dans le repère du symbole et son rang dans l'ordre du dessin. `--etiquettes-list` liste les
+//! étiquettes d'images des symboles (`gotoAndStop(étiquette)`) et la durée de l'animation que leurs
+//! clips jouent quand l'image est tenue ; `--etiquettes` rend chaque étiquette tenue, une image par
+//! image écoulée de cette animation (`<nom>_<étiquette>_a001.svg`…), dans un même cadre.
 use base64::Engine;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
@@ -33,6 +45,9 @@ const USAGE: &str = "usage : swfsvg [--frame N|A-B|all] [--append-index] <fichie
         swfsvg --scene [--name NOM] [--frame N|A-B|all] [--append-index] <fichier.swf> <dossier>
         swfsvg --list <fichier.swf>
         swfsvg --zones-list <fichier.swf>
+        swfsvg --emplacements [--scene] [--frame N|A-B|all] <fichier.swf> [nomExport ...]
+        swfsvg --etiquettes-list <fichier.swf> [nomExport ...]
+        swfsvg --etiquettes [--append-index] <fichier.swf> <dossier> [nomExport ...]
         (--instance NOM : seul l'enfant nommé de la timeline demandée ; --sans-instance NOM : tout sauf lui ;
          --zones aucune|1|12|123… : zones de couleur peintes en rouge, vert, bleu, les autres en noir)";
 
@@ -215,6 +230,32 @@ impl Instance {
     }
 }
 
+/// Clip réservé à un accessoire : son script appelle `GAC.applyAccessory(this, emplacement,
+/// étiquette, [tête], [miroir])`.
+#[derive(Clone, Debug, PartialEq)]
+struct SlotCall {
+    /// 0 arme, 1 coiffe, 2 cape, 3 familier, 4 bouclier.
+    slot: u8,
+    /// Étiquette d'image de l'accessoire (`gotoAndStop`) : `S`, `R`, `WR`, `RR`…
+    label: String,
+    /// Une tête est passée (coiffe) : le client la met à l'image 2 quand une coiffe est portée.
+    head: bool,
+    /// Familier : `_x` du clip réservé opposé quand le sprite regarde en 3, 4 ou 7 (sprite retourné).
+    mirror: bool,
+}
+
+/// Clip réservé rencontré pendant un rendu (`--emplacements`).
+#[derive(Clone, Debug)]
+struct SlotHit {
+    call: SlotCall,
+    /// Matrice du clip réservé dans le repère du rendu.
+    matrix: M,
+    /// Même matrice avec le `_x` du clip opposé dans son parent (familier d'un sprite retourné).
+    mirrored: M,
+    /// Formes dessinées avant lui dans le rendu.
+    rank: usize,
+}
+
 struct Exporter<'a> {
     chars: HashMap<u16, &'a Tag<'a>>,
     jpeg_tables: Option<&'a [u8]>,
@@ -244,6 +285,15 @@ struct Exporter<'a> {
     instance: Option<Instance>,
     /// Vrai dès qu'une image rendue de la cible a contenu l'instance filtrée.
     instance_found: bool,
+    /// Clips réservés aux accessoires, par caractère (`GAC.applyAccessory(this, …)` dans leur script).
+    slots: HashMap<u16, SlotCall>,
+    /// Formes, bitmaps et textes dessinés depuis le dernier `reset` (rang des clips réservés).
+    leaves: usize,
+    /// Clips réservés rencontrés depuis le dernier `reset`.
+    hits: Vec<SlotHit>,
+    /// Image tenue (`gotoAndStop`) : âge de tous les clips de la timeline demandée, en images
+    /// écoulées depuis l'arrêt (`--etiquettes`) ; sinon les clips vieillissent avec elle.
+    hold: Option<usize>,
 }
 
 fn color_css(c: &swf::Color) -> (String, f64) {
@@ -385,6 +435,15 @@ impl<'a> Exporter<'a> {
             }
         }
         collect(0, tags);
+        let mut slots: HashMap<u16, SlotCall> = HashMap::new();
+        for t in tags {
+            if let Tag::DefineSprite(s) = t {
+                // Le premier appel du clip l'emporte : il s'exécute à sa création.
+                if let Some(call) = s.tags.iter().find_map(|x| if let Tag::DoAction(code) = x { accessory_call(code) } else { None }) {
+                    slots.insert(s.id, call);
+                }
+            }
+        }
         Exporter {
             chars,
             jpeg_tables,
@@ -403,6 +462,10 @@ impl<'a> Exporter<'a> {
             recolored: 0,
             instance: None,
             instance_found: false,
+            slots,
+            leaves: 0,
+            hits: Vec::new(),
+            hold: None,
         }
     }
 
@@ -414,6 +477,8 @@ impl<'a> Exporter<'a> {
         self.warnings.clear();
         self.clip_mode = false;
         self.recolored = 0;
+        self.leaves = 0;
+        self.hits.clear();
     }
 
     /// Zone de couleur de l'enfant `name` du clip `owner` (0 : la scène) ; le dernier appel du
@@ -964,6 +1029,12 @@ impl<'a> Exporter<'a> {
         if replaces {
             self.recolored += 1;
         }
+        // Rang des clips réservés aux accessoires : objets dessinés (hors géométrie des masques).
+        let leaf = matches!(tag, Tag::DefineShape(_) | Tag::DefineMorphShape(_) | Tag::DefineText(_) | Tag::DefineText2(_))
+            || matches!(tag, Tag::DefineBits { .. } | Tag::DefineBitsJpeg2 { .. } | Tag::DefineBitsJpeg3(_) | Tag::DefineBitsLossless(_));
+        if leaf && !self.clip_mode {
+            self.leaves += 1;
+        }
         match tag {
             Tag::DefineShape(s) => self.render_shape(s, m, &extra),
             Tag::DefineSprite(sp) => {
@@ -1086,10 +1157,12 @@ impl<'a> Exporter<'a> {
                 _ => {}
             }
         }
+        // Image tenue (`--etiquettes`) : tous les clips ont l'âge écoulé depuis le gotoAndStop.
+        let held = if root { self.hold } else { None };
         let mut items: Vec<(u16, Placed, usize)> = display
             .into_iter()
             .map(|(d, mut p)| {
-                let child_age = child_age(age, frame, persistent, p.born);
+                let child_age = held.unwrap_or_else(|| child_age(age, frame, persistent, p.born));
                 p.zone = p.name.as_deref().and_then(|n| self.zone_of(owner, n));
                 (d, p, child_age)
             })
@@ -1126,6 +1199,13 @@ impl<'a> Exporter<'a> {
                     i = j;
                 }
                 None => {
+                    if !self.clip_mode {
+                        if let Some(call) = self.slots.get(&p.id) {
+                            // `_x` opposé dans le parent (familier d'un sprite retourné, voir SlotCall).
+                            let local = M { tx: -p.matrix.tx, ..p.matrix };
+                            self.hits.push(SlotHit { call: call.clone(), matrix: full, mirrored: m.mul(&local), rank: self.leaves });
+                        }
+                    }
                     let outer = self.zone_paint;
                     if let Some(paint) = self.zone_paint_for(p.zone) {
                         self.zone_paint = Some(paint);
@@ -1160,6 +1240,41 @@ impl<'a> Exporter<'a> {
         let _ = write!(self.body, "<g clip-path=\"url(#{})\">{}</g>", id, content);
         self.bounds.add(visible.x0, visible.y0);
         self.bounds.add(visible.x1, visible.y1);
+    }
+
+    /// Durée (images) et fin de l'animation que jouent les clips de l'image `frame` (base 1) d'un
+    /// clip arrêté sur elle (`gotoAndStop`) : la plus longue de ses clips, `arret` si aucun ne
+    /// bouge (1 image) ou si tous s'arrêtent, sinon `boucle`.
+    fn held_play(&mut self, sprite: &swf::Sprite, frame: usize) -> (usize, End) {
+        let mut display: BTreeMap<u16, u16> = BTreeMap::new();
+        let mut current = 1usize;
+        for t in &sprite.tags {
+            match t {
+                Tag::PlaceObject(p) => {
+                    if let swf::PlaceObjectAction::Place(cid) | swf::PlaceObjectAction::Replace(cid) = p.action {
+                        display.insert(p.depth, cid);
+                    }
+                }
+                Tag::RemoveObject(r) => {
+                    display.remove(&r.depth);
+                }
+                Tag::ShowFrame => {
+                    if current >= frame {
+                        break;
+                    }
+                    current += 1;
+                }
+                _ => {}
+            }
+        }
+        let mut longest = 1usize;
+        let mut looping = false;
+        for cid in display.into_values() {
+            let (length, end) = self.play(cid, 1);
+            longest = longest.max(length);
+            looping |= length > 1 && end == End::Loop;
+        }
+        (longest, if looping { End::Loop } else { End::Stop })
     }
 
     /// Rend l'image `frame` (base 1) d'un symbole exporté, comme timeline demandée.
@@ -1289,6 +1404,10 @@ enum Val {
     Num(f64),
     /// Valeur lue par `GetVariable` (nom de la variable : un clip enfant, `this`, `GAC`…).
     Var(String),
+    /// Booléen poussé tel quel (`true`, `false`).
+    Bool(bool),
+    /// `undefined` ou `null` poussés tels quels.
+    Undefined,
     Other,
 }
 
@@ -1305,8 +1424,9 @@ fn push_values(payload: &[u8], pool: &[String], stack: &mut Vec<Val>) {
                 (Val::Str(String::from_utf8_lossy(&rest[..end]).to_string()), end + 1)
             }
             1 if rest.len() >= 4 => (Val::Num(f32::from_le_bytes([rest[0], rest[1], rest[2], rest[3]]) as f64), 4),
-            2 | 3 => (Val::Other, 0),
-            4 | 5 if !rest.is_empty() => (Val::Other, 1),
+            2 | 3 => (Val::Undefined, 0),
+            4 if !rest.is_empty() => (Val::Other, 1),
+            5 if !rest.is_empty() => (Val::Bool(rest[0] != 0), 1),
             // Double AVM1 : les deux mots de 32 bits sont échangés.
             6 if rest.len() >= 8 => (Val::Num(f64::from_le_bytes([rest[4], rest[5], rest[6], rest[7], rest[0], rest[1], rest[2], rest[3]])), 8),
             7 if rest.len() >= 4 => (Val::Num(i32::from_le_bytes([rest[0], rest[1], rest[2], rest[3]]) as f64), 4),
@@ -1480,6 +1600,42 @@ fn color_calls(code: &[u8]) -> Vec<(String, u8)> {
         }
     }
     zones
+}
+
+/// Emplacement d'accessoire d'un bloc AVM1 : premier appel `GAC.applyAccessory(this, <emplacement>,
+/// "<étiquette>"[, <tête>[, <miroir>]])` des sprites d'acteurs, dont la cible est le clip lui-même
+/// (`this`) et l'emplacement 0 à 4. Le client attache l'accessoire dans ce clip (profondeur 10) et
+/// l'arrête sur l'étiquette ; une tête passée (`_parent.S_Tete`) va à l'image 2 sous une coiffe ;
+/// le miroir (`true`) oppose le `_x` du clip quand le sprite regarde en 3, 4 ou 7.
+fn accessory_call(code: &[u8]) -> Option<SlotCall> {
+    for (event, _) in avm1_events(code) {
+        let Event::Call(name, args) = event else { continue };
+        if !name.eq_ignore_ascii_case("applyAccessory") {
+            continue;
+        }
+        let (Some(Val::Var(target)), Some(Val::Num(slot)), Some(Val::Str(label))) = (args.first(), args.get(1), args.get(2)) else { continue };
+        if !target.eq_ignore_ascii_case("this") || !(0.0..=4.0).contains(slot) || slot.fract() != 0.0 || label.is_empty() {
+            continue;
+        }
+        let head = args.get(3).is_some_and(|v| *v != Val::Undefined);
+        let mirror = matches!(args.get(4), Some(Val::Bool(true)));
+        return Some(SlotCall { slot: *slot as u8, label: label.clone(), head, mirror });
+    }
+    None
+}
+
+/// Étiquettes d'images d'une timeline (`FrameLabel`) et leur image (base 1), dans l'ordre.
+fn frame_labels(tags: &[Tag]) -> Vec<(String, usize)> {
+    let mut labels = Vec::new();
+    let mut frame = 1usize;
+    for t in tags {
+        match t {
+            Tag::FrameLabel(l) => labels.push((l.label.to_str_lossy(ENC).to_string(), frame)),
+            Tag::ShowFrame => frame += 1,
+            _ => {}
+        }
+    }
+    labels
 }
 
 /// Document SVG d'un rendu : le cadre `bounds` est arrondi au pixel (le PNG commence au point
@@ -1680,6 +1836,12 @@ struct Options {
     zones: Option<[bool; 3]>,
     /// `--zones-list` : liste des zones de couleur sans rien rendre.
     zones_list: bool,
+    /// `--emplacements` : clips réservés aux accessoires de chaque image demandée, sans rien écrire.
+    emplacements: bool,
+    /// `--etiquettes-list` : étiquettes d'images des symboles, sans rien rendre.
+    etiquettes_list: bool,
+    /// `--etiquettes` : rendu de chaque étiquette tenue, image par image de l'animation de ses clips.
+    etiquettes: bool,
     file: String,
     dir: Option<String>,
     names: Vec<String>,
@@ -1731,7 +1893,23 @@ fn parse_zones(v: &str) -> Result<[bool; 3], String> {
 }
 
 fn parse_args(args: &[String]) -> Result<Options, String> {
-    let mut o = Options { scene: false, list: false, append_index: false, frames: Frames::One(1), scene_name: None, instance: None, zones: None, zones_list: false, file: String::new(), dir: None, names: Vec::new() };
+    let mut o = Options {
+        scene: false,
+        list: false,
+        append_index: false,
+        frames: Frames::One(1),
+        scene_name: None,
+        instance: None,
+        zones: None,
+        zones_list: false,
+        emplacements: false,
+        etiquettes_list: false,
+        etiquettes: false,
+        file: String::new(),
+        dir: None,
+        names: Vec::new(),
+    };
+    let mut frame_given = false;
     let mut instances = 0;
     let mut positional = Vec::new();
     let mut i = 0;
@@ -1745,7 +1923,11 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
                 i += 1;
                 let v = args.get(i).ok_or("--frame attend une valeur (N, A-B ou all)")?;
                 o.frames = parse_frames(v)?;
+                frame_given = true;
             }
+            "--emplacements" => o.emplacements = true,
+            "--etiquettes-list" => o.etiquettes_list = true,
+            "--etiquettes" => o.etiquettes = true,
             "--name" => {
                 i += 1;
                 let v = args.get(i).ok_or("--name attend un nom")?;
@@ -1765,7 +1947,10 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
             "--zones-list" => o.zones_list = true,
             "-h" | "--help" => return Err(String::new()),
             _ if a.starts_with("--zones=") => o.zones = Some(parse_zones(&a["--zones=".len()..])?),
-            _ if a.starts_with("--frame=") => o.frames = parse_frames(&a["--frame=".len()..])?,
+            _ if a.starts_with("--frame=") => {
+                o.frames = parse_frames(&a["--frame=".len()..])?;
+                frame_given = true;
+            }
             _ if a.starts_with("--name=") => o.scene_name = Some(a["--name=".len()..].to_string()),
             _ if a.starts_with("--instance=") => {
                 o.instance = Some(Instance::Only(a["--instance=".len()..].to_string()));
@@ -1788,8 +1973,32 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
     }
     let mut positional = positional.into_iter();
     o.file = positional.next().ok_or("fichier SWF manquant")?;
-    if o.list && o.zones_list {
-        return Err("--list et --zones-list s'emploient séparément".into());
+    let modes = [o.list, o.zones_list, o.emplacements, o.etiquettes_list, o.etiquettes].iter().filter(|m| **m).count();
+    if modes > 1 {
+        if o.list && o.zones_list && modes == 2 {
+            return Err("--list et --zones-list s'emploient séparément".into());
+        }
+        return Err("--list, --zones-list, --emplacements, --etiquettes-list et --etiquettes s'emploient séparément".into());
+    }
+    if o.emplacements || o.etiquettes_list || o.etiquettes {
+        let mode = if o.emplacements { "--emplacements" } else if o.etiquettes { "--etiquettes" } else { "--etiquettes-list" };
+        if o.instance.is_some() || o.zones.is_some() || o.scene_name.is_some() {
+            return Err(format!("{} : --instance, --sans-instance, --zones et --name n'y ont pas de sens", mode));
+        }
+        if !o.emplacements && (o.scene || frame_given) {
+            return Err(format!("{} parcourt les étiquettes des symboles : --scene et --frame n'y ont pas de sens", mode));
+        }
+        if o.emplacements && o.append_index || o.etiquettes_list && o.append_index {
+            return Err(format!("{} n'écrit pas d'index : --append-index n'y a pas de sens", mode));
+        }
+        if o.etiquettes {
+            o.dir = Some(positional.next().ok_or("dossier de sortie manquant")?);
+        }
+        o.names = positional.collect();
+        if o.scene && !o.names.is_empty() {
+            return Err("--scene lit la timeline principale : aucun nom d'export n'est attendu".into());
+        }
+        return Ok(o);
     }
     let listing = if o.list { "--list" } else { "--zones-list" };
     if (o.list || o.zones_list) && o.instance.is_some() {
@@ -1880,8 +2089,6 @@ fn run(o: &Options) -> Result<String, String> {
         return Ok(out);
     }
 
-    let dir = o.dir.as_deref().unwrap_or(".");
-    std::fs::create_dir_all(dir).map_err(|e| format!("{} : création du dossier impossible ({})", dir, e))?;
     let targets: Vec<Target> = if o.scene {
         vec![Target { name: o.scene_name.clone().unwrap_or_else(|| file_stem(&o.file)), id: None }]
     } else {
@@ -1892,6 +2099,99 @@ fn run(o: &Options) -> Result<String, String> {
     if !missing.is_empty() {
         let _ = writeln!(messages, "symboles absents de {} : {}", o.file, missing.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(" "));
     }
+
+    if o.emplacements {
+        // Rendu en mémoire de chaque image demandée : seuls les clips réservés sont écrits.
+        let mut out = String::from("nom\timage\templacement\tetiquette\tmiroir\ttete\ta\tb\tc\td\ttx\tty\ttx_miroir\tty_miroir\trang\tformes\n");
+        for target in &targets {
+            let total = target_cycle(&mut exporter, &movie.tags, main_info, target.id);
+            let frames: Vec<usize> = match o.frames {
+                Frames::One(n) => vec![n],
+                Frames::Range(a, b) => (a..=b).collect(),
+                Frames::All => (1..=total).collect(),
+            };
+            for n in frames {
+                exporter.reset();
+                match target.id {
+                    None => exporter.render_timeline(&movie.tags, main_info, &M::identity(), 0, n - 1, true, 0),
+                    Some(id) => exporter.render_symbol(id, n),
+                }
+                for h in &exporter.hits {
+                    let (m, w) = (h.matrix, h.mirrored);
+                    let _ = writeln!(
+                        out,
+                        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                        target.name,
+                        n,
+                        h.call.slot,
+                        h.call.label,
+                        h.call.mirror as u8,
+                        h.call.head as u8,
+                        fm_fine(m.a),
+                        fm_fine(m.b),
+                        fm_fine(m.c),
+                        fm_fine(m.d),
+                        fm(m.tx),
+                        fm(m.ty),
+                        fm(w.tx),
+                        fm(w.ty),
+                        h.rank,
+                        exporter.leaves
+                    );
+                }
+            }
+        }
+        eprint!("{}", messages);
+        return Ok(out);
+    }
+
+    if o.etiquettes_list || o.etiquettes {
+        let mut out = String::from("nom\tetiquette\timage\timages\tfin\n");
+        let mut index = String::new();
+        let dir = o.dir.as_deref().unwrap_or(".");
+        if o.etiquettes {
+            std::fs::create_dir_all(dir).map_err(|e| format!("{} : création du dossier impossible ({})", dir, e))?;
+        }
+        for target in &targets {
+            let Some(id) = target.id else { continue };
+            let Some(Tag::DefineSprite(sp)) = exporter.chars.get(&id).copied() else { continue };
+            for (label, frame) in frame_labels(&sp.tags) {
+                let (images, end) = exporter.held_play(sp, frame);
+                let _ = writeln!(out, "{}\t{}\t{}\t{}\t{}", target.name, label, frame, images, end.label());
+                if !o.etiquettes {
+                    continue;
+                }
+                // L'image tenue, puis chaque image écoulée de l'animation de ses clips, dans un même cadre.
+                let mut renders: Vec<(usize, String, String, Vec<String>)> = Vec::new();
+                let mut union = Bounds::default();
+                for k in 0..images {
+                    exporter.reset();
+                    exporter.hold = Some(k);
+                    exporter.render_symbol(id, frame);
+                    union = union.union(&exporter.bounds);
+                    renders.push((k + 1, std::mem::take(&mut exporter.defs), std::mem::take(&mut exporter.body), std::mem::take(&mut exporter.warnings)));
+                }
+                exporter.hold = None;
+                let name = format!("{}_{}", target.name, label);
+                for (k, defs, body, warnings) in renders {
+                    let file = format!("{}_a{:03}.svg", safe_name(&name), k);
+                    let path = std::path::Path::new(dir).join(&file);
+                    std::fs::write(&path, svg_document(&defs, &body, &union)).map_err(|e| format!("{} : écriture impossible ({})", path.display(), e))?;
+                    let b = union;
+                    let _ = writeln!(index, "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}", name, id, fm(b.x0), fm(b.y0), fm(b.x1 - b.x0), fm(b.y1 - b.y0), warnings.join("; "), fm(b.x1), fm(b.y1), k, images, file);
+                }
+            }
+        }
+        if !o.etiquettes {
+            eprint!("{}", messages);
+            return Ok(out);
+        }
+        write_index(dir, &index, o.append_index)?;
+        return Ok(messages);
+    }
+
+    let dir = o.dir.as_deref().unwrap_or(".");
+    std::fs::create_dir_all(dir).map_err(|e| format!("{} : création du dossier impossible ({})", dir, e))?;
 
     let mut index = String::new();
     for target in &targets {
