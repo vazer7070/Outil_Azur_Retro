@@ -165,7 +165,8 @@ namespace Outil_Azur_complet.Bot.Controls
     /// qu'à sa première image dessinée ; si la bande manque ou n'est pas lue à temps, la file abandonne l'animation et
     /// l'icône reste. Avec une durée, <c>setSpriteTimerAnim</c> du client remet <c>defaultAnimation</c> (<c>static</c>) au
     /// terme : l'animation ponctuelle est annulée à <see cref="End"/> si c'est encore cette émote (une autre émote ou un
-    /// déplacement l'ont déjà remplacée sinon).
+    /// déplacement l'ont déjà remplacée sinon). Sans durée, l'effet se retire dès la première image dessinée : la bande
+    /// tenue n'a plus besoin de la minuterie de la carte.
     /// </summary>
     public sealed class EmoteTimer : IMapEffect
     {
@@ -194,7 +195,15 @@ namespace Outil_Azur_complet.Bot.Controls
             if (Finished) return false;
             if (!queue.IsPlaying(ActorId, Animation)) { Finished = true; return false; }
             if (!shown && queue.IsShown(ActorId, Animation)) { shown = true; onShown?.Invoke(); }
-            if (!End.HasValue || now < End.Value) return true;
+            if (!End.HasValue)
+            {
+                // Bande tenue sans durée : plus rien à suivre une fois la première image dessinée. L'effet se retire, sinon
+                // la minuterie de la carte redessinerait tout à 30 images par seconde tant qu'un personnage reste assis ;
+                // l'animation, elle, reste dans la file jusqu'à eUK|0, un déplacement ou une autre émote.
+                Finished = shown;
+                return !shown;
+            }
+            if (now < End.Value) return true;
             Finished = true;
             queue.Cancel(ActorId);
             return false;

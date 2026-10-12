@@ -193,7 +193,9 @@ internal static class BotExtraClipsSmoke
             while (strip.State == SpriteLoadState.Loading && DateTime.UtcNow < limit) Thread.Sleep(10);
             Check(strip.State == SpriteLoadState.Ready, "Synthetic circle strip did not load for the EmoteTimer check");
             queue.Observe(7, "emote2", SpriteLoadState.Ready, strip.Sheet, 20);
-            Check(follow.Update(30, null) && cleared == 1 && follow.Update(40, null) && cleared == 1, "onShown must fire once when the strip is first drawn");
+            // Sans durée, l'effet se retire à cette première image (la carte n'a plus à se redessiner pour une bande tenue).
+            Check(!follow.Update(30, null) && cleared == 1 && follow.Finished && !follow.Update(40, null) && cleared == 1 && queue.IsPlaying(7, "emote2"),
+                "onShown must fire once when the strip is first drawn, then the untimed timer ends while the emote stays held");
             strip.Dispose();
         }
         queue.Observe(7, "emote2", SpriteLoadState.Missing, null, 50);

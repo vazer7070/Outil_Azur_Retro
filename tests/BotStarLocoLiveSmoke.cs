@@ -171,6 +171,9 @@ internal static partial class Live
 
     private static void Say(string line) { Console.WriteLine(line); Journal("== " + line); }
 
+    /// <summary>Exécute sur le fil d'interface les actions en attente d'<see cref="OnUi"/>.</summary>
+    private static void DrainUi() { while (uiQueue.TryDequeue(out Action action)) action(); }
+
     internal static int Run(string login)
     {
         Accounts.ParseEndpoint(login, out host, out port);
@@ -198,13 +201,22 @@ internal static partial class Live
         b = new LiveSession("B", accounts[1].Substring(0, accounts[1].IndexOf(':')), accounts[1].Substring(accounts[1].IndexOf(':') + 1));
         Task scenarios = Task.Run(ScenariosAsync);
         // Fil d'interface : la fenêtre de jeu du compte A vit ici, les scénarios tournent sur le pool de fils.
-        while (!scenarios.IsCompleted)
+        // Application.DoEvents ne rend la main qu'une fois la file de messages vide ; tant que la carte s'anime (minuterie
+        // de 33 ms, dessin plus lent que cela sous Xvfb), elle ne l'est jamais : une minuterie WinForms vide donc aussi
+        // uiQueue depuis l'intérieur de DoEvents, sinon OnUi ne rend jamais la main pendant une émote tenue.
+        using (var pump = new System.Windows.Forms.Timer { Interval = 10 })
         {
-            while (uiQueue.TryDequeue(out Action action)) action();
-            Application.DoEvents();
-            Thread.Sleep(10);
+            pump.Tick += (sender, e) => DrainUi();
+            pump.Start();
+            while (!scenarios.IsCompleted)
+            {
+                DrainUi();
+                Application.DoEvents();
+                Thread.Sleep(10);
+            }
+            pump.Stop();
         }
-        while (uiQueue.TryDequeue(out Action last)) last();
+        DrainUi();
         try { scenarios.GetAwaiter().GetResult(); }
         catch (Exception error) { results.Add(new ScenarioResult { Name = "déroulement", Status = "échec", Evidence = error.GetType().Name + " : " + error.Message }); Journal("!! " + error); }
         finally
