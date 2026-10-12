@@ -23,6 +23,8 @@ namespace Outil_Azur_complet.Bot.Controls
     /// comme le client 1.34 (orientation et miroir, ancre au pied, profondeur cellule × 100 + 30), animé le long des chemins,
     /// avec survol au pixel près, surtêtes, bulles, smileys et émotes. Les PNG sont lus hors du fil de l'interface
     /// (<see cref="ActorSprites"/>, <see cref="OverheadImages"/>) : un acteur dont l'image arrive est redessiné ensuite.
+    /// Lot AN7 : les accessoires du <c>GM</c> (<see cref="ActorAccessories"/>) sont posés sur les clips réservés de l'image
+    /// affichée, derrière puis devant le corps ; le cadre du sprite (clics, survol, surtêtes) reste celui du corps.
     /// </summary>
     public partial class UserMapControl
     {
@@ -77,6 +79,17 @@ namespace Outil_Azur_complet.Bot.Controls
             /// groupe de monstres ; <see cref="ActorColors.None"/> pour les suiveurs et les épées (couleurs du SWF).
             /// </summary>
             public ActorColors Colors;
+            /// <summary>Accessoires portés d'après le <c>GM</c> et <c>items.xml</c> (lot AN7) ; <c>null</c> ou vide sans accessoire.</summary>
+            public IReadOnlyList<WornAccessory> Worn;
+            /// <summary>Accessoires prêts, posés sur l'image affichée (derrière et devant), ou <c>null</c>.</summary>
+            internal List<AccessoryDraw> Accessories;
+            /// <summary>Pourquoi aucun accessoire n'est dessiné (emplacements en lecture, bande absente…), ou <c>null</c>.</summary>
+            public string AccessoriesReason;
+            /// <summary>Nombre d'accessoires dessinés sur l'image affichée.</summary>
+            public int AccessoryCount => Accessories?.Count ?? 0;
+            /// <summary>Fichiers des accessoires dessinés (<c>16_2_R.png</c>…), dans l'ordre du dessin (derrière puis devant).</summary>
+            public string[] AccessoryFiles => Accessories == null ? new string[0]
+                : Accessories.Where(a => !a.Slot.Front).Concat(Accessories.Where(a => a.Slot.Front)).Select(a => a.Sheet.File).ToArray();
             internal SpritePose Pose;
             internal Color Color;
             internal bool NoFlip;
@@ -274,7 +287,8 @@ namespace Outil_Azur_complet.Bot.Controls
                 MapActor selfActor = map.Self;
                 ActorVisualState main = AddMain(states, self, self.id, ActorKind.Player, self.GFX > 0 ? self.GFX : self.Race_ID * 10 + self.Sex,
                     self.Orientation, selfActor?.NoFlip == true, self.GraphicsScaleX, self.GraphicsScaleY, self.Cell.CellID, true,
-                    Color.FromArgb(72, 103, 156), self.Name ?? "Vous", PlayerEmote(self.id, selfActor as PlayerActor), ColorsOf(selfActor));
+                    Color.FromArgb(72, 103, 156), self.Name ?? "Vous", PlayerEmote(self.id, selfActor as PlayerActor), ColorsOf(selfActor),
+                    ActorAccessories.Of(selfActor));
                 if (main != null && selfActor != null) AddFollowers(states, main, selfActor, map, mapCells);
             }
             foreach (MapActor actor in map.AllActors.ToArray())
@@ -285,7 +299,7 @@ namespace Outil_Azur_complet.Bot.Controls
                 live.Add(actor.id);
                 if (actor is MonsterGroupActor group) { AddGroup(states, group, cell, map, mapCells); continue; }
                 ActorVisualState main = AddMain(states, actor, actor.Id, actor.Kind, actor.Gfx, actor.Orientation, actor.NoFlip, actor.ScaleX, actor.ScaleY,
-                    cell, false, KindColor(actor.Kind), actor.DisplayName, PlayerEmote(actor.Id, actor as PlayerActor), ColorsOf(actor));
+                    cell, false, KindColor(actor.Kind), actor.DisplayName, PlayerEmote(actor.Id, actor as PlayerActor), ColorsOf(actor), ActorAccessories.Of(actor));
                 if (main != null) AddFollowers(states, main, actor, map, mapCells);
             }
             foreach (FightSwordsActor swords in map.FightSwords.Values.ToArray()) AddSwords(states, swords);
@@ -314,6 +328,7 @@ namespace Outil_Azur_complet.Bot.Controls
                     snapshot.ScaleX, snapshot.ScaleY, snapshot.CellId, WorldCenter(snapshot.CellId), snapshot.IsSelf, KindColor(snapshot.Kind), snapshot.Name, -1);
                 state.IsGhost = true;
                 state.Colors = ActorColors.Parse(snapshot.Colors);
+                state.Worn = ActorAccessories.Worn(snapshot.Accessories);
                 SpritePose requested = Resolve(state, ghost.Animation, ghost.Elapsed(now), false);
                 if (!ghost.Shown.HasValue && requested.State == SpriteLoadState.Ready) ghost.Shown = now;
                 states.Add(state);
@@ -357,7 +372,8 @@ namespace Outil_Azur_complet.Bot.Controls
         }
 
         private ActorVisualState AddMain(List<ActorVisualState> states, Entites entity, long actorId, ActorKind kind, int gfx, int orientation,
-            bool noFlip, int scaleX, int scaleY, int cell, bool self, Color color, string name, int emote, ActorColors colors)
+            bool noFlip, int scaleX, int scaleY, int cell, bool self, Color color, string name, int emote, ActorColors colors,
+            IReadOnlyList<ActorAccessory> accessories = null)
         {
             if (cell < 0 || cell >= worldPolygons.Length) return null;
             PointF position = Animate(unchecked((int)actorId), cell, self, ref orientation, out int shownCell, out bool moving, out double elapsed, out MoveMode? mode);
@@ -383,6 +399,7 @@ namespace Outil_Azur_complet.Bot.Controls
             }
             ActorVisualState state = NewState(entity, actorId, kind, gfx, orientation, noFlip, scaleX, scaleY, shownCell, position, self, color, name, -1);
             state.Colors = colors;
+            state.Worn = ActorAccessories.Worn(accessories);
             state.IsMoving = moving;
             SpritePose requested = Resolve(state, animation, elapsed, loop);
             if (overriding) animationQueue.Observe(actorId, animation, requested.State, requested.Sheet, now);
@@ -461,7 +478,44 @@ namespace Outil_Azur_complet.Bot.Controls
             }
             else state.WorldBounds = new RectangleF(state.WorldPosition.X - 9 * sx, state.WorldPosition.Y - 30 * sy, 18 * sx, 30 * sy);
             state.SpriteBounds = ToScreen(state.WorldBounds);
+            ResolveAccessories(state, elapsed);
             return requested;
+        }
+
+        /// <summary>
+        /// Accessoires de l'image affichée (lot AN7) : pour chaque clip réservé de cette image (table d'emplacements du gfx,
+        /// bande réellement dessinée, image courante) dont l'acteur porte l'accessoire, la bande
+        /// <c>&lt;symbole&gt;_&lt;étiquette&gt;</c> si elle est prête ; les bandes en boucle (familier qui marche) suivent le
+        /// temps de l'animation. Ne lit jamais le disque : tables et bandes arrivent par <see cref="ActorSprites.SheetsLoaded"/>.
+        /// </summary>
+        private void ResolveAccessories(ActorVisualState state, double elapsed)
+        {
+            state.Accessories = null;
+            state.AccessoriesReason = null;
+            if (state.Worn == null || state.Worn.Count == 0) return;
+            if (!state.HasSprite) { state.AccessoriesReason = "corps non dessiné"; return; }
+            SpriteSheet sheet = state.Pose.Sheet;
+            if (sheet.Legacy) { state.AccessoriesReason = "ancien PNG sans ancre"; return; }
+            string band = ActorAccessories.BandName(sheet.File, state.GFX);
+            if (band == null) { state.AccessoriesReason = "bande sans nom"; return; }
+            AccessoryPlacements table = sprites.Placements(state.GFX);
+            if (table == null) { state.AccessoriesReason = "emplacements du gfx " + state.GFX.ToString(CultureInfo.InvariantCulture) + " en cours de lecture"; return; }
+            IReadOnlyList<AccessorySlot> slots = table.At(band, state.Frame);
+            if (slots.Count == 0) { state.AccessoriesReason = table.Reason ?? "aucun clip réservé dans " + band + " image " + state.Frame.ToString(CultureInfo.InvariantCulture); return; }
+            foreach (AccessorySlot slot in slots)
+            {
+                WornAccessory worn = null;
+                foreach (WornAccessory candidate in state.Worn) if (candidate.Slot == slot.Slot) { worn = candidate; break; }
+                if (worn == null) continue;
+                SpritePose pose = sprites.ResolveAccessory(worn.Symbol, worn.LabelFor(slot));
+                if (pose.State != SpriteLoadState.Ready || pose.Sheet == null)
+                {
+                    state.AccessoriesReason = pose.State == SpriteLoadState.Loading ? "accessoire " + worn.Symbol + " en cours de lecture" : pose.Reason;
+                    continue;
+                }
+                if (state.Accessories == null) state.Accessories = new List<AccessoryDraw>(slots.Count);
+                state.Accessories.Add(new AccessoryDraw(pose.Sheet, pose.Sheet.FrameAt(elapsed, pose.Sheet.End == SpriteEnd.Loop), slot, state.IsMirrored && slot.Mirror));
+            }
         }
 
         private void RecordMissing(int gfx, string reason)
@@ -643,7 +697,9 @@ namespace Outil_Azur_complet.Bot.Controls
                 using (ImageAttributes attributes = actor.IsHovered ? OverheadLayer.SelectionTint() : new ImageAttributes())
                 {
                     attributes.SetWrapMode(WrapMode.TileFlipXY);
+                    DrawAccessories(graphics, actor, false, attributes);
                     SpritePainter.Draw(graphics, actor.Pose.Sheet, actor.Frame, actor.WorldBounds, actor.IsMirrored, attributes);
+                    DrawAccessories(graphics, actor, true, attributes);
                 }
                 return;
             }
@@ -661,6 +717,15 @@ namespace Outil_Azur_complet.Bot.Controls
                 graphics.DrawLine(pen, foot.X - 4 * sx, foot.Y - 18 * sy, foot.X + 4 * sx, foot.Y - 10 * sy);
                 graphics.DrawLine(pen, foot.X + 4 * sx, foot.Y - 18 * sy, foot.X - 4 * sx, foot.Y - 10 * sy);
             }
+        }
+
+        /// <summary>Accessoires derrière (<paramref name="front"/> faux) ou devant le corps, dans l'ordre des clips réservés.</summary>
+        private static void DrawAccessories(Graphics graphics, ActorVisualState actor, bool front, ImageAttributes attributes)
+        {
+            if (actor.Accessories == null) return;
+            float sx = actor.ScaleX / 100f, sy = actor.ScaleY / 100f;
+            foreach (AccessoryDraw draw in actor.Accessories)
+                if (draw.Slot.Front == front) ActorAccessories.Draw(graphics, draw, actor.WorldPosition, sx, sy, actor.IsMirrored, attributes);
         }
 
         private void DrawPathPreview(Graphics graphics)

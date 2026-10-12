@@ -268,8 +268,81 @@ def svg_vers_image(chemin, echelle, magenta=True):
     if not m:
         raise RuntimeError("viewBox absent : " + os.path.basename(chemin))
     x0, y0 = round(float(m.group(1)) * echelle), round(float(m.group(2)) * echelle)
-    image = Image.open(io.BytesIO(cairosvg.svg2png(url=chemin, scale=echelle, background_color=None))).convert("RGBA")
+    try:
+        image = Image.open(io.BytesIO(cairosvg.svg2png(url=chemin, scale=echelle, background_color=None))).convert("RGBA")
+    except MemoryError:
+        # cairo refuse (NO_MEMORY) un dégradé dont la matrice, en pixels, est presque singulière (reflets des
+        # familiers 18_62 et 18_55, arme 6_87) : rendu sur-échantillonné puis réduit par moyenne des blocs ;
+        # sinon sans les formes à dégradé posées par une matrice singulière (surface nulle, invisibles).
+        image = None
+        with open(chemin, "rb") as f:
+            source = f.read()
+        for contenu, facteur in ((source, 4), (source, 16), (sans_degrades_plats(source), 1), (sans_degrades_plats(source), 4)):
+            try:
+                rendu = cairosvg.svg2png(bytestring=contenu, scale=echelle * facteur, background_color=None)
+            except MemoryError:
+                continue
+            image = Image.open(io.BytesIO(rendu)).convert("RGBA")
+            if facteur > 1:
+                image = reduire(image, facteur)
+            break
+        if image is None:
+            raise RuntimeError("rendu refusé par cairo : " + os.path.basename(chemin))
+        attendu = (int(float(m.group(3)) * echelle), int(float(m.group(4)) * echelle))
+        if image.size != attendu:
+            cadre = Image.new("RGBA", attendu, (0, 0, 0, 0))
+            cadre.paste(image, (0, 0))
+            image = cadre
     return (effacer_magenta(image) if magenta else image), x0, y0
+
+
+MATRICE = re.compile(r"^\s*matrix\(\s*([-\d.e]+)[\s,]+([-\d.e]+)[\s,]+([-\d.e]+)[\s,]+([-\d.e]+)[\s,]+([-\d.e]+)[\s,]+([-\d.e]+)\s*\)\s*$")
+
+
+def sans_degrades_plats(source, seuil=1e-5):
+    """SVG (octets) sans les formes peintes d'un dégradé dont la matrice cumulée des groupes a un
+    déterminant inférieur à seuil (surface nulle : rien de visible, mais cairo n'en vient pas à bout)."""
+    import xml.etree.ElementTree as ET
+    ET.register_namespace("", "http://www.w3.org/2000/svg")
+    racine = ET.fromstring(source)
+
+    def produit(m, n):
+        a, b, c, d, e, f = m
+        a2, b2, c2, d2, e2, f2 = n
+        return (a * a2 + c * b2, b * a2 + d * b2, a * c2 + c * d2, b * c2 + d * d2, a * e2 + c * f2 + e, b * e2 + d * f2 + f)
+
+    def parcourir(element, matrice):
+        m = MATRICE.match(element.get("transform", ""))
+        if m:
+            try:
+                matrice = produit(matrice, tuple(float(v) for v in m.groups()))
+            except ValueError:
+                pass
+        for enfant in list(element):
+            peinture = enfant.get("fill", "") + " " + enfant.get("stroke", "")
+            if "url(#" in peinture and abs(matrice[0] * matrice[3] - matrice[1] * matrice[2]) < seuil and not list(enfant):
+                element.remove(enfant)
+            else:
+                parcourir(enfant, matrice)
+
+    parcourir(racine, (1.0, 0.0, 0.0, 1.0, 0.0, 0.0))
+    return ET.tostring(racine)
+
+
+def reduire(image, facteur):
+    """Réduit une image RGBA d'un facteur entier : moyenne de chaque bloc, alpha prémultiplié (une
+    couleur sous un pixel transparent ne déteint pas)."""
+    alpha = image.getchannel("A")
+    couvert = ImageChops.multiply(image.convert("RGB"), Image.merge("RGB", (alpha, alpha, alpha))).reduce(facteur)
+    alpha = alpha.reduce(facteur)
+    rgb, a = couvert.tobytes(), alpha.tobytes()
+    pixels = bytearray(len(a) * 4)
+    for k in range(len(a)):
+        if a[k]:
+            for c in range(3):
+                pixels[4 * k + c] = min(255, (rgb[3 * k + c] * 255 + a[k] // 2) // a[k])
+            pixels[4 * k + 3] = a[k]
+    return Image.frombytes("RGBA", alpha.size, bytes(pixels))
 
 
 def seuil(canal, test):

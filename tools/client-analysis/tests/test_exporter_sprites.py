@@ -389,6 +389,20 @@ class ExporterSprites(unittest.TestCase):
             with self.assertRaises(ValueError, msg=faux):
                 exporter_sprites.lire_liste_animes(chemin)
 
+    def test_reduire(self):
+        # Bloc 2 x 2 : un pixel rouge opaque, un vert à moitié transparent, deux transparents (de couleur
+        # bleue, qui ne doit pas déteindre) -> rouge et vert pondérés par l'alpha, alpha moyen 96.
+        image = Image.new("RGBA", (4, 2))
+        image.putdata([(255, 0, 0, 255), (0, 255, 0, 128), (10, 20, 30, 255), (10, 20, 30, 255),
+                       (0, 0, 255, 0), (0, 0, 255, 0), (10, 20, 30, 255), (10, 20, 30, 255)])
+        reduit = exporter_sprites.reduire(image, 2)
+        self.assertEqual(reduit.size, (2, 1))
+        self.assertEqual(reduit.getpixel((1, 0)), (10, 20, 30, 255))
+        r, g, b, a = reduit.getpixel((0, 0))
+        self.assertEqual(a, 96)
+        self.assertEqual((r, g, b), (170, 85, 0))
+        self.assertEqual(exporter_sprites.reduire(Image.new("RGBA", (8, 8), (0, 0, 255, 0)), 4).getpixel((1, 1)), (0, 0, 0, 0))
+
 
 if __name__ == "__main__":
     unittest.main()

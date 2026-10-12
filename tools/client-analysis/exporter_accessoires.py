@@ -83,7 +83,7 @@ def exporter_lot(swf, sortie, noms, pas, echelle, palette, swfsvg, temporaire):
                     continue
                 try:
                     ligne, taille = es.bande([os.path.join(dossier, f) for f in fichiers], nom, etiquette, sortie, echelle, palette)
-                except RuntimeError as erreur:
+                except Exception as erreur:  # une étiquette illisible ne doit pas perdre les autres
                     messages.append("%s : %s refusée (%s)" % (nom, etiquette, erreur))
                     continue
                 if not ligne:
