@@ -421,6 +421,7 @@ internal static partial class Live
         if (!inGame) return;
         await Scenario("b. même carte, déplacement, changement de carte et retour", 150, SameMapAsync).ConfigureAwait(false);
         await Scenario("c. chat général et message privé", 40, ChatAsync).ConfigureAwait(false);
+        await Scenario("c2. émote assise de B jouée en bande dans la fenêtre de A (lot AN8)", 40, EmoteAsync).ConfigureAwait(false);
         await Scenario("d1. invitation de groupe acceptée", 40, PartyAsync).ConfigureAwait(false);
         await Scenario("d2. échange de kamas validé des deux côtés", 60, ExchangeAsync).ConfigureAwait(false);
         await Scenario("d3. ajout en ami", 40, FriendAsync).ConfigureAwait(false);
@@ -641,6 +642,66 @@ internal static partial class Live
         string echo = await a.Expect(p => p.StartsWith("cMKT|") && p.Contains(whisper), "cMKT| (copie du message privé)", 10, markA).ConfigureAwait(false);
         Check(await b.Until(() => b.Account.Game.Chat.Messages.Any(m => m.Text.Contains(whisper)), 5).ConfigureAwait(false), "Le chat de B n'affiche pas le message privé.");
         return "B reçoit " + Short(heard, 70) + " ; B reçoit " + Short(got, 60) + " ; A reçoit " + Short(echo, 60);
+    }
+
+    // ------------------------------------------------------------------------------------------------ c2. émote (lot AN8)
+
+    /// <summary>État visuel d'un acteur dans la carte de la fenêtre de A (calculé sur le fil de l'interface).</summary>
+    private static Task<UserMapControl.ActorVisualState> StateOf(long actorId) => OnUi(() =>
+    {
+        var user = window?.Map == null ? null : typeof(MapControl).GetField("UserMap", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(window.Map) as UserMapControl;
+        return user?.GetActorVisualState(unchecked((int)actorId));
+    });
+
+    /// <summary>Attend que la file d'animations de la fenêtre de A joue (ou non) <paramref name="animation"/> sur l'acteur.</summary>
+    private static async Task<bool> UntilPlaying(long actorId, string animation, bool expected, int seconds)
+    {
+        DateTime limit = DateTime.UtcNow.AddSeconds(seconds);
+        while (DateTime.UtcNow < limit)
+        {
+            bool playing = await OnUi(() => window.Map.AnimationQueue.IsPlaying(actorId, animation)).ConfigureAwait(false);
+            if (playing == expected) return true;
+            await Task.Delay(100).ConfigureAwait(false);
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// B (Iop, gfx 80 ou 81 : bande <c>emote1</c> livrée) s'assoit : StarLoco diffuse <c>eUK&lt;B&gt;|1</c> sans durée, la carte de A
+    /// joue la bande <c>emote1</c> tenue sur B, sans icône ; une seconde émote 1 fait renvoyer <c>eUK&lt;B&gt;|0</c>
+    /// (<c>emoteActive</c> remis à 0 par <c>useEmote</c>) et B revient en <c>static</c>. Aucun clip annexe hors combat sans aura.
+    /// </summary>
+    private static async Task<string> EmoteAsync()
+    {
+        if (window?.Map == null) throw new SkipScenario("pas de fenêtre de jeu");
+        Check(await a.Until(() => a.Account.Game.Map.GetActor(b.Id) != null, 5).ConfigureAwait(false), "A ne voit pas B sur sa carte.");
+        int markA = a.ReceivedCount;
+        var sit = await b.Account.Game.Chat.EmoteAsync(1).ConfigureAwait(false);
+        Check(sit.Sent, "Émote refusée par le bot : " + sit.Message);
+        string euk = await a.Expect(p => p.StartsWith("eUK" + b.Id + "|1", StringComparison.Ordinal), "eUK" + b.Id + "|1 (B s'assoit)", 10, markA).ConfigureAwait(false);
+        Check(await UntilPlaying(b.Id, "emote1", true, 5).ConfigureAwait(false), "La carte de A ne joue pas emote1 sur B après " + euk + ".");
+        UserMapControl.ActorVisualState shown = null;
+        DateTime limit = DateTime.UtcNow.AddSeconds(10);
+        while (DateTime.UtcNow < limit)
+        {
+            shown = await StateOf(b.Id).ConfigureAwait(false);
+            if (shown != null && shown.HasSprite && shown.AnimationName.StartsWith("emote1", StringComparison.Ordinal)) break;
+            await Task.Delay(100).ConfigureAwait(false);
+        }
+        Check(shown != null && shown.HasSprite && shown.AnimationName.StartsWith("emote1", StringComparison.Ordinal),
+            "B n'est pas dessiné avec la bande emote1 : " + (shown == null ? "aucun état" : shown.AnimationName + (shown.HasSprite ? "" : " sans sprite")));
+        Check(shown.EmoteIcon == 0, "L'icône d'émote reste affichée alors que la bande est dessinée.");
+        int clips = await OnUi(() => window.Map.ExtraClips.Count).ConfigureAwait(false);
+        Check(clips == 0, "Clips annexes inattendus hors combat et sans aura : " + clips);
+        await Task.Delay(1000).ConfigureAwait(false); // CLICK_MIN_DELAY des émotes (800 ms)
+        markA = a.ReceivedCount;
+        var stand = await b.Account.Game.Chat.EmoteAsync(1).ConfigureAwait(false);
+        Check(stand.Sent, "Seconde émote refusée par le bot : " + stand.Message);
+        string zero = await a.Expect(p => p == "eUK" + b.Id + "|0", "eUK" + b.Id + "|0 (B se relève)", 10, markA).ConfigureAwait(false);
+        Check(await UntilPlaying(b.Id, "emote1", false, 5).ConfigureAwait(false), "La bande emote1 reste jouée sur B après " + zero + ".");
+        UserMapControl.ActorVisualState back = await StateOf(b.Id).ConfigureAwait(false);
+        Check(back != null && back.AnimationName.StartsWith("static", StringComparison.Ordinal), "B n'est pas revenu en static : " + back?.AnimationName);
+        return "A reçoit " + euk + ", dessine B en " + shown.AnimationName + " (image " + shown.Frame + ", sans icône) ; " + zero + " → " + back.AnimationName;
     }
 
     // ------------------------------------------------------------------------------------------------ d. groupe, échange, amis

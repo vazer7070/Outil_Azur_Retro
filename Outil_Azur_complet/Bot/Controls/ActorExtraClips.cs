@@ -35,6 +35,13 @@ namespace Outil_Azur_complet.Bot.Controls
             ActorId = actorId; Above = above; requested = now; Rgb = rgb.HasValue ? rgb.Value & 0xFFFFFF : (int?)null; TopClipRule = topClipRule;
         }
 
+        /// <summary>
+        /// Attente maximale de la bande (ms de l'horloge de la vue) avant d'abandonner le clip : plus longue que celle des
+        /// effets ponctuels (<see cref="StripEffect.MaxLoadWait"/>), car le clip est permanent et sa bande, lue sur le pool
+        /// derrière les sprites des acteurs, peut arriver tard sur une carte chargée.
+        /// </summary>
+        public const double MaxLoadWait = 5000;
+
         public long ActorId { get; }
         /// <summary>Clip du dessus (<c>_mcXtraTop</c>, devant le sprite) ou du dessous (<c>_mcXtraBack</c>, derrière).</summary>
         public bool Above { get; }
@@ -64,7 +71,7 @@ namespace Outil_Azur_complet.Bot.Controls
             {
                 SpriteLoadState state = strip.State;
                 if (state == SpriteLoadState.Ready) ShownAt = now;
-                else if (state == SpriteLoadState.Missing || now - requested > StripEffect.MaxLoadWait) { Skipped = true; return Finish(); }
+                else if (state == SpriteLoadState.Missing || now - requested > MaxLoadWait) { Skipped = true; return Finish(); }
                 else return true;
             }
             SpriteSheet source = strip.Sheet;
