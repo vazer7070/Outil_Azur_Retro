@@ -8,7 +8,9 @@ Ce dossier est copié à côté de l'exécutable dans `ressources/Bot/Effets` (c
 | Dossier | Contenu | Utilisé par |
 | --- | --- | --- |
 | `sorts/` | `<gfx>_scene.png` (scène de `clips/spells/<gfx>.swf`), `<gfx>_shoot.png`, `<gfx>_move.png`, `<gfx>_duplicate.png` (symboles des projectiles), `effets.tsv`, `exclusions.tsv` | Effets de GA300 (types 10, 11 et 12), GA208 et GA228 (lot AN4) ; symboles des projectiles (lot AN5) |
-| `extra/` | `5_scene.png` (scène de `clips/extra/5.swf`, le « ! » du coup critique), `effets.tsv` | Coup critique GA301 (lot AN4) |
+| `extra/` | `5_scene.png` (scène de `clips/extra/5.swf`, le « ! » du coup critique), `0_scene.png` (sac du marchand hors ligne, `extra/<offlineType>.swf`), `4_scene.png` (clip du dessous des PNJ, `extraClip` 4), `effets.tsv` | Coup critique GA301 (lot AN4) ; sac de marchand et clip annexe des PNJ (lot AN8) |
+| `auras/` | `1_scene.png` et `2_scene.png` (scènes de `clips/auras/<n>.swf`), `effets.tsv`, `exclusions.tsv` (3 : scène vide) | Aura du champ Aura du `GM`, hors combat, option `Aura` (lot AN8) |
+| `cercle/` | `1_scene.png` (clip `circle` de `clips/circle.swf`, copié en `1.swf` pour l'export), `effets.tsv` | Cercle d'équipe en combat, teinté rouge ou bleu (lot AN8) |
 
 ## Source et commandes exactes
 
@@ -117,3 +119,40 @@ inchangés à l'octet. `Effets/` passe à 16,47 Mo : 202 PNG dans `sorts/` (97 s
 Les bandes sont plus larges que la scène d'origine, le cadre étant symétrique autour du pivot (2050 :
 22 images de 972 px, une ligne de 21 384 px). Le gfx 2103, qui a aussi une instance `rotate`, est
 affiché en type 51 : sa scène reste entière.
+
+## Clips annexes : auras, cercle d'équipe, sac de marchand, PNJ (lot AN8)
+
+Le client (`onSpriteMovement`, `addExtraClip`) charge ces SWF par `loadMovie` dans le clip du dessus
+(`_mcXtraTop`, profondeur 30) ou du dessous (`_mcXtraBack`, profondeur 10) d'un sprite, à l'origine du
+sprite (ses pieds) : `auras/<Aura>.swf` au-dessus hors combat (option `Aura`), `circle.swf` au-dessous en
+combat, après `new Color(clip).setRGB(TEAMS_COLOR[équipe])` (rouge `0xFF0000` pour l'équipe 0, bleu
+`0x0000FF` pour l'équipe 1 : les composantes RVB sont remplacées, l'alpha reste), `extra/<offlineType>.swf`
+au-dessus d'un marchand hors ligne (StarLoco envoie toujours 0) et `extra/<extraClip>.swf` au-dessous d'un
+PNJ (StarLoco envoie 4 pour 62 modèles). `exporter_sorts.py` n'accepte que des SWF nommés par un nombre :
+`circle.swf` est copié en `cercle/1.swf` avant l'export. Commandes, depuis la racine du dépôt :
+
+```sh
+SW=tools/client-analysis/swfsvg/target/release/swfsvg   # 0.2.5
+OUT=Outil_Azur_complet/Resources/Bot/Effets
+python3 tools/client-analysis/exporter_sorts.py "<client>/clips/auras" $OUT/auras --gfx 1,2,3 --pas 2 --swfsvg $SW --jobs 3
+python3 tools/client-analysis/exporter_sorts.py "<client>/clips/extra" $OUT/extra --gfx 0,4 --swfsvg $SW --jobs 2
+mkdir -p /tmp/cercle && cp "<client>/clips/circle.swf" /tmp/cercle/1.swf
+python3 tools/client-analysis/exporter_sorts.py /tmp/cercle $OUT/cercle --gfx 1 --swfsvg $SW
+```
+
+Mesuré le 12 octobre 2026 (swfsvg 0.2.5, cairosvg 2.9, Pillow 12) : 4,3 s pour les auras.
+
+| bande | images | cadre (xmin, ymin, largeur, hauteur) | fin | octets |
+| --- | --- | --- | --- | --- |
+| `auras/1_scene.png` | 88 au pas 2 (176 à 40 ips) | −38, −43, 71 × 52 | boucle | 42 121 |
+| `auras/2_scene.png` | 77 au pas 2 (154 à 40 ips) | −58, −151, 135 × 174 | boucle | 305 682 |
+| `extra/0_scene.png` | 1 | −3, −12, 21 × 23 | arret | 1 273 |
+| `extra/4_scene.png` | 102 au pas 1 | −6, −72, 12 × 20 | boucle | 5 915 |
+| `cercle/1_scene.png` | 1 | −19, −10, 38 × 20 | arret | 800 |
+
+`auras/3.swf` (aura envoyée par StarLoco quand un objet 10054, 10055, 10056, 10058, 10061 ou 10102 est
+équipé) est exclu (`vide`) : sa scène tient en une image sans dessin et aucun script n'attache son seul
+symbole, `staticF` (un sprite de personnage, avec `applyColor` et `applyAccessory`) ; chargé par
+`loadMovie`, le client n'affiche rien non plus. Le bot n'affiche donc rien pour l'aura 3. Le cercle est
+exporté tel que dessiné (ellipse blanche à 10 % d'alpha, contour noir) et teinté par le bot comme par
+`setRGB`. Le pas 2 des auras garde leur durée (20 images par seconde) ; `extra/4` reste au pas 1 (12 × 20 px).
