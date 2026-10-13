@@ -487,8 +487,7 @@ namespace Outil_Azur_complet.editeur_perso
         private static MySqlCommand CreateCharacterUpdateCommand(string table, CharacterList character,
             Dictionary<string, object> values, MySqlConnection connection, MySqlTransaction transaction)
         {
-            if (!Regex.IsMatch(table ?? string.Empty, @"\A[A-Za-z_][A-Za-z0-9_]*\z",
-                RegexOptions.CultureInvariant) || values.Count == 0 ||
+            if (!Tools_protocol.Query.QueryBuilder.IsIdentifier(table) || values.Count == 0 ||
                 values.Keys.Any(column => !AllowedCharacterFields.Contains(column)))
                 throw new InvalidOperationException("Table ou champ de personnage non autorisé.");
             string assignments = string.Join(", ", values.Keys.Select(
@@ -521,7 +520,7 @@ namespace Outil_Azur_complet.editeur_perso
             var renamed = prepared.Where(entry => entry.Value.ContainsKey("name")).Select(entry => Convert.ToString(entry.Value["name"])).ToArray();
             if (renamed.Distinct(StringComparer.OrdinalIgnoreCase).Count() != renamed.Length)
                 throw new InvalidOperationException("Deux personnages ne peuvent pas recevoir le même nom.");
-            using (var connection = new MySqlConnection(ServerSql.AuthConnection(EmulatorFeature.Characters)))
+            using (var connection = new MySqlConnection(ServerSql.ConnectionFor("perso", EmulatorFeature.Characters)))
             {
                 connection.Open();
                 ServerSql.RequireInnoDb(connection, table, accountTable);
@@ -591,8 +590,7 @@ namespace Outil_Azur_complet.editeur_perso
             try
             {
                 string table = CharacterList.TablePerso;
-                if (string.IsNullOrWhiteSpace(table) ||
-                    !Regex.IsMatch(table, @"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant))
+                if (!Tools_protocol.Query.QueryBuilder.IsIdentifier(table))
                     throw new InvalidOperationException("Le nom de la table des personnages est invalide.");
 
                 var prepared = new Dictionary<int, Dictionary<string, object>>();

@@ -1,4 +1,4 @@
-﻿using MySql.Data.MySqlClient;
+using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -6,7 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Tools_protocol.Json;
+using Tools_protocol.Emulators;
 using Tools_protocol.Query;
 
 namespace Tools_protocol.Kryone.Database
@@ -22,7 +22,7 @@ namespace Tools_protocol.Kryone.Database
         public static int NpcCount;
         public static List<NPCList> AllPnj = new List<NPCList>();
         public static Dictionary<string, string> PNJIdName = new Dictionary<string, string>();
-        public static string TablePNJ => JsonManager.SearchAuth("npcs");
+        public static string TablePNJ => EmulatorRegistry.Current.Table("npcs");
         public NPCList(IDataReader reader)
         {
             MapId = (int)reader["mapid"];
@@ -35,7 +35,7 @@ namespace Tools_protocol.Kryone.Database
         {
             string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TablePNJ, "", "");
 
-            using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
+            using (MySqlConnection connection = new MySqlConnection(EmulatorRegistry.ConnectionFor("npcs")))
             {
                 try
                 {

@@ -1,56 +1,50 @@
-﻿using Outil_Azur_complet.Bot.Controls.tooltip;
-using Syncfusion.Windows.Forms;
-using Syncfusion.WinForms.Controls;
-using Syncfusion.WinForms.Controls.Events;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Data;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Globalization;
 using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Timers;
 using System.Windows.Forms;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Game.Maps;
-using Tool_BotProtocol.Game.Maps.Interactives;
-using Tool_BotProtocol.Game.Monstres;
-using Tool_BotProtocol.Game.NPC;
-using Tool_BotProtocol.Game.Perso;
-using Tool_BotProtocol.Utils.Pics;
-using System.Diagnostics;
-using System.IO;
-using Tool_BotProtocol.Game.Maps.Interfaces;
-using Tool_Editor.maps.data;
+using Tool_BotProtocol.Game.Maps.Mouvements;
 using Map = Tool_BotProtocol.Game.Maps.Map;
 
 namespace Outil_Azur_complet.Bot.Controls
 {
+    /// <summary>
+    /// Vue de la carte du bot : décor (<see cref="BotMapArtwork"/>), cellules, acteurs animés (partie
+    /// <c>UserMapControl.Actors.cs</c>), zoom et déplacement de la vue. Un clic sur le sprite d'un acteur lève
+    /// <see cref="ActorClicked"/>, ailleurs <see cref="CellClicked"/> ; le survol d'un acteur affiche sa surtête.
+    /// </summary>
     [Serializable]
     public partial class UserMapControl : UserControl
     {
         public int H { get; set; }
         public int W { get; set; }
-        public int SizeCell = 26;
         private bool MouseIn;
         private UserMapCell CellH;
-        private UserMapCell cell2;
         private UserMapCell CellBottom;
         private Accounts Account;
         public MapQuality MQ;
         private ConcurrentDictionary<int, Animations> Anim;
         private System.Windows.Forms.Timer AnimTimer;
-        private readonly Func<double> animationClock;
+        private Func<double> animationClock;
+        private readonly Func<double> defaultClock;
+        // Lot AN1 : séquenceur visuel, animations ponctuelles et fantômes, effets ; tous menés par la minuterie de 33 ms.
+        private readonly ActorAnimationQueue animationQueue = new ActorAnimationQueue();
+        private readonly FightVisualSequencer sequencer = new FightVisualSequencer();
+        private readonly MapEffectSet effects = new MapEffectSet();
+        private readonly MapView effectView;
+        /// <summary>États des acteurs du dernier dessin (ancres des effets), ou <c>null</c>.</summary>
+        private ActorVisualState[] frameStates;
         private bool ShowAnim;
         private bool ShowCell;
-        private Bitmap TriggerPic = Properties.Resources._21000;
-        SfToolTip sf = new SfToolTip();
         private readonly ToolTip hoverTip = new ToolTip();
+        private string hoverTipText;
         private BotMapArtwork artwork;
         private string renderedMapData;
         private int renderedMapId = -1;
@@ -65,34 +59,22 @@ namespace Outil_Azur_complet.Bot.Controls
         private PointF dragPan;
         private bool panning, movedDuringClick;
         private bool showGrid;
-        private readonly Dictionary<string, Bitmap> spriteImages = new Dictionary<string, Bitmap>();
-        private readonly Dictionary<string, Point> spriteAnchors = new Dictionary<string, Point>();
-        private readonly HashSet<string> missingSprites = new HashSet<string>();
-        private readonly Dictionary<string, string> spriteReasons = new Dictionary<string, string>();
         private HashSet<short> spellTargets;
         public Func<short, string> SpellTargetReason { get; set; }
         public void SetSpellTargets(IEnumerable<short> validCells)
         {
             spellTargets = validCells == null ? null : new HashSet<short>(validCells);
-            Cursor = spellTargets == null ? Cursors.Default : Cursors.Cross;
+            Cursor = BaseCursor;
             Invalidate();
         }
+        private Cursor BaseCursor => spellTargets == null ? Cursors.Default : Cursors.Cross;
         public event Action DisplayStateChanged;
         public int ZoomPercent => (int)Math.Round(zoom * 100);
         public int MissingAssetCount => (artwork?.MissingAssetCount ?? 0) + missingSprites.Count;
         public string ArtworkStatus => (artwork?.Status ?? artworkError ?? Account?.Game?.Map?.LoadError ?? "En attente de la carte")
             + (missingSprites.Count == 0 ? "" : " · " + missingSprites.Count + " sprite(s) absent(s), repères affichés : "
-                + string.Join(" · ", spriteReasons.Where(pair => spriteImages.TryGetValue(pair.Key, out Bitmap image) && image == null)
-                    .Select(pair => pair.Value).Where(reason => !string.IsNullOrEmpty(reason)).Distinct().Take(2)));
+                + string.Join(" · ", missingSprites.Values.Where(reason => !string.IsNullOrEmpty(reason)).Distinct().Take(2)));
         public bool ShowGrid { get => showGrid; set { showGrid = value; Invalidate(); DisplayStateChanged?.Invoke(); } }
-
-        private readonly int[] DoorGFX = { 6750, 6749, 6744, 6745, 6746, 6747, 6748, 6751, 6752, 6753, 6754, 6755, 6756, 6757, 6758, 6759, 6760, 6762, 6763, 6764, 6765, 6766, 6767, 6768, 6772, 6773, 6774, 6775, 6776 };
-        private readonly int[] StatueGFX = { 1854, 708, 922, 1351, 1470, 1570, 1591, 1592, 1583, 1597, 1598, 1845, 1853, 1854, 1855, 1856, 1857, 1858, 1859, 1860, 1861, 1862, 2054 };
-        private readonly int[] MiscGFX = { 7352, 260, 261, 262, 263, 264, 265, 266, 267, 268, 938, 939, 940, 941, 942, 943, 944, 945, 946, 2520, 2521, 2522, 2523, 2524, 2525, 2526, 2527, 2528, 2529, 2530, 2531, 2532, 2533, 2534, 2535, 2536, 2537, 2538, 2538, 2539, 2540, 2541, 2542, 7519, 7041, 7042, 7043, 7044, 7045, 7046, 7001, 7002, 7003, 7004, 7005, 7006, 7007, 7008, 7009, 7010, 7011, 7012, 7013, 7014, 7015, 7016, 7017, 7019, 7020, 7021, 7022, 7023, 7024, 7025, 7027, 7028, 7032, 7033, 7034, 7035, 7036, 7037, 7038, 7039, 7350, 7351, 7353 };
-        private readonly int[] TreeGFX = { 7500, 215, 211, 217, 219, 211, 212, 947, 948, 949, 950, 951, 1657, 1658, 1666, 1667, 1668, 1669, 2726, 2727, 2728, 2729, 2932, 2733, 7542, 7557, 7541, 7509 };
-
-        private readonly int[] RecolteGFX = { 7511, 7512, 7513, 7514, 7515, 7516, 7517, 7518 };
-
 
         [Browsable(false)]
         public int RealCellHeight { get; private set; }
@@ -115,8 +97,7 @@ namespace Outil_Azur_complet.Bot.Controls
             set
             {
                 ShowAnim = value;
-                if (ShowAnim)
-                    AnimTimer?.Start();
+                if (!ShowAnim) StopAnimations();
             }
         }
         public bool ShowCellId
@@ -140,23 +121,27 @@ namespace Outil_Azur_complet.Bot.Controls
         }
         public delegate void CellClickedHandler(UserMapCell cell, MouseButtons Buttons, bool Goodies);
         public event CellClickedHandler CellClicked;
-        public event Action<UserMapCell, UserMapCell> HasClickedOnCell;
+        /// <summary>La souris passe sur une autre cellule (null : elle quitte la carte). Sert à l'aperçu du chemin.</summary>
+        public event Action<UserMapCell> CellHovered;
 
         public UserMapControl() : this(null, null) { }
-        public UserMapControl(Func<double> movementClock, string actorSpriteDirectory = null)
+        /// <param name="movementClock">Horloge (ms) des déplacements et des bulles ; injectée par les tests.</param>
+        /// <param name="actorSpriteDirectory">Dossier des sprites (par défaut <c>ressources/Bot/sprites</c>).</param>
+        /// <param name="overheadDirectory">Dossier des smileys, émotes et étoiles (par défaut <c>ressources/Bot</c>).</param>
+        public UserMapControl(Func<double> movementClock, string actorSpriteDirectory = null, string overheadDirectory = null)
         {
             Stopwatch elapsed = Stopwatch.StartNew();
-            animationClock = movementClock ?? (() => elapsed.Elapsed.TotalMilliseconds);
-            spriteDirectory = actorSpriteDirectory ?? Path.Combine(Path.GetDirectoryName(typeof(UserMapControl).Assembly.Location), "ressources", "Bot", "sprites");
-            // Configuration du double buffering
-            SetStyle(ControlStyles.OptimizedDoubleBuffer | 
-                    ControlStyles.AllPaintingInWmPaint | 
-                    ControlStyles.UserPaint, true);
-            
-            // Initialisation des composants de base
+            defaultClock = () => elapsed.Elapsed.TotalMilliseconds;
+            animationClock = movementClock ?? defaultClock;
+            sprites = new ActorSprites(actorSpriteDirectory);
+            sprites.SheetsLoaded += AssetsArrived;
+            overheadImages = new OverheadImages(overheadDirectory);
+            overheadImages.Loaded += AssetsArrived;
+            // L'horloge peut être remplacée ensuite (Clock) : les bulles la relisent à chaque appel.
+            bubbles = new BubbleLayer(() => animationClock());
+            effectView = new MapView(this);
+            SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
             InitializeComponent();
-            
-            // Initialisation des propriétés
             MQ = MapQuality.HAUT;
             H = 17;
             W = 15;
@@ -166,24 +151,11 @@ namespace Outil_Azur_complet.Bot.Controls
             ShowAnim = true;
             BackColor = Color.FromArgb(211, 204, 169);
             TabStop = true;
-            
-            // Initialisation des collections et timers
             Anim = new ConcurrentDictionary<int, Animations>();
             AnimTimer = new System.Windows.Forms.Timer { Interval = 33 };
             AnimTimer.Tick += OnAnimationTick;
-            
-            // Initialisation de la grille
             SetCellNum();
             DrawGrille();
-        }
-
-        protected override void OnLoad(EventArgs e)
-        {
-            base.OnLoad(e);
-            if (sf != null)
-            {
-                sf.ToolTipShowing += Sf_ToolTipShowing;
-            }
         }
 
         protected override void Dispose(bool disposing)
@@ -195,24 +167,17 @@ namespace Outil_Azur_complet.Bot.Controls
                     AnimTimer.Stop();
                     AnimTimer.Dispose();
                 }
-                
-                if (Anim != null)
-                {
-                    foreach (var animation in Anim.Values)
-                    {
-                        animation?.Dispose();
-                    }
-                    Anim.Clear();
-                }
-                
-                if (sf != null)
-                {
-                    sf.Dispose();
-                }
+                StopAnimations();
+                ClearVisuals();
                 hoverTip.Dispose();
                 artwork?.Dispose();
-                foreach (Bitmap sprite in spriteImages.Values) sprite?.Dispose();
-                spriteImages.Clear();
+                // Après le dernier Paint, sur le fil de l'interface : les images ne sont plus dessinées.
+                sprites.SheetsLoaded -= AssetsArrived;
+                sprites.Dispose();
+                overheadImages.Loaded -= AssetsArrived;
+                overheadImages.Dispose();
+                bubbles.Clear();
+                components?.Dispose();
             }
             base.Dispose(disposing);
         }
@@ -255,14 +220,24 @@ namespace Outil_Azur_complet.Bot.Controls
                 && renderedWidth == map.MapWidth && renderedHeight == map.MapHeight && renderedBackground == map.Back_ID) return;
             artwork?.Dispose(); artwork = null;
             StopAnimations();
-            foreach (Bitmap sprite in spriteImages.Values) sprite?.Dispose();
-            spriteImages.Clear(); spriteAnchors.Clear(); missingSprites.Clear(); spriteReasons.Clear();
+            // Nouvelle carte : les sprites retournent à la bibliothèque partagée, bulles et survol sont oubliés.
+            ClearVisuals();
+            frameStates = null;
+            sprites.ReleaseAll();
+            missingSprites.Clear(); bubbles.Clear(); staleEntryEmotes.Clear();
+            hoveredKey = null; pathPreview = null;
             renderedMapId = map?.MapID ?? -1; renderedMapData = map?.MapData;
             renderedWidth = map?.MapWidth ?? 0; renderedHeight = map?.MapHeight ?? 0; renderedBackground = map?.Back_ID ?? 0;
             artworkError = null;
             if (map?.HasMapData == true)
             {
-                try { artwork = new BotMapArtwork(map); }
+                try
+                {
+                    // Les PNG sont lus par une tâche de fond : la vue se recadre et se redessine quand ils arrivent.
+                    artwork = new BotMapArtwork(map);
+                    artwork.AssetsLoaded += ArtworkAssetsLoaded;
+                    if (artwork.AssetsReady) ArtworkAssetsLoaded(artwork, EventArgs.Empty);
+                }
                 catch (Exception error)
                 {
                     artworkError = "Décor indisponible : " + error.Message;
@@ -270,6 +245,19 @@ namespace Outil_Azur_complet.Bot.Controls
                 }
             }
             zoom = 1; pan = PointF.Empty; CellH = null;
+            DisplayStateChanged?.Invoke();
+        }
+
+        private void ArtworkAssetsLoaded(object sender, EventArgs e)
+        {
+            if (IsDisposed || !ReferenceEquals(sender, artwork)) return;
+            if (InvokeRequired)
+            {
+                try { if (IsHandleCreated) BeginInvoke(new Action(() => ArtworkAssetsLoaded(sender, e))); }
+                catch (InvalidOperationException) { } // poignée détruite entre-temps : plus rien à redessiner
+                return;
+            }
+            DrawGrille();
             DisplayStateChanged?.Invoke();
         }
 
@@ -317,19 +305,159 @@ namespace Outil_Azur_complet.Bot.Controls
             Anim.Clear();
         }
 
+        private void StartTimer()
+        {
+            if (AnimTimer != null && !AnimTimer.Enabled && !IsDisposed) AnimTimer.Start();
+        }
+
+        /// <summary>
+        /// Minuterie de 33 ms, seule de la vue : redessine pendant les déplacements, retire les bulles expirées, fait avancer
+        /// le séquenceur visuel, les effets et les animations ponctuelles (<see cref="TickAnimations"/>), s'arrête sinon.
+        /// </summary>
         private void OnAnimationTick(object sender, EventArgs e)
         {
-            if (Anim.Count > 0)
-            {
-                Invalidate();
-            }
-            else if (!ShowAnim)
-            {
-                AnimTimer.Stop();
-            }
+            bool expired = bubbles.Prune();
+            bool busy = TickAnimations();
+            if (Anim.Count > 0 || expired || busy) Invalidate();
+            if (Anim.Count == 0 && !bubbles.HasTimedItems && !busy) AnimTimer.Stop();
         }
+
+        // ---------------------------------------------------------------- animations du lot AN1
+
+        /// <summary>
+        /// Horloge (ms) des déplacements, bulles, animations et effets : celle du constructeur, remplaçable avant usage
+        /// (tests, <c>MapControl</c>) ; <c>null</c> rend l'horloge interne.
+        /// </summary>
+        [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public Func<double> Clock
+        {
+            get => animationClock;
+            set { animationClock = value ?? defaultClock; Invalidate(); }
+        }
+
+        /// <summary>Animations ponctuelles et fantômes des acteurs.</summary>
+        [Browsable(false)]
+        public ActorAnimationQueue AnimationQueue => animationQueue;
+        /// <summary>Séquenceur visuel (une file par séquenceur du client).</summary>
+        [Browsable(false)]
+        public FightVisualSequencer Sequencer => sequencer;
+        /// <summary>Effets dessinés sur la carte (couches Ground, Depth, Screen).</summary>
+        [Browsable(false)]
+        public MapEffectSet Effects => effects;
+        /// <summary>Accès des effets à la vue (horloge, repères, sprites, ancres des acteurs).</summary>
+        [Browsable(false)]
+        public MapView EffectView => effectView;
+        internal float ViewScale => viewScale;
+        internal PointF ViewOrigin => origin;
+        internal ActorSprites Sprites => sprites;
+
+        /// <summary>
+        /// Un tick d'animation : <see cref="FightVisualSequencer.Pump"/>, <see cref="MapEffectSet.Update"/> et
+        /// <see cref="ActorAnimationQueue.Purge"/> à l'heure de l'horloge ; vrai si l'un d'eux travaille encore (la minuterie
+        /// reste active). Appelé par la minuterie, et par les tests avec une horloge injectée.
+        /// </summary>
+        public bool TickAnimations()
+        {
+            double now = animationClock();
+            bool busy = sequencer.Pump(now);
+            busy |= effects.Update(now, effectView);
+            busy |= animationQueue.Purge(now);
+            return busy;
+        }
+
+        /// <summary>Relance la minuterie commune (travail ajouté) et redessine.</summary>
+        public void WakeAnimations()
+        {
+            if (IsDisposed) return;
+            StartTimer();
+            Invalidate();
+        }
+
+        /// <summary>Ajoute une étape à la file <paramref name="queueId"/> et la lance aussitôt si la file était libre.</summary>
+        public void EnqueueVisual(long queueId, VisualStep step)
+        {
+            if (step == null || IsDisposed) return;
+            sequencer.Enqueue(queueId, step);
+            sequencer.Pump(animationClock());
+            WakeAnimations();
+        }
+
+        /// <summary>Ajoute un effet à la carte (libéré à sa fin, au changement de carte ou à la fermeture).</summary>
+        public void AddEffect(IMapEffect effect)
+        {
+            if (effect == null) return;
+            if (IsDisposed) { (effect as IDisposable)?.Dispose(); return; }
+            effects.Add(effect);
+            WakeAnimations();
+        }
+
+        /// <summary>
+        /// Joue une animation ponctuelle sur un acteur dessiné (<see cref="ActorAnimationQueue.Play"/>) : faux si l'acteur
+        /// n'est pas sur la carte ou si son gfx n'a pas cette bande (rien n'est inventé à la place). La lecture de la bande
+        /// est lancée si besoin ; sa première image est l'heure où elle est prête.
+        /// </summary>
+        public bool PlayActorAnimation(long actorId, string animation, ActorAnimationMode mode, double? durationMs = null)
+        {
+            if (string.IsNullOrEmpty(animation) || IsDisposed) return false;
+            ActorVisualState state = MainState(actorId);
+            if (state == null || !state.IsVisible) return false;
+            SpritePose pose = sprites.Resolve(state.GFX, state.Orientation, state.NoFlip, animation);
+            if (pose.State == SpriteLoadState.Missing) return false;
+            animationQueue.Play(actorId, animation, animationClock(), mode, durationMs, pose.State == SpriteLoadState.Ready ? pose.Sheet : null);
+            WakeAnimations();
+            return true;
+        }
+
+        /// <summary>Fantôme d'un acteur sorti du modèle (mort), dessiné jusqu'à <paramref name="until"/> (heure de l'horloge).</summary>
+        public void AddGhost(Tool_BotProtocol.Game.Combats.ActorSnapshot snapshot, string animation, double until)
+        {
+            if (snapshot == null || IsDisposed) return;
+            sprites.Prefetch(snapshot.Gfx, snapshot.Direction, string.IsNullOrEmpty(animation) ? "static" : animation);
+            animationQueue.AddGhost(snapshot, animation, animationClock(), until);
+            WakeAnimations();
+        }
+
+        /// <summary>Oublie étapes, effets, animations ponctuelles et fantômes (changement de carte, carte cachée, fermeture).</summary>
+        public void ClearVisuals()
+        {
+            sequencer.Clear();
+            effects.Clear();
+            animationQueue.Clear();
+        }
+
+        internal bool TryGetCellCenter(int cellId, out PointF world)
+        {
+            world = PointF.Empty;
+            if (worldPolygons == null || cellId < 0 || cellId >= worldPolygons.Length) return false;
+            world = WorldCenter(cellId);
+            return true;
+        }
+
+        /// <summary>
+        /// Ancre de l'acteur (ou de son fantôme) tel qu'il a été dessiné au dernier passage : pied, cadre, profondeur et
+        /// nom complet de l'animation affichée. Faux s'il n'est pas sur la carte.
+        /// </summary>
+        public bool TryGetActorAnchor(long actorId, out ActorAnchor anchor)
+        {
+            anchor = default(ActorAnchor);
+            ActorVisualState[] states = frameStates ?? GetActorVisualStates();
+            ActorVisualState found = null;
+            foreach (ActorVisualState state in states)
+            {
+                if (state.ActorId != actorId || state.MemberIndex >= 0 || state.Entity is Tool_BotProtocol.Game.Maps.Entities.FightSwordsActor) continue;
+                if (found == null || (found.IsGhost && !state.IsGhost)) found = state;
+            }
+            if (found == null) return false;
+            anchor = new ActorAnchor
+            {
+                ActorId = actorId, CellId = found.CellId, WorldFoot = found.WorldPosition, WorldBounds = found.WorldBounds, Depth = found.Depth,
+                BaseAnimation = found.Animation, Animation = found.AnimationName, Kind = found.Kind, ScaleX = found.ScaleX, ScaleY = found.ScaleY,
+                IsMirrored = found.IsMirrored, IsVisible = found.IsVisible, IsMoving = found.IsMoving, IsGhost = found.IsGhost, HasSprite = found.HasSprite
+            };
+            return true;
+        }
+
         protected void OnCellclicked(UserMapCell cell, MouseButtons buttons, bool G) => CellClicked?.Invoke(cell, buttons, G);
-        protected void OnCellOver(UserMapCell cell, UserMapCell last) => HasClickedOnCell?.Invoke(cell, last);
 
         private void ApplyQuality(Graphics g)
         {
@@ -341,15 +469,12 @@ namespace Outil_Azur_complet.Bot.Controls
                     g.InterpolationMode = InterpolationMode.Low;
                     g.SmoothingMode = SmoothingMode.HighSpeed;
                     break;
-
                 case MapQuality.MOYEN:
                     g.CompositingMode = CompositingMode.SourceOver;
                     g.CompositingQuality = CompositingQuality.GammaCorrected;
                     g.InterpolationMode = InterpolationMode.High;
                     g.SmoothingMode = SmoothingMode.AntiAlias;
                     break;
-
-
                 case MapQuality.HAUT:
                     g.CompositingMode = CompositingMode.SourceOver;
                     g.CompositingQuality = CompositingQuality.HighQuality;
@@ -359,129 +484,7 @@ namespace Outil_Azur_complet.Bot.Controls
             }
         }
 
-        public virtual void DrawUniqueCell(Graphics G, UserMapCell cell)
-        {
-            if (cell?.Points == null) return;
-            if (cell.IsRectangle(G.ClipBounds))
-            {
-                switch (cell.State)
-                {
-                    case CellState.WALKABLE:
-                        cell.DrawColor(G, Color.Gray, Color.White);
-                        if (ShowCellId)
-                            cell.DrawCell_ID(this, G);
-                        break;
-                    case CellState.OBSTACLE:
-                        if (ShowCellId)
-                            cell.DrawCell_ID(this, G);
-                        else
-                            cell.DrawObstacle(G, Color.Gray, Color.FromArgb(60, 60, 60));
-                        break;
-                    case CellState.TRIGGER:
-
-                        if (ShowCellId)
-                        {
-                            cell.DrawColor(G, Color.Gray, Color.Yellow);
-                            cell.DrawCell_ID(this, G);
-                        }
-                        else
-                        {
-                            cell.DrawTrigger(TriggerPic, G);
-                        }
-                        break;
-                    case CellState.INTERACTIVE:
-                        if (!ShowCellId)
-                        {
-                            int map = Account.Game.Map.MapID;
-                            int gfx = Account.Game.Map.GetCellFromId(cell.id)?.Interactives?.gfx ?? -1;
-                            bool isZaap = Zaaps.Z.TryGetValue(map, out int zaapCell) && cell.id == zaapCell;
-                            bool reverse = isZaap && (map == 7411 || map == 8785 || map == 5295 || map == 11210);
-                            using (Bitmap artwork = PicturesManager.InteractivePicGfx(gfx, reverse))
-                            {
-                                if (artwork == null)
-                                {
-                                    cell.DrawColor(G, Color.LightGoldenrodYellow, Color.LightGoldenrodYellow);
-                                    cell.DrawCell_ID(this, G);
-                                }
-                                else if (isZaap) cell.DrawZaap(artwork, G, reverse);
-                                else if (DoorGFX.Contains(gfx)) cell.DrawDoor(artwork, G);
-                                else if (StatueGFX.Contains(gfx)) cell.DrawStatue(artwork, G);
-                                else if (MiscGFX.Contains(gfx)) cell.DrawMisc(artwork, G);
-                                else if (TreeGFX.Contains(gfx)) cell.DrawTree(artwork, G);
-                                else cell.DrawZaapi(artwork, G);
-                            }
-
-                        }
-                        else
-                        {
-                            cell.DrawColor(G, Color.LightGoldenrodYellow, Color.LightGoldenrodYellow);
-                            cell.DrawCell_ID(this, G);
-                        }
-                        break;
-                    default:
-                        cell.DrawColor(G, Color.Gray, Color.DarkGray);
-                        break;
-                }
-                if (Account != null)
-                {
-                    if (Account.Game.character.Cell != null && cell.id == Account.Game.character.Cell.CellID && !Anim.ContainsKey(Account.Game.character.id))
-                        cell.Draw_FillingPie(G, Color.Blue, RealCellHeight / 2);
-                    else if (Account.Game.Map.Entites.Values.Where(x => x is Monstres).FirstOrDefault(x => x.Cell?.CellID == cell.id && !Anim.ContainsKey(x.id)) != null)
-                        cell.Draw_FillingPie(G, Color.DarkRed, RealCellHeight / 2);
-                    else if (Account.Game.Map.Entites.Values.Where(x => x is PNJ).FirstOrDefault(x => x.Cell?.CellID == cell.id && !Anim.ContainsKey(x.id)) != null)
-                    {
-
-                        PNJ P = PNJ.ReturnNpc(Account.Game.Map.NPC_List().FirstOrDefault(x => x.Cell?.CellID == cell.id).NPc_ID, true);
-                        if (P != null)
-                        {
-                            using (Bitmap bmp = PicturesManager.InteractivePicSprite(P.GFX, P.Orientation))
-                            {
-                                if (bmp != null) cell.DrawNPC(bmp, G);
-                                else cell.Draw_FillingPie(G, Color.FromArgb(179, 120, 211), RealCellHeight / 2);
-                            }
-                        }
-                        else
-                            cell.Draw_FillingPie(G, Color.FromArgb(78, 119, 185), RealCellHeight / 2);
-
-
-                    }
-                    else if (Account.Game.Map.Entites.Values.Where(x => x is Personnages).FirstOrDefault(x => x.Cell?.CellID == cell.id && !Anim.ContainsKey(x.id)) != null)
-                        cell.Draw_FillingPie(G, Color.FromArgb(81, 113, 202), RealCellHeight / 2);
-
-                }
-            }
-        }
-        public static Bitmap ReturnMonsterStar(int star)
-        {
-
-            switch (star)
-            {
-                case 0:
-                    return Properties.Resources.re11_1;
-                case 15:
-                    return Properties.Resources.re1_1;
-                case 30:
-                    return Properties.Resources.re2_1;
-                case 45:
-                    return Properties.Resources.re3_1;
-                case 60:
-                    return Properties.Resources.re4_1;
-                case 75:
-                    return Properties.Resources.re5_1;
-                case 90:
-                    return Properties.Resources.re6_1;
-                case 105:
-                    return Properties.Resources.re7_1;
-                case 120:
-                    return Properties.Resources.re8_1;
-                case 135:
-                    return Properties.Resources.re9_1;
-                case 150:
-                    return Properties.Resources.re10_1;
-                default:
-                    return Properties.Resources.re11_1;
-            };
-        }
+        /// <summary>Dessine toute la vue (décor, cellules, acteurs, surtêtes, bulles, légende) ; utilisé par Paint et les tests.</summary>
         public void DrawCells(Graphics G)
         {
             ApplyQuality(G);
@@ -490,13 +493,21 @@ namespace Outil_Azur_complet.Bot.Controls
             if (map == null || !map.HasMapData || Cells == null || Cells.Length == 0)
             {
                 StopAnimations();
+                frameStates = null;
                 DrawWaiting(G, map?.LoadError);
                 return;
             }
             GraphicsState saved = G.Save();
             using (var transform = new Matrix(viewScale, 0, 0, viewScale, origin.X, origin.Y)) G.Transform = transform;
             if (artwork != null) artwork.DrawGround(G);
-            // A missing PNG remains visibly diagnostic while cells still use the real map geometry.
+            // Placement d'un combat : cellules de départ de l'équipe 0 en rouge, de l'équipe 1 en bleu, comme le client.
+            var fight = Account?.Game?.Fight;
+            HashSet<short> redStarts = null, blueStarts = null;
+            if (fight != null && fight.IsPlacement)
+            {
+                redStarts = new HashSet<short>(fight.TeamPlacementCells(0)); blueStarts = new HashSet<short>(fight.TeamPlacementCells(1));
+            }
+            // Un PNG absent reste visible comme diagnostic, les cellules gardant la géométrie réelle de la carte.
             foreach (UserMapCell cell in Cells)
             {
                 if (worldPolygons == null) break;
@@ -510,13 +521,24 @@ namespace Outil_Azur_complet.Bot.Controls
                 }
                 if (ShowGrid || noScenery)
                     using (var pen = new Pen(Color.FromArgb(70, 67, 62, 40), 1 / viewScale)) G.DrawPolygon(pen, worldPolygons[cell.id]);
+                if (redStarts != null && (redStarts.Contains(cell.id) || blueStarts.Contains(cell.id)))
+                    using (var start = new SolidBrush(redStarts.Contains(cell.id) ? Color.FromArgb(110, 255, 0, 0) : Color.FromArgb(110, 0, 0, 255)))
+                        G.FillPolygon(start, worldPolygons[cell.id]);
                 if (spellTargets?.Contains(cell.id) == true)
                     using (var target = new SolidBrush(Color.FromArgb(65, 70, 146, 207))) G.FillPolygon(target, worldPolygons[cell.id]);
             }
+            // Couche Ground des effets (lot AN1) : après les cellules, sous tout le reste.
+            effects.Draw(G, effectView, EffectLayer.Ground);
+            DrawPathPreview(G);
             ActorVisualState[] actors = GetActorVisualStates();
-            if (artwork != null) artwork.DrawDepthScene(G, actors.Where(actor => actor.IsVisible).Select(actor =>
-                new BotMapArtwork.DepthLayer { Depth = actor.WorldPosition.Y, Order = 1, Draw = graphics => DrawActor(graphics, actor) }));
-            else foreach (ActorVisualState actor in actors.OrderBy(actor => actor.WorldPosition.Y)) DrawActor(G, actor);
+            frameStates = actors;
+            // Profondeur du client : objets à cellule × 100, sprites à cellule × 100 + 30 (dessinés après l'objet de leur cellule) ;
+            // effets de la couche Depth intercalés (Order 2 derrière l'acteur de la cellule, 4 devant).
+            IEnumerable<BotMapArtwork.DepthLayer> layers = actors.Where(actor => actor.IsVisible).Select(actor =>
+                new BotMapArtwork.DepthLayer { Depth = actor.Depth, Order = 3, Draw = graphics => DrawActor(graphics, actor) })
+                .Concat(effects.DepthLayers(effectView));
+            if (artwork != null) artwork.DrawDepthScene(G, layers);
+            else foreach (BotMapArtwork.DepthLayer layer in layers.OrderBy(layer => layer.Depth).ThenBy(layer => layer.Order)) layer.Draw?.Invoke(G);
             G.Restore(saved);
             if (ShowCellId)
                 foreach (UserMapCell cell in Cells)
@@ -525,68 +547,10 @@ namespace Outil_Azur_complet.Bot.Controls
                         G.FillRectangle(backing, cell.Centre.X - 13, cell.Centre.Y - 8, 26, 16);
                     cell.DrawCell_ID(this, G);
                 }
+            DrawOverheads(G, actors);
+            // Couche Screen (chiffres, bulles d'échec critique) : repère de l'écran, après les surtêtes.
+            effects.Draw(G, effectView, EffectLayer.Screen);
             DrawMapLegend(G);
-        }
-
-        private void DrawWorldEntities(Graphics graphics, int cellId, PointF center, Entites[] entities)
-        {
-            CharacterClass character = Account.Game.character;
-            if (character.Cell?.CellID == cellId && !Anim.ContainsKey(character.id))
-                DrawEntity(graphics, center, character.Name ?? "Vous", character.Race_ID * 10 + character.Sex, 2, Color.FromArgb(72, 103, 156), true);
-            foreach (Entites entity in entities.Where(entry => entry.Cell.CellID == cellId && !Anim.ContainsKey(entry.id)))
-            {
-                if (entity is PNJ npc)
-                    DrawEntity(graphics, center, npc.Name, npc.GFX, npc.Orientation, Color.FromArgb(154, 106, 172), false);
-                else if (entity is Monstres monster)
-                    DrawEntity(graphics, center, monster.Name + " · " + monster.GetAllMonster, monster.GFX != 0 ? monster.GFX
-                        : Monstres.ReturnMonsters(monster.TemplateID)?.GFX ?? 0, 2, Color.FromArgb(156, 63, 48), false);
-                else DrawEntity(graphics, center, entity.Name, 0, 2, Color.FromArgb(85, 103, 143), false);
-            }
-        }
-
-        private void DrawEntity(Graphics graphics, PointF center, string name, int gfx, int direction, Color color, bool self)
-        {
-            string key = gfx + "/" + direction;
-            if (!spriteImages.TryGetValue(key, out Bitmap image))
-            {
-                image = gfx > 0 ? LoadSprite(gfx, direction) : null;
-                spriteImages[key] = image;
-                if (image != null)
-                    spriteAnchors[key] = TilesData.Anchor(new TilesData(gfx, "", "", TilesData.TileType.objet), image);
-                else if (gfx > 0 && missingSprites.Add(key)) DisplayStateChanged?.Invoke();
-            }
-            using (var shadow = new SolidBrush(Color.FromArgb(70, 35, 32, 23))) graphics.FillEllipse(shadow, center.X - 12, center.Y - 4, 24, 8);
-            if (image != null)
-            {
-                Point anchor = spriteAnchors[key];
-                graphics.DrawImageUnscaled(image, (int)Math.Round(center.X - anchor.X), (int)Math.Round(center.Y - anchor.Y));
-            }
-            else
-            {
-                using (var body = new SolidBrush(color))
-                {
-                    graphics.FillEllipse(body, center.X - 6, center.Y - 28, 12, 12);
-                    graphics.FillPolygon(body, new[] { new PointF(center.X, center.Y - 18), new PointF(center.X - 9, center.Y - 3), new PointF(center.X + 9, center.Y - 3) });
-                }
-            }
-            if (self)
-                using (var pen = new Pen(Color.FromArgb(216, 190, 76), 2)) graphics.DrawEllipse(pen, center.X - 14, center.Y - 6, 28, 12);
-        }
-
-        private static Bitmap LoadSprite(int gfx, int direction)
-        {
-            string suffix = direction == 2 ? "F" : direction == 3 ? "L" : "R";
-            string path = Path.Combine(Path.GetDirectoryName(typeof(UserMapControl).Assembly.Location),
-                "ressources", "Bot", "sprites", gfx + suffix + ".png");
-            try
-            {
-                if (!File.Exists(path)) return null;
-                using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-                using (var source = Image.FromStream(stream)) return new Bitmap(source);
-            }
-            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException || error is ArgumentException
-                || error is System.Runtime.InteropServices.ExternalException || error is OutOfMemoryException)
-            { return null; }
         }
 
         private void DrawWaiting(Graphics graphics, string error)
@@ -609,73 +573,80 @@ namespace Outil_Azur_complet.Bot.Controls
             TextRenderer.DrawText(graphics, text, Font, new Rectangle(rectangle.X + 6, rectangle.Y + 3, rectangle.Width - 12, rectangle.Height - 6),
                 Color.FromArgb(78, 72, 47), TextFormatFlags.WordBreak);
         }
+
+        /// <summary>
+        /// Déplacement visuel de l'acteur <paramref name="id"/> le long de <paramref name="path"/> en <paramref name="d"/> ms :
+        /// la durée de chaque pas et l'allure (marche ou course) suivent le minutage du client pour cet acteur
+        /// (<see cref="AnimDuration"/>), ramené à la durée donnée.
+        /// </summary>
         public void AddAnimations(int id, List<Cell> path, int d, AnimationType T)
         {
-            if (path == null || path.Count < 2 || !ShowAnimations || path.Any(c => c.CellID < 0 || c.CellID >= Cells.Length))
+            if (path == null || path.Count < 2) return;
+            AddAnimations(id, path, AnimDuration.Compute(path, ProfileOf(id)), d, T);
+        }
+
+        /// <summary>Déplacement visuel avec un minutage déjà calculé (hors du fil de l'interface par l'appelant).</summary>
+        public void AddAnimations(int id, List<Cell> path, AnimDuration timing, AnimationType T) =>
+            AddAnimations(id, path, timing, timing?.Total ?? 0, T);
+
+        private void AddAnimations(int id, List<Cell> path, AnimDuration timing, int total, AnimationType type)
+        {
+            if (path == null || path.Count < 2 || !ShowAnimations || Cells == null || path.Any(c => c == null || c.CellID < 0 || c.CellID >= Cells.Length))
                 return;
             short[] ids = path.Select(cell => cell.CellID).ToArray();
             if (Anim.TryGetValue(id, out Animations previous) && previous.Matches(ids)) return;
             CancelAnimation(id);
             var points = ids.Select(cellId => WorldCenter(cellId)).ToArray();
-            int[] directions = Enumerable.Range(1, path.Count - 1).Select(index => path[index].GetCharDirection(path[index - 1]) - 'a').ToArray();
-            Anim[id] = new Animations(id, ids, points, directions, d, T, animationClock());
-            SetActorOrientation(id, directions.Last());
-            AnimTimer.Start(); Invalidate();
+            var directions = new int[path.Count - 1];
+            for (int index = 1; index < path.Count; index++)
+            {
+                int direction = timing != null && timing.StepCount == directions.Length ? timing.Directions[index - 1] : -1;
+                if (direction < 0)
+                {
+                    try { direction = path[index].GetCharDirection(path[index - 1]) - 'a'; }
+                    catch (Exception) { direction = index > 1 ? directions[index - 2] : 1; } // deux fois la même cellule
+                }
+                directions[index - 1] = ActorOrientation.Normalize(direction);
+            }
+            double[] steps = Animations.ScaleSteps(timing, directions.Length, total);
+            Anim[id] = new Animations(id, ids, points, directions, steps, timing?.Mode ?? MoveMode.Walk, type, animationClock());
+            // Le client interrompt l'émote d'un sprite qui se met en marche.
+            bubbles.RemoveEmote(id); staleEntryEmotes.Add(id);
+            StartTimer(); Invalidate();
         }
+
+        private MoveProfile ProfileOf(int id) => MovementProfile(Account, id);
+
         public void CancelAnimation(int id)
         {
             if (Anim.TryRemove(id, out Animations previous)) previous.Dispose();
             Invalidate();
         }
-        private Color AnimColor(Animations A)
-        {
-            switch (A.AnimationType)
-            {
-                case AnimationType.PERSONNAGE:
-                    return Color.Blue;
-                case AnimationType.GROUPE_MONSTRES:
-                    return Color.DarkRed;
-                default:
-                    return Color.FromArgb(81, 113, 202);
-            }
-        }
+
         public void RefreshMap()
         {
-
             if (Account?.Game?.Map == null)
                 return;
             StopAnimations();
-            AnimTimer.Stop();
-
-
             Cell[] MapCells = Account.Game.Map.MapCells;
             if (MapCells == null)
                 return;
-
             foreach (Cell cell in MapCells)
             {
-                if (cell != null)
-                {
-
-                    if (cell.CellID < 0 || cell.CellID >= Cells.Length) continue;
-                    Cells[cell.CellID].State = CellState.NO_WALKABLE;
-
-                    if (cell.IsWalkable())
-                        Cells[cell.CellID].State = CellState.WALKABLE;
-                    if (!cell.LineofSight && !cell.IsWalkable())
-                        Cells[cell.CellID].State = CellState.OBSTACLE;
-                    if (cell.IsTrigger())
-                        Cells[cell.CellID].State = CellState.TRIGGER;
-                    if (cell.IsInteractiveCell())
-                    {
-                        Cells[cell.CellID].State = CellState.INTERACTIVE;
-                    }
-                }
-
+                if (cell == null || cell.CellID < 0 || cell.CellID >= Cells.Length) continue;
+                Cells[cell.CellID].State = CellState.NO_WALKABLE;
+                if (cell.IsWalkable())
+                    Cells[cell.CellID].State = CellState.WALKABLE;
+                if (!cell.LineofSight && !cell.IsWalkable())
+                    Cells[cell.CellID].State = CellState.OBSTACLE;
+                if (cell.IsTrigger())
+                    Cells[cell.CellID].State = CellState.TRIGGER;
+                if (cell.IsInteractiveCell())
+                    Cells[cell.CellID].State = CellState.INTERACTIVE;
             }
-            AnimTimer.Start();
             Invalidate();
         }
+
         public UserMapCell GetCell(Point point)
         {
             if (!ClientRectangle.Contains(point)) return null;
@@ -698,6 +669,7 @@ namespace Outil_Azur_complet.Bot.Controls
             }
             return sign != 0;
         }
+
         protected override void OnPaint(PaintEventArgs e)
         {
             DrawCells(e.Graphics);
@@ -705,16 +677,13 @@ namespace Outil_Azur_complet.Bot.Controls
                 : spellTargets.Contains(CellH.id) ? Brushes.ForestGreen : Brushes.IndianRed);
             base.OnPaint(e);
         }
+
         protected override void OnResize(EventArgs e)
         {
             DrawGrille();
             base.OnResize(e);
         }
-        private void Sf_ToolTipShowing(object sender, ToolTipShowingEventArgs e)
-        {
-            if (CellH != null) e.Location = CellH.Centre;
 
-        }
         protected override void OnMouseMove(MouseEventArgs e)
         {
             if (panning)
@@ -724,37 +693,58 @@ namespace Outil_Azur_complet.Bot.Controls
                 UpdateViewport(); Invalidate(); base.OnMouseMove(e); return;
             }
             if (MouseIn && Math.Abs(e.X - dragStart.X) + Math.Abs(e.Y - dragStart.Y) > 3) movedDuringClick = true;
+            ActorVisualState actor = HitTest(e.Location);
+            UpdateHover(actor);
+            Cursor wanted = actor != null && spellTargets == null ? Cursors.Hand : BaseCursor;
+            if (Cursor != wanted) Cursor = wanted;
             UserMapCell hover = GetCell(e.Location);
             if (hover != CellH)
             {
                 CellH = hover;
-                hoverTip.Hide(this);
-                if (hover != null && Account?.Game != null)
+                Invalidate();
+                CellHovered?.Invoke(hover);
+            }
+            UpdateCellTip(actor == null ? hover : null);
+            base.OnMouseMove(e);
+        }
+
+        /// <summary>
+        /// Infobulle de cellule réservée à ce que la surtête ne dit pas : raison d'une cible de sort refusée et nom d'un
+        /// objet interactif. Les acteurs ont leur surtête, comme dans le client.
+        /// </summary>
+        private void UpdateCellTip(UserMapCell hover)
+        {
+            string text = null;
+            if (hover != null && Account?.Game?.Map != null)
+            {
+                if (spellTargets != null)
+                {
+                    string reason = SpellTargetReason?.Invoke(hover.id);
+                    text = "Cellule " + hover.id.ToString(CultureInfo.InvariantCulture) + " · "
+                        + (string.IsNullOrEmpty(reason) ? "cible valide pour le sort sélectionné." : reason);
+                }
+                else
                 {
                     Cell cell = Account.Game.Map.GetCellFromId(hover.id);
-                    var actors = GetActorVisualStates().Where(actor => actor.CellId == hover.id).ToArray();
-                    var names = actors.Select(actor => actor.Name).Where(name => !string.IsNullOrEmpty(name)).Distinct().ToList();
-                    names.AddRange(actors.Select(actor => actor.SpriteReason).Where(reason => !string.IsNullOrEmpty(reason)).Distinct());
-                    string status = cell == null ? "Non chargée" : cell.IsWalkable() ? "Accessible" : "Obstacle";
-                    if (cell?.IsInteractiveCell() == true) status += " · " + (cell.Interactives.Interactive?.Name ?? "Objet interactif");
-                    string text = "Cellule " + hover.id + " · " + status;
-                    if (spellTargets != null)
-                    {
-                        string reason = SpellTargetReason?.Invoke(hover.id);
-                        text += "\n" + (string.IsNullOrEmpty(reason) ? "Cible valide pour le sort sélectionné." : reason);
-                    }
-                    if (names.Count > 0) text += "\n" + string.Join("\n", names);
-                    hoverTip.Show(text, this, hover.Centre.X + 10, hover.Centre.Y + 10, 2500);
+                    if (cell?.IsInteractiveCell() == true)
+                        text = cell.Interactives?.Interactive?.Name ?? "Objet interactif";
                 }
-                Invalidate();
             }
-            base.OnMouseMove(e);
+            string key = text == null ? null : hover.id.ToString(CultureInfo.InvariantCulture) + "|" + text;
+            if (key == hoverTipText) return;
+            hoverTipText = key;
+            hoverTip.Hide(this);
+            if (text != null) hoverTip.Show(text, this, hover.Centre.X + 10, hover.Centre.Y + 10, 2500);
         }
 
         protected override void OnMouseLeave(EventArgs e)
         {
             CellH = null;
-            hoverTip.Hide(this);
+            UpdateHover(null);
+            UpdateCellTip(null);
+            if (!panning) Cursor = BaseCursor;
+            SetPathPreview(null);
+            CellHovered?.Invoke(null);
             Invalidate();
             base.OnMouseLeave(e);
         }
@@ -764,7 +754,7 @@ namespace Outil_Azur_complet.Bot.Controls
             Focus();
             dragStart = e.Location; dragPan = pan; movedDuringClick = false;
             panning = e.Button == MouseButtons.Middle || (e.Button == MouseButtons.Left && (ModifierKeys & Keys.Control) != 0);
-            if (panning) { Capture = true; Cursor = Cursors.SizeAll; hoverTip.Hide(this); }
+            if (panning) { Capture = true; Cursor = Cursors.SizeAll; UpdateCellTip(null); }
             CellBottom = GetCell(e.Location);
             MouseIn = true;
             base.OnMouseDown(e);
@@ -772,9 +762,21 @@ namespace Outil_Azur_complet.Bot.Controls
 
         protected override void OnMouseUp(MouseEventArgs e)
         {
-            UserMapCell clicked = GetCell(e.Location);
-            if (MouseIn && clicked != null && !panning && !movedDuringClick) OnCellclicked(clicked, e.Button, clicked != CellBottom);
-            if (panning) { Capture = false; Cursor = spellTargets == null ? Cursors.Default : Cursors.Cross; DisplayStateChanged?.Invoke(); }
+            if (MouseIn && !panning && !movedDuringClick)
+            {
+                ActorVisualState actor = ActorClicked == null ? null : HitTest(e.Location);
+                if (actor != null)
+                {
+                    SetPathPreview(null);
+                    ActorClicked(actor.Entity, (short)actor.CellId, e.Button, ModifierKeys & (Keys.Shift | Keys.Control));
+                }
+                else
+                {
+                    UserMapCell clicked = GetCell(e.Location);
+                    if (clicked != null) { SetPathPreview(null); OnCellclicked(clicked, e.Button, clicked != CellBottom); }
+                }
+            }
+            if (panning) { Capture = false; Cursor = BaseCursor; DisplayStateChanged?.Invoke(); }
             panning = false;
             MouseIn = false;
             CellBottom = null;
@@ -789,15 +791,11 @@ namespace Outil_Azur_complet.Bot.Controls
 
         protected override bool ProcessCmdKey(ref Message message, Keys keyData)
         {
+            // + et - du pavé numérique restent aux raccourcis MAXI / MINI du chat (Shortcuts) : ProcessCmdKey passe avant le KeyPreview.
             if (keyData == Keys.Home) { Fit(); return true; }
-            if (keyData == Keys.Add || keyData == Keys.Oemplus) { ZoomIn(); return true; }
-            if (keyData == Keys.Subtract || keyData == Keys.OemMinus) { ZoomOut(); return true; }
+            if (keyData == Keys.Oemplus) { ZoomIn(); return true; }
+            if (keyData == Keys.OemMinus) { ZoomOut(); return true; }
             return base.ProcessCmdKey(ref message, keyData);
-        }
-
-        private void UserMapControl_Paint(object sender, PaintEventArgs e)
-        {
-
         }
     }
 }

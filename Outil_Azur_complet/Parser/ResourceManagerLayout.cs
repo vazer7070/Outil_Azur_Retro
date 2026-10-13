@@ -14,6 +14,7 @@ namespace Outil_Azur_complet.Parser
     public partial class RessourceParser
     {
         private BoundEditorLayout layout;
+        private iTalk.iTalk_TextBox_Small clientFolder;
         private bool working;
         private void BuildEditorLayout()
         {
@@ -23,6 +24,10 @@ namespace Outil_Azur_complet.Parser
             layout.Field("Exporter XML",iTalk_RadioButton1,"Export complet","Conserver toutes les colonnes de la base.");
             layout.Field("Exporter XML",iTalk_RadioButton2,"Ressources du bot","Utiliser les formats et les dossiers attendus par AzurBot.");
             layout.Field("Exporter XML",iTalk_LinkLabel1,"Choisir le dossier","Parcourir les dossiers de votre ordinateur.");
+            // Exports du serveur ajoutés pour le bot : interactifs, cellules déclencheurs (scripted_cells), zaapis ; fond des cartes lu dans le client.
+            iTalk_ComboBox1.Items.AddRange(new object[]{"Interactifs","Déclencheurs","Zaapis"});
+            clientFolder=EditorUi.TextBox();layout.Field("Exporter XML",clientFolder,"Dossier du client Dofus (facultatif)","Cartes du bot : lit le fond (backgroundNum) dans data/maps quand la base n'en a pas, comme StarLoco.");
+            AddToolButton("Exporter XML","Choisir le dossier du client",()=>{using(var dialog=new FolderBrowserDialog())if(dialog.ShowDialog(this)==DialogResult.OK)clientFolder.Text=dialog.SelectedPath;});
             layout.Field("Exporter XML",iTalk_Button_21,"Générer XML","Exporter les ressources sélectionnées.");
             foreach(var radio in new[]{iTalk_RadioButton1,iTalk_RadioButton2})radio.CheckedChanged+=s=>{if(radio.Checked){if(radio==iTalk_RadioButton1)iTalk_RadioButton2.Checked=false;else iTalk_RadioButton1.Checked=false;}};
             var sql=EditorUi.Button("Exporter les données SQL",true,245);sql.Click+=async(s,e)=>await ExportSql();EditorUi.AddField(layout.Sheet("Exporter XML"),sql);
@@ -31,7 +36,7 @@ namespace Outil_Azur_complet.Parser
         }
         private async Task ExportSql()
         {
-            var keys=new Dictionary<string,string>{{"Maps","cartes"},{"Objets","Template"},{"Sorts","sort"},{"Panoplies","panoplies"},{"Joueurs","perso"},{"Métiers","metiers"},{"Maisons","maisons"},{"Zaaps","zaaps"},{"PNJs","npc_template"},{"Monstres","monstres"}};
+            var keys=new Dictionary<string,string>{{"Maps","cartes"},{"Objets","Template"},{"Sorts","sort"},{"Panoplies","panoplies"},{"Joueurs","perso"},{"Métiers","metiers"},{"Maisons","maisons"},{"Zaaps","zaaps"},{"PNJs","npc_template"},{"Monstres","monstres"},{"Interactifs","interactions"},{"Déclencheurs","cellule"},{"Zaapis","zaapi"}};
             string selection=iTalk_ComboBox1.SelectedItem as string;if(selection==null)return;
             using(var dialog=new SaveFileDialog{Filter="Données SQL (*.sql)|*.sql",DefaultExt="sql",FileName=selection+".sql"})
             if(dialog.ShowDialog(this)==DialogResult.OK)

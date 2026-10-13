@@ -31,10 +31,20 @@ internal static class EditorWorkflowSmoke
     private static IEnumerable<Control> All(Control control) { yield return control; foreach (Control child in control.Controls) foreach (var nested in All(child)) yield return nested; }
     private static Control Find(Control form, string name) { return All(form).First(control => control.Name == name); }
     private static void Layout(Control control) { control.PerformLayout(); foreach (Control child in control.Controls) Layout(child); }
+    // Clé privée d'un événement de Form : EVENT_SHOWN sous .NET Framework, ShownEvent sous Mono (de même EVENT_LOAD / LoadEvent).
+    private static object FormEventKey(string framework, string mono)
+    {
+        foreach (string field in new[] { framework, mono })
+        {
+            object key = typeof(Form).GetField(field, BindingFlags.Static | BindingFlags.NonPublic)?.GetValue(null);
+            if (key != null) return key;
+        }
+        throw new MissingFieldException("Form has neither " + framework + " (.NET Framework) nor " + mono + " (Mono) as private event key");
+    }
     private static void Render(Form form, string name)
     {
         var eventList = (System.ComponentModel.EventHandlerList)typeof(System.ComponentModel.Component).GetProperty("Events", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(form, null);
-        object key = typeof(Form).GetField("EVENT_SHOWN", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+        object key = FormEventKey("EVENT_SHOWN", "ShownEvent");
         Delegate handlers = eventList[key]; if (handlers != null) eventList.RemoveHandler(key, handlers);
         form.ShowInTaskbar = false; form.Opacity = 0; form.Show(); Layout(form);
         using (var bitmap = new Bitmap(form.Width, form.Height)) { form.DrawToBitmap(bitmap, new Rectangle(Point.Empty, form.Size)); bitmap.Save(Path.Combine(TestPaths.Work, name + ".png")); }

@@ -24,10 +24,16 @@ internal static class AllEditorsWorkflowSmoke
     private static void Check(bool ok,string message){if(!ok)throw new Exception(message);}
     private static System.Collections.Generic.IEnumerable<Control> All(Control parent){yield return parent;foreach(Control child in parent.Controls)foreach(var item in All(child))yield return item;}
     private static void Layout(Control parent){parent.PerformLayout();foreach(Control child in parent.Controls)Layout(child);}
+    // Clé privée d'un événement de Form : EVENT_SHOWN / EVENT_LOAD sous .NET Framework, ShownEvent / LoadEvent sous Mono.
+    private static object FormEventKey(string framework,string mono)
+    {
+        foreach(string field in new[]{framework,mono}){object key=typeof(Form).GetField(field,BindingFlags.Static|BindingFlags.NonPublic)?.GetValue(null);if(key!=null)return key;}
+        throw new MissingFieldException("Form has neither "+framework+" (.NET Framework) nor "+mono+" (Mono) as private event key");
+    }
     private static void Render(Form form,string name)
     {
         var events=(EventHandlerList)typeof(Component).GetProperty("Events",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(form,null);
-        foreach(string eventName in new[]{"EVENT_SHOWN","EVENT_LOAD"}){object key=typeof(Form).GetField(eventName,BindingFlags.Static|BindingFlags.NonPublic).GetValue(null);if(events[key]!=null)events.RemoveHandler(key,events[key]);}
+        foreach(object key in new[]{FormEventKey("EVENT_SHOWN","ShownEvent"),FormEventKey("EVENT_LOAD","LoadEvent")}){if(events[key]!=null)events.RemoveHandler(key,events[key]);}
         form.ShowInTaskbar=false;form.Opacity=0;form.Show();foreach(Form child in form.MdiChildren)child.Show();Layout(form);
         using(var bitmap=new Bitmap(form.Width,form.Height)){form.DrawToBitmap(bitmap,new Rectangle(Point.Empty,form.Size));bitmap.Save(Path.Combine(TestPaths.Work,name+".png"));}
         form.Hide();

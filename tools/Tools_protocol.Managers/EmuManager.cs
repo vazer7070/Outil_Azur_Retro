@@ -67,11 +67,13 @@ namespace Tools_protocol.Managers
 
         private static Type FindType(string emulator, string context)
         {
+            // Un émulateur qui reprend le modèle de données d'un autre (StarLoco → Kryone) utilise ses classes.
+            string model = EmulatorRegistry.Find(emulator)?.DataModel ?? emulator;
             return Assembly.GetExecutingAssembly().GetTypes().FirstOrDefault(type =>
             {
                 var attribute = (EmuManager)GetCustomAttribute(type, typeof(EmuManager));
                 return attribute != null &&
-                       string.Equals(attribute.Emulator, emulator, StringComparison.OrdinalIgnoreCase) &&
+                       string.Equals(attribute.Emulator, model, StringComparison.OrdinalIgnoreCase) &&
                        string.Equals(attribute.Context, context, StringComparison.OrdinalIgnoreCase);
             });
         }
@@ -93,10 +95,10 @@ namespace Tools_protocol.Managers
         public static string RecupPanoRow(string panocol, string panoname)
         {
             if (!CanCreateItems) return "";
-            string query = QueryBuilder.SelectFromQuery(new[] { panocol }, JsonManager.SearchAuth("panoplies"), "name", panoname);
+            string query = QueryBuilder.SelectFromQuery(new[] { panocol }, EmulatorRegistry.Current.Table("panoplies"), "name", panoname);
             try
             {
-                using (var connection = new MySqlConnection(DatabaseManager.ConnectionString))
+                using (var connection = new MySqlConnection(EmulatorRegistry.ConnectionFor("panoplies")))
                 using (var command = new MySqlCommand(query, connection))
                 {
                     connection.Open();

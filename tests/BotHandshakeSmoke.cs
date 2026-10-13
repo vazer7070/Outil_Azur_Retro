@@ -212,7 +212,7 @@ internal static class BotHandshakeSmoke
                         await account.Connexion.SendPacket("AS8");
                         await Expect(gamePeer, "AS8");
                         Send(gamePeer, "ASK|8|Second|120|2|1|20|0|0|0|\0");
-                        await Expect(gamePeer, "BYA");
+                        // Like the 1.34 client: GC1 only (BYA would mark the character away on StarLoco).
                         await Expect(gamePeer, "GC1");
                         Check(account.Game.character.id == 8 && account.Game.character.Name == "Second" && account.Game.character.Level == 120 && account.Game.character.Sex == 1,
                             "ASK did not apply the selected character");
@@ -256,7 +256,7 @@ internal static class BotHandshakeSmoke
     }
     private static async Task Refusals()
     {
-        foreach (string packet in new[] { "AYKbad", "AYKbad host:5555;42", "AXKshort", "ASK|broken", "ASK|8|Second|120|2|1|20|0|0|0|invalid-item", "ATE", "AlEf", "AlEb", "AlEk12|3|4", "AlEkbad", "AlEr", "AXEd", "AXEf" })
+        foreach (string packet in new[] { "AYKbad", "AYKbad host:5555;42", "AXKshort", "ASK|broken", "ATE", "AlEf", "AlEb", "AlEk12|3|4", "AlEkbad", "AlEr", "AXEd", "AXEf" })
         {
             using (var account = Account())
             {
@@ -267,6 +267,19 @@ internal static class BotHandshakeSmoke
                 Check(messages.Count > 0, "Refused/malformed packet lacked a diagnostic: " + packet);
                 if (packet == "AlEk12|3|4") Check(messages.Any(message => message.Contains("12 jour(s)") && message.Contains("3 heure(s)") && message.Contains("4 minute(s)")), "Ban duration parsed incorrectly");
             }
+        }
+        // Comme le client 1.34 (Account.onCharacterSelected garde la liste d'objets telle quelle) : une fiche d'objet
+        // illisible est journalisée et ignorée sans bloquer les suivantes ni la sélection (docs/BOT_STARLOCO.md, inventaire).
+        using (var account = Account())
+        {
+            var messages = new List<string>();
+            account.Logger.log_event += (entry, color) => messages.Add(entry.message);
+            await MessagesReception.ReceptionAsync(account.Connexion, "ASK|8|Second|120|2|1|20|0|0|0|invalid-item;1a~2~3~~");
+            Check(account.Connexion != null && account.AccountStates == AccountStates.CONNECTED_INACTIVE && account.Game.character.id == 8,
+                "An unreadable item record cancelled the character selection");
+            Check(messages.Any(message => message.Contains("invalid-item")), "Unreadable item record lacked a diagnostic");
+            var kept = account.Game.character.Inventory.GetByInventoryId(0x1a);
+            Check(kept != null && kept.ID == 2 && kept.Qua == 3, "An unreadable item record discarded the following valid record");
         }
         using (var account = Account())
         {

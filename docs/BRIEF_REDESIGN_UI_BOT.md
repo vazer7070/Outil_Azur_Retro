@@ -1,5 +1,7 @@
 # Reprise de la refonte du bot Azur
 
+> **Mise à jour du 3 octobre 2026.** Le client et l'émulateur ont été fournis dans le projet. Leur analyse est désormais reproductible dans le dépôt : `tools/client-analysis` (désassembleur AVM1, pseudo-décompilation, relevé du protocole, export SVG/PNG des symboles de `core.swf`), `docs/PROTOCOLE_CLIENT_1_34.md` (244 routes et 202 envois du client) et `Outil_Azur_complet/Resources/Bot/Client` (éléments graphiques utilisés par les fenêtres du bot, voir son `PROVENANCE.md`). Les chemins `F:\kit` ci-dessous désignent le poste de l'utilisateur ; ils ne sont plus nécessaires.
+
 État de travail du 2 octobre 2026. Ce brief reprend la demande explicite de l’utilisateur : une interface proche du client Dofus Retro fourni et de son design initial, avec une carte réellement exploitable pour se déplacer. La précédente coque de tableau de bord a été rejetée. Une simple modification de couleurs ne répond pas à la demande.
 
 ## Références à examiner avant une nouvelle modification

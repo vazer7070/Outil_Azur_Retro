@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Tools_protocol.Query;
 
 namespace Tools_protocol.Emulators
 {
@@ -44,6 +45,18 @@ namespace Tools_protocol.Emulators
             if (profile == null) throw new ArgumentNullException(nameof(profile));
             if (Find(profile.Id) != null) throw new InvalidOperationException($"L'émulateur {profile.Id} est déjà enregistré.");
             profiles.Add(profile);
+        }
+
+        /// <summary>
+        /// Chaîne de connexion de la base qui contient la table logique selon le profil courant :
+        /// la connexion world pour les tables déclarées en <see cref="TableLocation.World"/>, la connexion
+        /// auth sinon. Peut être vide si cette base n'est pas connectée.
+        /// </summary>
+        public static string ConnectionFor(string logicalName)
+        {
+            return Current.Locate(logicalName) == TableLocation.World
+                ? DatabaseManager2.ConnectionString
+                : DatabaseManager.ConnectionString;
         }
 
         private sealed class NoEmulatorProfile : EmulatorProfile

@@ -1,0 +1,209 @@
+<?xml version='1.0' encoding='utf-8'?>
+<BotLang famille="titles" langue="fr" version="7" source="titles_fr_7.swf">
+<titre id="1" texte="Goule de %1" couleur="16777215" typeParametre="0" />
+<titre id="2" texte="Vampyre" couleur="16777215" typeParametre="0" />
+<titre id="3" texte="Vampyre Sanglant" couleur="16777215" typeParametre="0" />
+<titre id="4" texte="Vampyre Maudyt" couleur="16777215" typeParametre="0" />
+<titre id="5" texte="Vampyre Ultyme" couleur="16777215" typeParametre="0" />
+<titre id="6" texte="Vampyre Démonyaque" couleur="16777215" typeParametre="0" />
+<titre id="7" texte="Vampyre Runyque" couleur="16777215" typeParametre="0" />
+<titre id="8" texte="Pourfendeur de Bworker" couleur="16777215" typeParametre="0" />
+<titre id="9" texte="Pourfendeur du Sphincter Cell" couleur="16777215" typeParametre="0" />
+<titre id="10" texte="Pourfendeur du Koulosse" couleur="16777215" typeParametre="0" />
+<titre id="11" texte="Pourfendeur du Wa Wabbit" couleur="16777215" typeParametre="0" />
+<titre id="12" texte="Pourfendeur du Kimbo" couleur="16777215" typeParametre="0" />
+<titre id="13" texte="Pourfendeur du Minotoror" couleur="16777215" typeParametre="0" />
+<titre id="14" texte="Pourfendeur du Dragon Cochon" couleur="16777215" typeParametre="0" />
+<titre id="15" texte="Pourfendeur du Chêne Mou" couleur="16777215" typeParametre="0" />
+<titre id="16" texte="Pourfendeur du Moon" couleur="16777215" typeParametre="0" />
+<titre id="17" texte="Pourfendeur du Dark Vlad" couleur="16777215" typeParametre="0" />
+<titre id="18" texte="Héros Bicentenaire" couleur="16777215" typeParametre="0" />
+<titre id="19" texte="Chevalier HispaÑique" couleur="16777215" typeParametre="0" />
+<titre id="20" texte="Terreur de la Presqu'île" couleur="16777215" typeParametre="0" />
+<titre id="21" texte="Dékrokilliseur" couleur="16777215" typeParametre="0" />
+<titre id="22" texte="Bûcheron Primordial" couleur="16777215" typeParametre="0" />
+<titre id="23" texte="Forgeur d'Epées Primordial" couleur="16777215" typeParametre="0" />
+<titre id="24" texte="Sculpteur d'Arcs Primordial" couleur="16777215" typeParametre="0" />
+<titre id="25" texte="Forgeur de Marteaux Primordial" couleur="16777215" typeParametre="0" />
+<titre id="26" texte="Cordonnier Primordial" couleur="16777215" typeParametre="0" />
+<titre id="27" texte="Bijoutier Primordial" couleur="16777215" typeParametre="0" />
+<titre id="28" texte="Forgeur de Dagues Primordial" couleur="16777215" typeParametre="0" />
+<titre id="29" texte="Sculpteur de Bâtons Primordial" couleur="16777215" typeParametre="0" />
+<titre id="30" texte="Sculpteur de Baguettes Primordial" couleur="16777215" typeParametre="0" />
+<titre id="31" texte="Forgeur de Pelles Primordial" couleur="16777215" typeParametre="0" />
+<titre id="32" texte="Mineur Primordial" couleur="16777215" typeParametre="0" />
+<titre id="33" texte="Boulanger Primordial" couleur="16777215" typeParametre="0" />
+<titre id="34" texte="Alchimiste Primordial" couleur="16777215" typeParametre="0" />
+<titre id="35" texte="Tailleur Primordial" couleur="16777215" typeParametre="0" />
+<titre id="36" texte="Paysan Primordial" couleur="16777215" typeParametre="0" />
+<titre id="37" texte="Forgeur de Haches Primordial" couleur="16777215" typeParametre="0" />
+<titre id="38" texte="Pêcheur Primordial" couleur="16777215" typeParametre="0" />
+<titre id="39" texte="Chasseur Primordial" couleur="16777215" typeParametre="0" />
+<titre id="40" texte="Forgemage de Dagues Primordial" couleur="16777215" typeParametre="0" />
+<titre id="41" texte="Forgemage d'Epées Primordial" couleur="16777215" typeParametre="0" />
+<titre id="42" texte="Forgemage de Marteaux Primordial" couleur="16777215" typeParametre="0" />
+<titre id="43" texte="Forgemage de Pelles Primordial" couleur="16777215" typeParametre="0" />
+<titre id="44" texte="Forgemage de Haches Primordial" couleur="16777215" typeParametre="0" />
+<titre id="45" texte="Sculptemage d'Arcs Primordial" couleur="16777215" typeParametre="0" />
+<titre id="46" texte="Sculptemage de Baguettes Primordial" couleur="16777215" typeParametre="0" />
+<titre id="47" texte="Sculptemage de Bâtons Primordial" couleur="16777215" typeParametre="0" />
+<titre id="48" texte="Boucher Primordial" couleur="16777215" typeParametre="0" />
+<titre id="49" texte="Poissonnier Primordial" couleur="16777215" typeParametre="0" />
+<titre id="50" texte="Forgeur de Boucliers Primordial" couleur="16777215" typeParametre="0" />
+<titre id="51" texte="Cordomage Primordial" couleur="16777215" typeParametre="0" />
+<titre id="52" texte="Joaillomage Primordial" couleur="16777215" typeParametre="0" />
+<titre id="53" texte="Costumage Primordial" couleur="16777215" typeParametre="0" />
+<titre id="54" texte="Bricoleur Primordial" couleur="16777215" typeParametre="0" />
+<titre id="55" texte="Pourfendeur des congères" couleur="16777215" typeParametre="0" />
+<titre id="56" texte="Nettoyeur de donjon" couleur="16777215" typeParametre="0" />
+<titre id="57" texte="Maudit par Az le Tech" couleur="16777215" typeParametre="0" />
+<titre id="58" texte="Maître des Éléments" couleur="16777215" typeParametre="0" />
+<titre id="59" texte="Grand Maître des Éléments" couleur="16777215" typeParametre="0" />
+<titre id="60" texte="Initié du S.L.I.P." couleur="16777215" typeParametre="0" />
+<titre id="61" texte="Conquérant de la Lumière" couleur="16777215" typeParametre="0" />
+<titre id="62" texte="Popol le Poulpe" couleur="16777215" typeParametre="0" />
+<titre id="63" texte="Noweliste" couleur="16777215" typeParametre="0" />
+<titre id="64" texte="Ballotin" couleur="16777215" typeParametre="0" />
+<titre id="65" texte="Ballotine" couleur="16777215" typeParametre="0" />
+<titre id="66" texte="Cœur à prendre" couleur="16777215" typeParametre="0" />
+<titre id="67" texte="Grand Stratéglours" couleur="16777215" typeParametre="0" />
+<titre id="68" texte="Marcheur Dimensionnel" couleur="16777215" typeParametre="0" />
+<titre id="69" texte="Apprenti d'Otomaï" couleur="16777215" typeParametre="0" />
+<titre id="70" texte="Champion du Goultarminator 639" couleur="16777215" typeParametre="0" />
+<titre id="71" texte="Mister Amakna" couleur="16777215" typeParametre="0" />
+<titre id="72" texte="Miss Amakna" couleur="16777215" typeParametre="0" />
+<titre id="73" texte="Mister Monde des Douze" couleur="16777215" typeParametre="0" />
+<titre id="74" texte="Miss Monde des Douze" couleur="16777215" typeParametre="0" />
+<titre id="75" texte="Chasseur de Touristes" couleur="16777215" typeParametre="0" />
+<titre id="76" texte="Chasseur de Krokilles" couleur="16777215" typeParametre="0" />
+<titre id="77" texte="Chasseur de Légendes" couleur="16777215" typeParametre="0" />
+<titre id="78" texte="Héroe de HispaÑia" couleur="16777215" typeParametre="0" />
+<titre id="79" texte="Chercheur de Dofus" couleur="16777215" typeParametre="0" />
+<titre id="80" texte="Marque-Page" couleur="16777215" typeParametre="0" />
+<titre id="81" texte="Champion du Goultarminator 640" couleur="16777215" typeParametre="0" />
+<titre id="82" texte="Champion du Goultarminator 641" couleur="16777215" typeParametre="0" />
+<titre id="83" texte="Terreur de Vulkania" couleur="16777215" typeParametre="0" />
+<titre id="84" texte="Noweliste Grandiloquent" couleur="16777215" typeParametre="0" />
+<titre id="85" texte="Noweliste Décadent" couleur="16777215" typeParametre="0" />
+<titre id="86" texte="Disciple Pandawushuka" couleur="16777215" typeParametre="0" />
+<titre id="87" texte="Champion Azur" couleur="16777215" typeParametre="0" />
+<titre id="89" texte="Protecteur des Profondeurs" couleur="16777215" typeParametre="0" />
+<titre id="90" texte="Pwâkificateur" couleur="16777215" typeParametre="0" />
+<titre id="91" texte="Robill Adoptif" couleur="16777215" typeParametre="0" />
+<titre id="93" texte="Trouffion des Neiges" couleur="16777215" typeParametre="0" />
+<titre id="94" texte="Commère des Miches" couleur="16777215" typeParametre="0" />
+<titre id="95" texte="Pilier de Comptoir" couleur="16777215" typeParametre="0" />
+<titre id="96" texte="Mini-Mister Amakna" couleur="16777215" typeParametre="0" />
+<titre id="97" texte="Mini-Miss Amakna" couleur="16777215" typeParametre="0" />
+<titre id="98" texte="Écumeur des 107 océans" couleur="16777215" typeParametre="0" />
+<titre id="99" texte="Farfouilleur d'Otomaï" couleur="16777215" typeParametre="0" />
+<titre id="100" texte="Citrouillard" couleur="16777215" typeParametre="0" />
+<titre id="101" texte="Champion du Goultarminator 642" couleur="16777215" typeParametre="0" />
+<titre id="102" texte="Chevalier Doré HispaÑique" couleur="16777215" typeParametre="0" />
+<titre id="103" texte="Ami de Kerubim" couleur="16777215" typeParametre="0" />
+<titre id="109" texte="La Machine" couleur="16777215" typeParametre="0" />
+<titre id="110" texte="Accoucheur survolté" couleur="16777215" typeParametre="0" />
+<titre id="111" texte="Colosse aux pieds graciles" couleur="16777215" typeParametre="0" />
+<titre id="112" texte="Aventurier de l'Avent" couleur="16777215" typeParametre="0" />
+<titre id="113" texte="Émotif" couleur="16777215" typeParametre="0" />
+<titre id="114" texte="Tête Couronnée" couleur="16777215" typeParametre="0" />
+<titre id="115" texte="Moissonneur des Âmes" couleur="16777215" typeParametre="0" />
+<titre id="116" texte="Héros de l'Année" couleur="16777215" typeParametre="0" />
+<titre id="117" texte="Chasseur de Primes" couleur="16777215" typeParametre="0" />
+<titre id="118" texte="Chahuteur Clandestin" couleur="16777215" typeParametre="0" />
+<titre id="119" texte="Querelleur Clandestin" couleur="16777215" typeParametre="0" />
+<titre id="120" texte="Bagarreur Clandestin" couleur="16777215" typeParametre="0" />
+<titre id="121" texte="Lutteur Clandestin" couleur="16777215" typeParametre="0" />
+<titre id="122" texte="Combattant Clandestin" couleur="16777215" typeParametre="0" />
+<titre id="123" texte="Champion Clandestin" couleur="16777215" typeParametre="0" />
+<titre id="124" texte="Lécheur de Bottes" couleur="16777215" typeParametre="0" />
+<titre id="125" texte="Bouche-trou" couleur="16777215" typeParametre="0" />
+<titre id="126" texte="Krosmonaute" couleur="16777215" typeParametre="0" />
+<titre id="128" texte="Enquêteur" couleur="16777215" typeParametre="0" />
+<titre id="129" texte="Chercheur de Vérité" couleur="16777215" typeParametre="0" />
+<titre id="130" texte="Marabout" couleur="16777215" typeParametre="0" />
+<titre id="134" texte="Garde du Jour sans Fin" couleur="16777215" typeParametre="0" />
+<titre id="135" texte="Bienfaiteur de Frigost" couleur="16777215" typeParametre="0" />
+<titre id="136" texte="Vengeur des Terres Gelées" couleur="16777215" typeParametre="0" />
+<titre id="139" texte="Poursuivant de Mythes" couleur="16777215" typeParametre="0" />
+<titre id="140" texte="Jouet des Immortels" couleur="16777215" typeParametre="0" />
+<titre id="142" texte="Larve de Dremoan" couleur="16777215" typeParametre="0" />
+<titre id="143" texte="Collectionneur de trucs" couleur="16777215" typeParametre="0" />
+<titre id="144" texte="Éclaireur d'Obscurité" couleur="16777215" typeParametre="0" />
+<titre id="145" texte="Cwoqueuw de Cawotte" couleur="16777215" typeParametre="0" />
+<titre id="146" texte="Nettoyeur de Shushu" couleur="16777215" typeParametre="0" />
+<titre id="147" texte="Super-assistant" couleur="16777215" typeParametre="0" />
+<titre id="148" texte="Champion du Goultarminator 643" couleur="16777215" typeParametre="0" />
+<titre id="149" texte="Gardien de la Paix" couleur="16777215" typeParametre="0" />
+<titre id="150" texte="Terreur des Mercemers" couleur="16777215" typeParametre="0" />
+<titre id="151" texte="Justicier du Krosmoz" couleur="16777215" typeParametre="0" />
+<titre id="152" texte="Héros costumé" couleur="16777215" typeParametre="0" />
+<titre id="153" texte="Perceur de Mystères" couleur="16777215" typeParametre="0" />
+<titre id="154" texte="Déjoueur de Pièges" couleur="16777215" typeParametre="0" />
+<titre id="155" texte="Agent de Voyage" couleur="16777215" typeParametre="0" />
+<titre id="156" texte="Senior d'Enutrosor" couleur="16777215" typeParametre="0" />
+<titre id="157" texte="Baron de la Cour Sombre" couleur="16777215" typeParametre="0" />
+<titre id="158" texte="Vagabond Dimensionnel" couleur="16777215" typeParametre="0" />
+<titre id="159" texte="Champion du Goultarminator 644" couleur="16777215" typeParametre="0" />
+<titre id="160" texte="Défenseur de la Nature" couleur="16777215" typeParametre="0" />
+<titre id="161" texte="Ouvreur de Portail" couleur="16777215" typeParametre="0" />
+<titre id="162" texte="Gardien du Xélorium" couleur="16777215" typeParametre="0" />
+<titre id="163" texte="Rmyfau qub usywrub" couleur="16777215" typeParametre="0" />
+<titre id="164" texte="Investigateur obstiné" couleur="16777215" typeParametre="0" />
+<titre id="165" texte="Batailleur" couleur="16777215" typeParametre="0" />
+<titre id="166" texte="Traqueur Implacable" couleur="16777215" typeParametre="0" />
+<titre id="167" texte="Disciple de Menalt" couleur="16777215" typeParametre="0" />
+<titre id="168" texte="Écuyer" couleur="16777215" typeParametre="0" />
+<titre id="169" texte="Chevalier de l'Espoir" couleur="16777215" typeParametre="0" />
+<titre id="170" texte="Champion Merveilleux" couleur="16777215" typeParametre="0" />
+<titre id="172" texte="Disciple de Jiva" couleur="16777215" typeParametre="0" />
+<titre id="173" texte="Apprenti Éclairé" couleur="16777215" typeParametre="0" />
+<titre id="174" texte="Adepte des Écrits" couleur="16777215" typeParametre="0" />
+<titre id="175" texte="Maître des Parchemins" couleur="16777215" typeParametre="0" />
+<titre id="177" texte="Disciple de Silvosse" couleur="16777215" typeParametre="0" />
+<titre id="178" texte="Espion Silencieux" couleur="16777215" typeParametre="0" />
+<titre id="179" texte="Chasseur de Renégats" couleur="16777215" typeParametre="0" />
+<titre id="180" texte="Assassin Suprême" couleur="16777215" typeParametre="0" />
+<titre id="182" texte="Disciple de Djaul" couleur="16777215" typeParametre="0" />
+<titre id="183" texte="Surineur" couleur="16777215" typeParametre="0" />
+<titre id="184" texte="Chevalier du Désespoir" couleur="16777215" typeParametre="0" />
+<titre id="185" texte="Champion du Chaos" couleur="16777215" typeParametre="0" />
+<titre id="187" texte="Disciple d'Hécate" couleur="16777215" typeParametre="0" />
+<titre id="188" texte="Apprenti Sombre" couleur="16777215" typeParametre="0" />
+<titre id="189" texte="Adepte des Douleurs" couleur="16777215" typeParametre="0" />
+<titre id="190" texte="Maître des Sévices" couleur="16777215" typeParametre="0" />
+<titre id="192" texte="Disciple de Brumaire" couleur="16777215" typeParametre="0" />
+<titre id="193" texte="Espion Sombre" couleur="16777215" typeParametre="0" />
+<titre id="194" texte="Chasseur d'Âmes" couleur="16777215" typeParametre="0" />
+<titre id="195" texte="Psychopathe" couleur="16777215" typeParametre="0" />
+<titre id="197" texte="Fils d'Incarnam" couleur="16777215" typeParametre="0" />
+<titre id="198" texte="Champion du Goultarminator 645" couleur="16777215" typeParametre="0" />
+<titre id="199" texte="Idole des jeunes" couleur="16777215" typeParametre="0" />
+<titre id="200" texte="Allié de Joris" couleur="16777215" typeParametre="0" />
+<titre id="201" texte="Maître du Chifoumi" couleur="16777215" typeParametre="0" />
+<titre id="202" texte="Vainqueur des 1001 Griffes" couleur="16777215" typeParametre="0" />
+<titre id="203" texte="Joueur professionnel" couleur="16777215" typeParametre="0" />
+<titre id="204" texte="Perfectionniste" couleur="16777215" typeParametre="0" />
+<titre id="205" texte="Seigneur des Embruns" couleur="16777215" typeParametre="0" />
+<titre id="206" texte="Koutoulou Fhtagn" couleur="16777215" typeParametre="0" />
+<titre id="207" texte="Roi de la Plonge" couleur="16777215" typeParametre="0" />
+<titre id="208" texte="Trithonite" couleur="16777215" typeParametre="0" />
+<titre id="209" texte="Champion du Goultarminator 646" couleur="16777215" typeParametre="0" />
+<titre id="210" texte="Chasseur de Troolls" couleur="16777215" typeParametre="0" />
+<titre id="211" texte="Ami des dragons" couleur="16777215" typeParametre="0" />
+<titre id="213" texte="Allié émérite" couleur="16777215" typeParametre="0" />
+<titre id="214" texte="Pot de colle" couleur="16777215" typeParametre="0" />
+<titre id="215" texte="Modérateur" couleur="16777215" typeParametre="0" />
+<titre id="216" texte="Community Manager" couleur="16777215" typeParametre="0" />
+<titre id="217" texte="Testeur" couleur="16777215" typeParametre="0" />
+<titre id="218" texte="Game Designer" couleur="16777215" typeParametre="0" />
+<titre id="219" texte="Level Designer" couleur="16777215" typeParametre="0" />
+<titre id="220" texte="Graphiste" couleur="16777215" typeParametre="0" />
+<titre id="221" texte="Animateur" couleur="16777215" typeParametre="0" />
+<titre id="222" texte="Développeur client" couleur="16777215" typeParametre="0" />
+<titre id="223" texte="Développeur serveur" couleur="16777215" typeParametre="0" />
+<titre id="224" texte="Disciple du Molosse Noir" couleur="16777215" typeParametre="0" />
+<titre id="225" texte="Protecteur des animaux" couleur="16777215" typeParametre="0" />
+<titre id="226" texte="Vainqueur de la Dofus Cup" couleur="16777215" typeParametre="0" />
+<titre id="227" texte="Rôdeur de Sidimote" couleur="16777215" typeParametre="0" />
+</BotLang>

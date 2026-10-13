@@ -43,6 +43,7 @@ internal static class BotMapViewSmoke
         public void Down(Point point, MouseButtons button) { OnMouseDown(new MouseEventArgs(button, 1, point.X, point.Y, 0)); }
         public void Drag(Point point, MouseButtons button) { OnMouseMove(new MouseEventArgs(button, 0, point.X, point.Y, 0)); }
         public void Up(Point point, MouseButtons button) { OnMouseUp(new MouseEventArgs(button, 1, point.X, point.Y, 0)); }
+        public bool Key(Keys keys) { var message = new Message(); return ProcessCmdKey(ref message, keys); }
     }
 
     private static void Image(string path, int width, int height, Color color)
@@ -82,6 +83,7 @@ internal static class BotMapViewSmoke
                     "Map artwork lost an encoded scenery layer");
                 Check(scenery.Cells[5].GroundFlip && scenery.Cells[5].Object1Flip && scenery.Cells[6].GroundRotation == 1,
                     "Map artwork ignored flips or rotations");
+                Check(scenery.WaitForAssets(10000), "Map artwork PNG loading did not finish");
                 Check(scenery.MissingAssetCount == 0 && scenery.LoadedAssetCount >= 5, "Valid fixture PNG library was reported missing");
                 using (FileStream exclusive = File.Open(groundPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
                     Check(exclusive.Length > 0, "Scenery retained a file lock");
@@ -96,10 +98,10 @@ internal static class BotMapViewSmoke
             }
             map.MapData = EncodedCell(1900, 0, 0, false, 0) + data.Substring(10);
             using (var missing = new BotMapArtwork(map, directory))
-                Check(missing.MissingAssetCount == 1 && missing.Status.Contains("sol 1900"), "Missing scenery silently disappeared");
+                Check(missing.WaitForAssets(10000) && missing.MissingAssetCount == 1 && missing.Status.Contains("sol 1900"), "Missing scenery silently disappeared");
             map.MapData = EncodedCell(11, 14, 0, false, 0) + data.Substring(10);
             using (var transparent = new BotMapArtwork(map, directory))
-                Check(transparent.WorldBounds.Width < 220 && transparent.WorldBounds.Height < 200,
+                Check(transparent.WaitForAssets(10000) && transparent.WorldBounds.Width < 220 && transparent.WorldBounds.Height < 200,
                     "Transparent PNG margins shrank the fitted map");
         }
 
@@ -126,6 +128,9 @@ internal static class BotMapViewSmoke
                 Check(clicks == 0, "Panning accidentally issued a movement click");
                 view.Fit(); view.Size = new Size(560, 370);
                 Check(view.ZoomPercent == 100, "Fit did not restore full map");
+                // + et - du pavé numérique restent aux raccourcis MAXI / MINI du chat ; ceux du clavier principal zooment.
+                Check(!view.Key(Keys.Add) && !view.Key(Keys.Subtract) && view.ZoomPercent == 100, "Keypad + / - were taken by the map zoom");
+                Check(view.Key(Keys.Oemplus) && view.ZoomPercent > 100 && view.Key(Keys.Home) && view.ZoomPercent == 100, "Main keyboard + or Home does not zoom the map");
                 foreach (UserMapCell cell in view.Cells)
                     Check(view.ClientRectangle.Contains(cell.Centre) && view.GetCell(cell.Centre).id == cell.id, "Resize clipped or displaced cell " + cell.id);
                 Point click = view.Cells[10].Centre;

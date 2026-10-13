@@ -2,14 +2,14 @@ using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Tools_protocol.Json;
+using Tools_protocol.Emulators;
 using Tools_protocol.Query;
 
 namespace Tools_protocol.Kryone.Database
 {
 	public class ModifyManager
 	{
-		public static string TablePerso => JsonManager.SearchAuth("perso");
+		public static string TablePerso => EmulatorRegistry.Current.Table("perso");
 		public static Dictionary<string, string> Query = new Dictionary<string, string>(); // id|[type modif], query modif
 		public static int QueryCount = 0;
 
