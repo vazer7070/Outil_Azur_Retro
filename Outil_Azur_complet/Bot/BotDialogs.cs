@@ -50,6 +50,11 @@ namespace Outil_Azur_complet.Bot
         public static Task<BotDialogResult> GameOverAsync(Control owner, string title, string message, string name) =>
             ShowAsync(owner, title, message, name, BotDialogResult.Replay, BotDialogResult.Replay);
 
+        // Lot X3 : nouveau niveau (AN) et perte de connexion.
+        /// <summary>Information « OK » retrouvable par son nom (<c>ERROR_BOX</c> du client : <c>NEW_LEVEL</c>, <c>DISCONNECT</c>).</summary>
+        public static Task<BotDialogResult> InfoAsync(Control owner, string title, string message, string name) =>
+            ShowAsync(owner, title, message, name, BotDialogResult.Ok, BotDialogResult.Ok);
+
         /// <summary>Referme sans réponse (<see cref="BotDialogResult.None"/>) les boîtes portant ce nom ; renvoie leur nombre.</summary>
         public static int Dismiss(string name)
         {

@@ -45,6 +45,8 @@ namespace Outil_Azur_complet.Bot
         private BannerPanel banner;
         private Label zoomText, emptyMap;
         private bool showCellIds, uiReleased, censorshipLoaded;
+        /// <summary>Boîtes du nouveau niveau et de la perte de connexion (lot X3).</summary>
+        private ConnectionPrompts connectionPrompts;
         private ChatCensorship censorship;
         private readonly BotOptions options;
         private readonly ToolTip toolTips = new ToolTip();
@@ -534,6 +536,7 @@ namespace Outil_Azur_complet.Bot
         {
             ActualCompte.AccountStateEvent+=RefreshState;ActualCompte.AccountDisconnectEvent+=RefreshState;ActualCompte.Game.character.RefreshCaracteristiques+=RefreshState;ActualCompte.Game.character.Spells_Refresh+=RefreshState;ActualCompte.Game.Map.RefreshMap+=MapChanged;ActualCompte.Game.Fight.CombatChanged+=RefreshState;
             SpellLevelInfo.ZoneWarning += OnSpellZoneWarning;
+            connectionPrompts = new ConnectionPrompts(this, ActualCompte);
         }
         /// <summary>Zone d'effet illisible dans spells.xml : une ligne dans le journal du compte, une fois par sort et niveau.</summary>
         private void OnSpellZoneWarning(string message) => ActualCompte?.Logger?.LogDanger("SORTS", message);
@@ -662,6 +665,7 @@ namespace Outil_Azur_complet.Bot
             if (drawer != null) { drawer.Feedback -= ShowActionFeedback; drawer.ReleaseSession(); }
             if (chatPanel != null) { chatPanel.ExpandedChanged -= OnChatExpanded; chatPanel.CompassRequested -= OnCompassRequested; chatPanel.Feedback -= ShowActionFeedback; chatPanel.View.ShowTimestampsChanged -= OnTimestampsToggled; chatPanel.Censor = null; chatPanel.ReleaseSession(); }
             SpellLevelInfo.ZoneWarning -= OnSpellZoneWarning;
+            connectionPrompts?.Dispose();
             if (ActualCompte == null) return;
             ActualCompte.AccountStateEvent-=RefreshState;ActualCompte.AccountDisconnectEvent-=RefreshState;
             var game = ActualCompte.Game; if (game == null) return;

@@ -55,7 +55,7 @@ namespace Tool_BotProtocol.Frames.Jeu
             if (account == null) return;
             account.Logger?.LogInfo("SESSION", "Fin de partie (GO) : le serveur a terminé la partie de ce personnage ; déconnexion.");
             try { account.Game.Session.OnGameOver(); }
-            finally { account.Disconnect(client); }
+            finally { account.Disconnect(client, DisconnectCause.GameOver); }
         }
         /// <summary><c>Gf&lt;combattant&gt;|&lt;cellule&gt;</c> : cellule signalée par un coéquipier.</summary>
         [MessageAttribution("Gf")]

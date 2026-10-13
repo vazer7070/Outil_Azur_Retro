@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
+using Tool_BotProtocol.Game.Chat;
 using Tool_BotProtocol.Game.Perso;
 using Tool_BotProtocol.Network;
 
@@ -103,6 +104,8 @@ namespace Tool_BotProtocol.Frames.Jeu
             }
             account.Game.character.Level = (byte)level;
             account.Logger.LogInfo("PERSO", "Niveau " + level + " atteint.");
+            // Le client ouvre la boîte NEW_LEVEL sans rien écrire au chat ; le bot y garde aussi une ligne, lisible après la boîte.
+            account.Game.Chat?.AddLocal(ChatMessageKind.Info, ConnectionTexts.NewLevelLine(level));
             account.Game.Session.OnLevelUp(level);
         }
 
