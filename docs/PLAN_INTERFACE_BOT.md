@@ -140,6 +140,8 @@ Après la relecture, le bot a été joué sur une copie locale du StarLoco du ki
 
 **CORR — Corrections relevées sur le vrai StarLoco.** Ticket renvoyé après `ATE`, carte vidée à `GJK` en gardant les états des cellules, barre d’état des PA et PM, test réel durci. Tests : `BotTransportSmoke`, `BotFightProtocolSmoke`, `BotFightUiSmoke`.
 
+**X1 — Corps à corps** (après ces dix lots). `GA303<cellule>` comme le client : case `²` de la barre (arme en position 1 ou poing `DefaultCC`), raccourci `SH0`, clic sur un ennemi adjacent sans sort choisi (ajout du bot) ; PA et portée lus dans `items.xml` (arme) ou `classes.xml` (poings), `GKK` sur `GAF`. Tests : `BotFightProtocolSmoke`, `BotFightUiSmoke`, scénario h de `BotStarLocoLiveSmoke`.
+
 ## Couverture des fonctions
 
 Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par le test cité contre un serveur fictif local), **partiel** (une partie seulement), **absent**. Les fonctions rejouées par `BotStarLocoLiveSmoke` sont aussi vérifiées sur un vrai StarLoco local ; les autres lignes ne le sont pas encore. La colonne « Client 1.34 » nomme la fenêtre ou les paquets du client ; la colonne « StarLoco » dit ce que le serveur du kit en fait.
@@ -211,7 +213,7 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | D3 | Menu principal | changer de personnage, déconnexion | — | fait | `BotBannerSmoke` |
 | D4 | Options | fenêtre Options | — | partiel : quatre options enregistrées mais non dessinées, pas d’audio | `BotBannerSmoke` |
 | D5 | Raccourcis clavier | table des raccourcis du client | — | partiel : raccourci de surtête des monstres non relié | `BotBannerSmoke` |
-| D6 | Barre de raccourcis | `SM`, `OM`, `OU` | `SM` sans effet (`BN`) | partiel : corps à corps et barre déplaçable absents | `BotBannerSmoke` |
+| D6 | Barre de raccourcis | `SM`, `OM`, `OU` | `SM` sans effet (`BN`) | partiel : barre déplaçable absente | `BotBannerSmoke`, `BotFightUiSmoke` |
 | D7 | Fiche des caractéristiques | `As`, `AB` | traité | fait | `BotStatsSheetSmoke` |
 | D8 | Inventaire | `OM`, `OU`, `OD`, `Od` | traité | fait | `BotInventoryGridSmoke`, `BotShopSmoke` |
 | D9 | Sorts | `SB`, `SF`, `SM` | `SF` seulement en fenêtre d’oubli | fait (zone d’effet non dessinée) | `BotStatsSheetSmoke`, `BotSpellsSmoke` |
@@ -250,7 +252,7 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | G6 | Pierres d’âme et arènes | `OU` | pierre utilisable en arène seulement | fait | `BotServerCommandsSmoke` |
 | G7 | Documents | `dCK`, `dV` | pancartes seulement | fait | `BotInteractivesSmoke`, `BotServerCommandsSmoke` |
 | G8 | Commandes joueur du serveur | — | `.commande` dans le canal général | fait | `BotServerCommandsSmoke` |
-| G9 | Combat | `G…`, `GA` | traité ; défis et `GA303` à rejouer | partiel : ni défis, ni corps à corps, ni mode tactique | `BotFightProtocolSmoke`, `BotCombatSmoke`, `BotFightUiSmoke`, `BotCombatUiSmoke` (Windows) |
+| G9 | Combat | `G…`, `GA` | traité ; défis à rejouer, `GA303` rejoué (lot X1) | partiel : ni défis, ni mode tactique | `BotFightProtocolSmoke`, `BotCombatSmoke`, `BotFightUiSmoke`, `BotCombatUiSmoke` (Windows) |
 
 ## Reste à faire
 
@@ -285,7 +287,8 @@ Préalable : une copie isolée d’un vrai StarLoco, avec des comptes et des per
 
 ### Combat
 
-- Défis (`Gd…`), attaque au corps à corps (`GA303`), mode tactique, fond des invocations dans la ligne de temps.
+- Défis (`Gd…`), mode tactique, fond des invocations dans la ligne de temps.
+- Corps à corps (lot X1) : ligne de vue et zone de l’arme laissées au serveur (cellules surlignées = cellules à portée), effets de l’arme absents de l’infobulle, arme non changeable pendant un combat (l’inventaire du bot le refuse, StarLoco l’accepterait).
 - Bouton d’exclusion d’un coéquipier dans le menu de placement (`GQ<id>` existe dans l’API).
 - Nombre de tours du résultat compté par le bot (StarLoco n’envoie pas le troisième champ de `GTS`).
 - Caractéristiques temporaires et changement d’apparence non appliqués ; noms des états et des effets.
