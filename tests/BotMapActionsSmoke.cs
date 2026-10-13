@@ -27,7 +27,9 @@ using Tool_BotProtocol.Game.Maps.Interfaces;
 // Actions sur les joueurs, groupes et combats de la carte (lot M4) : menus d'un joueur, d'un groupe de monstres et des
 // épées d'un combat, duels (GA900/901/902 et boîtes Oui/Non/Ignorer, Annuler), refus GA;903, agression GA;906,
 // percepteur et prismes (GA909, GA912, GA;909), combats de la carte (fC, fL, fD, volet), « qui est » (BW, BWK),
-// paquets malformés. Données synthétiques, serveur fictif local, fenêtre hors de l'écran, aucune capture d'écran.
+// paquets malformés ; lot X2 : menu de son personnage (Se frapper, Libérer son âme, sélecteur d'orientation eD et écho),
+// mariage GA;617 → GA618 / GA619, personnage mort (AR<id>), fin de partie GO. Données synthétiques, serveur fictif local,
+// fenêtre hors de l'écran, aucune capture d'écran.
 internal static class BotMapActionsSmoke
 {
     private const int MapId = 900094;
@@ -48,7 +50,7 @@ internal static class BotMapActionsSmoke
             Application.EnableVisualStyles();
             Run();
             Check(uiErrors.Count == 0, "Interface errors: " + string.Join(" / ", uiErrors.Select(e => e.GetType().Name + " " + e.Message)));
-            Console.WriteLine("OK: menus joueur/groupe/épées, duels GA900-902 et boîtes, GA;903, GA;906, GA909/GA912, fC/fL/fD et volet des combats, BW/BWK, textes du client");
+            Console.WriteLine("OK: menus joueur/groupe/épées, duels GA900-902 et boîtes, GA;903, GA;906, GA909/GA912, fC/fL/fD et volet des combats, BW/BWK, textes du client, menu de soi, eD, GF, mariage, AR<id>, GO");
         }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
         finally { LangData.Clear(); }
@@ -152,6 +154,10 @@ internal static class BotMapActionsSmoke
                         GroupMenu(account, peer, view, group);
                         SwordsMenu(account, peer, view, host);
                         FightsPanel(account, peer, actions, host);
+                        SelfMenu(folder, account, peer, actions, view);
+                        MarriageDialogs(account, peer, actions);
+                        ResetDeadCharacter(account, peer);
+                        GameOverDialog(account, form); // en dernier : GO ferme la connexion
 
                         form.Close(); Application.DoEvents();
                         Check(BotDialogs.OpenDialogs.Count == 0, "Duel dialogs stayed open after the window closed");
@@ -514,6 +520,220 @@ internal static class BotMapActionsSmoke
         PumpUntil(() => !host.IsOpen(panel));
         Feed(account, "fC0");
         Check(actions.Fights.Count == 0 && actions.FightCount == 0, "fC0 kept old fights");
+    }
+
+    // Lot X2 : sprite de soi vivant, tombe (« -10 ») et fantôme (« -40 », gfx 8004), comme Player.parseToGM de StarLoco.
+    private const string AliveSprite = "GM|~0;1;0;7;Personnage de test;1;10^100;0;1,0,0,32;-1;-1;-1;;0;;;;;0;;0";
+    private const string TombSprite = "GM|~0;1;0;7;Personnage de test;1;10^100;0;1,0,0,32;-1;-1;-1;;0;;;;;-10;;1";
+    private const string GhostSprite = "GM|~0;1;0;7;Personnage de test;1;8004^100;0;1,0,0,32;-1;-1;-1;;0;;;;;-40;;0";
+
+    private static ContextMenuStrip SelfMenuOf(Accounts account, MapControl view) =>
+        view.Router.ShowActorMenu(new Entites[] { account.Game.Map.Self }, (short)account.Game.character.Cell.CellID, Keys.None, false);
+
+    private static DirectionChooser OpenChooser(Accounts account, MapControl view)
+    {
+        Item(SelfMenuOf(account, view), MapActionTexts.ChangeDirection).PerformClick();
+        PumpUntil(() => DirectionChooser.Current != null && DirectionChooser.Current.IsOpen);
+        return DirectionChooser.Current;
+    }
+
+    /// <summary>
+    /// Menu de son personnage (getPlayerPopupMenu, branche « soi ») : Se frapper (BM*|SLAP_SENTENCE|, grisé sans lang),
+    /// Libérer son âme (GF, tombe seulement, sans confirmation), Changer son orientation (sélecteur, eD), clic gauche sur soi,
+    /// écho eD&lt;id&gt;|&lt;dir&gt; et refus locaux (combat, tombe, diagonales, hors de 0 à 7).
+    /// </summary>
+    private static void SelfMenu(string folder, Accounts account, Socket peer, MapActions actions, MapControl view)
+    {
+        Map map = account.Game.Map;
+        Feed(account, AliveSprite); Feed(account, "AR6bk");
+        Check(map.Self != null && !actions.IsTomb && !actions.IsGhost && actions.CanChangeDirection && actions.AllowedDirections.Count == 8, "Living sprite of the character not read");
+        short cell = (short)account.Game.character.Cell.CellID;
+
+        string[] texts = Texts(SelfMenuOf(account, view));
+        Check(texts[0] == MapActionTexts.HitHimself && texts.Contains(MapActionTexts.ChangeDirection) && !texts.Contains(MapActionTexts.FreeMySoul)
+            && Array.IndexOf(texts, MapActionTexts.ChangeDirection) > 0, "Own menu differs: " + string.Join("|", texts));
+        Check(!Item(view.Router.LastMenu, MapActionTexts.HitHimself).Enabled, "HIT_HIMSELF is enabled without SLAP_SENTENCE");
+        Check(!view.Router.Registry.EntriesFor(map.Self, account.Game).Any(entry => entry.Texte == MapActionTexts.Challenge || entry.Texte == MapActionTexts.Exchange),
+            "The character's own menu offers another player's actions");
+
+        // Clic gauche sur son personnage (onSpriteRelease) : son menu, sans déplacement.
+        ContextMenuStrip before = view.Router.LastMenu;
+        Complete(view.Router.RouteAsync(cell, MouseButtons.Left));
+        Check(view.Router.LastMenu != null && view.Router.LastMenu != before && Texts(view.Router.LastMenu)[0] == MapActionTexts.HitHimself,
+            "A left click on the character does not open its menu");
+        NoPacket(peer, "A left click on the character sent a packet");
+
+        // Sélecteur : huit flèches avec AR6bk, chacune touchée à sa place ; un choix envoie eD<dir> et referme.
+        DirectionChooser chooser = OpenChooser(account, view);
+        Check(chooser.Directions.SequenceEqual(Enumerable.Range(0, 8)) && chooser.CurrentDirection == account.Game.character.Orientation,
+            "Chooser directions or current orientation differ");
+        for (int direction = 0; direction < 8; direction++)
+            Check(chooser.DirectionAt(chooser.ArrowLocation(direction)) == direction, "Arrow " + direction + " is not hit at its place");
+        Check(chooser.DirectionAt(new Point(chooser.Width / 2, chooser.Height / 2)) == -1, "The centre of the chooser is an arrow");
+        string message = Complete(chooser.ChooseAsync(3));
+        Expect(peer, "eD3", "Choosing an arrow does not send eD<dir>");
+        Check(message != null && message.Contains("eD3") && DirectionChooser.Current == null, "The chooser stayed open or reported nothing: " + message);
+
+        // Écho eD<id>|<dir> : appliqué au personnage et aux autres joueurs ; malformé ignoré.
+        Feed(account, "eD7|3");
+        Check(account.Game.character.Orientation == 3 && map.Self.Orientation == 3, "eD<self>|<dir> was not applied to the character");
+        Feed(account, "eD42|5");
+        Check(map.GetActor(42).Orientation == 5, "eD<id>|<dir> was not applied to another player");
+        foreach (string bad in new[] { "eD42|9", "eD42|-1", "eDx|1", "eD42", "eD|2" }) Feed(account, bad);
+        Check(map.GetActor(42).Orientation == 5 && account.Game.character.Orientation == 3, "Malformed eD changed an orientation");
+
+        // AR3K (toute transformation) : les quatre diagonales seulement.
+        Feed(account, "AR3K");
+        chooser = OpenChooser(account, view);
+        Check(chooser.Directions.SequenceEqual(new[] { 1, 3, 5, 7 }) && chooser.CurrentDirection == 3, "Without bit 8192 the chooser is not limited to the diagonals");
+        Check(chooser.DirectionAt(chooser.ArrowLocation(2)) == -1, "A missing arrow can still be hit");
+        Check(Complete(chooser.ChooseAsync(2)).Contains("absente") && chooser.IsOpen, "A missing direction was accepted by the chooser");
+        chooser.Close(); PumpUntil(() => DirectionChooser.Current == null);
+        Check(!Complete(actions.SetDirectionAsync(2)).Sent && !Complete(actions.SetDirectionAsync(8)).Sent && !Complete(actions.SetDirectionAsync(-1)).Sent,
+            "An orientation outside the chooser was sent");
+        account.AccountStates = AccountStates.FIGHTING;
+        Check(!Complete(actions.SetDirectionAsync(1)).Sent, "eD was sent during a fight");
+        account.AccountStates = AccountStates.CONNECTED_INACTIVE;
+        NoPacket(peer, "Refused orientations reached the server");
+
+        // Tombe : « Libérer son âme » à la place de l'orientation, GF sans boîte de confirmation (Game.freeMySoul).
+        Feed(account, TombSprite);
+        texts = Texts(SelfMenuOf(account, view));
+        Check(actions.IsTomb && texts[0] == MapActionTexts.HitHimself && texts.Contains(MapActionTexts.FreeMySoul) && !texts.Contains(MapActionTexts.ChangeDirection),
+            "Tomb menu differs: " + string.Join("|", texts));
+        Check(!Complete(actions.SetDirectionAsync(1)).Sent, "A tomb sent eD");
+        Item(view.Router.LastMenu, MapActionTexts.FreeMySoul).PerformClick();
+        Expect(peer, "GF", "FREE_MY_SOUL does not send GF");
+        Application.DoEvents();
+        Check(BotDialogs.OpenDialogs.Count == 0, "FREE_MY_SOUL asked for a confirmation the client does not ask");
+
+        // Fantôme : plus de « Libérer son âme », l'orientation revient (StarLoco remet dead à 0).
+        Feed(account, GhostSprite);
+        texts = Texts(SelfMenuOf(account, view));
+        Check(actions.IsGhost && !texts.Contains(MapActionTexts.FreeMySoul) && texts.Contains(MapActionTexts.ChangeDirection), "Ghost menu differs: " + string.Join("|", texts));
+        Check(!Complete(actions.FreeSoulAsync()).Sent, "A ghost sent GF");
+        Feed(account, AliveSprite);
+        NoPacket(peer, "Tomb and ghost menus sent extra packets");
+
+        // Avec la phrase du client (lang synthétique) : « Se frapper » parle dans le canal général.
+        string lang = Path.Combine(folder, "lang-self"); Directory.CreateDirectory(lang);
+        File.WriteAllText(Path.Combine(lang, "lang.xml"), "<?xml version='1.0' encoding='utf-8'?>\n<BotLang famille=\"lang\" langue=\"fr\" version=\"1\" source=\"lang_fr_1.swf\">\n"
+            + "<texte cle=\"HIT_HIMSELF\" valeur=\"Gifle factice\" />\n<texte cle=\"SLAP_SENTENCE\" valeur=\"Phrase factice\" />\n</BotLang>\n", new UTF8Encoding(false));
+        try
+        {
+            Check(LangData.Load(lang) == 1 && MapActionTexts.HitHimself == "Gifle factice" && MapActionTexts.SlapSentence == "Phrase factice", "Synthetic SLAP texts not loaded");
+            ToolStripMenuItem slap = Item(SelfMenuOf(account, view), "Gifle factice");
+            Check(slap.Enabled, "HIT_HIMSELF stays disabled with SLAP_SENTENCE");
+            slap.PerformClick();
+            Expect(peer, "BM*|Phrase factice|", "HIT_HIMSELF does not say SLAP_SENTENCE in the general channel");
+        }
+        finally { LangData.Clear(); }
+        NoPacket(peer, "HIT_HIMSELF sent more than one message");
+    }
+
+    /// <summary>
+    /// GA;617;&lt;interrogé&gt;;&lt;interrogé&gt;,&lt;conjoint&gt;,-1 (SocketManager.GAME_SEND_WEDDING de StarLoco) : boîte Oui / Non
+    /// « mariage » pour soi, GA618 / GA619&lt;ref&gt;, GA;618 / GA;619 du client, demande d'un autre joueur, paquets malformés.
+    /// </summary>
+    private static void MarriageDialogs(Accounts account, Socket peer, MapActions actions)
+    {
+        var notices = new List<MapActionNotice>(); actions.Notice += notices.Add;
+        Func<bool> noBox = () => BotDialogs.OpenDialogs.All(form => form.Name != "mariage");
+        try
+        {
+            Check(GameActionRouter.IsRegistered(617) && GameActionRouter.IsRegistered(618) && GameActionRouter.IsRegistered(619), "GA;617/618/619 handlers were not discovered");
+            Feed(account, "GA;617;7;7,42,-1");
+            Form box = Dialog("mariage");
+            Check(All(box).OfType<Button>().Select(b => b.Text).OrderBy(t => t).SequenceEqual(new[] { "Non", "Oui" }), "Marriage dialog lacks Oui/Non");
+            Check(All(box).OfType<Label>().Any(label => label.Text == MapActionTexts.AskMarriage("Personnage de test", "Joueur fictif")), "A_ASK_MARRIAGE_B text missing");
+            Check(actions.PendingMarriage != null && actions.PendingMarriage.Reference == 7 && actions.PendingMarriage.PartnerId == 42, "Marriage request not tracked");
+            Answer(box, "Oui"); Expect(peer, "GA6187", "Oui does not send GA618<ref>");
+            PumpUntil(noBox);
+            Check(actions.PendingMarriage == null, "An answered marriage stayed pending");
+            Feed(account, "GA;618;7;7,42");
+            Check(notices.Any(n => n.Text == MapActionTexts.Married("Personnage de test", "Joueur fictif")), "GA;618 is not announced like A_MARRIED_B");
+
+            Feed(account, "GA;617;7;7,42,-1");
+            Answer(Dialog("mariage"), "Non"); Expect(peer, "GA6197", "Non does not send GA619<ref>");
+            Feed(account, "GA;619;7;7,42");
+            Check(notices.Any(n => n.Text == MapActionTexts.NotMarried("Personnage de test", "Joueur fictif")), "GA;619 is not announced like A_NOT_MARRIED_B");
+
+            // Refermée par la réponse de l'autre (GA;619) : aucune réponse envoyée.
+            Feed(account, "GA;617;7;7,42,-1"); Dialog("mariage");
+            Feed(account, "GA;619;42;42,7");
+            PumpUntil(noBox);
+            Check(actions.PendingMarriage == null, "A marriage closed by the server stayed pending");
+            NoPacket(peer, "A marriage closed by the server was answered");
+
+            // Demande adressée à un autre joueur : bulle seulement. Paquets malformés : journalisés, sans boîte.
+            notices.Clear();
+            Feed(account, "GA;617;42;42,43,-1"); Application.DoEvents();
+            Check(noBox() && actions.PendingMarriage == null && notices.Any(n => n.Text == MapActionTexts.AskMarriage("Joueur fictif", "Joueur protégé")),
+                "Another player's marriage opened a dialog or was not announced");
+            foreach (string bad in new[] { "GA;617;7;abc", "GA;617;7;7", "GA;617;;7,42,-1", "GA;617;7;", "GA;618;7;x,y", "GA;619" }) Feed(account, bad);
+            Application.DoEvents();
+            Check(noBox() && actions.PendingMarriage == null, "A malformed marriage packet opened a dialog");
+            Check(!Complete(actions.AcceptMarriageAsync()).Sent && !Complete(actions.RefuseMarriageAsync()).Sent, "A marriage answer was sent without a request");
+            NoPacket(peer, "Malformed marriage packets triggered a reply");
+        }
+        finally { actions.Notice -= notices.Add; }
+    }
+
+    /// <summary>Choix du personnage (ChooseCharacter du client) : un mort du mode héroïque ne se joue pas, RESET_SHORTCUT envoie AR&lt;id&gt;.</summary>
+    private static void ResetDeadCharacter(Accounts account, Socket peer)
+    {
+        Feed(account, "ALK8640000000|2|7;Personnage de test;25;80;0;0;0;;0;601;0;0|12;Tombe fictive;30;11;0;0;0;;0;601;1;2");
+        Check(account.Game.Server.DeadCharacters.Count == 1 && account.Game.Server.DeadCharacters[12] == 2, "ALK did not mark the dead character");
+        using (var selection = new SelectPlayerPerso(account, true))
+        {
+            selection.StartPosition = FormStartPosition.Manual; selection.Location = new Point(-4000, -4000); selection.ShowInTaskbar = false;
+            // La fenêtre de jeu garde le compte : l'écran de choix ne doit pas le libérer en se fermant.
+            typeof(SelectPlayerPerso).GetMethod("ReleaseAccount", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(selection, null);
+            selection.Show(); Application.DoEvents();
+            var play = (Control)typeof(SelectPlayerPerso).GetField("play", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(selection);
+            Button reset = All(selection).OfType<Button>().Single(b => b.Text == MapActionTexts.ResetCharacter);
+            ListView list = All(selection).OfType<ListView>().First(view => view.Items.Count == 2);
+            Action<int> select = id => { foreach (ListViewItem row in list.Items) row.Selected = (int)row.Tag == id; Application.DoEvents(); };
+            select(12);
+            Check(reset.Visible && reset.Enabled && !play.Enabled, "A dead character can be played or cannot be reset");
+            select(7);
+            Check(!reset.Enabled && play.Enabled, "A living character cannot be played or can be reset");
+            select(12);
+            reset.PerformClick(); PumpUntil(() => BotDialogs.OpenDialogs.Count == 1);
+            Check(All(BotDialogs.OpenDialogs[0]).OfType<Label>().Any(label => label.Text == MapActionTexts.ResetCharacterQuestion), "DO_U_RESET_CHARACTER text missing");
+            Answer(BotDialogs.OpenDialogs[0], "Non"); PumpUntil(() => BotDialogs.OpenDialogs.Count == 0);
+            NoPacket(peer, "AR was sent without confirmation");
+            reset.PerformClick(); PumpUntil(() => BotDialogs.OpenDialogs.Count == 1);
+            Answer(BotDialogs.OpenDialogs[0], "Oui");
+            Expect(peer, "AR12", "RESET_SHORTCUT does not send AR<id>");
+            Complete(selection.ResetCharacter(7));
+            NoPacket(peer, "AR was sent for a living character");
+            selection.Close(); Application.DoEvents();
+        }
+        Check(account.Connexion != null && account.Connexion.IsConnected(), "Closing the selection screen released the account");
+        Feed(account, "ALK8640000000|1|7;Personnage de test;25;80;0;0;0;;0;601;0;0");
+        Check(account.Game.Server.DeadCharacters.IsEmpty, "A revived list kept the dead character");
+    }
+
+    /// <summary>GO : boîte « fin-de-partie » à un seul bouton Rejouer (REPLAY_WORD), connexion fermée, retour au choix du personnage.</summary>
+    private static void GameOverDialog(Accounts account, GameClientFullform form)
+    {
+        FieldInfo hook = typeof(BotDialogs).Assembly.GetType("Outil_Azur_complet.Bot.MapActionPrompts", true)
+            .GetField("ReplayAction", BindingFlags.Static | BindingFlags.NonPublic);
+        object original = hook.GetValue(null);
+        var replays = new List<Form>();
+        hook.SetValue(null, (Action<Form, AccountConfig>)((window, config) => { if (config == account.accountConfig) replays.Add(window); }));
+        try
+        {
+            Feed(account, "GO");
+            Form box = Dialog("fin-de-partie");
+            Check(All(box).OfType<Button>().Select(b => b.Text).SequenceEqual(new[] { MapActionTexts.Replay }), "Game over dialog is not a single Rejouer button");
+            Check(account.Connexion == null || !account.Connexion.IsConnected(), "GO did not close the connection");
+            Answer(box, MapActionTexts.Replay);
+            PumpUntil(() => replays.Count == 1);
+            Check(ReferenceEquals(replays[0], form), "Rejouer did not leave the game window for the character selection");
+        }
+        finally { hook.SetValue(null, original); }
     }
 
     /// <summary>Textes et tables d'alignement du client lus dans un lang synthétique.</summary>

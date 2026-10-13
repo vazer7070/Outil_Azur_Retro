@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Threading.Tasks;
 using Tool_BotProtocol.Frames.Auth;
 using Tool_BotProtocol.Frames.Messages;
@@ -55,6 +56,7 @@ namespace Tool_BotProtocol.Frames.Jeu
                 return;
             }
             var characters = new Dictionary<int, string>();
+            var dead = new Dictionary<int, int>();
             int createdId = 0;
             for (int index = 2; index < fields.Length; index++)
             {
@@ -69,11 +71,16 @@ namespace Tool_BotProtocol.Frames.Jeu
                     continue;
                 }
                 characters[id] = character[1] + "|" + level + "|" + appearance + "|";
+                // Mode héroïque (lot X2) : champ 10 = 1 pour un personnage mort, champ 11 = nombre de morts ; StarLoco écrit « 0 » sinon.
+                if (character.Length > 10 && character[10] == "1")
+                    dead[id] = character.Length > 11 && int.TryParse(character[11], NumberStyles.Integer, CultureInfo.InvariantCulture, out int deaths) ? deaths : 0;
                 if (string.Equals(character[1], account.Game.Server.NameNewCharacter, StringComparison.Ordinal)) createdId = id;
             }
             account.AboTime = Math.Max(0, subscription);
             account.AccountCharactersInfo.Clear();
             foreach (var character in characters) account.AccountCharactersInfo.TryAdd(character.Key, character.Value);
+            account.Game.Server.DeadCharacters.Clear();
+            foreach (var character in dead) account.Game.Server.DeadCharacters[character.Key] = character.Value;
             if (characters.Count != advertised)
                 account.Logger.LogDanger("PERSONNAGES", "Le nombre de personnages reçu diffère du nombre annoncé.");
             if (account.Game.Server.ExitCreationMenu && createdId > 0)

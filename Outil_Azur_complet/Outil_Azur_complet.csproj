@@ -261,6 +261,7 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Bot\Controls\CharacterSelectionScene.cs" />
+    <Compile Include="Bot\Controls\DirectionChooser.cs" />
     <Compile Include="Bot\Controls\UserMapControl.Actors.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -386,6 +387,7 @@
     <Compile Include="Bot\Menus\CollectorMenuProvider.cs" />
     <Compile Include="Bot\Menus\PrismMenuProvider.cs" />
     <Compile Include="Bot\Menus\PlayerMenuProvider.cs" />
+    <Compile Include="Bot\Menus\SelfMenuProvider.cs" />
     <Compile Include="Bot\Menus\HouseDoorMenuProvider.cs" />
     <Compile Include="Bot\Menus\MerchantMenuProvider.cs" />
     <Compile Include="Bot\Menus\ParkMountMenuProvider.cs" />

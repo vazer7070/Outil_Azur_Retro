@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using Tool_BotProtocol.Game.Maps.Entities;
 using Tool_BotProtocol.Game.Perso;
 using Tool_BotProtocol.Utils.Interfaces;
 
@@ -45,10 +46,40 @@ namespace Tool_BotProtocol.Game.Session
         public bool IsGameCreated => GameType > 0;
         /// <summary>Nom renvoyé par StarLoco dans <c>GCK</c> (le client ne l'utilise pas).</summary>
         public string GameCharacterName { get; private set; } = string.Empty;
-        /// <summary>Valeur brute de <c>AR</c> (base 36 décodée), -1 avant le premier <c>AR</c>.</summary>
+        /// <summary>
+        /// Valeur brute de <c>AR</c> (base 36 décodée), -1 avant le premier <c>AR</c>. Ses bits sont ceux de
+        /// <c>dofus.datacenter.Player</c> (1 = <c>!canAssault</c>, 128 = <c>cantInteractWithTaxCollector</c>,
+        /// 8192 = <c>canMoveInAllDirections</c>…), lus par <see cref="Actions.MapActions.HasOwnRestriction"/>.
+        /// </summary>
         public int RawRestrictions { get; private set; } = -1;
-        /// <summary>Restrictions du personnage joué (bits connus du client ; <c>AR6bk</c> = aucune).</summary>
+        /// <summary>
+        /// Les neuf premiers bits de <c>AR</c> nommés comme ceux du sprite (<see cref="PlayerRestrictions"/>). Les mêmes bits
+        /// n'ont pas le même sens dans <c>AR</c> : <c>AR3K</c> (128) que StarLoco envoie à toute transformation, fantôme
+        /// compris, n'est pas une tombe. L'état tombe se lit dans le sprite du personnage (<see cref="IsTomb"/>).
+        /// </summary>
         public PlayerRestrictions Restrictions { get; private set; }
+        /// <summary>Bit 8192 de <c>AR</c> (<c>Player.canMoveInAllDirections</c>) : huit orientations au lieu des quatre diagonales.</summary>
+        public bool CanMoveInAllDirections => RawRestrictions >= 0 && (RawRestrictions & 8192) != 0;
+        /// <summary>
+        /// Tombe : bit 128 des restrictions du sprite <c>GM</c> du personnage (<c>Player.data.isTomb</c> du client). StarLoco
+        /// écrit « -10 » dans ce champ après une défaite à 0 d'énergie (<c>Player.setFuneral</c>) et à chaque connexion d'une
+        /// tombe. Faux tant que le personnage n'est pas sur la carte, et en combat.
+        /// </summary>
+        public bool IsTomb => (SelfSprite?.Restrictions & PlayerRestrictions.Tomb) == PlayerRestrictions.Tomb;
+        /// <summary>
+        /// Fantôme : bit 32 (ralenti) du sprite, que la commande <c>/release</c> du client lit pour répondre
+        /// <c>ERROR_ALREADY_A_GHOST</c> ; StarLoco écrit « -40 » (vitesse du fantôme) après <c>GF</c>.
+        /// </summary>
+        public bool IsGhost => !IsTomb && (SelfSprite?.Restrictions & PlayerRestrictions.Slow) == PlayerRestrictions.Slow;
+
+        private PlayerActor SelfSprite
+        {
+            get
+            {
+                var self = account?.Game?.Map?.Self as PlayerActor;
+                return self == null || self.InFight || !self.RestrictionsValue.HasValue ? null : self;
+            }
+        }
         /// <summary>Communauté annoncée par <c>Ac&lt;id&gt;</c> (le client ignore une valeur négative).</summary>
         public int? CommunityId { get; private set; }
         /// <summary>Horloge de <c>BT&lt;ms&gt;</c> : millisecondes envoyées par le serveur (StarLoco ajoute 2 h à l'heure Unix).</summary>
@@ -58,6 +89,11 @@ namespace Tool_BotProtocol.Game.Session
 
         public event Action GameCreated;
         public event Action<int> LevelUp;
+        /// <summary>
+        /// <c>GO</c> : fin de partie du mode héroïque (<c>Game.onGameOver</c> : déconnexion douce puis écran <c>GameOver</c>).
+        /// Levé avant la déconnexion, que <see cref="Accounts.Accounts.Disconnect()"/> fait juste après.
+        /// </summary>
+        public event Action GameOver;
         public event Action<ServerMessage> ServerMessageReceived;
         public event EventHandler<InvitationEventArgs> PartyInviteReceived;
         public event EventHandler<InvitationEventArgs> GuildInviteReceived;
@@ -102,6 +138,8 @@ namespace Tool_BotProtocol.Game.Session
         }
 
         internal void OnLevelUp(int level) => Raise(LevelUp, handler => handler(level));
+
+        internal void OnGameOver() => Raise(GameOver, handler => handler());
 
         internal void OnServerMessages(IEnumerable<ServerMessage> messages)
         {

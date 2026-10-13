@@ -142,6 +142,8 @@ Après la relecture, le bot a été joué sur une copie locale du StarLoco du ki
 
 **X1 — Corps à corps** (après ces dix lots). `GA303<cellule>` comme le client : case `²` de la barre (arme en position 1 ou poing `DefaultCC`), raccourci `SH0`, clic sur un ennemi adjacent sans sort choisi (ajout du bot) ; PA et portée lus dans `items.xml` (arme) ou `classes.xml` (poings), `GKK` sur `GAF`. Tests : `BotFightProtocolSmoke`, `BotFightUiSmoke`, scénario h de `BotStarLocoLiveSmoke`.
 
+**X2 — Tombe, fantôme et menu de son personnage.** Tombe et fantôme lus dans le sprite du `GM`, menu de son propre personnage (« Se frapper » `BM*`, « Libérer mon âme » `GF`, « Changer de direction » et son sélecteur `eD`), boîte du mariage (`GA;617` → `GA618` / `GA619`), mode héroïque (`ALK` des morts, `AR<id>`, boîte de fin de partie sur `GO`). Tests : `BotSessionSmoke`, `BotMapActionsSmoke` ; scénarios x2a à x2c de `BotStarLocoLiveSmoke` (orientation vue par l’autre compte, tombe ramenée à la vie par la statue du phénix, mariage).
+
 ## Couverture des fonctions
 
 Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par le test cité contre un serveur fictif local), **partiel** (une partie seulement), **absent**. Les fonctions rejouées par `BotStarLocoLiveSmoke` sont aussi vérifiées sur un vrai StarLoco local ; les autres lignes ne le sont pas encore. La colonne « Client 1.34 » nomme la fenêtre ou les paquets du client ; la colonne « StarLoco » dit ce que le serveur du kit en fait.
@@ -155,6 +157,7 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | Création et suppression d’un personnage | `AA`, `AD` | traité ; réponse secrète exigée à partir du niveau 20 | partiel : les envois ne sont pas vérifiés par un test | `BotUiSmoke` (Windows, écran de création) |
 | Paramètres de connexion | — | — | fait | `BotConfigSmoke` |
 | Messages du serveur | `Im`, `cs`, `M1` | traité | fait | `BotSessionSmoke`, `BotLangDataSmoke` |
+| Mode héroïque : morts, réinitialisation, fin de partie | `ALK` (champs 10 et 11), `AR<id>`, `GO` | `HEROIC` faux par défaut ; `AR<id>` ranime sans vérifier la mort | partiel : non rejoué sur le vrai serveur ; écran `GameOver` du client non exporté (boîte à la place) | `BotSessionSmoke`, `BotMapActionsSmoke` |
 
 ### A. Carte, décor et acteurs
 
@@ -188,6 +191,9 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | B10 | Zaapi | `GA500;157`, `Wu` | traité | fait | `BotInteractivesSmoke` |
 | B11 | Portes, coffres, enclos, pancartes | `GA500`, `KK`, `dCK` | traité | fait | `BotInteractivesSmoke`, `BotHouseMerchantSmoke`, `BotMountSmoke` |
 | B12 | Prisme et percepteur | `GA512`, `GA909`, `GA912`, `ER8` | défense de percepteur (`gTJ`/`gTV`) inopérante | partiel : défense non proposée | `BotGuildSmoke`, `BotAlignmentSmoke` |
+| B13 | Menu de son personnage : se frapper, changer d’orientation | `BM*`, `eD` | traité ; `eD` ignoré en combat et pour une tombe | fait (« Se frapper » grisé sans `lang.xml`) | `BotSessionSmoke`, `BotMapActionsSmoke`, `BotStarLocoLiveSmoke` |
+| B14 | Tombe, fantôme, statue du phénix | sprite du `GM`, `GF`, marche vers la statue (`GA001`) | `GF` sans vérification, cimetière de la zone, `AR6bk` à la résurrection | fait (refus local de `GF` hors tombe ; tombe posée par la base sur le vrai serveur) | `BotSessionSmoke`, `BotMapActionsSmoke`, `BotStarLocoLiveSmoke` |
+| B15 | Mariage devant le prêtre | `GA;617`, `GA618`, `GA619` | n’envoie que `GA;617`, à l’interrogé seul ; la bulle du prêtre nomme deux fois l’interrogé | fait | `BotMapActionsSmoke`, `BotStarLocoLiveSmoke` |
 
 ### C. Chat
 
@@ -272,6 +278,8 @@ Préalable : une copie isolée d’un vrai StarLoco, avec des comptes et des per
 - la comparaison des textes et des images avec l’affichage du client 1.34 en jeu (textes de langue, sprites, surtêtes, bulles, marges) ;
 - la suite complète `tests/Run-Tests.ps1` sous Windows, en Debug et en Release : sa dernière exécution complète date du 2 octobre 2026, avant les tests du bot ;
 - les captures sur la vraie carte : l’outil la lit dans l’export SQL du serveur et dans le client au moment de la capture, sans rien versionner ; sans eux, il compose une prairie synthétique.
+
+Lot X2 : l’orientation, « Se frapper », la tombe ramenée à la vie et le mariage sont rejoués (scénarios x2a à x2c). Restent le mode héroïque (`GO`, morts de `ALK`, `AR<id>`), qui demande `HEROIC` dans la configuration du serveur et un redémarrage, et une tombe obtenue par de vraies défaites à 0 d’énergie plutôt qu’écrite dans la base.
 
 ### Carte et acteurs
 
