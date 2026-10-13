@@ -167,6 +167,7 @@
     <Compile Include="Game\Actions\MapActions.cs" />
     <Compile Include="Game\Actions\MapActionTexts.cs" />
     <Compile Include="Game\Actions\MapFights.cs" />
+    <Compile Include="Game\Combats\CloseCombat.cs" />
     <Compile Include="Game\Combats\FightActions.cs" />
     <Compile Include="Game\Combats\FightEffects.cs" />
     <Compile Include="Game\Combats\FightResult.cs" />

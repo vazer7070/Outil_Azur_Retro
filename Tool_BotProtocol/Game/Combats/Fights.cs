@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -10,6 +11,9 @@ using Tool_BotProtocol.Game.Maps;
 using Tool_BotProtocol.Game.Maps.Entities;
 using Tool_BotProtocol.Game.Maps.Interfaces;
 using Tool_BotProtocol.Game.Maps.Mouvements;
+using Tool_BotProtocol.Game.Perso;
+using Tool_BotProtocol.Game.Perso.Inventory;
+using Tool_BotProtocol.Game.Perso.Inventory.Enums;
 using Tool_BotProtocol.Game.Perso.Spells;
 using Tool_BotProtocol.Network;
 using Tool_BotProtocol.Utils.Crypto;
@@ -58,6 +62,12 @@ namespace Tool_BotProtocol.Game.Combats
     {
         /// <summary>Nombre de lignes conservées dans <see cref="Journal"/>.</summary>
         public const int JournalCapacity = 200;
+        /// <summary>
+        /// Identifiant du corps à corps dans la barre de sorts (<c>CloseCombat.ID</c> du client, sort 0) : la case <c>²</c> et
+        /// <c>SH0</c> le choisissent comme un sort, <see cref="GetSpellUnavailableReason"/> et <see cref="CastSpellAsync"/> le
+        /// renvoient à <see cref="GetCloseCombatUnavailableReason"/> et <see cref="AttackAsync"/> tant qu'aucun sort 0 n'est appris.
+        /// </summary>
+        public const short CloseCombatSpellId = 0;
         private readonly Accounts.Accounts account;
         private readonly object sync = new object();
         private readonly Dictionary<int, CombatFighter> fighters = new Dictionary<int, CombatFighter>();
@@ -186,7 +196,11 @@ namespace Tool_BotProtocol.Game.Combats
             return null;
         }
         public string GetSpellUnavailableReason(short spellId, short? targetCell = null)
-        { lock (sync) return SpellUnavailable(spellId, targetCell); }
+        {
+            if (IsCloseCombat(spellId)) return GetCloseCombatUnavailableReason(targetCell);
+            lock (sync) return SpellUnavailable(spellId, targetCell);
+        }
+        private bool IsCloseCombat(short spellId) => spellId == CloseCombatSpellId && account.Game?.character?.Spells?.ContainsKey(spellId) != true;
         private string SpellUnavailable(short spellId, short? targetCell)
         {
             string reason = ActionUnavailable(false);
@@ -214,7 +228,78 @@ namespace Tool_BotProtocol.Game.Combats
             return null;
         }
         public Task<CombatActionResult> CastSpellAsync(short spellId, short targetCell)
-        { return RequestAsync("GA300" + spellId + ";" + targetCell, "sort", () => SpellUnavailable(spellId, targetCell)); }
+        {
+            if (IsCloseCombat(spellId)) return AttackAsync(targetCell);
+            return RequestAsync("GA300" + spellId + ";" + targetCell, "sort", () => SpellUnavailable(spellId, targetCell));
+        }
+
+        /// <summary>
+        /// Corps à corps actuel : arme en position 1, sinon poings de la classe (<see cref="CloseCombatStats"/>). Lu à chaque
+        /// appel, l'arme pouvant changer entre deux tours (<c>OM</c>).
+        /// </summary>
+        public CloseCombatStats CloseCombat
+        {
+            get
+            {
+                CharacterClass character = account.Game?.character;
+                InventoryObjects weapon = character?.Inventory?.GetObjetsPosition(InventorySlots.WEAPON);
+                return CloseCombatStats.For(character?.Race_ID ?? 0, weapon?.ID ?? 0, weapon?.Name);
+            }
+        }
+        public string GetCloseCombatUnavailableReason(short? targetCell = null)
+        {
+            CloseCombatStats stats = CloseCombat;
+            lock (sync) return CloseCombatUnavailable(stats, targetCell);
+        }
+        /// <summary>
+        /// Vérifications du client avant <c>GA303</c> (<c>checkCanLaunchSpellReturnObject</c> du sort 0, puis cellules à portée) :
+        /// tour, états requis et interdits de la classe, PA, cellule du terrain, portée de l'arme ou des poings, ligne.
+        /// La ligne de vue, la zone et les effets restent décidés par le serveur.
+        /// </summary>
+        private string CloseCombatUnavailable(CloseCombatStats stats, short? targetCell)
+        {
+            string reason = ActionUnavailable(false);
+            if (reason != null) return reason;
+            int self = account.Game.character.id;
+            foreach (int state in stats.RequiredStates)
+                if (!HasStateLocked(self, state)) return "Corps à corps impossible hors de l’état « " + StateName(state) + " ».";
+            foreach (int state in stats.ForbiddenStates)
+                if (HasStateLocked(self, state)) return "Corps à corps impossible dans l’état « " + StateName(state) + " ».";
+            if (stats.HasData && pa >= 0 && stats.ActionPoints > pa) return "PA insuffisants (" + stats.ActionPoints + " requis).";
+            if (!targetCell.HasValue) return null;
+            Cell target = account.Game.Map.GetCellFromId(targetCell.Value), origin = account.Game.character.Cell;
+            if (target == null || !target.IsActive) return "Cette cellule ne fait pas partie du terrain de combat.";
+            if (origin == null) return "La position de votre personnage n’est pas encore connue.";
+            if (!stats.HasData) return null;
+            int distance = origin.GetDistanceBetweenCells(target);
+            if (distance < stats.MinRange || distance > stats.MaxRange)
+                return stats.MinRange <= 1 && stats.MaxRange == 1 ? "La cible doit être adjacente à votre personnage."
+                    : "Cible hors portée (" + stats.MinRange + "–" + stats.MaxRange + ").";
+            if (stats.LineOnly && !origin.AreCellsOnline(target)) return "Cette arme frappe en ligne.";
+            return null;
+        }
+        private bool HasStateLocked(int fighterId, int state) { HashSet<int> set; return states.TryGetValue(fighterId, out set) && set.Contains(state); }
+        private static string StateName(int state)
+        {
+            IReadOnlyDictionary<string, string> data = Data.LangData.Raw("states", "ST", state.ToString(CultureInfo.InvariantCulture));
+            string name;
+            return data != null && data.TryGetValue("n", out name) && !string.IsNullOrEmpty(name) ? name : "n° " + state.ToString(CultureInfo.InvariantCulture);
+        }
+        /// <summary>
+        /// <c>GA303&lt;cellule&gt;</c> : attaque au corps à corps, comme le client (<c>sendActions(303, [cellule])</c> au relâchement
+        /// d'une cellule en mode <c>cc</c>). StarLoco répond <c>GAS</c>, puis avec une arme <c>GA;303</c> (ou <c>GA;305</c>,
+        /// échec critique qui finit le tour), les effets, <c>GA;102</c> et <c>GAF</c> ; à mains nues il lance le sort 0
+        /// (<c>GA;300</c>…) et ne libère le lancer qu'avec <c>GA;102;id;id,-0</c> une seconde plus tard, comme un sort.
+        /// <c>GKK</c> est renvoyé sur <c>GAF</c> par <c>MapFrame</c>, comme pour <see cref="CastSpellAsync"/>.
+        /// </summary>
+        public Task<CombatActionResult> AttackAsync(short targetCell)
+        {
+            CloseCombatStats stats = CloseCombat;
+            return RequestAsync("GA303" + targetCell.ToString(CultureInfo.InvariantCulture), stats.IsArmed ? "corps à corps" : "poings",
+                () => CloseCombatUnavailable(stats, targetCell));
+        }
+        /// <summary>Attentes libérées par <c>GA;102;id;id,-0</c> (verrou de lancer de StarLoco) plutôt que par <c>GAF</c>.</summary>
+        internal static bool WaitsForCastingUnlock(string kind) { return kind == "sort" || kind == "poings"; }
         public Task<CombatActionResult> SetReadyAsync(bool value)
         { return RequestAsync("GR" + (value ? "1" : "0"), "prêt", () => ActionUnavailable(true)); }
         public Task<CombatActionResult> PlaceAsync(short targetCell)
@@ -678,11 +763,27 @@ namespace Tool_BotProtocol.Game.Combats
             lock (sync)
             {
                 if (!InFight || id != account.Game.character.id) return;
-                if (pendingKind != "sort") pendingKind = null;
-                // StarLoco clears its casting lock later with GA;102;guid;guid,-0.
-                else if (!pendingConfirmed && !lastMessage.StartsWith("Le serveur a refusé", StringComparison.Ordinal)) lastMessage = "Le serveur n’a pas confirmé le lancement du sort.";
+                bool refused = lastMessage.StartsWith("Le serveur a refusé", StringComparison.Ordinal);
+                if (!WaitsForCastingUnlock(pendingKind))
+                {
+                    if (pendingKind == "corps à corps" && !pendingConfirmed && !refused) lastMessage = "Le serveur n’a pas confirmé l’attaque au corps à corps.";
+                    pendingKind = null;
+                }
+                // StarLoco clears its casting lock later with GA;102;guid;guid,-0 (spells and bare-handed close combat).
+                else if (!pendingConfirmed && !refused)
+                    lastMessage = pendingKind == "poings" ? "Le serveur n’a pas confirmé le coup de poing." : "Le serveur n’a pas confirmé le lancement du sort.";
             }
             Changed();
+        }
+        /// <summary><c>GA;303</c> ou <c>GA;305</c> du personnage : le serveur a traité l'attaque au corps à corps demandée.</summary>
+        internal void ConfirmCloseCombat(int actorId, bool criticalFailure)
+        {
+            lock (sync)
+            {
+                if (!InFight || actorId != account.Game.character.id || pendingKind == null) return;
+                pendingConfirmed = true;
+                lastMessage = criticalFailure ? "Échec critique au corps à corps : le serveur termine le tour." : "Attaque au corps à corps confirmée par le serveur.";
+            }
         }
         internal void Refuse(string message)
         { lock (sync) { if (!InFight) return; lastMessage = "Le serveur a refusé l’action : " + message; } account.Logger.LogDanger("COMBAT", LastActionMessage); Changed(); }
