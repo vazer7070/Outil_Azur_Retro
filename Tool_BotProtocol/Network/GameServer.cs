@@ -31,6 +31,11 @@ namespace Tool_BotProtocol.Network
         public bool ExitCreationMenu = false;
         public string NameNewCharacter;
         public ConcurrentDictionary<int, ServerStates> Servers = new ConcurrentDictionary<int, ServerStates>();
+        /// <summary>
+        /// Personnages morts du mode héroïque lus dans <c>ALK</c> (champ 10 = 1, comme <c>isDead = (p3.isDead == 1)</c> du
+        /// client) → nombre de morts (champ 11). StarLoco n'écrit ces champs qu'avec <c>HEROIC</c> ; vide sinon.
+        /// </summary>
+        public ConcurrentDictionary<int, int> DeadCharacters = new ConcurrentDictionary<int, int>();
         public void RefreshData(int S_Id, string S_Name, ServerStates S_states)
         {
             ServerID = S_Id;
@@ -103,6 +108,7 @@ namespace Tool_BotProtocol.Network
             ServerName = null;
             ServerStates = ServerStates.OFFLINE;
             Servers.Clear();
+            DeadCharacters.Clear();
             ExitCreationMenu = false;
             NameNewCharacter = null;
         }

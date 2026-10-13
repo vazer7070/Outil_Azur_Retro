@@ -2,8 +2,10 @@ using System;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Outil_Azur_complet.Bot.Panels;
+using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Game.Actions;
 using Tool_BotProtocol.Game.Interactions;
+using Tool_BotProtocol.Game.Session;
 
 namespace Outil_Azur_complet.Bot
 {
@@ -12,15 +14,25 @@ namespace Outil_Azur_complet.Bot
     /// (<c>A_CHALENGE_YOU</c> ; Oui envoie <c>GA901</c>, Non <c>GA902</c>, Ignorer ignore le joueur pour la session puis
     /// <c>GA902</c>) ; duel proposé → information « Annuler » (<c>YOU_CHALENGE_B</c>, <c>GA902&lt;soi&gt;</c>) ; les deux boîtes se
     /// referment sans réponse sur <c>GA;901</c>/<c>GA;902</c>. Agression subie (<c>YOU_ARE_ATTAC</c>), refus <c>GA;903</c> et
-    /// réponses « qui est » vont au bandeau. Les événements arrivent sur le fil réseau et sont ramenés sur celui du tiroir.
+    /// réponses « qui est » vont au bandeau. Lot X2 : demande en mariage (<c>GA;617</c>) → Oui / Non (<c>GA618</c> / <c>GA619</c>),
+    /// fin de partie (<c>GO</c>) → « Rejouer ». Les événements arrivent sur le fil réseau et sont ramenés sur celui du tiroir.
     /// </summary>
     internal sealed class MapActionPrompts : IDisposable
     {
         internal const string IncomingDialog = "duel-recu";
         internal const string OutgoingDialog = "duel-propose";
+        internal const string MarriageDialog = "mariage";
+        internal const string GameOverDialog = "fin-de-partie";
         private readonly MapActions actions;
         private readonly PanelHost host;
+        private readonly GameSession session;
         private bool disposed;
+
+        /// <summary>
+        /// « Rejouer » de la fin de partie (<c>kernel.changeServer(true)</c> du client) : comme « Changer de personnage » de la
+        /// fenêtre de jeu, ouvre le choix du personnage du même compte et ferme la fenêtre. Remplaçable par un test.
+        /// </summary>
+        internal static Action<Form, AccountConfig> ReplayAction = OpenCharacterSelection;
 
         internal MapActionPrompts(MapActions actions, PanelHost host)
         {
@@ -31,6 +43,55 @@ namespace Outil_Azur_complet.Bot
             actions.ChallengeClosed += OnChallengeClosed;
             actions.Notice += OnNotice;
             actions.WhoisReceived += OnWhois;
+            actions.MarriageAsked += OnMarriageAsked;
+            actions.MarriageClosed += OnMarriageClosed;
+            session = host.Game?.Session;
+            if (session != null) session.GameOver += OnGameOver;
+        }
+
+        /// <summary>Demande en mariage (<c>GA;617</c> adressé à soi) : Oui → <c>GA618&lt;ref&gt;</c>, Non → <c>GA619&lt;ref&gt;</c>.</summary>
+        private void OnMarriageAsked(MarriageRequest request) => OnUi(async () =>
+        {
+            BotDialogResult answer = await BotDialogs.AskYesNoAsync(host, MapActionTexts.MarriageTitle, request.Text, MarriageDialog);
+            // Refermée par le serveur, remplacée par une autre demande ou fin de session : plus rien à répondre.
+            if (disposed || !ReferenceEquals(actions.PendingMarriage, request)) return;
+            InteractionResult result;
+            switch (answer)
+            {
+                case BotDialogResult.Yes: result = await actions.AcceptMarriageAsync(); break;
+                case BotDialogResult.No: result = await actions.RefuseMarriageAsync(); break;
+                default: return;
+            }
+            Report(result?.Message);
+        });
+
+        private void OnMarriageClosed(MarriageRequest request) => OnUi(() =>
+        {
+            BotDialogs.Dismiss(MarriageDialog);
+            return Task.CompletedTask;
+        });
+
+        /// <summary>
+        /// <c>GO</c> (mode héroïque) : la connexion est fermée juste après ; la boîte n'a qu'un bouton « Rejouer », comme
+        /// l'interface <c>GameOver</c> du client (son illustration <c>gameover.swf</c> n'est pas exportée).
+        /// </summary>
+        private void OnGameOver() => OnUi(async () =>
+        {
+            BotDialogs.Dismiss(MarriageDialog);
+            BotDialogResult answer = await BotDialogs.GameOverAsync(host, "Fin de partie",
+                "Le serveur a mis fin à la partie de ce personnage (mode héroïque) et la connexion est fermée.", GameOverDialog);
+            if (disposed || answer != BotDialogResult.Replay) return;
+            Form window = host.IsDisposed ? null : host.FindForm();
+            AccountConfig config = host.Account?.accountConfig;
+            if (window == null || window.IsDisposed || config == null) return;
+            ReplayAction?.Invoke(window, config);
+        });
+
+        private static void OpenCharacterSelection(Form window, AccountConfig config)
+        {
+            if (!(window is GameClientFullform)) return;
+            new PersoSelection(config).Show();
+            window.Close();
         }
 
         private void OnChallengeAsked(ChallengeInfo challenge) => OnUi(async () =>
@@ -112,8 +173,12 @@ namespace Outil_Azur_complet.Bot
             actions.ChallengeClosed -= OnChallengeClosed;
             actions.Notice -= OnNotice;
             actions.WhoisReceived -= OnWhois;
+            actions.MarriageAsked -= OnMarriageAsked;
+            actions.MarriageClosed -= OnMarriageClosed;
+            if (session != null) session.GameOver -= OnGameOver;
             BotDialogs.Dismiss(IncomingDialog);
             BotDialogs.Dismiss(OutgoingDialog);
+            BotDialogs.Dismiss(MarriageDialog);
         }
     }
 }

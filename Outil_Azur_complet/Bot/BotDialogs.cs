@@ -8,7 +8,7 @@ using System.Windows.Forms;
 namespace Outil_Azur_complet.Bot
 {
     /// <summary>Réponse d'une boîte de dialogue du bot ; <see cref="None"/> quand elle est fermée sans réponse.</summary>
-    public enum BotDialogResult { None, Yes, No, Ignore, Ok, Cancel }
+    public enum BotDialogResult { None, Yes, No, Ignore, Ok, Cancel, Replay }
 
     /// <summary>
     /// Boîtes de dialogue au style du client Retro (cadre brun, parchemin, filets dorés, boutons du client), à la place
@@ -38,6 +38,17 @@ namespace Outil_Azur_complet.Bot
         /// <summary>Information avec un seul bouton « Annuler » (<c>INFO_CANCEL</c> du client, duel proposé en attente).</summary>
         public static Task<BotDialogResult> CancelAsync(Control owner, string title, string message, string name) =>
             ShowAsync(owner, title, message, name, BotDialogResult.Cancel, BotDialogResult.Cancel);
+
+        // Lot X2 : demande en mariage (GA;617) et fin de partie (GO).
+        /// <summary>Oui / Non retrouvable par son nom (mariage <c>CAUTION_YESNO</c>), refermé par <see cref="Dismiss"/>.</summary>
+        public static Task<BotDialogResult> AskYesNoAsync(Control owner, string title, string message, string name) =>
+            ShowAsync(owner, title, message, name, BotDialogResult.No, BotDialogResult.Yes, BotDialogResult.No);
+        /// <summary>
+        /// Fin de partie (<c>GO</c>, interface <c>GameOver</c> du client) : un seul bouton « Rejouer » (<c>REPLAY_WORD</c>),
+        /// qui ramène au choix du personnage ; Échap vaut « Rejouer », la connexion étant déjà fermée.
+        /// </summary>
+        public static Task<BotDialogResult> GameOverAsync(Control owner, string title, string message, string name) =>
+            ShowAsync(owner, title, message, name, BotDialogResult.Replay, BotDialogResult.Replay);
 
         /// <summary>Referme sans réponse (<see cref="BotDialogResult.None"/>) les boîtes portant ce nom ; renvoie leur nombre.</summary>
         public static int Dismiss(string name)
@@ -112,6 +123,7 @@ namespace Outil_Azur_complet.Bot
                 case BotDialogResult.No: return "Non";
                 case BotDialogResult.Ignore: return "Ignorer";
                 case BotDialogResult.Cancel: return "Annuler";
+                case BotDialogResult.Replay: return Tool_BotProtocol.Game.Actions.MapActionTexts.Replay;
                 default: return "OK";
             }
         }

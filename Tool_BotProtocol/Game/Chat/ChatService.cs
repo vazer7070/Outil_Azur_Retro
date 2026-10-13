@@ -251,6 +251,18 @@ namespace Tool_BotProtocol.Game.Chat
         public Task<ChatResult> SitAsync() => EmoteAsync(ChatTexts.SitEmote);
 
         /// <summary>
+        /// « Se frapper » (<c>HIT_HIMSELF</c> du menu de son personnage) : <c>Chat.send(SLAP_SENTENCE, "*")</c> du client, donc
+        /// <c>BM*|&lt;phrase&gt;|</c>, combat compris. Sans le texte du client (<c>lang.xml</c> absent), rien n'est envoyé.
+        /// </summary>
+        public Task<ChatResult> SlapAsync()
+        {
+            string sentence = Actions.MapActionTexts.SlapSentence;
+            if (sentence == null)
+                return Task.FromResult(Refuse("Texte SLAP_SENTENCE du client introuvable (lang.xml non chargé) : rien n'est envoyé.", true));
+            return SendAsync(ChatChannels.Default.Code, sentence);
+        }
+
+        /// <summary>
         /// Ligne saisie dans la console du client : « /commande … » (voir <see cref="ChatCommands"/>) ou message du canal
         /// général. La ligne est ajoutée à l'historique avant d'être traitée, comme dans le client.
         /// </summary>
