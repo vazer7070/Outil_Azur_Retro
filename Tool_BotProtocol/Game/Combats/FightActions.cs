@@ -292,8 +292,8 @@ namespace Tool_BotProtocol.Game.Combats
         }
 
         /// <summary>
-        /// PA : <c>&lt;cible&gt;,&lt;variation&gt;[,&lt;tours&gt;]</c>. <c>102</c> = PA utilisés (StarLoco libère le sort par
-        /// <c>GA;102;id;id,-0</c>), <c>101</c>/<c>168</c> retrait, <c>111</c>/<c>120</c> gain.
+        /// PA : <c>&lt;cible&gt;,&lt;variation&gt;[,&lt;tours&gt;]</c>. <c>102</c> = PA utilisés (StarLoco libère le sort et le coup
+        /// de poing par <c>GA;102;id;id,-0</c>), <c>101</c>/<c>168</c> retrait, <c>111</c>/<c>120</c> gain.
         /// </summary>
         [FightActionHandler(101, 102, 111, 120, 168)]
         private static void OnActionPoints(FightActionContext context)
@@ -309,7 +309,7 @@ namespace Tool_BotProtocol.Game.Combats
                 if (target == fight.SelfId)
                 {
                     if (fight.pa >= 0) fight.pa = Clamp(fight.pa, delta);
-                    if (context.ActionId == 102 && delta == 0 && fight.pendingKind == "sort") fight.pendingKind = null;
+                    if (context.ActionId == 102 && delta == 0 && Fights.WaitsForCastingUnlock(fight.pendingKind)) fight.pendingKind = null;
                 }
             }
             if (context.ActionId != 102 && delta != 0)
@@ -532,7 +532,10 @@ namespace Tool_BotProtocol.Game.Combats
                     fight.pendingConfirmed = true;
                     if (context.ActionId == 300)
                     {
-                        fight.lastMessage = "Sort confirmé par le serveur."; fight.lastSpellTurn[spellId] = fight.turn;
+                        // Sort 0 : coup de poing que StarLoco lance pour un GA303 sans arme.
+                        fight.lastMessage = fight.pendingKind == "poings" && spellId == Fights.CloseCombatSpellId
+                            ? "Coup de poing confirmé par le serveur." : "Sort confirmé par le serveur.";
+                        fight.lastSpellTurn[spellId] = fight.turn;
                         int count; fight.castsThisTurn.TryGetValue(spellId, out count); fight.castsThisTurn[spellId] = count + 1;
                     }
                     else fight.lastMessage = "Échec critique confirmé par le serveur.";
@@ -597,6 +600,7 @@ namespace Tool_BotProtocol.Game.Combats
                     break;
             }
             if (text == null) { Invalid(context); return; }
+            if (context.ActionId == 303 || context.ActionId == 305) fight.ConfirmCloseCombat(context.ActorId, context.ActionId == 305);
             fight.Report(context.ActionId, context.ActorId, target, text);
             // Effets à l'écran : coup reçu (104), clip critique (301, 304), bulle d'échec (305), attaque à l'arme (303),
             // piège et glyphe déclenchés (306, 307 : sort, cellule, fichier, niveau, devant, cible).

@@ -618,6 +618,7 @@ namespace Outil_Azur_complet.Bot
             if (fight.IsInFight) text = fight.IsPlacement ? "Placement · choisissez votre cellule · " + nextTurn + " : prêt" : TurnStatus(fight);
             if (mapControl?.SelectedSpellId != null) {
                 Spell selected; if (c.Spells.TryGetValue(mapControl.SelectedSpellId.Value, out selected)) text = selected.Name + " · choisissez une cible · Échap : annuler";
+                else if (mapControl.SelectedSpellId.Value == Tool_BotProtocol.Game.Combats.Fights.CloseCombatSpellId) text = "Corps à corps (" + fight.CloseCombat.Name + ") · choisissez une cible · Échap : annuler";
             }
             if (!string.IsNullOrEmpty(actionFeedback) && DateTime.UtcNow < actionFeedbackUntil) text = actionFeedback;
             summary.Text = text;

@@ -98,6 +98,7 @@ try {
     $azurTests += 'BotStatsSheetSmoke'
     # Bot sur un vrai StarLoco local (deux comptes inventés, sans base de test) : réussi sans rien lancer si AZUR_STARLOCO_LOGIN
     # n'est pas défini ; avec le serveur, prévoir -TestTimeoutSeconds 300 (voir tests/README.md).
+    # Lot X1 : le scénario h ajoute environ 45 s ; AZUR_STARLOCO_SCENARIOS=h le joue seul après la connexion.
     $azurTests += 'BotStarLocoLiveSmoke'
     $azurTests += 'BotAnimationQueueSmoke'
     $azurTests += 'BotPointsHitDeathSmoke'
