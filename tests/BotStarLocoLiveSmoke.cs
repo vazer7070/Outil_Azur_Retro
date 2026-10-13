@@ -385,9 +385,18 @@ internal static partial class Live
         Say("scénario " + result);
     }
 
+    /// <summary>
+    /// <c>AZUR_STARLOCO_SCENARIOS</c> (facultatif) : repères des scénarios à jouer, séparés par des virgules (« h », « e,g2 ») ; le scénario a
+    /// (connexion) est toujours joué. Sert à rejouer un scénario seul sous la limite de 240 s du lanceur, le scénario f pouvant durer 200 s.
+    /// </summary>
+    private static readonly string[] onlyScenarios = (Environment.GetEnvironmentVariable("AZUR_STARLOCO_SCENARIOS") ?? "")
+        .Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
     /// <summary>Joue un scénario avec un délai maximal ; une exception devient un échec avec sa raison.</summary>
     private static async Task<bool> Scenario(string name, int seconds, Func<Task<string>> body)
     {
+        string letter = name.Substring(0, Math.Max(0, name.IndexOf('.')));
+        if (onlyScenarios.Length > 0 && letter != "a" && !onlyScenarios.Contains(letter)) { Record(name, "non joué", "absent de AZUR_STARLOCO_SCENARIOS"); return false; }
         Say("---- scénario " + name + " (délai " + seconds + " s)");
         Task<string> run = body();
         Task finished = await Task.WhenAny(run, Task.Delay(TimeSpan.FromSeconds(seconds))).ConfigureAwait(false);
@@ -434,6 +443,8 @@ internal static partial class Live
         await Scenario("b. même carte, déplacement, changement de carte et retour", 150, SameMapAsync).ConfigureAwait(false);
         await Scenario("c. chat général et message privé", 40, ChatAsync).ConfigureAwait(false);
         await Scenario("c2. émote assise de B jouée en bande dans la fenêtre de A (lot AN8)", 40, EmoteAsync).ConfigureAwait(false);
+        await Scenario("x2a. orientation et « Se frapper » depuis le menu de A, vus par B (lot X2)", 40, DirectionAsync).ConfigureAwait(false);
+        await Scenario("x2b. tombe, âme libérée au cimetière, fantôme ramené à la vie par le phénix (lot X2)", 120, TombAsync).ConfigureAwait(false);
         await Scenario("d1. invitation de groupe acceptée", 40, PartyAsync).ConfigureAwait(false);
         await Scenario("d2. échange de kamas validé des deux côtés", 60, ExchangeAsync).ConfigureAwait(false);
         await Scenario("d3. ajout en ami", 40, FriendAsync).ConfigureAwait(false);
@@ -1296,5 +1307,253 @@ internal static partial class Live
             else if (zaap.IsOpen) await zaap.LeaveAsync().ConfigureAwait(false);
         }
         return "zaap cellule " + cell + " : " + Short(wc, 60) + " (" + destinations + " destination(s)) ; WU" + destination.MapId + " (" + destination.Cost + " k) → GDM|" + destination.MapId + ", " + cost + back;
+    }
+}
+
+// Scénarios x2 (lot X2) : orientation de A vue par B ; tombe, âme libérée, fantôme ramené à la vie par la statue du phénix.
+internal static partial class Live
+{
+    /// <summary>
+    /// Carte d'Astrub (sous-zone 95, zone 18) où la tombe est posée : <c>Constant.tpCim</c> de StarLoco envoie les zones 3, 4, 6,
+    /// 18, 25, 27 et 41 au cimetière <see cref="CemeteryMap"/> (cellule 196), dont la cellule 252 porte la statue du phénix (objet 542).
+    /// </summary>
+    private const int TombMap = 7411, TombCell = 300, CemeteryMap = 8534, GhostGfx = 8004;
+    /// <summary>Objets interactifs « Statue Phoenix » de <c>InteractiveObject.getActionIO</c> (StarLoco).</summary>
+    private static readonly int[] PhoenixObjects = { 542, 1524 };
+
+    /// <summary>
+    /// A ouvre le menu de son personnage dans la fenêtre de jeu, choisit « Changer son orientation » puis une flèche du sélecteur :
+    /// <c>eD&lt;dir&gt;</c> part (<c>Emotes.setDirection</c>), StarLoco renvoie <c>eD&lt;A&gt;|&lt;dir&gt;</c> à toute la carte et B voit A tourné.
+    /// </summary>
+    private static async Task<string> DirectionAsync()
+    {
+        await GoHome(a).ConfigureAwait(false);
+        if (a.MapId != b.MapId) await GoHome(b).ConfigureAwait(false);
+        if (a.MapId != b.MapId) throw new SkipScenario("A et B ne sont pas sur la même carte (" + a.MapId + " / " + b.MapId + ")");
+        Check(await a.Until(() => a.Map.Self != null && ActorOf(b, a) != null, 10).ConfigureAwait(false), "B ne voit pas A sur la carte " + a.MapId);
+        MapActions actions = a.Account.Game.Interactions.MapActions;
+        Check(actions.CanChangeDirection && !actions.IsTomb && !actions.IsGhost, "« Changer son orientation » indisponible pour A vivant hors combat");
+        int seenBefore = ActorOf(b, a).Orientation;
+        int direction = actions.AllowedDirections.Where(d => d != seenBefore && d != a.Map.Self.Orientation).DefaultIfEmpty(-1).First();
+        Check(direction >= 0, "Aucune orientation différente de " + seenBefore + " parmi " + string.Join(",", actions.AllowedDirections));
+        // La fenêtre de jeu de A se construit sur le fil d'interface après ASK : l'attendre, comme Capture.
+        DateTime opened = DateTime.UtcNow.AddSeconds(20);
+        while (DateTime.UtcNow < opened && !await OnUi(() => window != null && window.IsHandleCreated && window.Visible && window.Map != null).ConfigureAwait(false))
+            await Task.Delay(100).ConfigureAwait(false);
+        int markA = a.ReceivedCount, markB = b.ReceivedCount, sentA = a.SentCount;
+        string how;
+        if (window?.Map != null)
+        {
+            string[] entries = await OnUi(() => ClickSelfMenu(MapActionTexts.ChangeDirection)).ConfigureAwait(false);
+            DateTime limit = DateTime.UtcNow.AddSeconds(5);
+            while (DateTime.UtcNow < limit && !await OnUi(() => DirectionChooser.Current != null && DirectionChooser.Current.IsOpen).ConfigureAwait(false))
+                await Task.Delay(50).ConfigureAwait(false);
+            int[] arrows = await OnUi(() => DirectionChooser.Current != null && DirectionChooser.Current.IsOpen ? DirectionChooser.Current.Directions.ToArray() : null).ConfigureAwait(false);
+            Check(arrows != null, "Le sélecteur d'orientation ne s'ouvre pas");
+            Check(arrows.SequenceEqual(actions.AllowedDirections), "Flèches du sélecteur " + string.Join(",", arrows) + " au lieu de " + string.Join(",", actions.AllowedDirections));
+            Task<string> chosen = await OnUi(() => DirectionChooser.Current.ChooseAsync(direction)).ConfigureAwait(false);
+            string report = await chosen.ConfigureAwait(false);
+            Check(!await OnUi(() => DirectionChooser.Current != null && DirectionChooser.Current.IsOpen).ConfigureAwait(false), "Le sélecteur reste ouvert après le choix");
+            how = "menu « " + string.Join(" | ", entries) + " », sélecteur " + arrows.Length + " flèche(s) → « " + report + " »";
+        }
+        else
+        {
+            var sent = await actions.SetDirectionAsync(direction).ConfigureAwait(false);
+            Check(sent.Sent, "Orientation refusée par le bot : " + sent.Message);
+            how = "sans fenêtre : " + sent.Message;
+        }
+        Check(await a.Until(() => a.SentSince(sentA).Contains("eD" + direction), 5).ConfigureAwait(false), "eD" + direction + " non envoyé par A");
+        string echoA = await a.Expect(p => p == "eD" + a.Id + "|" + direction, "eD" + a.Id + "|" + direction + " (A)", 10, markA).ConfigureAwait(false);
+        string echoB = await b.Expect(p => p == "eD" + a.Id + "|" + direction, "eD" + a.Id + "|" + direction + " (B)", 10, markB).ConfigureAwait(false);
+        Check(await b.Until(() => ActorOf(b, a)?.Orientation == direction && a.Map.Self?.Orientation == direction, 5).ConfigureAwait(false),
+            "Orientation après l'écho : B voit " + ActorOf(b, a)?.Orientation + ", A " + a.Map.Self?.Orientation + ", attendu " + direction);
+        UserMapControl.ActorVisualState drawn = window?.Map == null ? null : await StateOf(a.Id).ConfigureAwait(false);
+        string result = how + " ; A envoie eD" + direction + " (" + MapActions.DirectionName(direction) + "), A reçoit " + echoA + ", B reçoit " + echoB
+            + ", B voit A orienté " + seenBefore + " → " + ActorOf(b, a).Orientation + (drawn == null ? "" : ", fenêtre de A : " + drawn.AnimationName);
+
+        // « Se frapper » (HIT_HIMSELF) : SLAP_SENTENCE du client dans le canal général, entendu par B.
+        if (window?.Map == null || MapActionTexts.SlapSentence == null) return result + " ; Se frapper non joué (" + (window?.Map == null ? "pas de fenêtre" : "lang.xml absent") + ")";
+        int slapMark = b.ReceivedCount, slapSent = a.SentCount;
+        await OnUi(() => ClickSelfMenu(MapActionTexts.HitHimself)).ConfigureAwait(false);
+        Check(await a.Until(() => a.SentSince(slapSent).Any(p => p.StartsWith("BM*|" + MapActionTexts.SlapSentence + "|", StringComparison.Ordinal)), 5).ConfigureAwait(false),
+            "BM*|" + MapActionTexts.SlapSentence + "| non envoyé par « " + MapActionTexts.HitHimself + " »");
+        string heard = await b.Expect(p => p.StartsWith("cMK|") && p.Contains("|" + a.Id + "|") && p.Contains(MapActionTexts.SlapSentence), "cMK| de « " + MapActionTexts.SlapSentence + " »", 10, slapMark).ConfigureAwait(false);
+        return result + " ; « " + MapActionTexts.HitHimself + " » → BM*|" + MapActionTexts.SlapSentence + "|, B reçoit " + Short(heard, 60);
+    }
+
+    /// <summary>Ouvre le menu du personnage de A dans la fenêtre (fil d'interface), clique l'entrée <paramref name="text"/> et rend les entrées vues.</summary>
+    private static string[] ClickSelfMenu(string text)
+    {
+        ContextMenuStrip menu = window.Map.Router.ShowActorMenu(new Tool_BotProtocol.Game.Maps.Interfaces.Entites[] { a.Map.Self }, (short)a.Map.Self.CellId, Keys.None, false);
+        Check(menu != null, "Pas de menu sur le personnage de A");
+        string[] texts = menu.Items.OfType<ToolStripItem>().Where(i => !(i is ToolStripSeparator)).Select(i => i.Text).ToArray();
+        ToolStripItem item = menu.Items.OfType<ToolStripMenuItem>().FirstOrDefault(i => i.Text == text);
+        Check(item != null && item.Enabled, "Menu de A sans « " + text + " » actif : " + string.Join(" | ", texts));
+        item.PerformClick();
+        menu.Close();
+        return texts;
+    }
+
+    /// <summary>
+    /// Personnage d'un compte inventé, posé en tombe par la base (énergie -1 : <c>Player</c> appelle <c>setFuneral</c> au
+    /// chargement, comme <c>Fight</c> après une défaite à 0 d'énergie) : sprite « -10 » (bit 128), <c>GF</c> → fantôme 8004 « -40 »
+    /// au cimetière avec la liste des phénix (<c>IH</c>), marche sur la statue → <c>setAlive</c> (<c>AR6bk</c>, sprite vivant).
+    /// Le compte et le personnage sont supprimés de la base à la fin.
+    /// </summary>
+    private static async Task<string> TombAsync()
+    {
+        RequireMaps();
+        string database = Environment.GetEnvironmentVariable("AZUR_STARLOCO_GAME_DB");
+        if (string.IsNullOrWhiteSpace(database)) throw new SkipScenario("AZUR_STARLOCO_GAME_DB non défini : pas de base où poser la tombe");
+        if (!Map.AllBotMaps.ContainsKey(TombMap) || !Map.AllBotMaps.ContainsKey(CemeteryMap)) throw new SkipScenario("cartes " + TombMap + " et " + CemeteryMap + " absentes des cartes du bot");
+        using (var db = new MySql.Data.MySqlClient.MySqlConnection(database))
+        {
+            db.Open();
+            string schema = PlayersSchema(db, a.Id, a.CharacterName);
+            if (schema == null) throw new SkipScenario("table players du personnage " + a.CharacterName + " introuvable sur ce serveur MySQL");
+            string login = "azurx2" + random.Next(10000, 99999).ToString(CultureInfo.InvariantCulture);
+            string password = Guid.NewGuid().ToString("N").Substring(0, 12);
+            string name = NewCharacterName();
+            int sex = Convert.ToInt32(Scalar(db, "SELECT sexe FROM " + schema + ".players WHERE id = @source", "@source", a.Id), CultureInfo.InvariantCulture);
+            long guid = -1;
+            int characterId = -1;
+            var c = new LiveSession("C", login, password);
+            try
+            {
+                Sql(db, "INSERT INTO " + schema + ".accounts (account, pass, pseudo, question, reponse, lastConnectionDate, lastIP, friends, enemy, heurevote, lastConnectDay)"
+                    + " VALUES (@login, SHA2(MD5(@password), 512), @pseudo, 'DELETE?', 'DELETE', '', '', '', '', 0, '')",
+                    "@login", login, "@password", password, "@pseudo", "Tombe" + login.Substring(6));
+                guid = Convert.ToInt64(Scalar(db, "SELECT guid FROM " + schema + ".accounts WHERE account = @login", "@login", login), CultureInfo.InvariantCulture);
+                characterId = Convert.ToInt32(Scalar(db, "SELECT IFNULL(MAX(id), 0) + 1 FROM " + schema + ".players"), CultureInfo.InvariantCulture);
+                // Mêmes colonnes que PlayerData.add de StarLoco ; classe, sexe, couleurs, sorts et serveur repris du personnage de A, sans objets.
+                Sql(db, "INSERT INTO " + schema + ".players (id, name, sexe, class, color1, color2, color3, kamas, spellboost, capital, energy, level, xp, size, gfx, account, cell, map, spells, objets, storeObjets, morphMode, server)"
+                    + " SELECT @id, @name, sexe, class, color1, color2, color3, 0, spellboost, capital, -1, level, xp, size, gfx, @account, @cell, @map, spells, '', '', '0', server FROM "
+                    + schema + ".players WHERE id = @source",
+                    "@id", characterId, "@name", name, "@account", guid, "@cell", TombCell, "@map", TombMap, "@source", a.Id);
+                Journal("C [test] compte inventé " + login + " (" + guid + "), personnage " + name + " (" + characterId + ") en tombe sur la carte " + TombMap);
+
+                string entered = await EnterExistingAsync(c, characterId, name).ConfigureAwait(false);
+                GameSession session = c.Account.Game.Session;
+                MapActions actions = c.Account.Game.Interactions.MapActions;
+                // setFuneral : gfx classe + "3" ; setAlive : classe + sexe (Integer.parseInt de StarLoco).
+                int tombGfx = a.ClassId * 10 + 3, aliveGfx = a.ClassId * 10 + sex;
+                Check(await c.Until(() => session.IsTomb && c.Map.Self != null, 10).ConfigureAwait(false), "Le bot ne lit pas la tombe dans son sprite : " + Restrictions(c));
+                Check(!session.IsGhost && actions.CanFreeSoul && !actions.CanChangeDirection && c.Map.Self.Gfx == tombGfx,
+                    "Tombe mal lue : fantôme " + session.IsGhost + ", GF " + actions.CanFreeSoul + ", orientation " + actions.CanChangeDirection + ", gfx " + c.Map.Self.Gfx + " au lieu de " + tombGfx);
+                string tomb = "sprite " + Restrictions(c) + ", gfx " + c.Map.Self.Gfx;
+                int sentBefore = c.SentCount;
+                var turn = await actions.SetDirectionAsync(1).ConfigureAwait(false);
+                Check(!turn.Sent && !c.SentSince(sentBefore).Any(p => p.StartsWith("eD", StringComparison.Ordinal)), "Une tombe a envoyé eD");
+
+                int mark = c.ReceivedCount, sent = c.SentCount;
+                var freed = await actions.FreeSoulAsync().ConfigureAwait(false);
+                Check(freed.Sent, "GF refusé par le bot : " + freed.Message);
+                Check(c.SentSince(sent).Contains("GF"), "GF non envoyé");
+                string gdm = await c.Expect("GDM|" + CemeteryMap, "GDM|" + CemeteryMap + " (cimetière)", 20, mark).ConfigureAwait(false);
+                string ih = await c.Expect(p => p.StartsWith("IH", StringComparison.Ordinal) && p.Length > 2, "IH (statues de phénix)", 10, mark).ConfigureAwait(false);
+                Check(await c.Until(() => c.MapId == CemeteryMap && c.Map.Self != null && session.IsGhost && !session.IsTomb, 15).ConfigureAwait(false),
+                    "Le bot n'est pas un fantôme au cimetière : carte " + c.MapId + ", " + Restrictions(c) + ", tombe " + session.IsTomb);
+                Check(c.Map.Self.Gfx == GhostGfx && !actions.CanFreeSoul && actions.CanChangeDirection, "Fantôme mal lu : gfx " + c.Map.Self.Gfx + ", GF " + actions.CanFreeSoul);
+                string ghost = "cellule " + c.Map.Self.CellId + ", sprite " + Restrictions(c) + ", gfx " + c.Map.Self.Gfx;
+                var again = await actions.FreeSoulAsync().ConfigureAwait(false);
+                Check(!again.Sent, "Un fantôme a renvoyé GF");
+
+                Tool_BotProtocol.Game.Maps.Interactives.Interactives phoenix = c.Map.Interactives.Values.FirstOrDefault(i => PhoenixObjects.Contains((int)i.gfx));
+                Check(phoenix?.Cell != null, "Aucune statue de phénix (objet 542 ou 1524) sur la carte " + c.MapId);
+                int walk = c.ReceivedCount;
+                var moved = await c.Account.Game.Manager.Mouvements.MoveToAsync(phoenix.Cell).ConfigureAwait(false);
+                Check(moved == Tool_BotProtocol.Game.Managers.Mouvements.MoveResults.EXIT, "Marche vers la statue " + phoenix.Cell.CellID + " refusée : " + moved);
+                string ar = await c.Expect("AR6bk", "AR6bk (résurrection)", 40, walk).ConfigureAwait(false);
+                Check(await c.Until(() => !session.IsGhost && !session.IsTomb && c.Map.Self != null && c.Map.Self.Gfx == aliveGfx, 10).ConfigureAwait(false),
+                    "Le bot n'est pas revenu à la vie : " + Restrictions(c) + ", gfx " + c.Map.Self?.Gfx + " au lieu de " + aliveGfx);
+                Check(session.CanMoveInAllDirections && actions.AllowedDirections.Count == 8 && actions.CanChangeDirection, "AR6bk ne rend pas les huit orientations");
+                return entered + " ; tombe : " + tomb + ", eD refusé ; GF → " + Short(gdm, 16) + ", " + Short(ih, 24) + ", fantôme " + ghost
+                    + " ; marche vers la statue " + phoenix.gfx + " (cellule " + phoenix.Cell.CellID + ", arrêt cellule " + c.Map.Self.CellId + ") → " + ar
+                    + ", sprite " + Restrictions(c) + ", gfx " + c.Map.Self.Gfx;
+            }
+            finally
+            {
+                c.Dispose();
+                // StarLoco enregistre le personnage à la déconnexion (UPDATE) : supprimer ensuite.
+                await Task.Delay(1500).ConfigureAwait(false);
+                try
+                {
+                    if (characterId > 0) Sql(db, "DELETE FROM " + schema + ".players WHERE id = @id AND account = @account", "@id", characterId, "@account", guid);
+                    if (guid > 0) Sql(db, "DELETE FROM " + schema + ".accounts WHERE guid = @guid AND account = @login", "@guid", guid, "@login", login);
+                    Journal("C [test] compte " + login + " et personnage " + characterId + " supprimés de la base");
+                }
+                catch (Exception error) { Journal("!! C [test] nettoyage de la base impossible : " + error.Message); }
+            }
+        }
+    }
+
+    /// <summary>Restrictions brutes et décodées du sprite de soi (champ 18 du GM), pour les messages.</summary>
+    private static string Restrictions(LiveSession s)
+    {
+        var self = s.Map?.Self as PlayerActor;
+        return self == null ? "(pas de sprite)" : "« " + self.RestrictionsRaw + " » (" + (self.RestrictionsValue?.ToString(CultureInfo.InvariantCulture) ?? "illisible") + ")";
+    }
+
+    /// <summary>
+    /// Base qui porte les comptes et les personnages (<c>accounts</c> et <c>players</c>) : celle dont la table <c>players</c> contient
+    /// le personnage de A, cherchée dans <c>information_schema</c> du serveur MySQL du jeu.
+    /// </summary>
+    private static string PlayersSchema(MySql.Data.MySqlClient.MySqlConnection db, int characterId, string characterName)
+    {
+        var schemas = new List<string>();
+        using (var command = new MySql.Data.MySqlClient.MySqlCommand("SELECT p.TABLE_SCHEMA FROM information_schema.TABLES p JOIN information_schema.TABLES c"
+            + " ON c.TABLE_SCHEMA = p.TABLE_SCHEMA AND c.TABLE_NAME = 'accounts' WHERE p.TABLE_NAME = 'players' ORDER BY p.TABLE_SCHEMA", db))
+        using (var reader = command.ExecuteReader())
+            while (reader.Read()) schemas.Add(reader.GetString(0));
+        foreach (string schema in schemas)
+        {
+            string quoted = "`" + schema.Replace("`", "``") + "`";
+            if (Convert.ToInt32(Scalar(db, "SELECT COUNT(*) FROM " + quoted + ".players WHERE id = @id AND name = @name", "@id", characterId, "@name", characterName), CultureInfo.InvariantCulture) == 1)
+                return quoted;
+        }
+        return null;
+    }
+
+    private static MySql.Data.MySqlClient.MySqlCommand Command(MySql.Data.MySqlClient.MySqlConnection db, string sql, object[] parameters)
+    {
+        var command = new MySql.Data.MySqlClient.MySqlCommand(sql, db);
+        for (int i = 0; i + 1 < parameters.Length; i += 2) command.Parameters.AddWithValue((string)parameters[i], parameters[i + 1]);
+        return command;
+    }
+
+    private static int Sql(MySql.Data.MySqlClient.MySqlConnection db, string sql, params object[] parameters)
+    {
+        using (var command = Command(db, sql, parameters)) return command.ExecuteNonQuery();
+    }
+
+    private static object Scalar(MySql.Data.MySqlClient.MySqlConnection db, string sql, params object[] parameters)
+    {
+        using (var command = Command(db, sql, parameters)) return command.ExecuteScalar();
+    }
+
+    /// <summary>Entrée en jeu d'un personnage existant, comme PersoSelection puis SelectPlayerPerso : AX, ticket, ALK, AS&lt;id&gt;.</summary>
+    private static async Task<string> EnterExistingAsync(LiveSession s, int characterId, string name)
+    {
+        s.Start();
+        await s.Account.ConnectAsync().ConfigureAwait(false);
+        await s.Expect("HC", "clé HC du Login", 15, 0).ConfigureAwait(false);
+        await s.Expect("AH", "liste des serveurs AH", 15, 0).ConfigureAwait(false);
+        string axk = await s.Expect("AxK", "AxK (serveurs du compte)", 15, 0).ConfigureAwait(false);
+        int server = serverId > 0 ? serverId : s.Account.Game.Server.Servers.Where(x => x.Value == ServerStates.ONLINE).Select(x => x.Key).DefaultIfEmpty(-1).Min();
+        Check(server > 0, "Aucun serveur en ligne pour le compte C");
+        await s.Send("AX" + server).ConfigureAwait(false);
+        string redirect = await s.Expect(p => p.StartsWith("AYK") || p.StartsWith("AXK") || p.StartsWith("AXE"), "redirection AYK", 15, 0).ConfigureAwait(false);
+        Check(!redirect.StartsWith("AXE"), "Sélection du serveur refusée : " + redirect);
+        await s.Expect("ATK", "ATK (ticket accepté)", 15, 0).ConfigureAwait(false);
+        string alk = await s.Expect("ALK", "ALK (liste des personnages)", 15, 0).ConfigureAwait(false);
+        Check(await s.Until(() => s.Account.AccountCharactersInfo.ContainsKey(characterId), 5).ConfigureAwait(false), "ALK sans le personnage posé en tombe : " + Short(alk, 80));
+        int selected = s.ReceivedCount;
+        await s.Send("AS" + characterId).ConfigureAwait(false);
+        string ask = await s.Expect(p => p.StartsWith("ASK") || p.StartsWith("ASE"), "ASK (personnage sélectionné)", 15, selected).ConfigureAwait(false);
+        Check(ask.StartsWith("ASK|" + characterId + "|" + name + "|"), "Sélection refusée : " + ask);
+        string gdm = await s.Expect("GDM|" + TombMap, "GDM|" + TombMap + " (carte de la tombe)", 15, selected).ConfigureAwait(false);
+        string gm = await s.Expect(p => p.StartsWith("GM|") && p.Contains(";" + characterId + ";" + name + ";"), "GM du personnage en tombe", 15, selected).ConfigureAwait(false);
+        Check(await s.Until(() => s.MapId == TombMap && s.Map.Self != null && s.Map.Self.CellId >= 0, 10).ConfigureAwait(false), "Le bot n'a pas placé la tombe sur la carte " + TombMap);
+        return "C " + name + " : " + Short(axk, 20) + ", " + Short(ask, 40) + ", " + Short(gdm, 16) + ", GM cellule " + s.Map.Self.CellId;
     }
 }
