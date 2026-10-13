@@ -106,6 +106,8 @@ try {
     $azurTests += 'BotRecolorSmoke'
     $azurTests += 'BotAccessoriesSmoke'
     $azurTests += 'BotExtraClipsSmoke'
+    # Lot X2 (tombe, fantôme, menu de son personnage, mariage) : couvert par BotSessionSmoke, BotMapActionsSmoke et les scénarios
+    # x2a à x2c de BotStarLocoLiveSmoke ; AZUR_STARLOCO_SCENARIOS=x2a,x2b,x2c ne joue que ceux-là après la connexion (scénario a).
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'
