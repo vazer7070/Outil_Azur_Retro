@@ -13,6 +13,10 @@ using System.Threading.Tasks;
 using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
+using Tool_BotProtocol.Game.Actions;
+using Tool_BotProtocol.Game.Chat;
+using Tool_BotProtocol.Game.Interactions;
+using Tool_BotProtocol.Game.Maps;
 using Tool_BotProtocol.Game.Perso;
 using Tool_BotProtocol.Game.Session;
 using BotClient = Tool_BotProtocol.Network.TcpClient;
@@ -30,7 +34,7 @@ internal static class BotSessionSmoke
             if (!File.Exists(path)) path = Path.ChangeExtension(path, "exe");
             return File.Exists(path) ? Assembly.LoadFrom(path) : null;
         };
-        try { Run(); Console.WriteLine("OK: registre strict, paquets inconnus journalisés, un paquet par envoi, GC1 seul, GCK/AR/Ac/BT/BN/AN, Im générique, PIK/gJr sans acceptation, frames éclatées"); }
+        try { Run(); Console.WriteLine("OK: registre strict, paquets inconnus journalisés, un paquet par envoi, GC1 seul, GCK/AR/Ac/BT/BN/AN, Im générique, PIK/gJr sans acceptation, frames éclatées, tombe/fantôme du sprite GM, GF et /release, ALK héroïque, GO"); }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
 
@@ -152,7 +156,7 @@ internal static class BotSessionSmoke
                     Check(session.RawRestrictions == 573 && session.Restrictions == (PlayerRestrictions.CannotBeAssaulted | PlayerRestrictions.CannotExchange |
                         PlayerRestrictions.CannotBeAttacked | PlayerRestrictions.ForceWalk | PlayerRestrictions.Slow), "ARfx was not read in base 36 with the client masks");
                     Feed(account, "AR6bk"); Check(session.RawRestrictions == 8192 && session.Restrictions == PlayerRestrictions.None, "AR6bk is not 'no restriction'");
-                    Feed(account, "AR3K"); Check(session.RawRestrictions == 128 && session.Restrictions == PlayerRestrictions.Tomb, "AR3K (upper case) is not the tomb bit");
+                    Feed(account, "AR3K"); Check(session.RawRestrictions == 128 && session.Restrictions == PlayerRestrictions.Tomb, "AR3K (upper case) was not read as bit 128 (the tomb itself comes from the GM sprite)");
                     Feed(account, "AR6bK"); Check(session.RawRestrictions == 8192, "Upper-case base 36 was refused");
                     Feed(account, "AR!?"); Check(session.RawRestrictions == 8192, "Unreadable AR replaced the restrictions");
                     Check(new Personnages(5, "Autre", 0, null).Restrictions == PlayerRestrictions.None, "Other players do not default to no restriction");
@@ -230,7 +234,104 @@ internal static class BotSessionSmoke
                     NoPacket(peer, "Unexpected packet at the end of the session test");
                 }
             }
+            TombAndGameOver(listener);
         }
         finally { listener.Stop(); Environment.CurrentDirectory = previous; }
     }
+
+    private static void Disconnected(Socket socket, string message)
+    {
+        DateTime end = DateTime.UtcNow.AddSeconds(6);
+        while (DateTime.UtcNow < end)
+        {
+            if (socket.Poll(50000, SelectMode.SelectRead) && socket.Available == 0) return;
+            if (socket.Available > 0) throw new Exception(message + " (reçu : " + Read(socket) + ")");
+        }
+        throw new Exception(message);
+    }
+
+    // Lot X2 : tombe et fantôme lus dans le sprite GM (restrictions signées « -10 » / « -40 » de StarLoco), jamais dans AR ;
+    // GF et /release, ALK du mode héroïque (champs 10 et 11), GO puis déconnexion.
+    private static void TombAndGameOver(TcpListener listener)
+    {
+        const int mapId = 900095;
+        Map.AllBotMaps[mapId] = new Map { MapID = mapId, MapWidth = 3, MapHeight = 4, X = 2, Y = -4, MapData = string.Concat(Enumerable.Repeat("HhGaeaaaaa", 18)) };
+        int raw; PlayerRestrictions known;
+        Check(PlayerRestrictionsParser.TryParse("-10", out raw, out known) && raw == -36 && (known & PlayerRestrictions.Tomb) == PlayerRestrictions.Tomb,
+            "-10 (tomb sprite) is not -36 with bit 128");
+        Check(PlayerRestrictionsParser.TryParse("-40", out raw, out known) && raw == -144 && (known & PlayerRestrictions.Tomb) == 0 &&
+            (known & PlayerRestrictions.Slow) == PlayerRestrictions.Slow, "-40 (ghost sprite) is not -144 with bit 32 and without bit 128");
+        Check(PlayerRestrictionsParser.TryParse("+3K", out raw, out known) && raw == 128, "A leading + was refused");
+        foreach (string bad in new[] { "-", "+", "", "--1", "-1-", "zzzzzzzz" })
+            Check(!PlayerRestrictionsParser.TryParse(bad, out raw, out known), "Malformed restrictions accepted: '" + bad + "'");
+
+        using (var account = new Accounts(new AccountConfig("synthetic-tomb", "synthetic", "loopback")))
+        {
+            Task<Socket> accept = listener.AcceptSocketAsync();
+            Complete(account.Connexion.ConnectToServer(IPAddress.Loopback, ((IPEndPoint)listener.LocalEndpoint).Port)); Complete(accept);
+            using (Socket peer = accept.Result)
+            {
+                peer.ReceiveTimeout = 6000;
+                GameSession session = account.Game.Session;
+                MapActions actions = account.Game.Interactions.MapActions;
+
+                // ALK du mode héroïque : champ 10 = 1 pour un mort, champ 11 = nombre de morts ; une liste sans ces champs les efface.
+                Feed(account, "ALK8640000000|2|11;Vivant;12;10;0;0;0;;0;601;0;0|12;Tombe;30;11;0;0;0;;0;601;1;3");
+                Check(account.Game.Server.DeadCharacters.Count == 1 && account.Game.Server.DeadCharacters[12] == 3, "ALK did not record the dead character and its deaths");
+                Check(account.AccountCharactersInfo.ContainsKey(11) && account.AccountCharactersInfo.ContainsKey(12), "ALK lost a character of the heroic list");
+                Feed(account, "ALK8640000000|1|12;Tombe;30;11;0;0;0;;0;601;0");
+                Check(account.Game.Server.DeadCharacters.IsEmpty, "A revived character stayed dead after a new ALK");
+                Feed(account, "ALK8640000000|1|12;Tombe;30;11;0;0;0;;0;601;1;x");
+                Check(account.Game.Server.DeadCharacters.TryGetValue(12, out int deaths) && deaths == 0, "Unreadable death count was not ignored");
+                NoPacket(peer, "ALK triggered a packet");
+
+                account.Game.character.SetPerso_Data(7, "Personnage tombe", 30, 1, 1);
+                account.AccountStates = AccountStates.CONNECTED_INACTIVE;
+                Feed(account, "GDM|" + mapId + "|date|key"); Check(Read(peer) == "GI", "GDM did not request GI");
+                Check(!session.IsTomb && !session.IsGhost && !actions.CanFreeSoul, "A character without sprite is a tomb or a ghost");
+                InteractionResult refused = Await(actions.FreeSoulAsync());
+                Check(!refused.Sent && refused.Message == MapActionTexts.NotDead, "GF was not refused before the sprite: " + refused.Message);
+
+                // Tombe (StarLoco : « -1 » devant la vitesse 0). AR3K, envoyé à toute transformation, ne change rien au sprite.
+                Feed(account, "GM|+0;1;0;7;Personnage tombe;1;10^100;1;0,0,0,37;-1;-1;-1;;0;;;;;-10;;1");
+                Check(session.IsTomb && !session.IsGhost && actions.CanFreeSoul && !actions.CanChangeDirection, "The -10 sprite is not a tomb");
+                Feed(account, "AR3K"); Check(session.IsTomb && !session.CanMoveInAllDirections, "AR3K changed the tomb state or allowed eight directions");
+                Feed(account, "AR6bk"); Check(session.IsTomb && session.CanMoveInAllDirections && actions.AllowedDirections.Count == 8, "AR6bk was not read as eight directions");
+                Feed(account, "AR3K"); Check(actions.AllowedDirections.SequenceEqual(new[] { 1, 3, 5, 7 }), "AR3K did not restrict to the diagonals");
+                InteractionResult tombDirection = Await(actions.SetDirectionAsync(1));
+                Check(!tombDirection.Sent, "eD was sent for a tomb"); NoPacket(peer, "A tomb sent eD");
+
+                // /release puis GF : un seul GF, comme Game.freeMySoul.
+                ChatResult release = Await(account.Game.Chat.ExecuteAsync("/release"));
+                Check(release.Accepted && release.Packet == "GF", "/release did not send GF: " + release.Message);
+                Check(Read(peer) == "GF", "/release did not reach the server as GF"); NoPacket(peer, "/release sent more than GF");
+                InteractionResult freed = Await(actions.FreeSoulAsync());
+                Check(freed.Sent && Read(peer) == "GF", "FreeSoulAsync did not send GF for a tomb");
+
+                // Fantôme (gfx 8004, vitesse -40) : GF et /release refusés avec ERROR_ALREADY_A_GHOST, l'orientation redevient possible.
+                Feed(account, "GM|~0;1;0;7;Personnage tombe;1;8004^100;1;0,0,0,37;-1;-1;-1;;0;;;;;-40;;1");
+                Check(!session.IsTomb && session.IsGhost && !actions.CanFreeSoul && actions.CanChangeDirection, "The -40 sprite is not a ghost");
+                InteractionResult ghost = Await(actions.FreeSoulAsync());
+                Check(!ghost.Sent && ghost.Message == MapActionTexts.AlreadyGhost, "GF was not refused for a ghost: " + ghost.Message);
+                ChatResult ghostRelease = Await(account.Game.Chat.ExecuteAsync("/release"));
+                Check(!ghostRelease.Sent && ghostRelease.Message.Contains(MapActionTexts.AlreadyGhost), "/release was not refused for a ghost: " + ghostRelease.Message);
+                NoPacket(peer, "A ghost sent GF");
+
+                // Vivant : ni tombe ni fantôme ; « Se frapper » n'envoie rien sans SLAP_SENTENCE (lang.xml absent).
+                Feed(account, "GM|~0;1;0;7;Personnage tombe;1;10^100;1;0,0,0,37;-1;-1;-1;;0;;;;;0;;0");
+                Check(!session.IsTomb && !session.IsGhost, "A living sprite is still a tomb or a ghost");
+                ChatResult slap = Await(account.Game.Chat.SlapAsync());
+                Check(!slap.Sent && MapActionTexts.SlapSentence == null, "SlapAsync sent an invented sentence"); NoPacket(peer, "SlapAsync sent BM without lang.xml");
+
+                // GO (mode héroïque) : GameOver levé puis déconnexion, comme Game.onGameOver (déconnexion douce).
+                int gameOver = 0; bool connectedDuringEvent = false;
+                session.GameOver += () => { gameOver++; connectedDuringEvent = account.Connexion != null && account.Connexion.IsConnected(); };
+                Feed(account, "GO");
+                Check(gameOver == 1 && connectedDuringEvent, "GO did not raise GameOver before the disconnection");
+                Disconnected(peer, "GO did not close the connection");
+            }
+        }
+    }
+
+    private static T Await<T>(Task<T> task) { Complete(task); return task.Result; }
 }
