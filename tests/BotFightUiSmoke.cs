@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Outil_Azur_complet.Bot;
 using Outil_Azur_complet.Bot.Controls;
+using Outil_Azur_complet.Bot.Controls.Banner;
 using Outil_Azur_complet.Bot.Controls.Fight;
 using Outil_Azur_complet.Bot.Interfaces;
 using Outil_Azur_complet.Bot.Panels;
@@ -28,7 +29,8 @@ using Tool_BotProtocol.Utils.Crypto;
 // (fN / fH / fS émis, état suivi par Go±, fP masqué sans groupe, boutons réduits après GS), drapeau (Gf43|7 dessiné, bouton
 // puis clic → Gf5, Échap), ligne de temps (GTL → 3 portraits, GTR → GT et cadre, GTS → tour et chrono, GTF, mort retirée,
 // GTL mal formé ignoré, dessin hors écran), « Abandonner » (boîte Non puis Oui → GQ, spectateur → GQ direct), GV, résultat
-// GE (PvM avec bonus d'étoiles et objets, PvP avec les colonnes d'honneur, GE illisible sans volet).
+// GE (PvM avec bonus d'étoiles et objets, PvP avec les colonnes d'honneur, GE illisible sans volet). Lot X1 : case ² du corps à corps
+// (poing DefaultCC, visée, cellules à portée, GA303 au clic, Échap, SH0) et clic sur un ennemi adjacent sans sort choisi → GA303.
 internal static class BotFightUiSmoke
 {
     [STAThread]
@@ -46,13 +48,15 @@ internal static class BotFightUiSmoke
         {
             Application.EnableVisualStyles(); Run();
             Check(uiErrors.Count == 0, "Interface errors: " + string.Join(" / ", uiErrors.Select(e => e.GetType().Name + " " + e.Message)));
-            Console.WriteLine("OK: menu de placement GR1/GQ, options fN/fH/fS et Go±, drapeau Gf, ligne de temps GTL/GTR/GTS/GTF, abandon confirmé → GQ, spectateur, résultat GE PvM/PvP");
+            Console.WriteLine("OK: menu de placement GR1/GQ, options fN/fH/fS et Go±, drapeau Gf, ligne de temps GTL/GTR/GTS/GTF, corps à corps (case ², SH0, clic sur un ennemi adjacent) → GA303, abandon confirmé → GQ, spectateur, résultat GE PvM/PvP");
         }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
 
     private static void Check(bool value, string message) { if (!value) throw new Exception(message); }
     private static object Get(object target, string field) => target.GetType().GetField(field, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(target);
+    /// <summary>Propriété d'une case de la barre (<c>SpellShortcutButton</c> est interne à l'application).</summary>
+    private static bool Flag(Button slot, string property) => (bool)slot.GetType().GetProperty(property).GetValue(slot);
     private static void PumpUntil(Func<bool> done, string what, int seconds = 6)
     {
         DateTime end = DateTime.UtcNow.AddSeconds(seconds);
@@ -214,6 +218,52 @@ internal static class BotFightUiSmoke
                         Check(timeline.RemainingMilliseconds == 0 && timeline.HighlightedFighterId == 43, "GTF kept the chrono or lost the GTR frame");
                         Feed(account, "GTS42|30000"); PumpUntil(() => timeline.CurrentFighterId == 42, "own turn");
                         PumpUntil(() => ((Label)Get(form, "summary")).Text == "Votre tour · 8 PA · 3 PM", "status bar shows the account's points on its turn");
+
+                        // ---------------------------------------------------------------- corps à corps (lot X1) : case ², clic adjacent
+                        Cell origin = account.Game.character.Cell;
+                        Cell near = account.Game.Map.MapCells.FirstOrDefault(c => c != null && c.IsActive && c.CellID != 6 && origin.GetDistanceBetweenCells(c) == 1);
+                        Cell far = account.Game.Map.MapCells.FirstOrDefault(c => c != null && c.IsActive && c.CellID != 6 && origin.GetDistanceBetweenCells(c) == 2);
+                        Check(origin.CellID == 3 && near != null && far != null, "No free cell at distance 1 and 2 of the character");
+                        Feed(account, "GA;4;42;-7," + near.CellID);
+                        // GM complet d'un joueur en combat (StarLoco) : l'équipe est le 25e champ.
+                        Feed(account, "GM|+3;1;0;42;Personnage de test;8;80^100;0;25;0,0,0,0;-1;-1;-1;,,,,;100;8;3;0;0;0;0;0;0;0;0");
+                        Check(fight.Fighters[42].Team >= 0 && fight.Fighters[-7].Team >= 0 && fight.Fighters[42].Team != fight.Fighters[-7].Team, "Teams of GM not known");
+                        ShortcutBar bar = form.Banner.Shortcuts; Button slot = bar.CloseCombatSlot;
+                        // Sans arme, la case montre le poing DefaultCC (clips/defaultcc.swf, 32 × 32), lu hors du fil de l'interface.
+                        PumpUntil(() => { bar.RefreshContent(); return slot.GetType().GetProperty("Icon").GetValue(slot) is Image icon && icon.Width == 32 && icon.Height == 32; },
+                            "DefaultCC icon of the ² slot");
+                        Check(Flag(slot, "Available") && !Flag(slot, "SelectedSpell") && slot.AccessibleName.Contains("Poings")
+                            && bar.CloseCombatTooltip.Contains("(²)")
+                            && bar.CloseCombatTooltip.Contains("4 PA") && !bar.CloseCombatTooltip.Contains("à venir"), "Close combat slot is not active: " + bar.CloseCombatTooltip);
+                        slot.PerformClick();
+                        PumpUntil(() => form.Map.SelectedSpellId == Fights.CloseCombatSpellId, "² selects the close combat");
+                        var targets = (HashSet<short>)Get(map, "spellTargets");
+                        Check(targets != null && targets.Contains(near.CellID) && !targets.Contains(far.CellID) && !targets.Contains(origin.CellID),
+                            "Close combat targets are not the adjacent cells");
+                        bar.RefreshContent();
+                        Check(Flag(slot, "SelectedSpell") && ((Label)Get(form, "summary")).Text.Contains("Corps à corps"), "Selected ² slot or status text missing");
+                        ClickCell(map, far.CellID); NoPacket(peer, "Close combat on a cell at distance 2 was sent");
+                        Check(form.Map.SelectedSpellId == Fights.CloseCombatSpellId && ((Label)Get(form, "summary")).Text.Contains("adjacente"),
+                            "Refused target did not explain the adjacency");
+                        ClickCell(map, near.CellID); Expect(peer, "GA303" + near.CellID, "Click in close combat mode does not send GA303<cell>");
+                        PumpUntil(() => form.Map.SelectedSpellId == null, "close combat aim released after sending");
+                        Feed(account, "GAS42"); Feed(account, "GA;300;42;0," + near.CellID + ",0,1"); Feed(account, "GA;102;42;42,-4"); Feed(account, "GAF0|42");
+                        Expect(peer, "GKK0", "GAF of the fists attack not acknowledged");
+                        Feed(account, "GA;102;42;42,-0"); Check(!fight.IsActionPending && fight.ActionPoints == 4, "Fists casting lock not released");
+                        // Ajout du bot : clic sur l'ennemi adjacent sans sort choisi.
+                        ClickCell(map, near.CellID); Expect(peer, "GA303" + near.CellID, "Click on an adjacent enemy does not attack");
+                        Feed(account, "GAS42"); Feed(account, "GA;300;42;0," + near.CellID + ",0,1"); Feed(account, "GA;102;42;42,-4"); Feed(account, "GAF0|42");
+                        Expect(peer, "GKK0", "GAF of the second attack not acknowledged"); Feed(account, "GA;102;42;42,-0");
+                        ClickCell(map, near.CellID); NoPacket(peer, "Attack sent without action points");
+                        Check(((Label)Get(form, "summary")).Text.Contains("PA insuffisants"), "Missing AP not reported: " + ((Label)Get(form, "summary")).Text);
+                        bar.RefreshContent(); Check(!Flag(slot, "Available") && bar.CloseCombatTooltip.Contains("PA insuffisants"), "Slot active without AP");
+                        slot.PerformClick(); Application.DoEvents();
+                        Check(form.Map.SelectedSpellId == null, "² selected the close combat without AP");
+                        // SH0 (touche ²), puis Échap annule la visée sans rien envoyer.
+                        Feed(account, "GTM|42;0;100;8;3;3;;100");
+                        Check(form.ProcessShortcut(Keys.Oem7) && form.Map.SelectedSpellId == Fights.CloseCombatSpellId, "SH0 does not select the close combat");
+                        Check(form.ProcessShortcut(Keys.Escape) && form.Map.SelectedSpellId == null, "Escape does not cancel the close combat aim");
+                        NoPacket(peer, "Escape in close combat mode sent a packet");
                         Feed(account, "GA;103;42;-7"); PumpUntil(() => timeline.Entries.Count == 2, "dead fighter removed");
                         Feed(account, "GTL|x"); Feed(account, "GTL|42|zz"); Application.DoEvents();
                         Check(timeline.Entries.Count == 2 && timeline.Visible, "Malformed GTL changed the timeline");

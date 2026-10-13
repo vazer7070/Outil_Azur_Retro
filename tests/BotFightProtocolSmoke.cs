@@ -12,6 +12,7 @@ using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Game.Actions;
 using Tool_BotProtocol.Game.Combats;
+using Tool_BotProtocol.Game.Data;
 using Tool_BotProtocol.Game.Maps;
 using Tool_BotProtocol.Game.Perso.Spells;
 using Tool_BotProtocol.Utils.Crypto;
@@ -20,6 +21,8 @@ using Tool_BotProtocol.Utils.Crypto;
 /// Protocole de combat F12a sur paquets synthétiques (format StarLoco / client 1.34) : ordre des tours (GTL, GTR→GT, GTS à deux
 /// ou trois champs), effets (GIE, GIe), zones (GDZ), options (Go, fN/fS/fP/fH), drapeau (Gf), abandon et exclusion (GQ),
 /// table GA de combat (vie, PA/PM, états, invisibilité, porter/lancer, invocations, GA;999) et résultat GE (PvM, PvP, mal formé).
+/// Lot X1 : corps à corps <c>GA303&lt;cellule&gt;</c> à mains nues, à l'épée puis à l'arc (items.xml et classes.xml synthétiques),
+/// <c>GAF</c> → <c>GKK</c>, refus locaux (PA, adjacence, portée, état interdit) et réponses StarLoco (Im1170, GA;305).
 /// </summary>
 internal static class BotFightProtocolSmoke
 {
@@ -60,6 +63,125 @@ internal static class BotFightProtocolSmoke
     private static Task Feed(Accounts account, string packet) { return MessagesReception.ReceptionAsync(account.Connexion, packet); }
 
     private static string LastJournal(Fights fight) { FightLogEntry entry = fight.Journal.LastOrDefault(); return entry == null ? string.Empty : entry.Text; }
+
+    private static void WriteLang(string folder, string family, string body) =>
+        File.WriteAllText(Path.Combine(folder, family + ".xml"), "<?xml version='1.0' encoding='utf-8'?>\n<BotLang famille=\"" + family
+            + "\" langue=\"fr\" version=\"1\" source=\"" + family + "_fr_1.swf\">\n" + body + "\n</BotLang>\n", new UTF8Encoding(false));
+
+    /// <summary>
+    /// Corps à corps (lot X1), au tour du personnage 42 sur la cellule 3 : poings par défaut (4 PA, portée 1, sort 0 de StarLoco),
+    /// puis épée (5 PA, 1-1) et arc (4 PA, 2-6) lus dans un items.xml synthétique au format de lang2xml.py, poings de la classe 9
+    /// dans un classes.xml synthétique (états interdits 1, 3, 18, 42 comme le client).
+    /// </summary>
+    private static async Task CloseCombatAsync(Accounts account, Socket peer, Fights fight)
+    {
+        LangData.Clear();
+        account.Game.character.Race_ID = 9;
+        Map map = account.Game.Map;
+        Cell origin = account.Game.character.Cell;
+        Check(origin != null && origin.CellID == 3 && fight.IsMyTurn && !fight.IsActionPending, "Close combat section must start on the own turn at cell 3");
+        Cell near = map.MapCells.FirstOrDefault(c => c != null && c.IsActive && c.CellID != 6 && origin.GetDistanceBetweenCells(c) == 1);
+        Cell far = map.MapCells.FirstOrDefault(c => c != null && c.IsActive && c.CellID != 6 && origin.GetDistanceBetweenCells(c) == 2);
+        Check(near != null && far != null, "The synthetic map has no free cell at distance 1 and 2 of cell 3");
+        await Feed(account, "GA;4;42;-7," + near.CellID);
+        Check(fight.Fighters[-7].CellId == near.CellID, "Monster not moved next to the character");
+        string reset = "GTM|42;0;100;8;3;3;;100";
+
+        // Mains nues, sans textes du client : 4 PA, portée 1 (sort 0 « Coup de poing » de StarLoco au niveau 1).
+        CloseCombatStats bare = fight.CloseCombat;
+        Check(!bare.IsArmed && bare.ActionPoints == 4 && bare.MinRange == 1 && bare.MaxRange == 1 && bare.Source == "défaut", "Default bare-handed close combat");
+        Check(fight.GetSpellUnavailableReason(Fights.CloseCombatSpellId, near.CellID) == null
+            && fight.GetSpellUnavailableReason(Fights.CloseCombatSpellId, far.CellID) == fight.GetCloseCombatUnavailableReason(far.CellID),
+            "Spell 0 of the bar is not the close combat");
+        Check(fight.GetCloseCombatUnavailableReason(far.CellID).Contains("adjacente") && !(await fight.AttackAsync(far.CellID)).Sent
+            && !(await fight.AttackAsync(origin.CellID)).Sent && peer.Available == 0, "Non-adjacent fists attack sent");
+        await Feed(account, "GA;102;42;42,-5");
+        Check(fight.ActionPoints == 3 && fight.GetCloseCombatUnavailableReason(near.CellID).Contains("PA insuffisants (4")
+            && !(await fight.AttackAsync(near.CellID)).Sent && peer.Available == 0, "Fists attack sent without enough AP");
+        await Feed(account, reset);
+        int life = fight.Fighters[-7].Life;
+        Check((await fight.CastSpellAsync(Fights.CloseCombatSpellId, near.CellID)).Sent && await Within(Read(peer)) == "GA303" + near.CellID,
+            "Spell 0 must send GA303<cell> like the client");
+        Check(fight.IsActionPending && !(await fight.AttackAsync(near.CellID)).Sent && peer.Available == 0, "Duplicate attack while pending");
+        // StarLoco tryCaC sans arme : tryCastSpell(sort 0) dans Fight.cast, verrou « casting » levé une seconde après par GA;102 -0.
+        await Feed(account, "GAS42"); await Feed(account, "GA;300;42;0," + near.CellID + ",0,1"); await Feed(account, "GA;100;42;-7,-3");
+        await Feed(account, "GA;102;42;42,-4"); await Feed(account, "GAF0|42");
+        Check(await Within(Read(peer)) == "GKK0" && fight.IsActionPending && fight.LastActionMessage.Contains("Coup de poing"),
+            "GAF of a fists attack must be acknowledged while StarLoco keeps its casting lock");
+        await Feed(account, "GA;102;42;42,-0");
+        Check(!fight.IsActionPending && fight.ActionPoints == 4 && fight.Fighters[-7].Life == life - 3, "Fists casting unlock, AP or damage");
+
+        // Textes du client : épée et arc (attribut arme = I.u[id].e), poings de la classe 9 (attribut cc = G[9].cc).
+        string lang = Path.Combine(TestPaths.Work, "x1-lang");
+        Directory.CreateDirectory(lang);
+        foreach (string old in Directory.GetFiles(lang, "*.xml")) File.Delete(old);
+        WriteLang(lang, "items", "<type id=\"6\" nom=\"Epée\" superType=\"2\" zone=\"Pa\" />\n<type id=\"2\" nom=\"Arc\" superType=\"2\" zone=\"Pa\" />\n"
+            + "<objet id=\"2170\" nom=\"Épée synthétique\" type=\"6\" gfx=\"25\" niveau=\"1\" arme=\"30,5,1,1,25,50,false,false\" />\n"
+            + "<objet id=\"6783\" nom=\"Arc synthétique\" type=\"2\" gfx=\"1\" niveau=\"1\" arme=\"5,4,2,6,50,50,false,true\" />\n"
+            + "<objet id=\"6987\" nom=\"Pierre synthétique\" type=\"83\" gfx=\"1\" niveau=\"1\" />");
+        WriteLang(lang, "classes", "<entree table=\"G\" id=\"9\" cc=\"[[[100,1,5,1]],3,4,1,1,20,50,false,false,[],[1,3,18,42]]\" />");
+        Check(LangData.Load(lang) == 2, "Synthetic items.xml/classes.xml not loaded: " + string.Join(" / ", LangData.LoadWarnings));
+        try
+        {
+            CloseCombatStats fists = fight.CloseCombat;
+            Check(!fists.IsArmed && fists.Source == "classe" && fists.ActionPoints == 4 && fists.CriticalHit == 20 && fists.CriticalFailure == 50
+                && fists.ForbiddenStates.SequenceEqual(new[] { 1, 3, 18, 42 }) && fists.RequiredStates.Count == 0, "Class cc not read");
+
+            // Épée en position 1 (OAK hexadécimal : objet 10, modèle 0x87a = 2170, position 1).
+            await Feed(account, "OAKOa~87a~1~1~");
+            CloseCombatStats sword = fight.CloseCombat;
+            Check(sword.IsArmed && sword.WeaponTemplateId == 2170 && sword.Name == "Épée synthétique" && sword.ActionPoints == 5 && sword.MinRange == 1
+                && sword.MaxRange == 1 && sword.CriticalHit == 25 && !sword.LineOnly && sword.ForbiddenStates.Contains(3) && sword.Summary.Contains("5 PA"),
+                "Weapon in position 1 not read from items.xml");
+            await Feed(account, "GA;950;42;42,3,1");
+            Check(fight.GetCloseCombatUnavailableReason(near.CellID).Contains("état") && !(await fight.AttackAsync(near.CellID)).Sent && peer.Available == 0,
+                "Close combat allowed in a forbidden state of the class");
+            await Feed(account, "GA;950;42;42,3,0");
+            await Feed(account, "GA;102;42;42,-4");
+            Check(fight.GetCloseCombatUnavailableReason(near.CellID).Contains("PA insuffisants (5") && !(await fight.AttackAsync(near.CellID)).Sent
+                && peer.Available == 0, "Sword attack sent without its 5 AP");
+            await Feed(account, reset);
+            life = fight.Fighters[-7].Life;
+            int journal = fight.Journal.Count;
+            Check((await fight.AttackAsync(near.CellID)).Sent && await Within(Read(peer)) == "GA303" + near.CellID && fight.IsActionPending, "Sword GA303 wire");
+            await Feed(account, "GAS42"); await Feed(account, "GA;303;42;" + near.CellID); await Feed(account, "GA;100;42;-7,-10");
+            await Feed(account, "GA;102;42;42,-5"); await Feed(account, "GAF0|42");
+            Check(await Within(Read(peer)) == "GKK0" && !fight.IsActionPending && fight.LastActionMessage.Contains("corps à corps confirmée")
+                && fight.ActionPoints == 3 && fight.Fighters[-7].Life == life - 10, "Armed attack: GAF must release the action and be acknowledged");
+            Check(fight.Journal.Skip(journal).Any(entry => entry.ActionId == 303 && entry.Text.Contains("attaque au corps à corps")), "GA;303 not in the journal");
+
+            // Refus de StarLoco (Im1170 dans Fight.cast) puis échec critique (GA;305, fin du tour) : GAF acquitté, attente levée.
+            await Feed(account, reset);
+            Check((await fight.AttackAsync(near.CellID)).Sent && await Within(Read(peer)) == "GA303" + near.CellID, "Second sword GA303");
+            await Feed(account, "GAS42"); await Feed(account, "Im1170;3~5"); await Feed(account, "GAF0|42");
+            Check(await Within(Read(peer)) == "GKK0" && !fight.IsActionPending && fight.LastActionMessage.Contains("PA insuffisants"), "Im1170 refusal of GA303");
+            Check((await fight.AttackAsync(near.CellID)).Sent && await Within(Read(peer)) == "GA303" + near.CellID, "Third sword GA303");
+            await Feed(account, "GAS42"); await Feed(account, "GA;305;42;");
+            Check(fight.LastActionMessage.Contains("Échec critique au corps à corps") && LastJournal(fight).Contains("échec critique au corps"), "GA;305 not confirmed");
+            await Feed(account, "GAF0|42");
+            Check(await Within(Read(peer)) == "GKK0" && !fight.IsActionPending, "GAF after GA;305");
+
+            // Arc (OM : épée rangée, puis arc 0x1a7f = 6783 en position 1) : portée 2 à 6, la cible adjacente est refusée.
+            await Feed(account, "OM10|"); await Feed(account, "OAKOb~1a7f~1~1~"); await Feed(account, reset);
+            CloseCombatStats bow = fight.CloseCombat;
+            Check(bow.WeaponTemplateId == 6783 && bow.ActionPoints == 4 && bow.MinRange == 2 && bow.MaxRange == 6 && bow.LineOfSight, "Bow stats");
+            Check(fight.GetCloseCombatUnavailableReason(near.CellID).Contains("hors portée (2–6)") && !(await fight.AttackAsync(near.CellID)).Sent
+                && peer.Available == 0, "Bow accepted an adjacent target");
+            Check(fight.GetCloseCombatUnavailableReason(far.CellID) == null && (await fight.AttackAsync(far.CellID)).Sent
+                && await Within(Read(peer)) == "GA303" + far.CellID, "Bow GA303 at distance 2");
+            await Feed(account, "GAS42"); await Feed(account, "GA;303;42;" + far.CellID); await Feed(account, "GA;102;42;42,-4"); await Feed(account, "GAF0|42");
+            Check(await Within(Read(peer)) == "GKK0" && !fight.IsActionPending && fight.ActionPoints == 4, "Bow attack acknowledgement");
+
+            // Pierre d'âme (type 83, sans attribut arme) : pas de données, le serveur décide (StarLoco répond GA;305).
+            await Feed(account, "OM11|"); await Feed(account, "OAKOc~1b4b~1~1~");
+            CloseCombatStats stone = fight.CloseCombat;
+            Check(stone.IsArmed && !stone.HasData && stone.ItemType == 83 && fight.GetCloseCombatUnavailableReason(far.CellID) == null, "Weapon without data");
+            await Feed(account, "OM12|");
+            Check(!fight.CloseCombat.IsArmed && fight.CloseCombat.Source == "classe", "Unequipped weapon still used");
+        }
+        finally { LangData.Clear(); }
+        await Feed(account, reset);
+    }
 
     private static void CheckParsers()
     {
@@ -293,6 +415,8 @@ internal static class BotFightProtocolSmoke
                     Check(fight.IsInFight && fight.Fighters[-7].Life == 55 && fight.Fighters[-7].CellId == 13 && fight.Fighters[-7].Orientation == 3,
                         "Malformed GA changed the state or stopped the fight");
 
+                    await CloseCombatAsync(account, peer, fight);
+
                     // Abandon (GQ) then PvM result.
                     CombatActionResult giveUp = await fight.GiveUpAsync();
                     Check(giveUp.Sent && await Within(Read(peer)) == "GQ" && giveUp.Message.Contains("mort"), "GQ in an active fight");
@@ -334,6 +458,7 @@ internal static class BotFightProtocolSmoke
         }
         finally { listener.Stop(); }
         Console.WriteLine("OK: GTL/GTR/GTS(2-3)/GTF timeline, GIE/GIe effects and expiry, GDZ, Go/fN/fS/fP/fH, Gf, GQ (give up, kick), " +
-            "combat GA table (life, AP/MP, states, invisibility, buffs, carry/throw, summon, GA;999, router fallback), GE PvM/PvP/malformed");
+            "combat GA table (life, AP/MP, states, invisibility, buffs, carry/throw, summon, GA;999, router fallback), GE PvM/PvP/malformed, " +
+            "close combat GA303 (fists, sword, bow, soul stone; GAF->GKK, AP/range/state refusals, Im1170, GA;305)");
     }
 }
