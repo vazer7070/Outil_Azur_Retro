@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Game.Chat;
+using Tool_BotProtocol.Game.Combats;
 using Tool_BotProtocol.Game.Interactions;
 using Tool_BotProtocol.Game.Managers.Mouvements;
 using Tool_BotProtocol.Game.Maps;
@@ -150,7 +151,11 @@ namespace Outil_Azur_complet.Bot.Interfaces
             }
             SelectedSpellId = id;
             RefreshSpellTargets(); SpellSelectionChanged?.Invoke(SelectedSpellId);
-            if (SelectedSpellId.HasValue) ActionFeedback?.Invoke("Sort sélectionné · cliquez sur une cible · Échap : annuler");
+            if (!SelectedSpellId.HasValue) return;
+            // Corps à corps (sort 0 du client, case ²) : mêmes cellules surlignées, la cellule choisie reçoit GA303.
+            bool closeCombat = SelectedSpellId.Value == Fights.CloseCombatSpellId && !Account.Game.character.Spells.ContainsKey(Fights.CloseCombatSpellId);
+            ActionFeedback?.Invoke(closeCombat ? "Corps à corps (" + Account.Game.Fight.CloseCombat.Name + ") · cliquez sur une cellule à portée · Échap : annuler"
+                : "Sort sélectionné · cliquez sur une cible · Échap : annuler");
         }
         private void RefreshSpellTargets()
         {
@@ -305,8 +310,8 @@ namespace Outil_Azur_complet.Bot.Interfaces
         }
 
         /// <summary>
-        /// Clic gauche sur une cellule : sort sélectionné, placement ou déplacement en combat, zaap
-        /// (<c>GA500&lt;cellule&gt;;114</c> comme le client), sinon déplacement. Les PNJ passent par leur menu.
+        /// Clic gauche sur une cellule : sort sélectionné (le corps à corps compris), placement, attaque d'un ennemi adjacent ou
+        /// déplacement en combat, zaap (<c>GA500&lt;cellule&gt;;114</c> comme le client), sinon déplacement. Les PNJ passent par leur menu.
         /// </summary>
         private async Task DefaultCellActionAsync(short cellId)
         {
@@ -321,6 +326,12 @@ namespace Outil_Azur_complet.Bot.Interfaces
                 ActionFeedback?.Invoke(cast.Message); return;
             }
             if (fight.IsInFight) {
+                // Ajout du bot (le client demande la case ² d'abord) : un clic sur un ennemi adjacent l'attaque au corps à corps.
+                if (!fight.IsPlacement && IsAdjacentEnemy(cellId)) {
+                    var attack = await fight.AttackAsync(cellId);
+                    string text = attack.Sent ? "Attaque au corps à corps envoyée (GA303 vers la cellule " + cellId + ")." : attack.Message;
+                    ActionFeedback?.Invoke(text); Account.Logger?.LogInfo("COMBAT", text); return;
+                }
                 var combat = fight.IsPlacement ? await fight.PlaceAsync(cellId) : await fight.MoveAsync(cellId);
                 ActionFeedback?.Invoke(combat.Message); return;
             }
@@ -341,6 +352,20 @@ namespace Outil_Azur_complet.Bot.Interfaces
             }
             ActionFeedback?.Invoke(message);
             Account.Logger.LogInfo("CARTE", message);
+        }
+
+        /// <summary>
+        /// Combattant vivant d'une autre équipe sur <paramref name="cellId"/>, à une case du personnage (équipes connues par <c>GM</c>).
+        /// Lecture des copies de <see cref="Fights.Fighters"/> : ni chemin ni attente réseau.
+        /// </summary>
+        private bool IsAdjacentEnemy(short cellId)
+        {
+            Cell origin = Account.Game.character.Cell, target = Account.Game.Map.GetCellFromId(cellId);
+            if (origin == null || target == null || origin.GetDistanceBetweenCells(target) != 1) return false;
+            var fighters = Account.Game.Fight.Fighters;
+            int selfId = Account.Game.character.id;
+            if (!fighters.TryGetValue(selfId, out CombatFighter self) || self.Team < 0) return false;
+            return fighters.Values.Any(f => f.Id != selfId && !f.IsDead && f.CellId == cellId && f.Team >= 0 && f.Team != self.Team);
         }
 
         /// <summary>

@@ -21,7 +21,8 @@ Familles (dossier écrit sous --sortie, voir README.md de ce dossier) :
               (exports subarea_<id>)            -> WorldMap/<zone>/sous-zones/<id>.png + sous-zones.tsv
               clips/maps/hints.swf               -> WorldMap/hints/<id>.png ; dungeon.swf -> WorldMap/dungeon.png
   UI          modules/core.swf (symboles listés dans SYMBOLES_UI) -> Client/<Symbole>.png
-              clips/flag.swf (scènes de SCENES_UI, à une image donnée) -> Client/FlagCell.png
+              clips/flag.swf, clips/defaultcc.swf (scènes de SCENES_UI, à une image donnée)
+                                                 -> Client/FlagCell.png, Client/DefaultCC.png
 
 Chaque SWF passe par `swfsvg` (mode --scene ou nom d'export), puis cairosvg à l'échelle de la
 famille ; les pixels magenta purs (emplacements remplis à l'exécution) deviennent transparents
@@ -556,8 +557,10 @@ SYMBOLES_UI = [
 ]
 # Scènes de clips/ rendues à une image donnée (symbole, SWF relatif au client, image, échelle) : le drapeau de combat
 # (`Gf`, `flag.swf` joué par `spriteLaunchVisualEffect`) est pris à l'image 30, flèche posée au-dessus du losange.
+# L'icône des poings (`defaultcc.swf`, case ² du corps à corps sans arme, lot X1) est prise à sa première image.
 SCENES_UI = [
     ("FlagCell", "clips/flag.swf", 30, 1),
+    ("DefaultCC", "clips/defaultcc.swf", 1, 2),
 ]
 # Calques : (symbole, suffixe, instance, garder) ; le rendu complet garde le nom du symbole.
 CALQUES_UI = [

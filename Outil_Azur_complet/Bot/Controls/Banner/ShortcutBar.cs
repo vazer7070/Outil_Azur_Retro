@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Game.Accounts;
+using Tool_BotProtocol.Game.Combats;
 using Tool_BotProtocol.Game.Data;
 using Tool_BotProtocol.Game.Perso.Inventory;
 using Tool_BotProtocol.Game.Perso.Inventory.Enums;
@@ -38,7 +39,9 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
     /// <item>Objets : objets de l'inventaire aux positions 35 à 48 (case + <c>ITEM_OFFSET</c> 34) ; glisser envoie
     /// <c>OM&lt;id&gt;|&lt;case + 34&gt;|&lt;quantité&gt;</c> (<c>Items.movement</c>, pile entière comme la valeur par défaut
     /// de <c>PopupQuantity</c>), un clic utilise l'objet (<c>OU&lt;id&gt;|</c>).</item>
-    /// <item>Corps à corps : le bot n'envoie pas encore l'attaque à l'arme (<c>GA303</c>) ; la case l'explique.</item>
+    /// <item>Corps à corps (case <c>²</c>, <c>SH0</c>) : comme le sort 0 du client (<c>CloseCombat</c>), un clic passe la carte
+    /// en visée (<see cref="Fights.CloseCombatSpellId"/>) et la cellule choisie reçoit <c>GA303&lt;cellule&gt;</c>. L'icône est
+    /// celle de l'arme équipée en position 1, sinon le poing <c>DefaultCC</c> (<c>clips/defaultcc.swf</c>).</item>
     /// </list>
     /// </summary>
     public sealed class ShortcutBar : Control
@@ -75,8 +78,8 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
             itemsTab = TabButton(BannerArt.Text("BANNER_TAB_ITEMS", "Obj."), ShortcutTab.Items);
             closeCombat = new SpellShortcutButton { Font = BotFonts.Get(6), Kind = ShortcutSlotKind.CloseCombat, Position = 0, Shortcut = "²",
                 Occupied = true, Available = false, Fallback = "CàC", AccessibleName = "Corps à corps" };
-            closeCombat.Click += (s, e) => Report(CloseCombatText);
-            tips.SetToolTip(closeCombat, CloseCombatText);
+            closeCombat.Click += (s, e) => Activate(0);
+            tips.SetToolTip(closeCombat, CloseCombatTitle);
             Controls.Add(closeCombat);
             for (int i = 0; i < Slots; i++)
             {
@@ -112,14 +115,17 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
         /// <summary>Sort actuellement choisi pour viser (liseré doré), fourni par la carte.</summary>
         public Func<short?> SelectedSpell { get; set; }
 
-        /// <summary>Clic sur un sort : la fenêtre de jeu passe la carte en mode visée.</summary>
+        /// <summary>Clic sur un sort ou sur le corps à corps (<see cref="Fights.CloseCombatSpellId"/>) : la fenêtre de jeu passe la carte en mode visée.</summary>
         public event Action<short> SpellClicked;
         /// <summary>« Fiche du sort » du menu d'une case.</summary>
         public event Action<short> SpellDetailsRequested;
         /// <summary>Retour d'action court pour le bandeau.</summary>
         public event Action<string> Feedback;
 
-        public static string CloseCombatText => "Corps à corps (²) : à venir, le bot n'envoie pas encore l'attaque à l'arme (GA303).";
+        /// <summary>Titre de l'infobulle de la case <c>²</c> (texte <c>CC_DAMAGES</c> du client, sinon « Corps à corps »).</summary>
+        public static string CloseCombatTitle => BannerArt.Text("CC_DAMAGES", "Corps à corps") + " (²)";
+        /// <summary>Infobulle actuelle de la case du corps à corps (tests).</summary>
+        public string CloseCombatTooltip => tips.GetToolTip(closeCombat);
 
         /// <summary>Clé du personnage pour l'ordre local : identifiant et nom (uniques sur un serveur).</summary>
         public string CharacterKey
@@ -181,7 +187,28 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
             if (IsDisposed) return;
             spellsTab.Invalidate(); itemsTab.Invalidate();
             spellIds.Clear(); itemIds.Clear();
+            RefreshCloseCombat();
             if (tab == ShortcutTab.Spells) RefreshSpells(); else RefreshItems();
+        }
+
+        /// <summary>
+        /// Case <c>²</c> : icône de l'arme en position 1 (comme <c>CloseCombat.iconFile</c> du client), sinon le poing
+        /// <c>DefaultCC</c> ; assombrie quand le corps à corps n'est pas possible ; liseré doré pendant la visée.
+        /// </summary>
+        private void RefreshCloseCombat()
+        {
+            var fight = account?.Game?.Fight;
+            InventoryObjects weapon = Items().FirstOrDefault(o => o.position == InventorySlots.WEAPON);
+            CloseCombatStats stats = fight?.CloseCombat;
+            // Arme sans icône exportée : le texte « CàC » plutôt que le poing, qui ferait croire à des mains nues.
+            closeCombat.Icon = weapon != null ? ItemIcon(weapon) : Icon("Client", "DefaultCC");
+            string reason = fight == null ? "Aucun combat en cours." : fight.GetCloseCombatUnavailableReason();
+            closeCombat.Available = reason == null;
+            closeCombat.SelectedSpell = SelectedSpell?.Invoke() == Fights.CloseCombatSpellId;
+            closeCombat.AccessibleName = "Corps à corps · " + (stats?.Name ?? "Poings");
+            tips.SetToolTip(closeCombat, CloseCombatTitle + " · " + (stats?.Summary ?? "Poings")
+                + "\n" + (reason ?? "Cliquer puis choisir une cellule à portée (GA303)") + "\nÉchap : annuler");
+            closeCombat.Invalidate();
         }
 
         private void RefreshSpells()
@@ -249,11 +276,11 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
 
         /// <summary>
         /// Raccourci <c>SH&lt;n&gt;</c> ou clic sur une case : sort → mode visée ; objet → <c>OU&lt;id&gt;|</c> ;
-        /// <c>SH0</c> → corps à corps (à venir). Renvoie vrai si la case avait un contenu.
+        /// <c>SH0</c> ou case <c>²</c> → visée du corps à corps (<see cref="Fights.CloseCombatSpellId"/>). Renvoie vrai si la case avait un contenu.
         /// </summary>
         public bool Activate(int position)
         {
-            if (position == 0) { Report(CloseCombatText); return true; }
+            if (position == 0) { SpellClicked?.Invoke(Fights.CloseCombatSpellId); return true; }
             Button slot = Slot(position);
             if (slot == null) return false;
             if (spellIds.TryGetValue(slot, out short spell)) { SpellClicked?.Invoke(spell); return true; }
