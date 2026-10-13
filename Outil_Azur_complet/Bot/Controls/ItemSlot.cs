@@ -197,7 +197,7 @@ namespace Outil_Azur_complet.Bot.Controls
     public sealed class ItemSlot : Control
     {
         private InventoryObjects item;
-        private bool selected, highlighted, crossed;
+        private bool selected, highlighted, crossed, hasMount;
         private Point dragOrigin;
         private bool dragArmed;
 
@@ -227,6 +227,11 @@ namespace Outil_Azur_complet.Bot.Controls
         public Func<long, InventoryObjects> Resolve { get; set; }
 
         public bool Selected { get { return selected; } set { if (selected == value) return; selected = value; Invalidate(); } }
+        /// <summary>
+        /// Case de la monture (16) : vrai quand le serveur a annoncé une monture (<c>Re+</c>). Comme <c>mountChanged</c> du client,
+        /// l'icône <c>UI_InventoryMountIcon</c> n'apparaît qu'alors, et la case accepte une ressource pour nourrir la monture.
+        /// </summary>
+        public bool HasMount { get { return hasMount; } set { if (hasMount == value) return; hasMount = value; Invalidate(); } }
         /// <summary>Vrai pour le bouclier quand l'arme portée est à deux mains (<c>_mcTwoHandedCrossLeft</c>).</summary>
         public bool Crossed { get { return crossed; } set { if (crossed == value) return; crossed = value; Invalidate(); } }
 
@@ -242,8 +247,17 @@ namespace Outil_Azur_complet.Bot.Controls
         /// <summary>Sélectionne l'emplacement par programme (clavier, tests) : lève <see cref="Activated"/> comme un clic gauche.</summary>
         public void Activate() => Activated?.Invoke(this, EventArgs.Empty);
 
-        /// <summary>Vrai si l'objet glissé peut être posé ici d'après son type (le serveur confirme ou refuse ensuite).</summary>
-        public bool Accepts(InventoryObjects candidate) => candidate != null && ItemSlots.Accepts(Position, candidate.Type) && (int)candidate.position != Position;
+        /// <summary>
+        /// Vrai si l'objet glissé peut être posé ici d'après son type (le serveur confirme ou refuse ensuite). Une ressource
+        /// (super-type 9) est acceptée sur le familier porté et sur la monture annoncée, pour les nourrir, comme la
+        /// surbrillance du client (<c>enabledFromSuperType</c> n'allume ces cases que si leur contenu n'est pas vide).
+        /// </summary>
+        public bool Accepts(InventoryObjects candidate)
+        {
+            if (candidate == null || (int)candidate.position == Position) return false;
+            bool pet = Position == ItemSlots.PetPosition && item != null && !ReferenceEquals(item, candidate);
+            return ItemSlots.Accepts(Position, candidate.Type, pet, Position == ItemSlots.MountPosition && hasMount);
+        }
 
         /// <summary>Dépôt d'un contenu glissé (gestionnaire de glisser-déposer, menus, tests) : lève <see cref="Dropped"/> pour un objet.</summary>
         public void AcceptDrop(ShortcutPayload payload)
@@ -258,7 +272,7 @@ namespace Outil_Azur_complet.Bot.Controls
             graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
             Rectangle bounds = new Rectangle(0, 0, Width, Height);
             ItemCellPainter.Paint(graphics, bounds, item, selected, highlighted, this, Font);
-            if (item == null && Position == ItemSlots.MountPosition)
+            if (item == null && Position == ItemSlots.MountPosition && hasMount)
             {
                 Image mount = ItemAssets.Cached("UI_InventoryMountIcon");
                 if (mount != null) ClientAssets.DrawFit(graphics, mount, Rectangle.Inflate(bounds, -Math.Max(3, Width / 6), -Math.Max(3, Height / 6)));
@@ -380,6 +394,13 @@ namespace Outil_Azur_complet.Bot.Controls
         {
             get { return slots[0].Resolve; }
             set { foreach (ItemSlot slot in slots) slot.Resolve = value; }
+        }
+
+        /// <summary>Monture annoncée par le serveur (<c>Re+</c>) : icône et nourriture sur la case 16 (<see cref="ItemSlot.HasMount"/>).</summary>
+        public bool HasMount
+        {
+            get { return slots[ItemSlots.MountPosition].HasMount; }
+            set { slots[ItemSlots.MountPosition].HasMount = value; }
         }
 
         /// <summary>Identifiant d'inventaire de l'objet mis en évidence, ou null.</summary>
