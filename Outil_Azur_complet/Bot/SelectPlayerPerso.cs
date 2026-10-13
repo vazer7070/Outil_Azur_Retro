@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Tool_BotProtocol.Game.Accounts;
+using Tool_BotProtocol.Game.Actions;
 using Outil_Azur_complet.Bot.Controls;
 namespace Outil_Azur_complet.Bot
 {
@@ -14,7 +15,7 @@ namespace Outil_Azur_complet.Bot
         private readonly Accounts A;
         private ListView characters;
         private Label status, subscription;
-        private Control play, create, remove;
+        private Control play, create, remove, reset;
         private TextBox secretAnswer;
         private Label secretQuestion;
         private CharacterSelectionScene scene;
@@ -49,6 +50,8 @@ namespace Outil_Azur_complet.Bot
             scene.EmptySlotActivated+=Create;play=scene.PlayButton;root.Controls.Add(scene,0,1);
             create=BotUi.Button("Créer un personnage",(s,e)=>Create(),false,195);
             remove=BotUi.Button("Supprimer le personnage",async(s,e)=>await DeleteSelected(),false,195);
+            // Mode héroïque (lot X2) : un personnage mort ne se joue plus ; le bouton RESET_SHORTCUT envoie AR<id> après confirmation.
+            reset=BotUi.Button(MapActionTexts.ResetCharacter,async(s,e)=>await ResetSelected(),false,195);reset.Visible=false;
             status=BotUi.Status("Connexion au serveur de jeu, attente de la liste des personnages…");status.Height=24;
             subscription=BotUi.Status("");subscription.Height=22;
             var footer=new Panel { Dock=DockStyle.Top,AutoSize=true,BackColor=BotUi.Paper,Padding=new Padding(12,5,12,4),Margin=new Padding(0) };
@@ -59,7 +62,7 @@ namespace Outil_Azur_complet.Bot
                 ForeColor=BotUi.Ink,BackColor=BotUi.Paper,Cursor=Cursors.Hand };
             deletionToggle.CheckedChanged+=(s,e)=> { deletionFields.Visible=deletionToggle.Checked;root.PerformLayout(); };
             footer.Controls.Add(deletionFields);footer.Controls.Add(deletionToggle);footer.Controls.Add(subscription);footer.Controls.Add(status);
-            footer.Controls.Add(BotUi.Actions(create,remove,BotUi.Button("Retour aux serveurs",(s,e)=>Back(),false,180)));
+            footer.Controls.Add(BotUi.Actions(create,remove,reset,BotUi.Button("Retour aux serveurs",(s,e)=>Back(),false,180)));
             root.Controls.Add(footer,0,2);Controls.Add(root);root.BringToFront();UpdateSelection();
         }
         private void ChooseCharacter(int id)
@@ -71,7 +74,11 @@ namespace Outil_Azur_complet.Bot
         private void UpdateSelection()
         {
             bool connected=receivedCharacters&&A.Connexion!=null&&A.Connexion.IsConnected()&&!pending;
+            bool dead=characters.SelectedItems.Count>0&&IsDead((int)characters.SelectedItems[0].Tag);
             play.Enabled=remove.Enabled=connected&&characters.SelectedItems.Count>0;create.Enabled=connected;
+            // Comme ChooseCharacterSprite.innerRelease : un mort ne se sélectionne pas pour jouer.
+            if(dead)play.Enabled=false;
+            reset.Visible=A.Game.Server.DeadCharacters.Count>0;reset.Enabled=connected&&dead;
             if(characters.SelectedItems.Count>0) {
                 var selected=characters.SelectedItems[0];LABEL=selected.Text+"("+selected.Tag+")";
                 scene.SetSelected((int)selected.Tag);
@@ -94,6 +101,7 @@ namespace Outil_Azur_complet.Bot
                     displayed.Add(new SelectionCharacter { Id=pair.Key,Name=displayName,Level=level,Gfx=gfx,Appearance=appearance });
                     var row=characters.Items.Add(displayName);row.SubItems.Add(level);row.SubItems.Add(appearance);
                     row.SubItems.Add(pair.Key.ToString());row.Tag=pair.Key;row.ToolTipText=displayName+"\nNiveau "+level+" · "+appearance;
+                    int deaths;if(A.Game.Server.DeadCharacters.TryGetValue(pair.Key,out deaths))row.ToolTipText+="\nMort (mode héroïque, "+deaths+" mort(s))";
                     if(chosen==pair.Key)row.Selected=true;
                 }
                 characters.EndUpdate();refreshing=false;
@@ -105,7 +113,7 @@ namespace Outil_Azur_complet.Bot
         }
         private async Task PlaySelected()
         {
-            if(!play.Enabled)return;int id=(int)characters.SelectedItems[0].Tag;pending=true;UpdateSelection();status.Text="Sélection du personnage…";
+            if(!play.Enabled||characters.SelectedItems.Count==0)return;int id=(int)characters.SelectedItems[0].Tag;if(IsDead(id))return;pending=true;UpdateSelection();status.Text="Sélection du personnage…";
             try { await A.Connexion.SendPacket("AS"+id,true); }catch(Exception ex) { status.Text=ex.Message;pending=false;UpdateSelection(); }
         }
         private static string CharacterAppearance(string value) { int gfx;if(!int.TryParse(value,out gfx)||gfx<10||gfx>121||gfx%10>1)return "Apparence spéciale";string[] classes={ "Féca","Osamodas","Enutrof","Sram","Xélor","Ecaflip","Eniripsa","Iop","Crâ","Sadida","Sacrieur","Pandawa" };return classes[gfx/10-1]+" · "+(gfx%10==0?"Masculin":"Féminin"); }
@@ -142,6 +150,25 @@ namespace Outil_Azur_complet.Bot
         {
             pending=true;UpdateSelection();status.Text="Demande de suppression envoyée au serveur…";
             try { string answer=secretAnswer.Text;if(answer.IndexOfAny(new[] { '\r','\n','\0','|' })>=0)throw new ArgumentException("La réponse secrète ne doit pas contenir de retour à la ligne ni de barre verticale.");await A.Connexion.SendPacket("AD"+id+"|"+answer.Replace(" ","%20"),true);secretAnswer.Clear(); }catch(Exception ex) { status.Text=ex.Message;pending=false;UpdateSelection(); }
+        }
+        private bool IsDead(int id) => A.Game.Server.DeadCharacters.ContainsKey(id);
+        private async Task ResetSelected()
+        {
+            if(!reset.Enabled||characters.SelectedItems.Count==0)return;int id=(int)characters.SelectedItems[0].Tag;
+            if(await BotDialogs.AskYesNoAsync(this,MapActionTexts.ResetCharacter,MapActionTexts.ResetCharacterQuestion)!=BotDialogResult.Yes)return;
+            await ResetCharacter(id);
+        }
+        /// <summary>
+        /// <c>AR&lt;id&gt;</c> (<c>Account.resetCharacter</c>) : StarLoco ressuscite le personnage et renvoie la liste <c>ALK</c>.
+        /// Réservé aux morts du mode héroïque : le serveur ne vérifie pas que le personnage est mort.
+        /// </summary>
+        public async Task ResetCharacter(int id)
+        {
+            if(!IsDead(id)) { status.Text="Ce personnage n'est pas mort : rien à réinitialiser.";return; }
+            pending=true;UpdateSelection();status.Text="Demande de réinitialisation envoyée au serveur (AR"+id+")…";
+            try { await A.Connexion.SendPacket("AR"+id,true); }catch(Exception ex) { status.Text=ex.Message; }
+            // StarLoco répond par ALK, ou BN si le personnage n'est pas sur ce compte : ne pas laisser l'écran bloqué.
+            pending=false;UpdateSelection();
         }
         private void Create() { if(!create.Enabled)return;transferred=true;new CreateCharacter(A).Show();Close(); }
         private void Back() { var config=A.accountConfig;new PersoSelection(config).Show();Close(); }

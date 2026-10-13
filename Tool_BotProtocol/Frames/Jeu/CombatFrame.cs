@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using Tool_BotProtocol.Frames.Messages;
+using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Network;
 
 namespace Tool_BotProtocol.Frames.Jeu
@@ -41,6 +42,21 @@ namespace Tool_BotProtocol.Frames.Jeu
         /// <summary><c>Go±&lt;A|S|P|H&gt;&lt;équipe&gt;</c> : option d'une équipe (combats de la carte compris).</summary>
         [MessageAttribution("Go")]
         public void Option(TcpClient client, string message) => client.account.Game.Fight.ApplyFightOption(message.Substring(2));
+        /// <summary>
+        /// <c>GO</c> : fin de partie du mode héroïque (routage sensible à la casse : distinct de <c>Go</c>). StarLoco ne l'envoie
+        /// qu'avec <c>HEROIC</c> (faux par défaut), en réponse à <c>GF</c> (<c>Player.setGhost</c>). Comme <c>Game.onGameOver</c>
+        /// du client (déconnexion douce, puis écran <c>GameOver</c> et son bouton « Rejouer »), le bot lève
+        /// <see cref="Game.Session.GameSession.GameOver"/> puis ferme la connexion.
+        /// </summary>
+        [MessageAttribution("GO")]
+        public void GameOver(TcpClient client, string message)
+        {
+            Accounts account = client.account;
+            if (account == null) return;
+            account.Logger?.LogInfo("SESSION", "Fin de partie (GO) : le serveur a terminé la partie de ce personnage ; déconnexion.");
+            try { account.Game.Session.OnGameOver(); }
+            finally { account.Disconnect(client); }
+        }
         /// <summary><c>Gf&lt;combattant&gt;|&lt;cellule&gt;</c> : cellule signalée par un coéquipier.</summary>
         [MessageAttribution("Gf")]
         public void Flag(TcpClient client, string message) => client.account.Game.Fight.ShowFlag(message.Substring(2));

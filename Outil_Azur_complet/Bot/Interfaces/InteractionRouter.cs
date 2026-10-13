@@ -65,6 +65,8 @@ namespace Outil_Azur_complet.Bot.Interfaces
         /// <summary>Dernier menu construit (diagnostic et tests) ; il est libéré à sa fermeture.</summary>
         public ContextMenuStrip LastMenu { get; private set; }
         public Accounts Account => account();
+        /// <summary>Contrôle de la carte qui porte les menus (UserMapControl dans la fenêtre de jeu), pour placer un sélecteur sur un acteur.</summary>
+        internal Control Owner => owner;
 
         /// <summary>Clic gauche sur une cellule (ou action « se déplacer ici » d'un menu).</summary>
         public event MapClickHandler MoveRequested;

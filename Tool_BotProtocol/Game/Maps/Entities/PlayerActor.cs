@@ -33,8 +33,9 @@ namespace Tool_BotProtocol.Game.Maps.Entities
         public string EmoteTimer { get; set; } = string.Empty;
         public string GuildName { get; set; } = string.Empty;
         public string GuildEmblem { get; set; } = string.Empty;
-        /// <summary>Restrictions du sprite, texte brut conservé. Le client le lit en base 36 (<c>parseInt(…, 36)</c>) avec les
-        /// mêmes bits que <c>AR</c> ; StarLoco y place la vitesse du joueur. Les bits connus sont dans <see cref="Personnages.Restrictions"/>.</summary>
+        /// <summary>Restrictions du sprite, texte brut conservé. Le client le lit en base 36 (<c>parseInt(…, 36)</c>, signe
+        /// compris) avec les bits du sprite (<see cref="PlayerRestrictions"/>, différents de ceux de <c>AR</c>) ; StarLoco y place
+        /// « -1 » devant la vitesse pour une tombe. Les bits connus sont dans <see cref="Personnages.Restrictions"/>.</summary>
         public string RestrictionsRaw { get; set; } = string.Empty;
         /// <summary>Valeur lue en base 36, ou null si le champ est vide ou illisible.</summary>
         public int? RestrictionsValue { get; set; }

@@ -165,6 +165,7 @@
     <Compile Include="Game\Accounts\AccountStates.cs" />
     <Compile Include="Game\Actions\GameActionRouter.cs" />
     <Compile Include="Game\Actions\MapActions.cs" />
+    <Compile Include="Game\Actions\MapActions.Self.cs" />
     <Compile Include="Game\Actions\MapActionTexts.cs" />
     <Compile Include="Game\Actions\MapFights.cs" />
     <Compile Include="Game\Combats\CloseCombat.cs" />

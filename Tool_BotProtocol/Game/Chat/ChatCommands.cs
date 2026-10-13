@@ -69,7 +69,7 @@ namespace Tool_BotProtocol.Game.Chat
 
         /// <summary>Commandes que le client réserve à son interface (déconnexion, base de connaissances…) : non reprises par le bot.</summary>
         private static readonly string[] ClientOnly =
-            { "CONSOLE", "DEBUG", "CHANGECHARACTER", "LOGOUT", "QUIT", "KB", "RELEASE", "SELECTION", "WTF", "DOFUS2", "TACTIC",
+            { "CONSOLE", "DEBUG", "CHANGECHARACTER", "LOGOUT", "QUIT", "KB", "SELECTION", "WTF", "DOFUS2", "TACTIC",
               "FILEOUTPUT", "SPEAKINGITEM", "GOD", "GODMODE" };
 
         static ChatCommands()
@@ -111,6 +111,8 @@ namespace Tool_BotProtocol.Game.Chat
                 context => Presence(context)?.ToggleAwayAsync() ?? context.Error("/away : session de jeu indisponible."));
             Add(new[] { "INVISIBLE" }, "/invisible", "basculer l'état invisible (BYI) : seuls les amis peuvent alors chuchoter",
                 context => Presence(context)?.ToggleInvisibleAsync() ?? context.Error("/invisible : session de jeu indisponible."));
+            // Lot X2 : comme Console.process du client (RELEASE) : GF pour une tombe, sinon ERROR_ALREADY_A_GHOST ou ERROR_NOT_DEAD_AT_LEAST_FOR_NOW.
+            Add(new[] { "RELEASE" }, "/release", "libérer son âme quand le personnage est une tombe (GF)", Release);
             Add(new[] { "THINK", "METHINK", "PENSE", "TH" }, "/think <texte>", "bulle de pensée dans le canal général",
                 context => Styled(context, "!THINK!" + context.Text, "/" + context.Name.ToLowerInvariant() + " <texte>"));
             Add(new[] { "ME", "EM", "MOI", "EMOTE" }, "/me <texte>", "action en italique dans le canal général",
@@ -173,6 +175,16 @@ namespace Tool_BotProtocol.Game.Chat
         }
 
         private static PlayerPresence Presence(ChatCommandContext context) => context.Account?.Game?.Presence;
+
+        /// <summary><c>/release</c> : <c>GF</c> si le sprite du personnage est une tombe, sinon le message d'erreur du client.</summary>
+        private static async Task<ChatResult> Release(ChatCommandContext context)
+        {
+            Actions.MapActions actions = context.Account?.Game?.Interactions?.MapActions;
+            if (actions == null) return await context.Error("/release : session de jeu indisponible.");
+            if (!actions.IsTomb) return await context.Error(actions.IsGhost ? Actions.MapActionTexts.AlreadyGhost : Actions.MapActionTexts.NotDead);
+            Interactions.InteractionResult result = await actions.FreeSoulAsync().ConfigureAwait(false);
+            return result.Sent ? new ChatResult(true, result.Message, "GF") : await context.Error(result.Message);
+        }
 
         private static Task<ChatResult> Whisper(ChatCommandContext context)
         {
