@@ -109,6 +109,9 @@ namespace Tool_BotProtocol.Game.Actions
         public static string Married(string a, string b) => Get("A_MARRIED_B", "%1 et %2 sont désormais mariés.", a, b);
         public static string NotMarried(string a, string b) => Get("A_NOT_MARRIED_B", "Le mariage de %1 et %2 n'a pas lieu.", a, b);
         public static string Replay => Get("REPLAY_WORD", "Rejouer");
+        /// <summary>Bouton du choix du personnage pour un mort du mode héroïque (<c>AR&lt;id&gt;</c>).</summary>
+        public static string ResetCharacter => Get("RESET_SHORTCUT", "Réinitialiser");
+        public static string ResetCharacterQuestion => Get("DO_U_RESET_CHARACTER", "Ramener ce personnage mort à la vie pour reprendre la partie ?");
         /// <summary>
         /// Phrase que « Se frapper » envoie dans le canal général (<c>SLAP_SENTENCE</c>) ; <c>null</c> sans <c>lang.xml</c> :
         /// le bot n'invente pas un texte que les autres joueurs liraient.
