@@ -842,7 +842,7 @@ Le menu que le client ouvre sur son propre personnage (`getPlayerPopupMenu`, bra
 - x2b : un compte et un personnage inventés, écrits dans la base avec l'énergie -1 sur la carte 7411 (StarLoco appelle `setFuneral` au chargement, comme `Fight` après une défaite à 0 d'énergie) : sprite « -10 », gfx 93, `eD` refusé ; `GF` → `GDM|8534`, `IH`, fantôme « -40 » gfx 8004 en cellule 196 ; marche vers la statue 542 → `AR6bk`, sprite « 0 », gfx 91 ;
 - x2c : deux comptes inventés posés sur les cellules 297 et 282 de la chapelle : `DR613|518` → `GA;617` à la mariée seule, Non → `GA619<réf>`, `cMK` « Non », `Im048` ; nouvelle demande, Oui → `GA618<réf>`, `GA;617` au marié, Oui → déclaration du prêtre.
 
-Les comptes et personnages inventés sont supprimés de la base à la fin de leur scénario ; `AZUR_STARLOCO_SCENARIOS=x2a,x2b,x2c` rejoue ces scénarios seuls, après la connexion du scénario a.
+La suite complète, sans filtre, réussit ses quinze scénarios le même jour. Les comptes et personnages inventés sont supprimés de la base à la fin de leur scénario ; `AZUR_STARLOCO_SCENARIOS=x2a,x2b,x2c` rejoue ces scénarios seuls, après la connexion du scénario a.
 
 Limites :
 
