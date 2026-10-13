@@ -385,9 +385,18 @@ internal static partial class Live
         Say("scénario " + result);
     }
 
+    /// <summary>
+    /// <c>AZUR_STARLOCO_SCENARIOS</c> (facultatif) : repères des scénarios à jouer, séparés par des virgules (« h », « e,g2 ») ; le scénario a
+    /// (connexion) est toujours joué. Sert à rejouer un scénario seul sous la limite de 240 s du lanceur, le scénario f pouvant durer 200 s.
+    /// </summary>
+    private static readonly string[] onlyScenarios = (Environment.GetEnvironmentVariable("AZUR_STARLOCO_SCENARIOS") ?? "")
+        .Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
     /// <summary>Joue un scénario avec un délai maximal ; une exception devient un échec avec sa raison.</summary>
     private static async Task<bool> Scenario(string name, int seconds, Func<Task<string>> body)
     {
+        string letter = name.Substring(0, Math.Max(0, name.IndexOf('.')));
+        if (onlyScenarios.Length > 0 && letter != "a" && !onlyScenarios.Contains(letter)) { Record(name, "non joué", "absent de AZUR_STARLOCO_SCENARIOS"); return false; }
         Say("---- scénario " + name + " (délai " + seconds + " s)");
         Task<string> run = body();
         Task finished = await Task.WhenAny(run, Task.Delay(TimeSpan.FromSeconds(seconds))).ConfigureAwait(false);
@@ -442,6 +451,7 @@ internal static partial class Live
         await Scenario("g1. dialogue avec un PNJ", 40, NpcDialogAsync).ConfigureAwait(false);
         await Scenario("g2. boutique d'un PNJ : achat", 60, NpcShopAsync).ConfigureAwait(false);
         await Scenario("g3. zaap", 90, ZaapAsync).ConfigureAwait(false);
+        await Scenario("h. corps à corps : épée et arc contre des monstres, poings en défi (lot X1)", 150, CloseCombatAsync).ConfigureAwait(false);
     }
 }
 
@@ -1296,5 +1306,377 @@ internal static partial class Live
             else if (zaap.IsOpen) await zaap.LeaveAsync().ConfigureAwait(false);
         }
         return "zaap cellule " + cell + " : " + Short(wc, 60) + " (" + destinations + " destination(s)) ; WU" + destination.MapId + " (" + destination.Cost + " k) → GDM|" + destination.MapId + ", " + cost + back;
+    }
+}
+
+// Scénario h (lot X1) : corps à corps. B (épée) et A (arc) contre des monstres dans le même combat, puis A à mains nues contre B en défi.
+internal static partial class Live
+{
+    /// <summary>Armes de niveau 1 sans condition du PNJ 816 (carte 164) : épée 2170 (5 PA, portée 1) et arc 6783 (4 PA, portée 2 à 6).</summary>
+    private const int SwordTemplate = 2170, BowTemplate = 6783, WeaponSellerTemplate = 816;
+
+    private static Tool_BotProtocol.Game.Perso.Inventory.InventoryObjects Owned(LiveSession s, int template) =>
+        s.Account.Game.character.Inventory.Objets.FirstOrDefault(x => x.ID == template && x.Qua > 0);
+
+    /// <summary>
+    /// Trois combats de monstres à la suite ne tiennent pas dans la limite de 240 s du lanceur : StarLoco remet la vie à 1 après
+    /// chaque défaite et n'en rend qu'un point par seconde assis. L'épée et l'arc (<c>GA;303</c>) sont donc joués dans un même
+    /// combat de monstres, B lançant le combat et A le rejoignant ; les poings (sort 0) sont joués en défi, qui ne coûte pas de vie.
+    /// </summary>
+    private static async Task<string> CloseCombatAsync()
+    {
+        RequireMaps();
+        if (!LangData.IsLoaded("items") || !LangData.IsLoaded("classes")) throw new SkipScenario("textes du client absents : le bot ne connaît ni les PA ni la portée du corps à corps");
+        await GoHome(a).ConfigureAwait(false);
+        await GoHome(b).ConfigureAwait(false);
+        Check(a.MapId == b.MapId, "A et B ne sont pas sur la même carte : " + a.MapId + " et " + b.MapId);
+        var evidence = new List<string>();
+        // Achats en même temps chez le même marchand : l'arc pour A (Crâ, fenêtre de jeu), l'épée pour B (Iop).
+        Task<string> bow = BuyAndWieldAsync(a, BowTemplate), sword = BuyAndWieldAsync(b, SwordTemplate);
+        evidence.AddRange(await Task.WhenAll(bow, sword).ConfigureAwait(false));
+        // A sort vaincu du scénario f (1 PV) : quelques secondes assis pour survivre au premier tour des monstres.
+        await RestAsync(a, evidence, 15, 20).ConfigureAwait(false);
+        evidence.Add(await TeamMonsterFightAsync(evidence).ConfigureAwait(false));
+        evidence.Add(await WieldAsync(a, 0).ConfigureAwait(false));
+        evidence.Add(await FistsDuelAsync(evidence).ConfigureAwait(false));
+        return string.Join(" ; ", evidence);
+    }
+
+    private static async Task<string> BuyAndWieldAsync(LiveSession s, int template)
+    {
+        string bought = await BuyWeaponsAsync(s, template).ConfigureAwait(false);
+        return bought + " ; " + s.Label + " " + await WieldAsync(s, template).ConfigureAwait(false);
+    }
+
+    /// <summary>Boutique du marchand d'armes : <c>ER0|id</c>, puis <c>EB&lt;modèle&gt;|1</c> pour chaque arme absente de l'inventaire.</summary>
+    private static async Task<string> BuyWeaponsAsync(LiveSession s, params int[] templates)
+    {
+        // GoHome rend la main dès GDM : les PNJ (GM) arrivent après GI.
+        await s.Until(() => s.Map.Npcs.Any(n => n.TemplateId == WeaponSellerTemplate), 10).ConfigureAwait(false);
+        NpcActor seller = s.Map.Npcs.FirstOrDefault(n => n.TemplateId == WeaponSellerTemplate);
+        if (seller == null) throw new SkipScenario("pas de marchand d'armes (PNJ " + WeaponSellerTemplate + ") sur la carte " + s.MapId);
+        NpcShop shop = s.Account.Game.Interactions.Shop;
+        int mark = s.ReceivedCount;
+        var open = await shop.OpenAsync((int)seller.Id).ConfigureAwait(false);
+        Check(open.Sent, s.Label + " : boutique refusée par le bot : " + open.Message);
+        string eck = await s.Expect(p => p.StartsWith("ECK") || p.StartsWith("ERE") || p.StartsWith("EV"), "ECK0 (boutique ouverte)", 10, mark).ConfigureAwait(false);
+        Check(eck.StartsWith("ECK"), s.Label + " : le serveur n'ouvre pas la boutique du PNJ " + WeaponSellerTemplate + " : " + eck);
+        Check(await s.Until(() => shop.IsOpen && templates.All(t => shop.Articles.Any(x => x.TemplateId == t)), 10).ConfigureAwait(false),
+            "Armes " + string.Join(", ", templates) + " absentes de la boutique : " + string.Join(",", shop.Articles.Select(x => x.TemplateId)));
+        var bought = new List<string>();
+        foreach (int template in templates)
+        {
+            if (Owned(s, template) != null) { bought.Add(template + " déjà dans l'inventaire"); continue; }
+            int buyMark = s.ReceivedCount;
+            var buy = await shop.BuyAsync(template, 1).ConfigureAwait(false);
+            Check(buy.Sent, s.Label + " : achat de " + template + " refusé par le bot : " + buy.Message);
+            string ebk = await s.Expect(p => p.StartsWith("EBK") || p.StartsWith("EBE"), "EBK (achat accepté)", 10, buyMark).ConfigureAwait(false);
+            Check(ebk.StartsWith("EBK"), s.Label + " : achat de " + template + " refusé par le serveur : " + ebk);
+            Check(await s.Until(() => Owned(s, template) != null && !shop.IsPending, 10).ConfigureAwait(false), s.Label + " : l'arme " + template + " n'arrive pas dans l'inventaire (OAKO)");
+            bought.Add(template + " : " + ebk + ", " + Short(s.ReceivedSince(buyMark).FirstOrDefault(p => p.StartsWith("OAKO")), 30));
+        }
+        int closeMark = s.ReceivedCount;
+        var leave = await shop.LeaveAsync().ConfigureAwait(false);
+        Check(leave.Sent, s.Label + " : fermeture de la boutique refusée par le bot : " + leave.Message);
+        await s.Expect("EV", "EV (boutique fermée)", 10, closeMark).ConfigureAwait(false);
+        return s.Label + " achète au PNJ " + WeaponSellerTemplate + " " + seller.DisplayName + " : " + string.Join(", ", bought);
+    }
+
+    /// <summary>Arme <paramref name="template"/> en position 1 (<c>OM&lt;objet&gt;|1</c>), ou mains nues (<c>OM&lt;objet&gt;|-1</c>) pour 0.</summary>
+    private static async Task<string> WieldAsync(LiveSession s, int template)
+    {
+        var inventory = s.Account.Game.character.Inventory;
+        Fights fight = s.Account.Game.Fight;
+        var held = inventory.GetObjetsPosition(Tool_BotProtocol.Game.Perso.Inventory.Enums.InventorySlots.WEAPON);
+        int mark = s.ReceivedCount;
+        string om = "aucune arme en main";
+        if (template == 0 && held != null)
+        {
+            Check(await inventory.Desequip_Item(held).ConfigureAwait(false), s.Label + " : retrait de l'arme refusé par le bot");
+            om = await s.Expect(p => p == "OM" + held.Inventory_ID + "|", "OM" + held.Inventory_ID + "| (arme rangée)", 10, mark).ConfigureAwait(false);
+        }
+        else if (template != 0)
+        {
+            var item = Owned(s, template);
+            Check(item != null, s.Label + " : arme " + template + " absente de l'inventaire");
+            Check(await inventory.Equip_item(item).ConfigureAwait(false), s.Label + " : équipement de l'arme " + template + " refusé par le bot");
+            om = await s.Expect(p => p == "OM" + item.Inventory_ID + "|1", "OM" + item.Inventory_ID + "|1 (arme en main)", 10, mark).ConfigureAwait(false);
+        }
+        Check(await s.Until(() => fight.CloseCombat.WeaponTemplateId == template, 5).ConfigureAwait(false),
+            s.Label + " : le bot garde l'arme " + fight.CloseCombat.WeaponTemplateId + " en position 1 après " + om);
+        CloseCombatStats stats = fight.CloseCombat;
+        Check(stats.HasData && stats.Source == (template == 0 ? "classe" : "arme"), s.Label + " : PA et portée de " + stats.Name + " non lus dans les textes du client (" + stats.Source + ")");
+        return om + " → " + stats.Summary + " (" + stats.Source + ")";
+    }
+
+    /// <summary>Assis (émote 1 ; StarLoco rend alors 1 PV par seconde, <c>ILS1000</c>) jusqu'à <paramref name="goal"/> PV, <paramref name="seconds"/> s au plus.</summary>
+    private static async Task RestAsync(LiveSession s, List<string> evidence, int goal, int seconds)
+    {
+        Func<int> life = () => s.Account.Game.character.stats.VitalityActual;
+        int max = s.Account.Game.character.stats.MaxVitality, before = life();
+        goal = Math.Min(goal, max);
+        if (before >= goal) return;
+        DateTime start = DateTime.UtcNow;
+        int mark = s.ReceivedCount;
+        var sit = await s.Account.Game.Chat.SitAsync().ConfigureAwait(false);
+        bool seated = sit.Sent && await s.Until(() => s.ReceivedSince(mark).Any(p => p.StartsWith("eUK" + s.Id + "|1", StringComparison.Ordinal)), 5).ConfigureAwait(false);
+        await s.Until(() => life() >= goal, Math.Max(1, seconds - (int)(DateTime.UtcNow - start).TotalSeconds)).ConfigureAwait(false);
+        evidence.Add(s.Label + (seated ? " se repose assis" : " se repose debout") + " : " + before + " → " + life() + "/" + max + " PV en " + (int)(DateTime.UtcNow - start).TotalSeconds + " s");
+    }
+
+    /// <summary>
+    /// B lance un combat contre le groupe le plus faible de la carte ou d'une voisine, A le rejoint pendant le placement
+    /// (<c>GA903&lt;combat&gt;;&lt;id de B&gt;</c>, comme le clic sur l'épée du combat) ; chacun se met à portée et frappe à son tour
+    /// (<see cref="CloseCombatTurnAsync"/>), puis les deux abandonnent.
+    /// </summary>
+    private static async Task<string> TeamMonsterFightAsync(List<string> evidence)
+    {
+        int home = b.MapId;
+        Trigger back = null;
+        if (b.Map.MonsterGroups.Count == 0)
+            foreach (Trigger go in Triggers.ForMap(home).Values.Where(t => t.IsTeleport && t.TargetMapId != home && Map.AllBotMaps.ContainsKey(t.TargetMapId)).OrderBy(t => t.CellId))
+            {
+                Trigger reverse = Triggers.ForMap(go.TargetMapId).Values.FirstOrDefault(t => t.IsTeleport && t.TargetMapId == home);
+                if (reverse == null) continue;
+                await Task.WhenAll(WalkThroughTrigger(b, go), WalkThroughTrigger(a, go)).ConfigureAwait(false);
+                if (await b.Until(() => b.Map.MonsterGroups.Count > 0, 3).ConfigureAwait(false)) { back = reverse; break; }
+                await Task.WhenAll(WalkThroughTrigger(b, reverse), WalkThroughTrigger(a, reverse)).ConfigureAwait(false);
+            }
+        if (b.Map.MonsterGroups.Count == 0) throw new SkipScenario("aucun groupe de monstres sur la carte " + home + " ni sur ses voisines");
+        Check(a.MapId == b.MapId, "A n'a pas suivi B sur la carte " + b.MapId);
+        int markA = a.ReceivedCount, markB = b.ReceivedCount;
+        string gjk = null, group = null;
+        for (int attempt = 0; attempt < 4 && gjk == null; attempt++)
+        {
+            MonsterGroupActor target = b.Map.MonsterGroups.OrderBy(g => g.TotalLevel).First();
+            group = "carte " + b.MapId + ", groupe niveau " + target.TotalLevel + " (" + target.Members.Count + " monstres)";
+            int before = b.ReceivedCount;
+            var attack = await b.Account.Game.Interactions.MapActions.AttackGroupAsync(target.Id, async cell =>
+            {
+                var moved = await b.Account.Game.Manager.Mouvements.MoveToAsync(b.Map.GetCellFromId(cell)).ConfigureAwait(false);
+                Journal("B [test] marche vers le groupe : " + moved);
+            }).ConfigureAwait(false);
+            Check(attack.Sent, "Attaque du groupe refusée par le bot : " + attack.Message);
+            try { gjk = await b.Expect("GJK", "GJK (combat lancé)", 15, before).ConfigureAwait(false); }
+            catch (TimeoutException) { Journal("B [test] le groupe a bougé, nouvel essai"); await Task.Delay(500).ConfigureAwait(false); }
+        }
+        Check(gjk != null, "Aucun combat lancé contre les monstres");
+        // A voit le drapeau du combat (Gc+, équipe de B) et rejoint cette équipe.
+        FightSwordsActor swords = null;
+        Check(await a.Until(() => (swords = a.Map.FightSwords.Values.FirstOrDefault(f => f.Teams.Any(t => t.TeamId == b.Id))) != null, 10).ConfigureAwait(false),
+            "A ne voit pas le drapeau du combat de B (Gc+)");
+        int joinMark = a.ReceivedCount;
+        var join = await a.Account.Game.Interactions.MapActions.JoinFightAsync(swords.FightId, b.Id).ConfigureAwait(false);
+        Check(join.Sent, "A ne peut pas rejoindre le combat : " + join.Message);
+        string joined = await a.Expect(p => p.StartsWith("GJK") || p.StartsWith("GA;903;") || p.StartsWith("Im191"), "GJK (A rejoint le combat de B)", 10, joinMark).ConfigureAwait(false);
+        Check(joined.StartsWith("GJK"), "StarLoco refuse que A rejoigne le combat : " + joined);
+        await PlaceAndReady(a, joinMark, false).ConfigureAwait(false);
+        await PlaceAndReady(b, markB, false).ConfigureAwait(false);
+        await b.Expect("GS", "GS (début du combat)", 30, markB).ConfigureAwait(false);
+        var proofs = new Dictionary<int, string>();
+        int turns = 0;
+        DateTime until = DateTime.UtcNow.AddSeconds(90);
+        while (proofs.Count < 2 && DateTime.UtcNow < until && b.Account.Game.Fight.IsInFight)
+        {
+            int actor;
+            try { actor = await WaitForTurnOf(new[] { a, b }, 40).ConfigureAwait(false); }
+            catch (TimeoutException) { break; }
+            if (actor == 0) break;
+            LiveSession s = actor == a.Id ? a : b;
+            turns++;
+            if (!proofs.ContainsKey(actor))
+            {
+                string proof = await CloseCombatTurnAsync(s, evidence).ConfigureAwait(false);
+                if (proof != null) proofs[actor] = proof;
+            }
+            if (proofs.Count == 2) break;
+            await PassIfStillMyTurn(s).ConfigureAwait(false);
+        }
+        // Abandon (GQ) des deux personnages : StarLoco les compte comme morts et termine le combat.
+        foreach (LiveSession s in new[] { a, b })
+            if (s.Account.Game.Fight.IsInFight) await s.Account.Game.Fight.GiveUpAsync().ConfigureAwait(false);
+        string ge = await b.Expect(p => p.StartsWith("GE") || p.StartsWith("GV"), "GE (fin du combat, B)", 30, markB).ConfigureAwait(false);
+        await a.Expect(p => p.StartsWith("GE") || p.StartsWith("GV"), "GE ou GV (fin du combat, A)", 30, joinMark).ConfigureAwait(false);
+        await WaitBackOnMap(a).ConfigureAwait(false);
+        await WaitBackOnMap(b).ConfigureAwait(false);
+        // Défaite : StarLoco renvoie au point de sauvegarde ; sinon revenir par le déclencheur.
+        foreach (LiveSession s in new[] { a, b })
+            if (s.MapId != home && back != null && s.MapId == back.MapId) await WalkThroughTrigger(s, back).ConfigureAwait(false);
+            else await GoHome(s).ConfigureAwait(false);
+        Check(proofs.ContainsKey(b.Id), "B n'a pas frappé avec l'épée en " + turns + " tour(s) de joueur");
+        Check(proofs.ContainsKey(a.Id), "A n'a pas tiré à l'arc en " + turns + " tour(s) de joueur");
+        return group + " : " + gjk + ", A rejoint B (" + Short(joined, 20) + "), " + turns + " tour(s) de joueur ; " + proofs[b.Id] + " ; " + proofs[a.Id] + " ; " + Short(ge, 30);
+    }
+
+    /// <summary>
+    /// Défi de A, mains nues, contre B (<c>GA900</c>, comme le scénario e) : B s'approche, A frappe du poing (sort 0 chez StarLoco).
+    /// Un défi ne coûte pas de vie : les PV d'avant le combat sont rendus à la fin.
+    /// </summary>
+    private static async Task<string> FistsDuelAsync(List<string> evidence)
+    {
+        Check(a.MapId == b.MapId, "A et B ne sont pas sur la même carte pour le défi : " + a.MapId + " et " + b.MapId);
+        int markA = a.ReceivedCount, markB = b.ReceivedCount;
+        var challenge = await a.Account.Game.Interactions.MapActions.ChallengeAsync(b.Id).ConfigureAwait(false);
+        Check(challenge.Sent, "Défi refusé par le bot : " + challenge.Message);
+        await b.Expect(p => p.StartsWith("GA;900;" + a.Id + ";"), "GA;900 (défi reçu)", 10, markB).ConfigureAwait(false);
+        Check(await b.Until(() => b.Account.Game.Interactions.MapActions.PendingChallenge?.ChallengerId == a.Id, 5).ConfigureAwait(false), "B n'a pas de défi en attente.");
+        var accept = await b.Account.Game.Interactions.MapActions.AcceptChallengeAsync(a.Id).ConfigureAwait(false);
+        Check(accept.Sent, "Acceptation du défi refusée par le bot : " + accept.Message);
+        await a.Expect("GJK", "GJK (entrée en défi, A)", 15, markA).ConfigureAwait(false);
+        await b.Expect("GJK", "GJK (entrée en défi, B)", 15, markB).ConfigureAwait(false);
+        await PlaceAndReady(a, markA, false).ConfigureAwait(false);
+        await PlaceAndReady(b, markB, false).ConfigureAwait(false);
+        await a.Expect("GS", "GS (début du défi)", 30, markA).ConfigureAwait(false);
+        string proof = null;
+        int turns = 0;
+        DateTime until = DateTime.UtcNow.AddSeconds(60);
+        while (proof == null && DateTime.UtcNow < until && a.Account.Game.Fight.IsInFight)
+        {
+            int actor;
+            try { actor = await WaitForTurnOf(new[] { a, b }, 40).ConfigureAwait(false); }
+            catch (TimeoutException) { break; }
+            if (actor == 0) break;
+            turns++;
+            LiveSession s = actor == a.Id ? a : b;
+            if (s == a) proof = await CloseCombatTurnAsync(a, evidence).ConfigureAwait(false);
+            else
+            {
+                Fights fight = b.Account.Game.Fight;
+                CombatFighter foe = Enemies(b).FirstOrDefault();
+                short? step = foe == null || DistanceTo(b, foe) <= 1 ? null : StepToward(b, foe, true);
+                int pm = fight.MovementPoints;
+                if (step.HasValue && (await fight.MoveAsync(step.Value).ConfigureAwait(false)).Sent)
+                    await b.Until(() => !fight.IsActionPending && fight.MovementPoints < pm, 10).ConfigureAwait(false);
+            }
+            if (proof == null) await PassIfStillMyTurn(s).ConfigureAwait(false);
+        }
+        if (b.Account.Game.Fight.IsInFight) await b.Account.Game.Fight.GiveUpAsync().ConfigureAwait(false);
+        string ge = await a.Expect("GE", "GE (fin du défi)", 20, markA).ConfigureAwait(false);
+        await b.Expect(p => p.StartsWith("GE") || p.StartsWith("GV"), "GE ou GV (fin du défi, B)", 20, markB).ConfigureAwait(false);
+        await WaitBackOnMap(a).ConfigureAwait(false);
+        await WaitBackOnMap(b).ConfigureAwait(false);
+        Check(proof != null, "A n'a pas frappé B du poing en " + turns + " tour(s)");
+        return "défi A contre B, " + turns + " tour(s) : " + proof + " ; " + Short(ge, 30);
+    }
+
+    private static async Task PassIfStillMyTurn(LiveSession s)
+    {
+        Fights fight = s.Account.Game.Fight;
+        if (!fight.IsInFight || fight.Phase == CombatPhase.Finished || !fight.IsMyTurn) return;
+        int passMark = s.ReceivedCount;
+        var pass = await fight.PassTurnAsync().ConfigureAwait(false);
+        if (pass.Sent) await s.Expect(p => p.StartsWith("GTF" + s.Id) || p.StartsWith("GE"), "GTF (fin du tour)", 15, passMark).ConfigureAwait(false);
+    }
+
+    /// <summary>Ennemi que le bot accepte d'attaquer depuis la cellule actuelle, le plus faible d'abord.</summary>
+    private static CombatFighter InCloseCombatReach(LiveSession s) =>
+        Enemies(s).Where(e => s.Account.Game.Fight.GetCloseCombatUnavailableReason((short)e.CellId) == null).OrderBy(e => e.Life).FirstOrDefault();
+
+    /// <summary>Cellules libres à portée de PM (en cases, comme <see cref="StepToward"/>) d'où un ennemi est à portée de l'arme, les plus proches d'abord.</summary>
+    private static List<short> CellsInCloseCombatReach(LiveSession s, CloseCombatStats weapon)
+    {
+        Fights fight = s.Account.Game.Fight;
+        Cell origin = s.Map.GetCellFromId((short)(Self(s)?.CellId ?? -1));
+        if (origin == null) return new List<short>();
+        var foes = Enemies(s).Select(e => s.Map.GetCellFromId((short)e.CellId)).Where(c => c != null).ToList();
+        var occupied = new HashSet<int>(fight.Fighters.Values.Where(f => !f.IsDead).Select(f => (int)f.CellId));
+        return s.Map.MapCells.Where(c => c != null && c.IsActive && c.IsWalkable() && !occupied.Contains(c.CellID))
+            .Where(c => { int d = origin.GetDistanceBetweenCells(c); return d >= 1 && d <= fight.MovementPoints; })
+            .Where(c => foes.Any(f => { int d = c.GetDistanceBetweenCells(f); return d >= weapon.MinRange && d <= weapon.MaxRange && (!weapon.LineOnly || c.AreCellsOnline(f)); }))
+            .OrderBy(c => origin.GetDistanceBetweenCells(c)).Select(c => c.CellID).Take(3).ToList();
+    }
+
+    /// <summary>
+    /// Tour du personnage : déplacement à portée si besoin, puis <c>GA303&lt;cellule&gt;</c> sur l'ennemi. Avec une arme, StarLoco
+    /// répond <c>GA;303;id;cellule</c> (ou <c>GA;305</c>, échec critique qui finit le tour), les dégâts <c>GA;100</c>, <c>GA;102</c>
+    /// et <c>GAF</c> ; à mains nues il lance le sort 0 (<c>GA;300;id;0,cellule,…</c>) et libère le lancer par <c>GA;102;id;id,-0</c>.
+    /// Renvoie la preuve, ou null si aucune attaque n'a été vérifiée ce tour.
+    /// </summary>
+    private static async Task<string> CloseCombatTurnAsync(LiveSession s, List<string> evidence)
+    {
+        Fights fight = s.Account.Game.Fight;
+        CloseCombatStats weapon = fight.CloseCombat;
+        CombatFighter target = InCloseCombatReach(s);
+        if (target == null && fight.MovementPoints > 0)
+        {
+            List<short> destinations = CellsInCloseCombatReach(s, weapon);
+            CombatFighter nearest = Enemies(s).OrderBy(e => DistanceTo(s, e)).FirstOrDefault();
+            short? closer = nearest == null ? null : StepToward(s, nearest, true);
+            if (destinations.Count == 0 && closer.HasValue) destinations.Add(closer.Value);
+            foreach (short destination in destinations)
+            {
+                int pm = fight.MovementPoints, from = Self(s)?.CellId ?? -1;
+                var moved = await fight.MoveAsync(destination).ConfigureAwait(false);
+                if (!moved.Sent) { Journal(s.Label + " [test] déplacement vers " + destination + " refusé par le bot : " + moved.Message); continue; }
+                // GA;1 puis GA;129, ou GA;104 et GA;129 si le personnage est taclé : les PM baissent dans les deux cas.
+                await s.Until(() => !fight.IsActionPending && fight.MovementPoints < pm, 10).ConfigureAwait(false);
+                Journal(s.Label + " [test] pour " + weapon.Name + " : cellule " + from + " → " + (Self(s)?.CellId ?? -1) + ", PM " + pm + " → " + fight.MovementPoints);
+                break;
+            }
+            target = InCloseCombatReach(s);
+        }
+        if (target == null)
+        {
+            Journal(s.Label + " [test] aucun ennemi à portée de " + weapon.Summary + " : " + string.Join(" ; ", Enemies(s).Select(e => e.Name + " cellule " + e.CellId
+                + ", distance " + DistanceTo(s, e) + " → " + (fight.GetCloseCombatUnavailableReason((short)e.CellId) ?? "possible"))));
+            return null;
+        }
+        if (s == a && window != null)
+        {
+            // La case ² de la fenêtre de A décrit l'arme réellement en main (ou les poings de la classe).
+            string tip = await OnUi(() => { window.Banner.Shortcuts.RefreshContent(); return window.Banner.Shortcuts.CloseCombatTooltip; }).ConfigureAwait(false);
+            Check(tip != null && tip.Contains(weapon.Summary), "A : la case ² de la fenêtre ne décrit pas " + weapon.Summary + " : " + tip);
+        }
+        short cell = (short)target.CellId;
+        int lifeBefore = target.Life, paStart = fight.ActionPoints, distance = DistanceTo(s, target), mark = s.ReceivedCount, sentMark = s.SentCount;
+        var sent = await fight.AttackAsync(cell).ConfigureAwait(false);
+        Check(sent.Sent, s.Label + " : attaque refusée par le bot : " + sent.Message);
+        Check(s.SentSince(sentMark).Any(p => p.TrimEnd('\0', '\n', '\r') == "GA303" + cell), s.Label + " : GA303" + cell + " absent des envois : " + string.Join(", ", s.SentSince(sentMark)));
+        string id = s.Id.ToString(CultureInfo.InvariantCulture), answer;
+        if (weapon.IsArmed)
+        {
+            answer = await s.Expect(p => p.StartsWith("GA;303;" + id + ";") || p.StartsWith("GA;305;" + id + ";") || p.StartsWith("Im1170") || p.StartsWith("Im1171"),
+                "GA;303 (attaque au corps à corps)", 10, mark).ConfigureAwait(false);
+            Check(!answer.StartsWith("Im"), s.Label + " : StarLoco refuse une attaque que le bot autorisait (" + weapon.Summary + ", distance " + distance + ", " + paStart + " PA) : " + answer);
+            if (answer.StartsWith("GA;305"))
+            {
+                await s.Until(() => !fight.IsActionPending, 5).ConfigureAwait(false);
+                evidence.Add(s.Label + " : échec critique avec " + weapon.Name + " (" + answer + "), StarLoco finit le tour");
+                return null;
+            }
+            Check(answer == "GA;303;" + id + ";" + cell, s.Label + " : GA;303 sur une autre cellule que " + cell + " : " + answer);
+        }
+        else
+        {
+            answer = await s.Expect(p => p.StartsWith("GA;300;" + id + ";0,") || p.StartsWith("GA;302;" + id + ";") || p == "GA;102;" + id + ";" + id + ",-0",
+                "GA;300 (sort 0, coup de poing)", 10, mark).ConfigureAwait(false);
+            Check(!answer.StartsWith("GA;102"), s.Label + " : StarLoco refuse le coup de poing que le bot autorisait (distance " + distance + ", " + paStart + " PA) : " + answer);
+            if (answer.StartsWith("GA;302"))
+            {
+                await s.Until(() => !fight.IsActionPending, 5).ConfigureAwait(false);
+                evidence.Add(s.Label + " : échec critique au coup de poing (" + answer + ")");
+                return null;
+            }
+            Check(answer.StartsWith("GA;300;" + id + ";0," + cell + ","), s.Label + " : coup de poing sur une autre cellule que " + cell + " : " + answer);
+        }
+        string damage = await s.Expect(p => p.StartsWith("GA;100;") && p.Contains(";" + target.Id + ","), "GA;100 (dégâts sur la cible)", 10, mark).ConfigureAwait(false);
+        int delta = int.Parse(damage.Split(';')[3].Split(',')[1], CultureInfo.InvariantCulture);
+        Check(await s.Until(() => LifeOf(s, target.Id) == lifeBefore + delta || !fight.IsInFight, 5).ConfigureAwait(false),
+            s.Label + " : vie de " + target.Name + " " + LifeOf(s, target.Id) + ", attendu " + (lifeBefore + delta));
+        string proof = s.Label + " frappe avec " + weapon.Summary + " à distance " + distance + " : GA303" + cell + " → " + Short(answer, 40) + ", " + damage
+            + " (PV de " + target.Name + " " + lifeBefore + "→" + (lifeBefore + delta) + ")";
+        // Cible tuée et combat fini (dernier adversaire) : StarLoco envoie GE avant le reste.
+        string paid = await s.Expect(p => (p.StartsWith("GA;102;" + id + ";" + id + ",-") && p != "GA;102;" + id + ";" + id + ",-0") || p.StartsWith("GE"),
+            "GA;102 (PA du corps à corps)", 10, mark).ConfigureAwait(false);
+        if (paid.StartsWith("GE")) return proof + ", combat terminé (" + Short(paid, 24) + ")";
+        int cost = -int.Parse(paid.Split(';')[3].Split(',')[1], CultureInfo.InvariantCulture);
+        Check(cost == weapon.ActionPoints, s.Label + " : StarLoco retire " + cost + " PA, le bot en prévoyait " + weapon.ActionPoints + " (" + weapon.Summary + ")");
+        // Arme : l'attente se libère sur GAF (GKK renvoyé) ; poings : sur GA;102;id;id,-0, une seconde plus tard.
+        Check(await s.Until(() => !fight.IsActionPending || !fight.IsInFight, 5).ConfigureAwait(false), s.Label + " : l'attaque reste en attente dans le bot");
+        if (!fight.IsInFight || s.ReceivedSince(mark).Any(p => p.StartsWith("GE"))) return proof + ", " + paid + ", combat terminé par ce coup";
+        string gaf = s.ReceivedSince(mark).FirstOrDefault(p => p.StartsWith("GAF"));
+        Check(gaf != null && s.SentSince(sentMark).Any(p => p.StartsWith("GKK")), s.Label + " : GAF du corps à corps sans GKK du bot (" + gaf + ")");
+        Check(await s.Until(() => fight.ActionPoints == paStart - cost, 5).ConfigureAwait(false), s.Label + " : PA du bot " + fight.ActionPoints + ", attendu " + (paStart - cost));
+        return proof + ", " + paid + ", " + gaf + " → GKK, PA " + paStart + "→" + fight.ActionPoints;
     }
 }
