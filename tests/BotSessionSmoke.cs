@@ -22,7 +22,8 @@ using Tool_BotProtocol.Game.Session;
 using BotClient = Tool_BotProtocol.Network.TcpClient;
 
 // Session layer of the bot against a local fake server (no real server, no UI): handler registry, unknown packets,
-// one packet per send, GC1 alone, GCK/AR/Ac/BT/BN/AN, generic Im, invitations without auto-accept, split frames.
+// one packet per send, GC1 alone, GCK/AR/Ac/BT/BN/AN, generic Im, invitations without auto-accept, split frames,
+// M0 system messages and disconnect causes (lot X3).
 internal static class BotSessionSmoke
 {
     [STAThread]
@@ -34,7 +35,7 @@ internal static class BotSessionSmoke
             if (!File.Exists(path)) path = Path.ChangeExtension(path, "exe");
             return File.Exists(path) ? Assembly.LoadFrom(path) : null;
         };
-        try { Run(); Console.WriteLine("OK: registre strict, paquets inconnus journalisés, un paquet par envoi, GC1 seul, GCK/AR/Ac/BT/BN/AN, Im générique, PIK/gJr sans acceptation, frames éclatées, tombe/fantôme du sprite GM, GF et /release, ALK héroïque, GO"); }
+        try { Run(); Console.WriteLine("OK: registre strict, paquets inconnus journalisés, un paquet par envoi, GC1 seul, GCK/AR/Ac/BT/BN/AN, Im générique, PIK/gJr sans acceptation, frames éclatées, tombe/fantôme du sprite GM, GF et /release, ALK héroïque, GO sans boîte de perte ; X3 : ligne de chat du nouveau niveau, M04/M018 gardés jusqu’à la coupure, perte de connexion en jeu (DISCONNECT + SRV_MSG), déconnexion demandée sans boîte"); }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
 
@@ -161,9 +162,18 @@ internal static class BotSessionSmoke
                     Feed(account, "AR!?"); Check(session.RawRestrictions == 8192, "Unreadable AR replaced the restrictions");
                     Check(new Personnages(5, "Autre", 0, null).Restrictions == PlayerRestrictions.None, "Other players do not default to no restriction");
                     Feed(account, "Ac0"); Feed(account, "Ac-1"); Check(session.CommunityId == 0, "Ac was not read like the client");
-                    int level = 0; session.LevelUp += value => level = value;
+                    int level = 0, levelUps = 0; session.LevelUp += value => { level = value; levelUps++; };
                     Feed(account, "AN121"); Check(account.Game.character.Level == 121 && level == 121, "AN<level> did not update the level");
+                    // Lot X3 : la boîte NEW_LEVEL suit LevelUp ; le chat garde une ligne d'information.
+                    Check(account.Game.Chat.Messages.Count(m => m.Kind == ChatMessageKind.Info && m.Text == ConnectionTexts.NewLevelLine(121)) == 1,
+                        "AN did not write the new level in the chat");
+                    Check(ConnectionTexts.NewLevel(121).StartsWith("Tu passes niveau 121", StringComparison.Ordinal), "NEW_LEVEL fallback lost its level: " + ConnectionTexts.NewLevel(121));
+                    // StarLoco (Player.addXp) envoie deux fois AN pour un même gain : le second ne rouvre rien.
+                    Feed(account, "AN121");
+                    Check(levelUps == 1 && account.Game.Chat.Messages.Count(m => m.Text == ConnectionTexts.NewLevelLine(121)) == 1,
+                        "A repeated AN for the level already announced raised LevelUp again or wrote a second chat line");
                     Feed(account, "ANxx"); Check(account.Game.character.Level == 121, "Unreadable AN changed the level");
+                    Check(account.Game.Chat.Messages.Count(m => m.Text.StartsWith("Nouveau niveau", StringComparison.Ordinal)) == 1, "Unreadable AN wrote a chat line");
 
                     // Generic Im: type, id, ~ arguments, several entries, fallback text, language resolver, bad subscriber.
                     var messages = new List<ServerMessage>();
@@ -235,6 +245,7 @@ internal static class BotSessionSmoke
                 }
             }
             TombAndGameOver(listener);
+            SystemMessagesAndLoss(listener);
         }
         finally { listener.Stop(); Environment.CurrentDirectory = previous; }
     }
@@ -324,12 +335,102 @@ internal static class BotSessionSmoke
                 Check(!slap.Sent && MapActionTexts.SlapSentence == null, "SlapAsync sent an invented sentence"); NoPacket(peer, "SlapAsync sent BM without lang.xml");
 
                 // GO (mode héroïque) : GameOver levé puis déconnexion, comme Game.onGameOver (déconnexion douce).
-                int gameOver = 0; bool connectedDuringEvent = false;
+                int gameOver = 0, lost = 0; bool connectedDuringEvent = false;
                 session.GameOver += () => { gameOver++; connectedDuringEvent = account.Connexion != null && account.Connexion.IsConnected(); };
+                account.ConnectionLost += loss => lost++;
                 Feed(account, "GO");
                 Check(gameOver == 1 && connectedDuringEvent, "GO did not raise GameOver before the disconnection");
                 Disconnected(peer, "GO did not close the connection");
+                // Lot X3 : la fin de partie a sa propre boîte (« Rejouer ») ; pas de boîte de perte de connexion en plus.
+                Check(lost == 0 && account.LastDisconnect.Cause == DisconnectCause.GameOver && account.LastDisconnect.WasInGame,
+                    "GO was reported as a lost connection: " + account.LastDisconnect.Cause);
             }
+        }
+    }
+
+    private static Accounts Connected(TcpListener listener, string name, out Socket peer)
+    {
+        var account = new Accounts(new AccountConfig(name, "synthetic", "loopback"));
+        Task<Socket> accept = listener.AcceptSocketAsync();
+        Complete(account.Connexion.ConnectToServer(IPAddress.Loopback, ((IPEndPoint)listener.LocalEndpoint).Port)); Complete(accept);
+        peer = accept.Result; peer.ReceiveTimeout = 6000;
+        return account;
+    }
+
+    private static void Until(Func<bool> condition, string message)
+    {
+        DateTime end = DateTime.UtcNow.AddSeconds(6);
+        while (!condition() && DateTime.UtcNow < end) Thread.Sleep(10);
+        Check(condition(), message);
+    }
+
+    // Lot X3 : M0<id>|<a;b> gardé jusqu'à la coupure (Basics.onServerMessage, Aks.onClose) ; seule une coupure du serveur ou du
+    // réseau lève ConnectionLost, avec DISCONNECT puis le texte SRV_MSG_<id>.
+    private static void SystemMessagesAndLoss(TcpListener listener)
+    {
+        Check(MessagesReception.messagesDatas.Any(d => d.MessageName == "M0") && MessagesReception.messagesDatas.Any(d => d.MessageName == "M030"),
+            "M0 and the M030 refusal do not have their own handlers");
+        Socket peer;
+        using (var account = Connected(listener, "synthetic-kick", out peer))
+        using (peer)
+        {
+            var losses = new ConcurrentQueue<ConnectionLoss>();
+            var debug = new ConcurrentQueue<string>();
+            account.ConnectionLost += losses.Enqueue;
+            account.Logger.debug_event += entry => debug.Enqueue(entry.message);
+            account.Game.character.SetPerso_Data(7, "Expulse", 30, 1, 1);
+            account.AccountStates = AccountStates.CONNECTED_INACTIVE;
+
+            // Le client n'affiche rien à la réception : pas de déconnexion, pas de paquet, message gardé.
+            Feed(account, "M04");
+            SystemMessage maintenance = account.PendingSystemMessage;
+            Check(maintenance != null && maintenance.Id == 4 && maintenance.Args.Count == 0
+                && maintenance.Text == "Votre connexion a été coupée pour des raisons de maintenance.", "M04 was not kept with the SRV_MSG_4 text");
+            Check(account.Connexion != null && account.Connexion.IsConnected() && losses.IsEmpty, "M04 disconnected the account by itself");
+            NoPacket(peer, "M04 triggered a packet");
+            // KICK de StarLoco : M018|<modérateur>;<br>raison ; le dernier M0 remplace le précédent, comme serverMessageID.
+            Feed(account, "M018|Modo;<br>Triche");
+            SystemMessage kick = account.PendingSystemMessage;
+            Check(kick != null && kick.Id == 18 && kick.Args.SequenceEqual(new[] { "Modo", "<br>Triche" }), "M018 parameters were not read like the client");
+            Check(kick.Text == "Vous avez été kické par Modo.\nTriche", "M018 text was not substituted without HTML: " + kick.Text);
+            Feed(account, "M0xx|a");
+            Check(ReferenceEquals(account.PendingSystemMessage, kick) && debug.Any(m => m.Contains("M0xx")), "An unreadable M0 replaced the kept message or was not logged");
+            Check(new SystemMessage999Probe().Text == "Message du serveur n° 99 : a ; b", "Unknown SRV_MSG fallback changed: " + new SystemMessage999Probe().Text);
+
+            // Le serveur ferme la connexion (kick) : perte de connexion en jeu, avec le message gardé.
+            peer.Shutdown(SocketShutdown.Both); peer.Close();
+            Until(() => losses.Count == 1, "The server closing the socket did not raise ConnectionLost");
+            ConnectionLoss loss = losses.ToArray()[0];
+            Check(loss.Cause == DisconnectCause.Lost && loss.WasInGame && ReferenceEquals(loss.Message, kick), "The lost connection lost its cause, game state or M0");
+            Check(loss.Title == "Connexion" && loss.Text == "Connexion interrompue avec le serveur.\n\nVous avez été kické par Modo.\nTriche",
+                "The lost-connection box text is not DISCONNECT then SRV_MSG_18: " + loss.Text);
+            Check(account.PendingSystemMessage == null && account.ConnectionStatus == "Connexion perdue" && ReferenceEquals(account.LastDisconnect, loss),
+                "The kept M0 or the status survived the disconnection: " + account.ConnectionStatus);
+        }
+        using (var account = Connected(listener, "synthetic-quit", out peer))
+        using (peer)
+        {
+            int lost = 0;
+            account.ConnectionLost += loss => lost++;
+            account.Game.character.SetPerso_Data(7, "Quitte", 30, 1, 1);
+            Feed(account, "M04");
+            // Déconnexion demandée (bouton Déconnexion) : pas de boîte de perte, le M0 reste lisible dans LastDisconnect.
+            account.Disconnect();
+            Disconnected(peer, "Disconnect() did not close the socket");
+            Check(lost == 0 && account.LastDisconnect.Cause == DisconnectCause.Requested && account.LastDisconnect.Message.Id == 4
+                && account.PendingSystemMessage == null, "A requested disconnection raised ConnectionLost or kept the M0");
+            Check(account.ConnectionStatus == "Déconnecté", "A requested disconnection changed the status: " + account.ConnectionStatus);
+        }
+    }
+
+    /// <summary>Texte de repli d'un <c>SRV_MSG</c> inconnu, par le même chemin que <c>M0</c> (constructeur interne).</summary>
+    private sealed class SystemMessage999Probe
+    {
+        internal string Text { get; }
+        internal SystemMessage999Probe()
+        {
+            ConstructorInfo constructor = typeof(SystemMessage).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, new[] { typeof(int), typeof(string[]) }, null);
+            Text = ((SystemMessage)constructor.Invoke(new object[] { 99, new[] { "a", "b" } })).Text;
         }
     }
 

@@ -6,7 +6,7 @@ using Tool_BotProtocol.Network;
 namespace Tool_BotProtocol.Frames.Jeu
 {
     /// <summary>
-    /// Messages système <c>M0&lt;id&gt;[|&lt;a;b;…&gt;]</c> (lot X3, manque V-20). Comme <c>Basics.onServerMessage</c> du client
+    /// Messages système <c>M0&lt;id&gt;[|&lt;a;b;…&gt;]</c> (lot X3, manque m-08). Comme <c>Basics.onServerMessage</c> du client
     /// (branche « 0 »), le message n'est pas affiché à sa réception : il annonce une coupure (<c>M04</c> maintenance, <c>M018</c>
     /// expulsion) et le compte le garde pour la boîte de perte de connexion qui suit (<see cref="Accounts.ConnectionLost"/>).
     /// Les refus <c>M030</c>, <c>M031</c> et <c>M032</c> de la connexion au serveur de jeu gardent leurs gestionnaires

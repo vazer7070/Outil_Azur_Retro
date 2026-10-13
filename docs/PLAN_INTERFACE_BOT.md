@@ -144,6 +144,8 @@ Après la relecture, le bot a été joué sur une copie locale du StarLoco du ki
 
 **X2 — Tombe, fantôme et menu de son personnage.** Tombe et fantôme lus dans le sprite du `GM`, menu de son propre personnage (« Se frapper » `BM*`, « Libérer mon âme » `GF`, « Changer de direction » et son sélecteur `eD`), boîte du mariage (`GA;617` → `GA618` / `GA619`), mode héroïque (`ALK` des morts, `AR<id>`, boîte de fin de partie sur `GO`). Tests : `BotSessionSmoke`, `BotMapActionsSmoke` ; scénarios x2a à x2c de `BotStarLocoLiveSmoke` (orientation vue par l’autre compte, tombe ramenée à la vie par la statue du phénix, mariage).
 
+**X3 — Connexion : pseudo, perte de connexion, nouveau niveau, messages système.** Fenêtre du pseudo d’un compte neuf (`AlEr` → saisie, confirmation, ligne brute → `AlEs` ou reprise par `Ad`/`AlK`), cause de chaque déconnexion, boîte `CONNECTION` sur une perte de connexion (texte `DISCONNECT` puis le dernier `M0<id>` reçu, `SRV_MSG_<id>`) et retour à l’écran de connexion prérempli, boîte `NEW_LEVEL` sur `AN`. `AlEr`/`AlEs` en jeu sont laissés au lot X32. Tests : `BotHandshakeSmoke`, `BotSessionSmoke`, `BotConnectionUiSmoke` ; scénarios x3a à x3c de `BotStarLocoLiveSmoke`.
+
 ## Couverture des fonctions
 
 Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par le test cité contre un serveur fictif local), **partiel** (une partie seulement), **absent**. Les fonctions rejouées par `BotStarLocoLiveSmoke` sont aussi vérifiées sur un vrai StarLoco local ; les autres lignes ne le sont pas encore. La colonne « Client 1.34 » nomme la fenêtre ou les paquets du client ; la colonne « StarLoco » dit ce que le serveur du kit en fait.
@@ -157,6 +159,9 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | Création et suppression d’un personnage | `AA`, `AD` | traité ; réponse secrète exigée à partir du niveau 20 | partiel : les envois ne sont pas vérifiés par un test | `BotUiSmoke` (Windows, écran de création) |
 | Paramètres de connexion | — | — | fait | `BotConfigSmoke` |
 | Messages du serveur | `Im`, `cs`, `M1` | traité | fait | `BotSessionSmoke`, `BotLangDataSmoke` |
+| Pseudo d’un compte neuf | `AlEr`, ligne brute, `AlEs`, fenêtre `ChooseNickName` | `WAIT_NICKNAME` : toute ligne est le pseudo ; caractère interdit : `AlEs` puis pseudo retenu quand même | fait (connexion seulement ; en jeu : lot X32) | `BotHandshakeSmoke` (Windows), `BotConnectionUiSmoke`, x3a |
+| Messages système et perte de connexion | `M0<id>` gardé, boîte `CONNECTION` à `Aks.onClose`, retour à la connexion | `M04` à l’arrêt du Game, `M018` à une expulsion | fait | `BotSessionSmoke`, `BotConnectionUiSmoke`, x3c |
+| Nouveau niveau | `AN`, boîte `NEW_LEVEL` | `AN` envoyé deux fois par gain | fait ; sans l’astuce `TIP_GAIN_LEVEL` | `BotSessionSmoke`, `BotConnectionUiSmoke`, x3b |
 | Mode héroïque : morts, réinitialisation, fin de partie | `ALK` (champs 10 et 11), `AR<id>`, `GO` | `HEROIC` faux par défaut ; `AR<id>` ranime sans vérifier la mort | partiel : non rejoué sur le vrai serveur ; écran `GameOver` du client non exporté (boîte à la place) | `BotSessionSmoke`, `BotMapActionsSmoke` |
 
 ### A. Carte, décor et acteurs
@@ -280,6 +285,8 @@ Préalable : une copie isolée d’un vrai StarLoco, avec des comptes et des per
 - les captures sur la vraie carte : l’outil la lit dans l’export SQL du serveur et dans le client au moment de la capture, sans rien versionner ; sans eux, il compose une prairie synthétique.
 
 Lot X2 : l’orientation, « Se frapper », la tombe ramenée à la vie et le mariage sont rejoués (scénarios x2a à x2c). Restent le mode héroïque (`GO`, morts de `ALK`, `AR<id>`), qui demande `HEROIC` dans la configuration du serveur et un redémarrage, et une tombe obtenue par de vraies défaites à 0 d’énergie plutôt qu’écrite dans la base.
+
+Lot X3 : le pseudo d’un compte neuf (par le bot seul et par la fenêtre du pseudo), le nouveau niveau (parchemin d’expérience écrit dans la base) et l’arrêt du serveur de jeu en pleine partie sont rejoués (scénarios x3a à x3c, x3c seulement avec `AZUR_STARLOCO_GAME_STOP` et `AZUR_STARLOCO_GAME_START`). Restent l’expulsion par un administrateur (`M018`), faute de compte d’administration ; `AlEr` et `AlEs` en jeu (potion de changement de nom, manque B-07), seulement journalisés : lot X32 ; l’astuce `TIP_GAIN_LEVEL` qui suit la boîte du nouveau niveau ; et, sur le StarLoco de test, l’enregistrement du pseudo dans la base, qui échoue côté serveur (voir `docs/BOT_STARLOCO.md`).
 
 ### Carte et acteurs
 

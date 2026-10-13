@@ -102,6 +102,13 @@ namespace Tool_BotProtocol.Frames.Jeu
                 account.Logger.LogDanger("PERSO", "Nouveau niveau illisible ignoré : " + message);
                 return;
             }
+            // StarLoco envoie deux fois AN pour un même gain (Player.addXp : levelUp, puis de nouveau à la fin de la boucle) :
+            // le niveau déjà annoncé n'ouvre ni deuxième ligne ni deuxième boîte.
+            if (account.Game.character.Level == level)
+            {
+                account.Logger.LogDebug("PERSO", "AN" + level + " répété : niveau déjà annoncé.");
+                return;
+            }
             account.Game.character.Level = (byte)level;
             account.Logger.LogInfo("PERSO", "Niveau " + level + " atteint.");
             // Le client ouvre la boîte NEW_LEVEL sans rien écrire au chat ; le bot y garde aussi une ligne, lisible après la boîte.

@@ -96,7 +96,8 @@ namespace Outil_Azur_complet.Bot
                     catch (Exception failure) { result = null; ShowFailure(failure.Message); }
                     if (IsDisposed || result == null) return;
                     if (!result.Sent) ShowFailure(result.Message);
-                    else help.Text = result.Message;
+                    // La réponse du Login (AlEs, AlEr) a pu revenir avant cette suite et remettre la saisie : ne pas l'écraser.
+                    else if (Step == NicknameStep.Waiting) help.Text = result.Message;
                     return;
             }
         }

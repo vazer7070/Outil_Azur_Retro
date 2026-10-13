@@ -49,6 +49,8 @@ using Tools_protocol.Query;
 //   AZUR_STARLOCO_CLIENT    dossier du client 1.34 (fond des cartes lu dans data/maps, comme le parseur)
 //   AZUR_STARLOCO_LOGS      journaux du serveur à joindre (fichiers ou dossiers séparés par « ; »)
 //   AZUR_STARLOCO_CAPTURES  dossier où photographier la fenêtre de jeu (import d'ImageMagick, écran Xvfb)
+//   AZUR_STARLOCO_GAME_STOP / AZUR_STARLOCO_GAME_START  commandes (sh -c, cmd /c sous Windows) qui arrêtent le serveur de jeu par
+//                           son crochet d'arrêt (SIGTERM) puis le relancent ; sans elles, le scénario x3c n'est pas joué
 // Chaque scénario a un délai maximal ; les paquets reçus et envoyés par les deux bots (identifiants masqués) et les
 // lignes ajoutées aux journaux du serveur sont écrits dans live-journal.log du dossier de travail.
 internal static class BotStarLocoLiveSmoke
@@ -455,6 +457,10 @@ internal static partial class Live
         await Scenario("g2. boutique d'un PNJ : achat", 60, NpcShopAsync).ConfigureAwait(false);
         await Scenario("g3. zaap", 90, ZaapAsync).ConfigureAwait(false);
         await Scenario("h. corps à corps : épée et arc contre des monstres, poings en défi (lot X1)", 150, CloseCombatAsync).ConfigureAwait(false);
+        await Scenario("x3a. compte neuf sans pseudo : AlEr, pseudo pris (AlEs) puis accepté, par le bot puis par sa fenêtre ChooseNickName (lot X3)", 90, NewAccountNicknameAsync).ConfigureAwait(false);
+        await Scenario("x3b. parchemin d'expérience : AN2, boîte « Nouveau niveau » dans la fenêtre de jeu (lot X3)", 90, LevelUpAsync).ConfigureAwait(false);
+        // Toujours en dernier : arrête puis redémarre le serveur de jeu (A et B restent déconnectés).
+        await Scenario("x3c. serveur de jeu arrêté en pleine partie : M04, boîte de perte de connexion, retour à la connexion (lot X3)", 300, GameStopAsync).ConfigureAwait(false);
     }
 }
 
@@ -2031,10 +2037,14 @@ internal static partial class Live
         using (var command = Command(db, sql, parameters)) return command.ExecuteScalar();
     }
 
-    /// <summary>Entrée en jeu d'un personnage existant, comme PersoSelection puis SelectPlayerPerso : AX, ticket, ALK, AS&lt;id&gt;.</summary>
-    private static async Task<string> EnterExistingAsync(LiveSession s, int characterId, string name, int mapId)
+    /// <summary>
+    /// Entrée en jeu d'un personnage existant, comme PersoSelection puis SelectPlayerPerso : AX, ticket, ALK, AS&lt;id&gt;.
+    /// <paramref name="started"/> (facultatif) est appelé juste après <see cref="LiveSession.Start"/>, avant la connexion.
+    /// </summary>
+    private static async Task<string> EnterExistingAsync(LiveSession s, int characterId, string name, int mapId, Action<LiveSession> started = null)
     {
         s.Start();
+        started?.Invoke(s);
         await s.Account.ConnectAsync().ConfigureAwait(false);
         await s.Expect("HC", "clé HC du Login", 15, 0).ConfigureAwait(false);
         await s.Expect("AH", "liste des serveurs AH", 15, 0).ConfigureAwait(false);
@@ -2055,5 +2065,389 @@ internal static partial class Live
         await s.Expect(p => p.StartsWith("GM|") && p.Contains(";" + characterId + ";" + name + ";"), "GM du personnage", 15, selected).ConfigureAwait(false);
         Check(await s.Until(() => s.MapId == mapId && s.Map.Self != null && s.Map.Self.CellId >= 0, 10).ConfigureAwait(false), "Le bot n'a pas placé " + name + " sur la carte " + mapId);
         return s.Label + " " + name + " : " + Short(axk, 20) + ", " + Short(ask, 40) + ", " + Short(gdm, 16) + ", GM cellule " + s.Map.Self.CellId;
+    }
+}
+
+// Scénarios x3a à x3c (lot X3) : pseudo d'un compte neuf, nouveau niveau, coupure du serveur de jeu en pleine partie.
+internal static partial class Live
+{
+    /// <summary>Parchemin Doré de StarLoco : effet 605 (expérience), action d'objet de type 3 (<c>ObjectAction</c> : <c>player.addXp</c>).</summary>
+    private const int XpScrollTemplate = 680;
+    /// <summary>
+    /// Effet du parchemin écrit dans la base : jet « 0d0+111 », soit 111 points d'expérience à coup sûr (110 mènent au niveau 2,
+    /// table <c>experience</c>), au lieu du « 1d9999+1 » du modèle qui ferait sauter plusieurs niveaux. Champ 3 à 0 : StarLoco lit
+    /// sinon l'effet comme un texte (<c>GameObject.parseStringToStats</c>) et le parchemin ne donnerait rien.
+    /// </summary>
+    private const string XpScrollStats = "25d#6f#0#0#0d0+111";
+
+    /// <summary>Compte inventé SANS pseudo (colonne vide, comme un compte créé hors du jeu) : le Login répond <c>AlEr</c> à <c>Af</c>.</summary>
+    private static InventedCharacter InventAccount(MySql.Data.MySqlClient.MySqlConnection db, string schema, List<InventedCharacter> created)
+    {
+        var invented = new InventedCharacter
+        {
+            Login = "azurx3" + random.Next(10000, 99999).ToString(CultureInfo.InvariantCulture),
+            Password = Guid.NewGuid().ToString("N").Substring(0, 12)
+        };
+        created.Add(invented);
+        Sql(db, "INSERT INTO " + schema + ".accounts (account, pass, pseudo, question, reponse, lastConnectionDate, lastIP, friends, enemy, heurevote, lastConnectDay)"
+            + " VALUES (@login, SHA2(MD5(@password), 512), '', 'DELETE?', 'DELETE', '', '', '', '', 0, '')",
+            "@login", invented.Login, "@password", invented.Password);
+        invented.Guid = Convert.ToInt64(Scalar(db, "SELECT guid FROM " + schema + ".accounts WHERE account = @login", "@login", invented.Login), CultureInfo.InvariantCulture);
+        Journal("[test] compte inventé sans pseudo " + invented.Login + " (" + invented.Guid + ")");
+        return invented;
+    }
+
+    /// <summary>Pseudo absent de la base, fait de lettres et de chiffres (StarLoco refuse espaces, tirets, accents et ponctuation).</summary>
+    private static string FreeNickname(MySql.Data.MySqlClient.MySqlConnection db, string schema, string prefix)
+    {
+        for (int i = 0; i < 20; i++)
+        {
+            string name = prefix + random.Next(10000, 99999).ToString(CultureInfo.InvariantCulture);
+            if (Convert.ToInt32(Scalar(db, "SELECT COUNT(*) FROM " + schema + ".accounts WHERE pseudo = @pseudo", "@pseudo", name), CultureInfo.InvariantCulture) == 0) return name;
+        }
+        throw new Exception("aucun pseudo libre trouvé dans la base");
+    }
+
+    private static string StoredNickname(MySql.Data.MySqlClient.MySqlConnection db, string schema, string login) =>
+        Scalar(db, "SELECT pseudo FROM " + schema + ".accounts WHERE account = @login", "@login", login) as string;
+
+    private static int Count<T>(List<T> list) { lock (list) return list.Count; }
+
+    private static T Last<T>(List<T> list) { lock (list) return list.Count == 0 ? default(T) : list[list.Count - 1]; }
+
+    private static object Field(object target, string name) =>
+        target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(target);
+
+    private static object Member(object target, string name) =>
+        target.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public).GetValue(target, null);
+
+    private static IEnumerable<Control> AllControls(Control root)
+    {
+        yield return root;
+        foreach (Control child in root.Controls) foreach (Control nested in AllControls(child)) yield return nested;
+    }
+
+    /// <summary>Boîte du bot (<see cref="BotDialogs"/>) ouverte sous ce nom, ou <c>null</c> (fil d'interface).</summary>
+    private static Form OpenDialog(string name) => BotDialogs.OpenDialogs.FirstOrDefault(x => x.Name == name && !x.IsDisposed && x.Visible);
+
+    private static string DialogMessage(Form dialog) => AllControls(dialog).OfType<Label>().First(x => x.Name == "dialog-message").Text;
+
+    private static async Task<T> WaitOnUi<T>(Func<T> probe, int seconds) where T : class
+    {
+        DateTime until = DateTime.UtcNow.AddSeconds(seconds);
+        T value;
+        while ((value = await OnUi(probe).ConfigureAwait(false)) == null && DateTime.UtcNow < until) await Task.Delay(100).ConfigureAwait(false);
+        return value;
+    }
+
+    private static string Describe(NicknameRequest request) =>
+        request == null ? "(aucune)" : "n° " + request.Attempt + ", refusé « " + request.Refused + " », erreur « " + request.Error + " »";
+
+    /// <summary>
+    /// Compte neuf sans pseudo, deux fois. D'abord par le bot seul (<see cref="NicknameChoice"/>) : <c>AlEr</c> répond à <c>Af</c>, rien
+    /// d'autre ne part pendant l'attente (le Login lirait n'importe quelle ligne comme le pseudo) ; le nom du compte est refusé sur place
+    /// (<c>NICKNAME_EQUALS_LOGIN</c>) ; le pseudo de A part et revient <c>AlEs</c> (pris) ; un pseudo libre part et la connexion reprend
+    /// (<c>Ad&lt;pseudo&gt;</c>, <c>AlK</c>, puis <c>AxK</c> après <c>Ax</c>) ; StarLoco l'a écrit dans la base. Puis un deuxième compte
+    /// passe par l'écran de choix du serveur (<see cref="PersoSelection"/>) : la fenêtre <see cref="ChooseNickNameForm"/> s'ouvre sur
+    /// <c>AlEr</c>, refuse le nom du compte sous la saisie, « OK » mène à la confirmation <c>DO_CHOOSE_NICKNAME</c>, le second « OK »
+    /// envoie le pseudo ; la fenêtre se ferme et la liste des serveurs s'affiche. Les deux comptes sont supprimés de la base à la fin.
+    /// </summary>
+    private static async Task<string> NewAccountNicknameAsync()
+    {
+        using (MySql.Data.MySqlClient.MySqlConnection db = OpenAccountsDatabase(out string schema))
+        {
+            var created = new List<InventedCharacter>();
+            LiveSession n = null;
+            PersoSelection screen = null;
+            try
+            {
+                string taken = StoredNickname(db, schema, a.Login);
+                Check(!string.IsNullOrEmpty(taken), "Le compte de A n'a pas de pseudo dans la base");
+
+                // 1. Le bot seul.
+                InventedCharacter fresh = InventAccount(db, schema, created);
+                string chosen = FreeNickname(db, schema, "Neuf");
+                n = new LiveSession("N", fresh.Login, fresh.Password);
+                n.Start();
+                NicknameChoice choice = n.Account.Nickname;
+                var requests = new List<NicknameRequest>();
+                var accepted = new List<string>();
+                choice.Requested += request => { lock (requests) requests.Add(request); };
+                choice.Accepted += name => { lock (accepted) accepted.Add(name); };
+                await n.Account.ConnectAsync().ConfigureAwait(false);
+                await n.Expect("HC", "clé HC du Login", 15, 0).ConfigureAwait(false);
+                await n.Expect(p => p == "AlEr", "AlEr (compte sans pseudo)", 15, 0).ConfigureAwait(false);
+                Check(await n.Until(() => choice.IsPending && Count(requests) == 1, 5).ConfigureAwait(false), "AlEr n'a pas ouvert de demande de pseudo");
+                Check(requests[0].Attempt == 1 && requests[0].Refused == null && requests[0].Error == null, "Première demande mal lue : " + Describe(requests[0]));
+                await Task.Delay(300).ConfigureAwait(false);
+                string[] beforeChoice = n.SentSince(0);
+                Check(beforeChoice.LastOrDefault() == "Af" && n.Account.Connexion != null && n.Account.Connexion.IsConnected(),
+                    "Après AlEr, le bot a envoyé « " + Short(beforeChoice.LastOrDefault(), 20) + " » ou s'est déconnecté (le Login lirait la ligne comme le pseudo)");
+
+                int sentBefore = n.SentCount;
+                var sameAsLogin = await choice.ChooseAsync(fresh.Login.ToUpperInvariant()).ConfigureAwait(false);
+                var tooShort = await choice.ChooseAsync("ab").ConfigureAwait(false);
+                Check(!sameAsLogin.Sent && sameAsLogin.Message == ConnectionTexts.NicknameEqualsLogin && !tooShort.Sent && n.SentCount == sentBefore,
+                    "Refus locaux : nom du compte « " + sameAsLogin.Message + " », trop court « " + tooShort.Message + " », " + (n.SentCount - sentBefore) + " paquet(s) envoyé(s)");
+
+                int mark = n.ReceivedCount;
+                var first = await choice.ChooseAsync(taken).ConfigureAwait(false);
+                Check(first.Sent && n.SentSince(sentBefore).SequenceEqual(new[] { taken }), "Le pseudo pris n'est pas parti seul, en ligne brute : " + first.Message);
+                var twice = await choice.ChooseAsync(chosen).ConfigureAwait(false);
+                Check(!twice.Sent && n.SentCount == sentBefore + 1, "Un deuxième pseudo est parti avant la réponse du Login : " + twice.Message);
+                string alEs = await n.Expect(p => p == "AlEs" || p.StartsWith("Ad", StringComparison.Ordinal), "AlEs (pseudo pris)", 15, mark).ConfigureAwait(false);
+                Check(alEs == "AlEs", "Le Login a accepté le pseudo déjà pris « " + taken + " » : " + alEs);
+                Check(await n.Until(() => Count(requests) == 2, 5).ConfigureAwait(false) && Last(requests).Attempt == 2 && Last(requests).Refused == taken
+                    && Last(requests).Error == ConnectionTexts.NicknameAlreadyUsed && choice.IsPending, "AlEs mal lu : " + Describe(Last(requests)));
+
+                mark = n.ReceivedCount;
+                int sentChosen = n.SentCount;
+                var second = await choice.ChooseAsync(chosen).ConfigureAwait(false);
+                Check(second.Sent && n.SentSince(sentChosen).FirstOrDefault() == chosen, "Pseudo libre non envoyé : " + second.Message);
+                string ad = await n.Expect(p => p.StartsWith("Ad", StringComparison.Ordinal) || p.StartsWith("AlE", StringComparison.Ordinal), "Ad<pseudo> (pseudo accepté)", 15, mark).ConfigureAwait(false);
+                Check(ad == "Ad" + chosen, "Pseudo libre refusé ou mal repris : " + ad);
+                string alk = await n.Expect("AlK", "AlK (connexion acceptée)", 15, mark).ConfigureAwait(false);
+                string axk = await n.Expect("AxK", "AxK (serveurs du compte, après Ax)", 15, mark).ConfigureAwait(false);
+                Check(await n.Until(() => Count(accepted) >= 1 && !choice.IsPending, 5).ConfigureAwait(false) && accepted[0] == chosen && n.Account.Name == chosen,
+                    "Reprise mal lue : accepté « " + Last(accepted) + " », nom du compte « " + n.Account.Name + " », demande en cours " + choice.IsPending);
+                string stored = StoredNickname(db, schema, fresh.Login);
+                Check(stored == chosen || string.IsNullOrEmpty(stored), "StarLoco a écrit un autre pseudo dans la base : « " + stored + " »");
+                string botPart = "N " + fresh.Login + " : AlEr, nom du compte et « ab » refusés sur place, « " + taken + " » → AlEs (" + Last(requests).Error + "), deuxième envoi refusé avant la réponse, « "
+                    + chosen + " » → " + ad + ", " + alk + ", " + Short(axk, 16) + ", " + Persisted(stored);
+                n.Dispose();
+
+                // 2. Par la fenêtre du bot.
+                InventedCharacter other = InventAccount(db, schema, created);
+                string typed = FreeNickname(db, schema, "Fenetre");
+                screen = await OnUi(() =>
+                {
+                    var form = new PersoSelection(new AccountConfig(other.Login, other.Password, "Live"), true)
+                    { StartPosition = FormStartPosition.Manual, Location = new Point(40, 40), ShowInTaskbar = false };
+                    form.Show();
+                    return form;
+                }).ConfigureAwait(false);
+                var uiAccount = (Accounts)Field(screen, "A");
+                uiAccount.Logger.log_event += (entry, color) => Journal("U [journal du bot] " + entry.message);
+                PropertyInfo nicknameForm = typeof(PersoSelection).GetProperty("NicknameForm", BindingFlags.Instance | BindingFlags.NonPublic);
+                var dialog = await WaitOnUi(() => nicknameForm.GetValue(screen, null) as ChooseNickNameForm, 20).ConfigureAwait(false);
+                Check(dialog != null, "AlEr n'a pas ouvert la fenêtre du choix du pseudo au-dessus de l'écran des serveurs (" + uiAccount.ConnectionStatus + ")");
+                var uiReceived = new List<string>();
+                var uiConnection = uiAccount.Connexion;
+                Check(uiConnection != null, "La connexion du compte de la fenêtre est fermée");
+                uiConnection.packetReceivedEvent += p => { lock (uiReceived) uiReceived.Add(p); Journal("U << " + BotPacketRedactor.Redact(p, uiAccount)); };
+                uiConnection.packetSendEvent += p => Journal("U >> " + BotPacketRedactor.Redact(p, uiAccount));
+                string[] opened = await OnUi(() => new[] { Member(dialog, "Step").ToString(), (string)Member(dialog, "HelpText"), ReferenceEquals(dialog.Owner, screen).ToString(), dialog.Visible.ToString() }).ConfigureAwait(false);
+                Check(opened[0] == "Input" && opened[1] == ConnectionTexts.NicknameHelp && opened[2] == "True" && opened[3] == "True",
+                    "Fenêtre du pseudo mal ouverte : étape " + opened[0] + ", aide « " + opened[1] + " », au-dessus de l'écran " + opened[2]);
+
+                await OnUi(() => dialog.GetType().GetProperty("Nickname", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(dialog, other.Login, null)).ConfigureAwait(false);
+                await (await OnUi(() => (Task)dialog.GetType().GetMethod("OkAsync", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(dialog, null)).ConfigureAwait(false)).ConfigureAwait(false);
+                string[] refusedLocally = await OnUi(() => new[] { Member(dialog, "Step").ToString(), (string)Member(dialog, "ErrorText") }).ConfigureAwait(false);
+                Check(refusedLocally[0] == "Input" && refusedLocally[1] == ConnectionTexts.NicknameEqualsLogin, "Nom du compte saisi : étape " + refusedLocally[0] + ", erreur « " + refusedLocally[1] + " »");
+
+                await OnUi(() => dialog.GetType().GetProperty("Nickname", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(dialog, typed, null)).ConfigureAwait(false);
+                await (await OnUi(() => (Task)dialog.GetType().GetMethod("OkAsync", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(dialog, null)).ConfigureAwait(false)).ConfigureAwait(false);
+                string[] confirm = await OnUi(() => new[] { Member(dialog, "Step").ToString(), (string)Member(dialog, "HelpText") }).ConfigureAwait(false);
+                Check(confirm[0] == "Confirm" && confirm[1] == ConnectionTexts.NicknameConfirm(typed), "Confirmation : étape " + confirm[0] + ", texte « " + confirm[1] + " »");
+                await (await OnUi(() => (Task)dialog.GetType().GetMethod("OkAsync", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(dialog, null)).ConfigureAwait(false)).ConfigureAwait(false);
+                Check(await n.Until(() => { lock (uiReceived) return uiReceived.Contains("Ad" + typed) && uiReceived.Any(p => p.StartsWith("AlK", StringComparison.Ordinal)); }, 15).ConfigureAwait(false),
+                    "Le Login n'a pas repris la connexion après le pseudo de la fenêtre : " + string.Join(" ", Snapshot(uiReceived).Select(p => Short(p, 12))));
+                Check(await WaitOnUi(() => nicknameForm.GetValue(screen, null) == null && dialog.IsDisposed && screen.Alreadyhere ? "ok" : null, 15).ConfigureAwait(false) != null,
+                    "Après Ad/AlK, la fenêtre du pseudo reste ouverte ou la liste des serveurs est vide");
+                string storedUi = StoredNickname(db, schema, other.Login);
+                Check(storedUi == typed || string.IsNullOrEmpty(storedUi), "StarLoco a écrit un autre pseudo dans la base : « " + storedUi + " »");
+                string status = await OnUi(() => ((Label)Field(screen, "status")).Text).ConfigureAwait(false);
+                return botPart + " | fenêtre " + other.Login + " : ChooseNickName ouverte sur AlEr, nom du compte refusé sous la saisie, confirmation « " + confirm[1].Replace("\n", " ") + " », OK → Ad" + typed
+                    + ", AlK, fenêtre fermée, serveurs affichés (« " + status + " »), " + Persisted(storedUi);
+            }
+            finally
+            {
+                if (screen != null) await OnUi(() => { if (!screen.IsDisposed) screen.Close(); }).ConfigureAwait(false);
+                await ForgetAsync(db, schema, new[] { n }, created).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static string[] Snapshot(List<string> list) { lock (list) return list.ToArray(); }
+
+    /// <summary>
+    /// Pseudo relu dans la base après sa reprise par le Login. Vide : ChooseNickName.verify l'a gardé en mémoire mais
+    /// AccountData.update a échoué (le StarLoco de test sur MySQL 8 : Connector/J 5.1 rétablit STRICT_TRANS_TABLES et
+    /// « banned = 'false' » est refusé) ; le Login redemandera alors le pseudo à la connexion suivante.
+    /// </summary>
+    private static string Persisted(string stored) =>
+        string.IsNullOrEmpty(stored) ? "pseudo NON écrit dans la base par ce StarLoco (AccountData.update refusé)" : "base « " + stored + " »";
+
+    /// <summary>
+    /// Nouveau niveau en jeu : un compte et un personnage inventés (niveau 1, 0 point d'expérience) reçoivent par la base un parchemin
+    /// d'expérience (<see cref="XpScrollTemplate"/>, 111 points) et ont leur fenêtre de jeu, ouverte à la sélection comme
+    /// <c>SelectPlayerPerso</c>. « Utiliser » (<c>OU</c>) → <c>AN2</c> (<c>Player.addXp</c>), <c>Im08;111</c> ; la fenêtre ouvre la boîte
+    /// <c>INFORMATIONS</c> / <c>NEW_LEVEL</c> et la discussion écrit « Nouveau niveau : 2. ». Tout est supprimé de la base à la fin.
+    /// </summary>
+    private static async Task<string> LevelUpAsync()
+    {
+        if (!Map.AllBotMaps.ContainsKey(TombMap)) throw new SkipScenario("carte " + TombMap + " absente des cartes du bot");
+        using (MySql.Data.MySqlClient.MySqlConnection db = OpenAccountsDatabase(out string schema))
+        {
+            var created = new List<InventedCharacter>();
+            LiveSession c = null;
+            GameClientFullform screen = null;
+            int scrollId = 1900000000 + random.Next(0, 99999999);
+            bool scrollWritten = false;
+            try
+            {
+                InventedCharacter hero = Invent(db, schema, a.Id, TombMap, TombCell, 10000, created);
+                Sql(db, "INSERT INTO " + schema + ".`world.entity.objects` (id, template, quantity, position, stats, puit) VALUES (@id, @template, 1, -1, @stats, 0)",
+                    "@id", scrollId, "@template", XpScrollTemplate, "@stats", XpScrollStats);
+                scrollWritten = true;
+                Sql(db, "UPDATE " + schema + ".players SET level = 1, xp = 0, objets = @objets WHERE id = @id AND account = @account",
+                    "@objets", scrollId.ToString(CultureInfo.InvariantCulture) + "|", "@id", hero.Id, "@account", hero.Guid);
+                Journal("[test] parchemin " + XpScrollTemplate + " (objet " + scrollId + ", " + XpScrollStats + ") dans le sac de " + hero.Name + ", niveau 1, 0 point d'expérience");
+                c = new LiveSession("C", hero.Login, hero.Password);
+                var levels = new List<int>();
+                string entered = await EnterExistingAsync(c, hero.Id, hero.Name, TombMap, s =>
+                {
+                    s.Account.Game.Session.LevelUp += level => { lock (levels) levels.Add(level); };
+                    s.Account.Game.character.Player_Selection += () => OnUi(() =>
+                    {
+                        if (screen != null) return;
+                        screen = new GameClientFullform(s.Account) { StartPosition = FormStartPosition.Manual, Location = new Point(60, 60), Size = new Size(1000, 700), ShowInTaskbar = false };
+                        screen.Show();
+                    });
+                }).ConfigureAwait(false);
+                Tool_BotProtocol.Game.Perso.Inventory.InventoryObjects scroll = null;
+                Check(await c.Until(() => (scroll = Owned(c, XpScrollTemplate)) != null, 10).ConfigureAwait(false), "Le parchemin " + XpScrollTemplate + " manque à l'inventaire lu par le bot (ASK)");
+                Check(scroll.Inventory_ID == scrollId, "Parchemin lu avec l'identifiant " + scroll.Inventory_ID + " au lieu de " + scrollId);
+                Check(await WaitOnUi(() => screen != null && screen.IsHandleCreated && screen.Visible ? screen : null, 20).ConfigureAwait(false) != null, "La fenêtre de jeu de C ne s'est pas ouverte");
+                string levelName = "nouveau-niveau/" + hero.Login;
+                Check(await OnUi(() => OpenDialog(levelName) == null).ConfigureAwait(false), "Une boîte « Nouveau niveau » est ouverte avant le parchemin");
+
+                int mark = c.ReceivedCount, sent = c.SentCount;
+                var used = await Tool_BotProtocol.Game.Perso.Inventory.SpecialItems.UseAsync(c.Account.Game, scroll).ConfigureAwait(false);
+                Check(used.Sent, "« Utiliser » refusé par le bot : " + used.Message);
+                Check(await c.Until(() => c.SentSince(sent).Any(p => p.StartsWith("OU" + scrollId + "|", StringComparison.Ordinal)), 5).ConfigureAwait(false), "OU" + scrollId + "| non envoyé");
+                string an = await c.Expect(p => p.StartsWith("AN", StringComparison.Ordinal), "AN (nouveau niveau)", 15, mark).ConfigureAwait(false);
+                Check(an == "AN2", "Niveau annoncé " + an + " au lieu de AN2");
+                string im = await c.Expect(p => p.StartsWith("Im08;", StringComparison.Ordinal), "Im08 (expérience gagnée)", 10, mark).ConfigureAwait(false);
+                // StarLoco envoie AN2 deux fois pour ce gain (Player.addXp) : le bot ne lève LevelUp et n'ouvre la boîte qu'une fois.
+                await Task.Delay(500).ConfigureAwait(false);
+                int announced = c.ReceivedSince(mark).Count(p => p == "AN2");
+                Check(Count(levels) == 1 && levels[0] == 2, "LevelUp levé " + Count(levels) + " fois pour " + announced + " AN2");
+                Form box = await WaitOnUi(() => OpenDialog(levelName), 10).ConfigureAwait(false);
+                Check(box != null, "AN2 n'a pas ouvert la boîte « Nouveau niveau » dans la fenêtre de jeu de C");
+                string[] shown = await OnUi(() => new[] { box.Text, DialogMessage(box), ReferenceEquals(box.Owner, screen).ToString() }).ConfigureAwait(false);
+                Check(shown[0] == ConnectionTexts.InformationsTitle && shown[1] == ConnectionTexts.NewLevel(2) && shown[2] == "True",
+                    "Boîte « " + shown[0] + " » : « " + shown[1] + " », au-dessus de la fenêtre de C " + shown[2]);
+                int boxes = await OnUi(() => BotDialogs.OpenDialogs.Count(x => x.Name == levelName && !x.IsDisposed && x.Visible)).ConfigureAwait(false);
+                int lines = c.Account.Game.Chat.Messages.Count(m => m.Text == ConnectionTexts.NewLevelLine(2));
+                Check(boxes == 1 && lines == 1, boxes + " boîte(s) « Nouveau niveau » et " + lines + " ligne(s) « " + ConnectionTexts.NewLevelLine(2) + " » pour " + announced + " AN2");
+                bool consumed = await c.Until(() => Owned(c, XpScrollTemplate) == null, 5).ConfigureAwait(false);
+                await OnUi(() => AllControls(box).OfType<Button>().First(x => x.Visible).PerformClick()).ConfigureAwait(false);
+                Check(await WaitOnUi(() => OpenDialog(levelName) == null ? "fermée" : null, 5).ConfigureAwait(false) != null, "« OK » ne ferme pas la boîte « Nouveau niveau »");
+                return entered + " ; " + Short(c.SentSince(sent).First(p => p.StartsWith("OU", StringComparison.Ordinal)), 20) + " → " + announced + " × " + an + ", " + Short(im, 16)
+                    + ", boîte « " + shown[0] + " » : « " + shown[1].Replace("\n", " ") + " », discussion « " + ConnectionTexts.NewLevelLine(2) + " », parchemin "
+                    + (consumed ? "retiré du sac" : "encore dans le sac") + ", OK ferme la boîte";
+            }
+            finally
+            {
+                if (screen != null) await OnUi(() => { if (!screen.IsDisposed) { screen.Close(); screen.Dispose(); } }).ConfigureAwait(false);
+                await ForgetAsync(db, schema, new[] { c }, created).ConfigureAwait(false);
+                if (scrollWritten)
+                    try { Sql(db, "DELETE FROM " + schema + ".`world.entity.objects` WHERE id = @id AND template = @template", "@id", scrollId, "@template", XpScrollTemplate); }
+                    catch (Exception error) { Journal("!! [test] parchemin " + scrollId + " non supprimé de la base : " + error.Message); }
+            }
+        }
+    }
+
+    /// <summary>Lance une commande de la machine (sh -c, cmd /c sous Windows) ; sa sortie va au journal. Code de sortie, -1 après le délai.</summary>
+    private static async Task<int> RunCommandAsync(string label, string command, int seconds)
+    {
+        bool windows = Environment.OSVersion.Platform == PlatformID.Win32NT;
+        var start = new ProcessStartInfo(windows ? "cmd.exe" : "/bin/sh", windows ? "/c " + command : "-c \"" + command.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"")
+        { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+        using (var process = new Process { StartInfo = start })
+        {
+            process.OutputDataReceived += (s, e) => { if (e.Data != null) Journal("[" + label + "] " + e.Data); };
+            process.ErrorDataReceived += (s, e) => { if (e.Data != null) Journal("[" + label + "] " + e.Data); };
+            Journal("[test] " + label + " : " + command);
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            DateTime until = DateTime.UtcNow.AddSeconds(seconds);
+            while (!process.HasExited && DateTime.UtcNow < until) await Task.Delay(200).ConfigureAwait(false);
+            if (!process.HasExited) { try { process.Kill(); } catch (Exception) { } Journal("!! [test] " + label + " : délai de " + seconds + " s dépassé"); return -1; }
+            Journal("[test] " + label + " : code " + process.ExitCode);
+            return process.ExitCode;
+        }
+    }
+
+    /// <summary>
+    /// Coupure du serveur de jeu en pleine partie (toujours le dernier scénario) : <c>AZUR_STARLOCO_GAME_STOP</c> arrête le Game par son
+    /// crochet d'arrêt (<c>Main</c> : sauvegarde du monde, puis <c>kickAll</c> envoie <c>M04</c> à chaque joueur et ferme sa connexion).
+    /// A et B constatent une perte de connexion (<see cref="DisconnectCause.Lost"/>, en jeu, <c>M04</c> gardé s'il est arrivé) ; la fenêtre
+    /// de A ouvre la boîte <c>CONNECTION</c> (<c>DISCONNECT</c> puis <c>SRV_MSG_4</c>) ; « OK » ferme la fenêtre et ouvre l'écran de
+    /// connexion avec les identifiants de A. <c>AZUR_STARLOCO_GAME_START</c> relance ensuite le Game, même après un échec.
+    /// </summary>
+    private static async Task<string> GameStopAsync()
+    {
+        string stop = Environment.GetEnvironmentVariable("AZUR_STARLOCO_GAME_STOP"), restart = Environment.GetEnvironmentVariable("AZUR_STARLOCO_GAME_START");
+        if (string.IsNullOrWhiteSpace(stop) || string.IsNullOrWhiteSpace(restart))
+            throw new SkipScenario("AZUR_STARLOCO_GAME_STOP et AZUR_STARLOCO_GAME_START non définis : le serveur de jeu n'est pas arrêté");
+        Check(a.Account.Connexion != null && a.Account.Connexion.IsConnected() && a.Account.Game.character.id > 0, "A n'est plus en jeu");
+        Check(b.Account.Connexion != null && b.Account.Connexion.IsConnected(), "B n'est plus en jeu");
+        Check(await WaitOnUi(() => window != null && !window.IsDisposed && window.IsHandleCreated && window.Visible ? window : null, 20).ConfigureAwait(false) != null, "Pas de fenêtre de jeu pour A");
+        string lostName = "connexion-perdue/" + a.Login;
+        Check(await OnUi(() => OpenDialog(lostName) == null).ConfigureAwait(false), "Une boîte de perte de connexion est ouverte avant l'arrêt");
+        var lostA = new TaskCompletionSource<ConnectionLoss>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lostB = new TaskCompletionSource<ConnectionLoss>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Action<ConnectionLoss> onA = x => lostA.TrySetResult(x), onB = x => lostB.TrySetResult(x);
+        a.Account.ConnectionLost += onA;
+        b.Account.ConnectionLost += onB;
+        int markA = a.ReceivedCount, markB = b.ReceivedCount;
+        Accounts accountA = a.Account, accountB = b.Account;
+        Task<int> stopping = RunCommandAsync("arrêt du jeu", stop, 120);
+        string evidence;
+        int restarted;
+        try
+        {
+            Check(await Task.WhenAny(lostA.Task, Task.Delay(TimeSpan.FromSeconds(90))).ConfigureAwait(false) == lostA.Task, "A n'a pas constaté la coupure du serveur de jeu");
+            ConnectionLoss loss = lostA.Task.Result;
+            bool m04 = a.ReceivedSince(markA).Contains("M04");
+            Check(loss.Cause == DisconnectCause.Lost && loss.WasInGame && accountA.LastDisconnect == loss, "Perte de connexion de A mal lue : " + loss.Cause + ", en jeu " + loss.WasInGame);
+            Check(m04 ? loss.Message != null && loss.Message.Id == 4 : loss.Message == null, "M04 " + (m04 ? "reçu mais absent de" : "non reçu mais présent dans") + " la perte de connexion : " + loss.Message);
+            Check(loss.Text == ConnectionTexts.Disconnected + (m04 ? "\n\n" + loss.Message.Text : ""), "Texte de la perte de connexion : " + loss.Text);
+            Form box = await WaitOnUi(() => OpenDialog(lostName), 15).ConfigureAwait(false);
+            Check(box != null, "La boîte de perte de connexion ne s'est pas ouverte dans la fenêtre de A");
+            string[] shown = await OnUi(() => new[] { box.Text, DialogMessage(box), ReferenceEquals(box.Owner, window).ToString(), window.IsDisposed.ToString() }).ConfigureAwait(false);
+            Check(shown[0] == loss.Title && shown[1] == loss.Text && shown[2] == "True" && shown[3] == "False",
+                "Boîte « " + shown[0] + " » : « " + shown[1] + " », au-dessus de la fenêtre de A " + shown[2] + ", fenêtre fermée " + shown[3]);
+            await OnUi(() => AllControls(box).OfType<Button>().First(x => x.Visible).PerformClick()).ConfigureAwait(false);
+            LoginForm login = await WaitOnUi(() => window.IsDisposed ? Application.OpenForms.OfType<LoginForm>().FirstOrDefault() : null, 15).ConfigureAwait(false);
+            Check(login != null, "« OK » n'a pas fermé la fenêtre de jeu de A ni ouvert l'écran de connexion");
+            string[] filled = await OnUi(() => new[] { ((TextBox)Field(login, "login")).Text, ((TextBox)Field(login, "password")).Text, ((Label)Field(login, "status")).Text }).ConfigureAwait(false);
+            await OnUi(() => login.Close()).ConfigureAwait(false);
+            Check(filled[0] == a.Login && filled[1] == a.Password, "L'écran de connexion n'a pas repris le compte et le mot de passe de A");
+            Check(filled[2].StartsWith(ConnectionTexts.Disconnected, StringComparison.Ordinal) && filled[2].EndsWith("Reconnectez-vous.", StringComparison.Ordinal)
+                && (!m04 || filled[2].Contains(loss.Message.Text.Replace("\n", " "))), "État de l'écran de connexion : " + filled[2]);
+
+            Check(await Task.WhenAny(lostB.Task, Task.Delay(TimeSpan.FromSeconds(15))).ConfigureAwait(false) == lostB.Task, "B n'a pas constaté la coupure du serveur de jeu");
+            ConnectionLoss lossB = lostB.Task.Result;
+            bool m04B = b.ReceivedSince(markB).Contains("M04");
+            Check(lossB.Cause == DisconnectCause.Lost && lossB.WasInGame && (m04B ? lossB.Message?.Id == 4 : lossB.Message == null),
+                "Perte de connexion de B mal lue : " + lossB.Cause + ", en jeu " + lossB.WasInGame + ", message " + lossB.Message);
+            int stopped = await stopping.ConfigureAwait(false);
+            Check(stopped == 0, "La commande d'arrêt du serveur de jeu a échoué (code " + stopped + ")");
+            evidence = "A : " + (m04 ? "M04 reçu, " : "M04 non reçu avant la fermeture, ") + "perte " + loss.Cause + " en jeu, boîte « " + shown[0] + " » : « " + shown[1].Replace("\n", " ")
+                + " » ; OK → fenêtre fermée, écran de connexion prérempli (« " + filled[2] + " ») ; B : " + (m04B ? "M04, " : "") + "perte " + lossB.Cause + " (" + accountB.ConnectionStatus + ")";
+        }
+        finally
+        {
+            accountA.ConnectionLost -= onA;
+            accountB.ConnectionLost -= onB;
+            if (!stopping.IsCompleted) await Task.WhenAny(stopping, Task.Delay(TimeSpan.FromSeconds(120))).ConfigureAwait(false);
+            restarted = await RunCommandAsync("redémarrage du jeu", restart, 240).ConfigureAwait(false);
+        }
+        Check(restarted == 0, "Le serveur de jeu n'a pas redémarré (code " + restarted + ")");
+        return evidence + " ; serveur de jeu redémarré";
     }
 }
