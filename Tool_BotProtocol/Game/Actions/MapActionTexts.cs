@@ -98,6 +98,25 @@ namespace Tool_BotProtocol.Game.Actions
             return text + Get("DO_U_ATTACK", "Agresser %1 ?", target);
         }
 
+        // Menu de son propre personnage, tombe et mariage (lot X2).
+        public static string HitHimself => Get("HIT_HIMSELF", "Se frapper");
+        public static string FreeMySoul => Get("FREE_MY_SOUL", "Libérer mon âme");
+        public static string ChangeDirection => Get("CHANGE_DIRECTION", "Changer de direction");
+        public static string AlreadyGhost => Get("ERROR_ALREADY_A_GHOST", "Le personnage est déjà un fantôme.");
+        public static string NotDead => Get("ERROR_NOT_DEAD_AT_LEAST_FOR_NOW", "Le personnage n'est pas une tombe : aucune âme à libérer.");
+        public static string MarriageTitle => Get("MARRIAGE", "Mariage");
+        public static string AskMarriage(string asked, string partner) => Get("A_ASK_MARRIAGE_B", "Mariage de %1 avec %2 : acceptez-vous ?", asked, partner);
+        public static string Married(string a, string b) => Get("A_MARRIED_B", "%1 et %2 sont désormais mariés.", a, b);
+        public static string NotMarried(string a, string b) => Get("A_NOT_MARRIED_B", "Le mariage de %1 et %2 n'a pas lieu.", a, b);
+        public static string Replay => Get("REPLAY_WORD", "Rejouer");
+        /// <summary>
+        /// Phrase que « Se frapper » envoie dans le canal général (<c>SLAP_SENTENCE</c>) ; <c>null</c> sans <c>lang.xml</c> :
+        /// le bot n'invente pas un texte que les autres joueurs liraient.
+        /// </summary>
+        public static string SlapSentence => LangData.Text.Has("SLAP_SENTENCE") ? NullIfEmpty(LangData.Text.Plain(LangData.Text.Get("SLAP_SENTENCE"))) : null;
+
+        private static string NullIfEmpty(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
         // Réponses de « qui est » (Basics.onWhoIs).
         public static string UnknownArea => Get("UNKNOWN_AREA", "lieu inconnu");
         public static string WhoisNotFound(string name) => Get("CANT_FIND_ACCOUNT_OR_CHARACTER", "%1 est introuvable ou hors ligne.", name);

@@ -35,24 +35,28 @@ namespace Tool_BotProtocol.Frames.Jeu
         }
 
         /// <summary>
-        /// <c>AR&lt;base 36&gt;</c> : restrictions du personnage joué (<c>Account.onRestrictions</c>). StarLoco envoie
-        /// <c>AR6bk</c> (8192 : aucune restriction connue du client) et <c>AR3K</c> (128 : tombe).
+        /// <c>AR&lt;base 36&gt;</c> : restrictions du personnage joué (<c>Account.onRestrictions</c>, bits de
+        /// <c>dofus.datacenter.Player</c>). StarLoco envoie <c>AR6bk</c> (8192 : huit orientations, aucune interdiction) à la
+        /// connexion et après une résurrection, et <c>AR3K</c> (128 : pas d'interaction avec les percepteurs) à toute
+        /// transformation (<c>Player.setGfxId</c>), fantôme compris : la tombe se lit dans le sprite, pas ici.
+        /// Une valeur négative, que StarLoco n'envoie jamais, est refusée (-1 signifie « pas encore reçu »).
         /// </summary>
         [MessageAttribution("AR")]
         public void Restrictions(TcpClient client, string message)
         {
             Accounts account = client.account;
             if (account == null) return;
-            if (!PlayerRestrictionsParser.TryParse(message.Substring(2), out int raw, out PlayerRestrictions restrictions))
+            if (!PlayerRestrictionsParser.TryParse(message.Substring(2), out int raw, out PlayerRestrictions restrictions) || raw < 0)
             {
                 account.Logger.LogDanger("SESSION", "Restrictions illisibles ignorées : " + message);
                 return;
             }
             account.Game.Session.OnRestrictions(raw, restrictions);
-            if (restrictions == PlayerRestrictions.None)
-                account.Logger.LogDebug("SESSION", "Aucune restriction visible (valeur " + raw + ").");
+            string described = Describe(raw);
+            if (described.Length == 0)
+                account.Logger.LogDebug("SESSION", "Aucune restriction du joueur (valeur " + raw + ").");
             else
-                account.Logger.LogInfo("SESSION", "Restrictions du personnage : " + Describe(restrictions) + ".");
+                account.Logger.LogInfo("SESSION", "Restrictions du joueur (valeur " + raw + ") : " + described + ".");
         }
 
         /// <summary><c>Ac&lt;communauté&gt;</c> (envoyé par le Login StarLoco : <c>Ac0</c>) ; une valeur négative est ignorée comme dans le client.</summary>
@@ -102,18 +106,30 @@ namespace Tool_BotProtocol.Frames.Jeu
             account.Game.Session.OnLevelUp(level);
         }
 
-        private static string Describe(PlayerRestrictions restrictions)
+        /// <summary>Bits de <c>AR</c> dans le sens des accesseurs de <c>dofus.datacenter.Player</c> (posé = libellé).</summary>
+        private static readonly KeyValuePair<int, string>[] PlayerBits =
+        {
+            new KeyValuePair<int, string>(1, "ne peut pas agresser"),
+            new KeyValuePair<int, string>(2, "ne peut pas défier"),
+            new KeyValuePair<int, string>(4, "ne peut pas échanger"),
+            new KeyValuePair<int, string>(8, "peut attaquer"),
+            new KeyValuePair<int, string>(16, "ne peut pas parler à tous"),
+            new KeyValuePair<int, string>(32, "ne peut pas être marchand"),
+            new KeyValuePair<int, string>(64, "ne peut pas utiliser d'objet"),
+            new KeyValuePair<int, string>(128, "ne peut pas interagir avec un percepteur"),
+            new KeyValuePair<int, string>(256, "ne peut pas utiliser d'objet interactif"),
+            new KeyValuePair<int, string>(512, "ne peut pas parler aux PNJ"),
+            new KeyValuePair<int, string>(4096, "peut attaquer les monstres de donjon en mutant"),
+            new KeyValuePair<int, string>(8192, "huit orientations"),
+            new KeyValuePair<int, string>(16384, "peut attaquer les monstres partout en mutant"),
+            new KeyValuePair<int, string>(32768, "ne peut pas interagir avec un prisme"),
+        };
+
+        private static string Describe(int raw)
         {
             var parts = new List<string>();
-            if ((restrictions & PlayerRestrictions.CannotBeAssaulted) != 0) parts.Add("ne peut pas être agressé");
-            if ((restrictions & PlayerRestrictions.CannotBeChallenged) != 0) parts.Add("ne peut pas être défié");
-            if ((restrictions & PlayerRestrictions.CannotExchange) != 0) parts.Add("ne peut pas échanger");
-            if ((restrictions & PlayerRestrictions.CannotBeAttacked) != 0) parts.Add("ne peut pas être attaqué");
-            if ((restrictions & PlayerRestrictions.ForceWalk) != 0) parts.Add("marche forcée");
-            if ((restrictions & PlayerRestrictions.Slow) != 0) parts.Add("ralenti");
-            if ((restrictions & PlayerRestrictions.CannotSwitchToCreatureMode) != 0) parts.Add("mode créature interdit");
-            if ((restrictions & PlayerRestrictions.Tomb) != 0) parts.Add("tombe");
-            if ((restrictions & PlayerRestrictions.AdminSonicSpeed) != 0) parts.Add("vitesse d'administrateur");
+            foreach (KeyValuePair<int, string> bit in PlayerBits)
+                if ((raw & bit.Key) != 0) parts.Add(bit.Value);
             return string.Join(", ", parts);
         }
     }

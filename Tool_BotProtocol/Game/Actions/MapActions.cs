@@ -51,7 +51,7 @@ namespace Tool_BotProtocol.Game.Actions
     /// <c>GameActions.sendActions</c> (<c>GA</c> + action sur trois chiffres + paramètres séparés par <c>;</c>).
     /// Les événements sont levés sur le fil réseau ; l'interface doit les remettre sur son propre fil.
     /// </summary>
-    public sealed class MapActions : InteractionWindow
+    public sealed partial class MapActions : InteractionWindow
     {
         public const int ChallengeAction = 900;
         public const int AcceptChallengeAction = 901;
@@ -612,11 +612,14 @@ namespace Tool_BotProtocol.Game.Actions
 
         protected override void Reset()
         {
+            MarriageRequest dropped;
             lock (sync)
             {
                 pending = null; ignored.Clear(); fightCount = 0; fightsMapId = int.MinValue; fights = NoFights;
                 lastWhois = null; pendingWhois = null; lastJoinError = null;
+                dropped = pendingMarriage; pendingMarriage = null;
             }
+            if (dropped != null) Raise(() => MarriageClosed?.Invoke(dropped));
         }
 
         private void ForgetPending(ChallengeInfo answered)
