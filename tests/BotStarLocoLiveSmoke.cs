@@ -445,6 +445,7 @@ internal static partial class Live
         await Scenario("c2. émote assise de B jouée en bande dans la fenêtre de A (lot AN8)", 40, EmoteAsync).ConfigureAwait(false);
         await Scenario("x2a. orientation et « Se frapper » depuis le menu de A, vus par B (lot X2)", 40, DirectionAsync).ConfigureAwait(false);
         await Scenario("x2b. tombe, âme libérée au cimetière, fantôme ramené à la vie par le phénix (lot X2)", 120, TombAsync).ConfigureAwait(false);
+        await Scenario("x2c. mariage devant le prêtre : Non puis Oui des deux époux (lot X2)", 120, MarriageAsync).ConfigureAwait(false);
         await Scenario("d1. invitation de groupe acceptée", 40, PartyAsync).ConfigureAwait(false);
         await Scenario("d2. échange de kamas validé des deux côtés", 60, ExchangeAsync).ConfigureAwait(false);
         await Scenario("d3. ajout en ami", 40, FriendAsync).ConfigureAwait(false);
@@ -1310,7 +1311,8 @@ internal static partial class Live
     }
 }
 
-// Scénarios x2 (lot X2) : orientation de A vue par B ; tombe, âme libérée, fantôme ramené à la vie par la statue du phénix.
+// Scénarios x2 (lot X2) : orientation et gifle de A vues par B ; tombe, âme libérée, fantôme ramené à la vie par la statue du
+// phénix ; mariage devant le prêtre. Les personnages de x2b et x2c sont écrits dans la base de StarLoco puis supprimés.
 internal static partial class Live
 {
     /// <summary>
@@ -1394,6 +1396,77 @@ internal static partial class Live
         return texts;
     }
 
+    /// <summary>Compte et personnage inventés, écrits dans la base de StarLoco le temps d'un scénario puis supprimés.</summary>
+    private sealed class InventedCharacter
+    {
+        public string Login, Password, Name;
+        public long Guid = -1;
+        public int Id = -1, Sex;
+    }
+
+    /// <summary>
+    /// Écrit un compte inventé (mot de passe <c>SHA2(MD5)</c> du Login, pseudo non vide) et son personnage : mêmes colonnes que
+    /// <c>PlayerData.add</c> de StarLoco, classe, sexe, couleurs, sorts et serveur repris du personnage <paramref name="sourceId"/>,
+    /// sans objets, posé sur <paramref name="mapId"/> / <paramref name="cellId"/> avec l'énergie donnée.
+    /// </summary>
+    private static InventedCharacter Invent(MySql.Data.MySqlClient.MySqlConnection db, string schema, int sourceId, int mapId, int cellId, int energy, List<InventedCharacter> created)
+    {
+        var invented = new InventedCharacter
+        {
+            Login = "azurx2" + random.Next(10000, 99999).ToString(CultureInfo.InvariantCulture),
+            Password = Guid.NewGuid().ToString("N").Substring(0, 12),
+            Name = NewCharacterName()
+        };
+        created.Add(invented);
+        invented.Sex = Convert.ToInt32(Scalar(db, "SELECT sexe FROM " + schema + ".players WHERE id = @source", "@source", sourceId), CultureInfo.InvariantCulture);
+        Sql(db, "INSERT INTO " + schema + ".accounts (account, pass, pseudo, question, reponse, lastConnectionDate, lastIP, friends, enemy, heurevote, lastConnectDay)"
+            + " VALUES (@login, SHA2(MD5(@password), 512), @pseudo, 'DELETE?', 'DELETE', '', '', '', '', 0, '')",
+            "@login", invented.Login, "@password", invented.Password, "@pseudo", "X2" + invented.Login.Substring(6));
+        invented.Guid = Convert.ToInt64(Scalar(db, "SELECT guid FROM " + schema + ".accounts WHERE account = @login", "@login", invented.Login), CultureInfo.InvariantCulture);
+        invented.Id = Convert.ToInt32(Scalar(db, "SELECT IFNULL(MAX(id), 0) + 1 FROM " + schema + ".players"), CultureInfo.InvariantCulture);
+        Sql(db, "INSERT INTO " + schema + ".players (id, name, sexe, class, color1, color2, color3, kamas, spellboost, capital, energy, level, xp, size, gfx, account, cell, map, spells, objets, storeObjets, morphMode, server)"
+            + " SELECT @id, @name, sexe, class, color1, color2, color3, 0, spellboost, capital, @energy, level, xp, size, gfx, @account, @cell, @map, spells, '', '', '0', server FROM "
+            + schema + ".players WHERE id = @source",
+            "@id", invented.Id, "@name", invented.Name, "@energy", energy, "@account", invented.Guid, "@cell", cellId, "@map", mapId, "@source", sourceId);
+        Journal("[test] compte inventé " + invented.Login + " (" + invented.Guid + "), personnage " + invented.Name + " (" + invented.Id + ") sur la carte " + mapId
+            + " cellule " + cellId + ", énergie " + energy);
+        return invented;
+    }
+
+    /// <summary>Ferme les sessions, puis supprime de la base les comptes et personnages inventés (StarLoco les enregistre à la déconnexion).</summary>
+    private static async Task ForgetAsync(MySql.Data.MySqlClient.MySqlConnection db, string schema, IEnumerable<LiveSession> sessions, IEnumerable<InventedCharacter> created)
+    {
+        foreach (LiveSession s in sessions) s?.Dispose();
+        await Task.Delay(1500).ConfigureAwait(false);
+        foreach (InventedCharacter invented in created)
+        {
+            try
+            {
+                if (invented.Id > 0) Sql(db, "DELETE FROM " + schema + ".players WHERE id = @id AND account = @account", "@id", invented.Id, "@account", invented.Guid);
+                if (invented.Guid > 0) Sql(db, "DELETE FROM " + schema + ".accounts WHERE guid = @guid AND account = @login", "@guid", invented.Guid, "@login", invented.Login);
+                Journal("[test] compte " + invented.Login + " et personnage " + invented.Id + " supprimés de la base");
+            }
+            catch (Exception error) { Journal("!! [test] nettoyage de la base impossible pour " + invented.Login + " : " + error.Message); }
+        }
+    }
+
+    /// <summary>Connexion MySQL de <c>AZUR_STARLOCO_GAME_DB</c> et base des comptes, ou scénario non joué.</summary>
+    private static MySql.Data.MySqlClient.MySqlConnection OpenAccountsDatabase(out string schema)
+    {
+        RequireMaps();
+        string database = Environment.GetEnvironmentVariable("AZUR_STARLOCO_GAME_DB");
+        if (string.IsNullOrWhiteSpace(database)) throw new SkipScenario("AZUR_STARLOCO_GAME_DB non défini : pas de base où écrire les personnages du scénario");
+        var db = new MySql.Data.MySqlClient.MySqlConnection(database);
+        try
+        {
+            db.Open();
+            schema = PlayersSchema(db, a.Id, a.CharacterName);
+            if (schema == null) throw new SkipScenario("table players du personnage " + a.CharacterName + " introuvable sur ce serveur MySQL");
+            return db;
+        }
+        catch { db.Dispose(); throw; }
+    }
+
     /// <summary>
     /// Personnage d'un compte inventé, posé en tombe par la base (énergie -1 : <c>Player</c> appelle <c>setFuneral</c> au
     /// chargement, comme <c>Fight</c> après une défaite à 0 d'énergie) : sprite « -10 » (bit 128), <c>GF</c> → fantôme 8004 « -40 »
@@ -1402,45 +1475,24 @@ internal static partial class Live
     /// </summary>
     private static async Task<string> TombAsync()
     {
-        RequireMaps();
-        string database = Environment.GetEnvironmentVariable("AZUR_STARLOCO_GAME_DB");
-        if (string.IsNullOrWhiteSpace(database)) throw new SkipScenario("AZUR_STARLOCO_GAME_DB non défini : pas de base où poser la tombe");
         if (!Map.AllBotMaps.ContainsKey(TombMap) || !Map.AllBotMaps.ContainsKey(CemeteryMap)) throw new SkipScenario("cartes " + TombMap + " et " + CemeteryMap + " absentes des cartes du bot");
-        using (var db = new MySql.Data.MySqlClient.MySqlConnection(database))
+        using (MySql.Data.MySqlClient.MySqlConnection db = OpenAccountsDatabase(out string schema))
         {
-            db.Open();
-            string schema = PlayersSchema(db, a.Id, a.CharacterName);
-            if (schema == null) throw new SkipScenario("table players du personnage " + a.CharacterName + " introuvable sur ce serveur MySQL");
-            string login = "azurx2" + random.Next(10000, 99999).ToString(CultureInfo.InvariantCulture);
-            string password = Guid.NewGuid().ToString("N").Substring(0, 12);
-            string name = NewCharacterName();
-            int sex = Convert.ToInt32(Scalar(db, "SELECT sexe FROM " + schema + ".players WHERE id = @source", "@source", a.Id), CultureInfo.InvariantCulture);
-            long guid = -1;
-            int characterId = -1;
-            var c = new LiveSession("C", login, password);
+            var created = new List<InventedCharacter>();
+            LiveSession c = null;
             try
             {
-                Sql(db, "INSERT INTO " + schema + ".accounts (account, pass, pseudo, question, reponse, lastConnectionDate, lastIP, friends, enemy, heurevote, lastConnectDay)"
-                    + " VALUES (@login, SHA2(MD5(@password), 512), @pseudo, 'DELETE?', 'DELETE', '', '', '', '', 0, '')",
-                    "@login", login, "@password", password, "@pseudo", "Tombe" + login.Substring(6));
-                guid = Convert.ToInt64(Scalar(db, "SELECT guid FROM " + schema + ".accounts WHERE account = @login", "@login", login), CultureInfo.InvariantCulture);
-                characterId = Convert.ToInt32(Scalar(db, "SELECT IFNULL(MAX(id), 0) + 1 FROM " + schema + ".players"), CultureInfo.InvariantCulture);
-                // Mêmes colonnes que PlayerData.add de StarLoco ; classe, sexe, couleurs, sorts et serveur repris du personnage de A, sans objets.
-                Sql(db, "INSERT INTO " + schema + ".players (id, name, sexe, class, color1, color2, color3, kamas, spellboost, capital, energy, level, xp, size, gfx, account, cell, map, spells, objets, storeObjets, morphMode, server)"
-                    + " SELECT @id, @name, sexe, class, color1, color2, color3, 0, spellboost, capital, -1, level, xp, size, gfx, @account, @cell, @map, spells, '', '', '0', server FROM "
-                    + schema + ".players WHERE id = @source",
-                    "@id", characterId, "@name", name, "@account", guid, "@cell", TombCell, "@map", TombMap, "@source", a.Id);
-                Journal("C [test] compte inventé " + login + " (" + guid + "), personnage " + name + " (" + characterId + ") en tombe sur la carte " + TombMap);
-
-                string entered = await EnterExistingAsync(c, characterId, name).ConfigureAwait(false);
+                InventedCharacter tomb = Invent(db, schema, a.Id, TombMap, TombCell, -1, created);
+                c = new LiveSession("C", tomb.Login, tomb.Password);
+                string entered = await EnterExistingAsync(c, tomb.Id, tomb.Name, TombMap).ConfigureAwait(false);
                 GameSession session = c.Account.Game.Session;
                 MapActions actions = c.Account.Game.Interactions.MapActions;
                 // setFuneral : gfx classe + "3" ; setAlive : classe + sexe (Integer.parseInt de StarLoco).
-                int tombGfx = a.ClassId * 10 + 3, aliveGfx = a.ClassId * 10 + sex;
+                int tombGfx = a.ClassId * 10 + 3, aliveGfx = a.ClassId * 10 + tomb.Sex;
                 Check(await c.Until(() => session.IsTomb && c.Map.Self != null, 10).ConfigureAwait(false), "Le bot ne lit pas la tombe dans son sprite : " + Restrictions(c));
                 Check(!session.IsGhost && actions.CanFreeSoul && !actions.CanChangeDirection && c.Map.Self.Gfx == tombGfx,
                     "Tombe mal lue : fantôme " + session.IsGhost + ", GF " + actions.CanFreeSoul + ", orientation " + actions.CanChangeDirection + ", gfx " + c.Map.Self.Gfx + " au lieu de " + tombGfx);
-                string tomb = "sprite " + Restrictions(c) + ", gfx " + c.Map.Self.Gfx;
+                string tombState = "sprite " + Restrictions(c) + ", gfx " + c.Map.Self.Gfx;
                 int sentBefore = c.SentCount;
                 var turn = await actions.SetDirectionAsync(1).ConfigureAwait(false);
                 Check(!turn.Sent && !c.SentSince(sentBefore).Any(p => p.StartsWith("eD", StringComparison.Ordinal)), "Une tombe a envoyé eD");
@@ -1467,24 +1519,99 @@ internal static partial class Live
                 Check(await c.Until(() => !session.IsGhost && !session.IsTomb && c.Map.Self != null && c.Map.Self.Gfx == aliveGfx, 10).ConfigureAwait(false),
                     "Le bot n'est pas revenu à la vie : " + Restrictions(c) + ", gfx " + c.Map.Self?.Gfx + " au lieu de " + aliveGfx);
                 Check(session.CanMoveInAllDirections && actions.AllowedDirections.Count == 8 && actions.CanChangeDirection, "AR6bk ne rend pas les huit orientations");
-                return entered + " ; tombe : " + tomb + ", eD refusé ; GF → " + Short(gdm, 16) + ", " + Short(ih, 24) + ", fantôme " + ghost
+                return entered + " ; tombe : " + tombState + ", eD refusé ; GF → " + Short(gdm, 16) + ", " + Short(ih, 24) + ", fantôme " + ghost
                     + " ; marche vers la statue " + phoenix.gfx + " (cellule " + phoenix.Cell.CellID + ", arrêt cellule " + c.Map.Self.CellId + ") → " + ar
                     + ", sprite " + Restrictions(c) + ", gfx " + c.Map.Self.Gfx;
             }
-            finally
-            {
-                c.Dispose();
-                // StarLoco enregistre le personnage à la déconnexion (UPDATE) : supprimer ensuite.
-                await Task.Delay(1500).ConfigureAwait(false);
-                try
-                {
-                    if (characterId > 0) Sql(db, "DELETE FROM " + schema + ".players WHERE id = @id AND account = @account", "@id", characterId, "@account", guid);
-                    if (guid > 0) Sql(db, "DELETE FROM " + schema + ".accounts WHERE guid = @guid AND account = @login", "@guid", guid, "@login", login);
-                    Journal("C [test] compte " + login + " et personnage " + characterId + " supprimés de la base");
-                }
-                catch (Exception error) { Journal("!! C [test] nettoyage de la base impossible : " + error.Message); }
-            }
+            finally { await ForgetAsync(db, schema, new[] { c }, created).ConfigureAwait(false); }
         }
+    }
+
+    /// <summary>Carte de la chapelle d'Amakna : le prêtre (PNJ 163, question 613, réponse 518 « action 102 ») y marie l'homme de la
+    /// cellule 282 et la femme de la cellule 297 (<c>Action</c> 102 et <c>World.priestRequest</c> de StarLoco).</summary>
+    private const int ChapelMap = 2019, GroomCell = 282, BrideCell = 297, PriestTemplate = 163, PriestQuestion = 613, MarryAnswer = 518;
+
+    /// <summary>
+    /// Mariage devant le prêtre, avec deux comptes inventés posés par la base sur les cellules des époux (femme copiée de A, homme de B).
+    /// La mariée choisit « Nous voulons nous marier » : StarLoco envoie à l'interrogé seul <c>GA;617;&lt;interrogé&gt;;&lt;interrogé&gt;,&lt;conjoint&gt;,-1</c>.
+    /// Non → <c>GA619&lt;réf&gt;</c> (cMK « Non », <c>Im048</c>) ; nouvelle demande, Oui → <c>GA618&lt;réf&gt;</c>, le conjoint est interrogé à son
+    /// tour, Oui → le prêtre déclare l'union. StarLoco n'envoie jamais <c>GA;618</c> ni <c>GA;619</c>.
+    /// </summary>
+    private static async Task<string> MarriageAsync()
+    {
+        if (!Map.AllBotMaps.ContainsKey(ChapelMap)) throw new SkipScenario("carte " + ChapelMap + " absente des cartes du bot");
+        using (MySql.Data.MySqlClient.MySqlConnection db = OpenAccountsDatabase(out string schema))
+        {
+            var created = new List<InventedCharacter>();
+            LiveSession bride = null, groom = null;
+            try
+            {
+                InventedCharacter her = Invent(db, schema, a.Id, ChapelMap, BrideCell, 10000, created);
+                InventedCharacter him = Invent(db, schema, b.Id, ChapelMap, GroomCell, 10000, created);
+                if (her.Sex != 1 || him.Sex != 0) throw new SkipScenario("A doit être une femme et B un homme (priestRequest) : sexes " + her.Sex + " et " + him.Sex);
+                bride = new LiveSession("E", her.Login, her.Password);
+                groom = new LiveSession("F", him.Login, him.Password);
+                string entered = await EnterExistingAsync(bride, her.Id, her.Name, ChapelMap).ConfigureAwait(false) + " | "
+                    + await EnterExistingAsync(groom, him.Id, him.Name, ChapelMap).ConfigureAwait(false);
+                Check(await bride.Until(() => bride.Map.GetActor(him.Id) != null && groom.Map.GetActor(her.Id) != null
+                    && bride.Map.Self?.CellId == BrideCell && groom.Map.Self?.CellId == GroomCell, 10).ConfigureAwait(false),
+                    "Les époux ne se voient pas sur leurs cellules : " + bride.Map.Self?.CellId + " / " + groom.Map.Self?.CellId);
+                NpcActor priest = bride.Map.Npcs.FirstOrDefault(n => n.TemplateId == PriestTemplate);
+                if (priest == null) throw new SkipScenario("pas de prêtre (PNJ " + PriestTemplate + ") sur la carte " + ChapelMap);
+                MapActions herActions = bride.Account.Game.Interactions.MapActions, hisActions = groom.Account.Game.Interactions.MapActions;
+                MarriageRequest heard = null;
+                herActions.MarriageAsked += request => heard = request;
+
+                // Première demande, refusée.
+                string asked = await AskPriestAsync(bride, priest, her.Id, him.Id).ConfigureAwait(false);
+                MarriageRequest first = herActions.PendingMarriage;
+                Check(first != null && first.AskedId == her.Id && first.PartnerId == him.Id && first.Reference == her.Id && heard == first,
+                    "Demande de mariage mal lue : " + (first == null ? "aucune" : first.AskedId + "/" + first.PartnerId + " réf. " + first.Reference));
+                Check(hisActions.PendingMarriage == null, "Le conjoint a reçu une boîte alors que StarLoco n'interroge que la mariée");
+                int refusedMark = groom.ReceivedCount, herSent = bride.SentCount;
+                var no = await herActions.RefuseMarriageAsync().ConfigureAwait(false);
+                Check(no.Sent && await bride.Until(() => bride.SentSince(herSent).Contains("GA619" + her.Id), 5).ConfigureAwait(false), "GA619" + her.Id + " non envoyé : " + no.Message);
+                Check(herActions.PendingMarriage == null, "La demande reste ouverte après Non");
+                string saidNo = await groom.Expect(p => p.StartsWith("cMK|" + her.Id + "|") && (p.EndsWith("|Non") || p.Contains("|Non|")), "cMK « Non » de la mariée", 10, refusedMark).ConfigureAwait(false);
+                string im048 = await groom.Expect(p => p.StartsWith("Im048;"), "Im048 (mariage annulé)", 10, refusedMark).ConfigureAwait(false);
+
+                // Seconde demande, acceptée des deux côtés.
+                await AskPriestAsync(bride, priest, her.Id, him.Id).ConfigureAwait(false);
+                int hisMark = groom.ReceivedCount;
+                herSent = bride.SentCount;
+                var yes = await herActions.AcceptMarriageAsync().ConfigureAwait(false);
+                Check(yes.Sent && await bride.Until(() => bride.SentSince(herSent).Contains("GA618" + her.Id), 5).ConfigureAwait(false), "GA618" + her.Id + " non envoyé : " + yes.Message);
+                string hisQuestion = await groom.Expect(p => p == "GA;617;" + him.Id + ";" + him.Id + "," + her.Id + ",-1", "GA;617 adressé au marié", 10, hisMark).ConfigureAwait(false);
+                Check(await groom.Until(() => hisActions.PendingMarriage?.AskedId == him.Id && hisActions.PendingMarriage.PartnerId == her.Id, 5).ConfigureAwait(false), "Le marié n'a pas de demande en attente");
+                int hisSent = groom.SentCount, herMark = bride.ReceivedCount;
+                var hisYes = await hisActions.AcceptMarriageAsync().ConfigureAwait(false);
+                Check(hisYes.Sent && await groom.Until(() => groom.SentSince(hisSent).Contains("GA618" + him.Id), 5).ConfigureAwait(false), "GA618" + him.Id + " non envoyé : " + hisYes.Message);
+                string union = await bride.Expect(p => p.StartsWith("cMK|") && p.Contains("|-1|") && p.Contains(her.Name) && p.Contains(him.Name), "déclaration du prêtre", 10, herMark).ConfigureAwait(false);
+                Check(herActions.PendingMarriage == null && hisActions.PendingMarriage == null, "Une demande de mariage reste ouverte après l'union");
+                return entered + " ; DR" + PriestQuestion + "|" + MarryAnswer + " → " + asked + " (mariée seule) ; Non → GA619" + her.Id + ", " + Short(saidNo, 50) + ", " + Short(im048, 40)
+                    + " ; Oui → GA618" + her.Id + ", marié : " + hisQuestion + ", Oui → GA618" + him.Id + ", " + Short(union, 90);
+            }
+            finally { await ForgetAsync(db, schema, new[] { bride, groom }, created).ConfigureAwait(false); }
+        }
+    }
+
+    /// <summary>Dialogue de la mariée avec le prêtre : question 613, réponse 518 (action 102), puis <c>GA;617</c> qui lui est adressé.</summary>
+    private static async Task<string> AskPriestAsync(LiveSession s, NpcActor priest, int askedId, int partnerId)
+    {
+        NpcDialog dialog = s.Account.Game.Interactions.Npc;
+        if (dialog.IsOpen) { await dialog.LeaveAsync().ConfigureAwait(false); await s.Until(() => !dialog.IsOpen, 5).ConfigureAwait(false); }
+        int mark = s.ReceivedCount;
+        var open = await dialog.OpenAsync((int)priest.Id).ConfigureAwait(false);
+        Check(open.Sent, "Dialogue avec le prêtre refusé par le bot : " + open.Message);
+        await s.Expect("DCK", "DCK (dialogue du prêtre)", 10, mark).ConfigureAwait(false);
+        await s.Expect("DQ" + PriestQuestion + "|", "DQ" + PriestQuestion, 10, mark).ConfigureAwait(false);
+        Check(await s.Until(() => dialog.IsOpen && dialog.AnswerIds.Contains(MarryAnswer), 5).ConfigureAwait(false), "Réponse " + MarryAnswer + " absente : " + string.Join(",", dialog.AnswerIds));
+        int answered = s.ReceivedCount;
+        var answer = await dialog.AnswerAsync(MarryAnswer).ConfigureAwait(false);
+        Check(answer.Sent, "Réponse refusée par le bot : " + answer.Message);
+        string ga = await s.Expect(p => p == "GA;617;" + askedId + ";" + askedId + "," + partnerId + ",-1", "GA;617 adressé à la mariée", 10, answered).ConfigureAwait(false);
+        Check(await s.Until(() => s.Account.Game.Interactions.MapActions.PendingMarriage != null, 5).ConfigureAwait(false), "Le bot n'a pas ouvert la demande de mariage");
+        return ga;
     }
 
     /// <summary>Restrictions brutes et décodées du sprite de soi (champ 18 du GM), pour les messages.</summary>
@@ -1532,7 +1659,7 @@ internal static partial class Live
     }
 
     /// <summary>Entrée en jeu d'un personnage existant, comme PersoSelection puis SelectPlayerPerso : AX, ticket, ALK, AS&lt;id&gt;.</summary>
-    private static async Task<string> EnterExistingAsync(LiveSession s, int characterId, string name)
+    private static async Task<string> EnterExistingAsync(LiveSession s, int characterId, string name, int mapId)
     {
         s.Start();
         await s.Account.ConnectAsync().ConfigureAwait(false);
@@ -1540,20 +1667,20 @@ internal static partial class Live
         await s.Expect("AH", "liste des serveurs AH", 15, 0).ConfigureAwait(false);
         string axk = await s.Expect("AxK", "AxK (serveurs du compte)", 15, 0).ConfigureAwait(false);
         int server = serverId > 0 ? serverId : s.Account.Game.Server.Servers.Where(x => x.Value == ServerStates.ONLINE).Select(x => x.Key).DefaultIfEmpty(-1).Min();
-        Check(server > 0, "Aucun serveur en ligne pour le compte C");
+        Check(server > 0, "Aucun serveur en ligne pour le compte " + s.Label);
         await s.Send("AX" + server).ConfigureAwait(false);
         string redirect = await s.Expect(p => p.StartsWith("AYK") || p.StartsWith("AXK") || p.StartsWith("AXE"), "redirection AYK", 15, 0).ConfigureAwait(false);
         Check(!redirect.StartsWith("AXE"), "Sélection du serveur refusée : " + redirect);
         await s.Expect("ATK", "ATK (ticket accepté)", 15, 0).ConfigureAwait(false);
         string alk = await s.Expect("ALK", "ALK (liste des personnages)", 15, 0).ConfigureAwait(false);
-        Check(await s.Until(() => s.Account.AccountCharactersInfo.ContainsKey(characterId), 5).ConfigureAwait(false), "ALK sans le personnage posé en tombe : " + Short(alk, 80));
+        Check(await s.Until(() => s.Account.AccountCharactersInfo.ContainsKey(characterId), 5).ConfigureAwait(false), "ALK sans le personnage écrit dans la base : " + Short(alk, 80));
         int selected = s.ReceivedCount;
         await s.Send("AS" + characterId).ConfigureAwait(false);
         string ask = await s.Expect(p => p.StartsWith("ASK") || p.StartsWith("ASE"), "ASK (personnage sélectionné)", 15, selected).ConfigureAwait(false);
         Check(ask.StartsWith("ASK|" + characterId + "|" + name + "|"), "Sélection refusée : " + ask);
-        string gdm = await s.Expect("GDM|" + TombMap, "GDM|" + TombMap + " (carte de la tombe)", 15, selected).ConfigureAwait(false);
-        string gm = await s.Expect(p => p.StartsWith("GM|") && p.Contains(";" + characterId + ";" + name + ";"), "GM du personnage en tombe", 15, selected).ConfigureAwait(false);
-        Check(await s.Until(() => s.MapId == TombMap && s.Map.Self != null && s.Map.Self.CellId >= 0, 10).ConfigureAwait(false), "Le bot n'a pas placé la tombe sur la carte " + TombMap);
-        return "C " + name + " : " + Short(axk, 20) + ", " + Short(ask, 40) + ", " + Short(gdm, 16) + ", GM cellule " + s.Map.Self.CellId;
+        string gdm = await s.Expect("GDM|" + mapId, "GDM|" + mapId, 15, selected).ConfigureAwait(false);
+        await s.Expect(p => p.StartsWith("GM|") && p.Contains(";" + characterId + ";" + name + ";"), "GM du personnage", 15, selected).ConfigureAwait(false);
+        Check(await s.Until(() => s.MapId == mapId && s.Map.Self != null && s.Map.Self.CellId >= 0, 10).ConfigureAwait(false), "Le bot n'a pas placé " + name + " sur la carte " + mapId);
+        return s.Label + " " + name + " : " + Short(axk, 20) + ", " + Short(ask, 40) + ", " + Short(gdm, 16) + ", GM cellule " + s.Map.Self.CellId;
     }
 }
