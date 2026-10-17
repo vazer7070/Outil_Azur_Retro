@@ -897,6 +897,8 @@ Sur le vrai StarLoco du kit, le 17 octobre 2026, `BotStarLocoLiveSmoke` rejoue (
 
 Les gardiens et ressusciteurs sont cherchés dans la table `npcs` du jeu parmi les modèles dont `npc.xml` déclare l'action 4 ou 7 ; le personnage inventé reçoit les zaaps que StarLoco donne à la création avec `ALL_ZAAP` (table `zaaps`), et le `Im024` d'un zaap jamais utilisé précède `WC`.
 
+Le même jour, la suite réelle complète (dix-neuf scénarios, `AZUR_TEST_TIMEOUT=600`) a été jouée deux fois : x4a à x4c réussissent les deux fois (environ 60 s pour les trois) ; les combats contre des monstres des lots précédents ont échoué une fois chacun, pour des raisons de combat sans lien avec ce lot : au premier passage, le scénario h (A, revenu à 25 points de vie après la défaite du scénario f, meurt sous le sort d'un monstre avant son tour), au second, le scénario f (PA de A lus à -1 au contrôle de son tour), suivi des scénarios g1 à h, que A, resté sur la carte 765, ne peut plus commencer (marche vers la sortie 407 refusée par le chemin).
+
 Limites :
 
 - les PNJ d'action 4 placés ailleurs que sur la carte 1140 et le PNJ 753 (action 7, carte 9716, sans chemin à pied connu depuis un zaap) n'ont pas été joints ; seul le Chacha a été gardé et ressuscité ;
