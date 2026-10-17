@@ -2269,6 +2269,10 @@ internal static partial class Live
         }
         Sql(db, "UPDATE " + schema + ".players SET kamas = @kamas, objets = @objets, mount = @mount WHERE id = @id",
             "@kamas", PetsKamas, "@objets", objets.ToString(), "@mount", mount ? owner.MountId : -1, "@id", owner.Character.Id);
+        // Zaaps connus : ceux qu'un personnage créé par StarLoco reçoit avec ALL_ZAAP (CREATE_PERSONNAGE : toutes les cartes de la
+        // table zaaps du jeu) ; le personnage de A ne sert pas de modèle, sa colonne n'est écrite qu'à sa première sauvegarde.
+        object zaaps = Scalar(db, "SELECT GROUP_CONCAT(mapID ORDER BY mapID SEPARATOR ',') FROM zaaps");
+        Sql(db, "UPDATE " + schema + ".players SET zaaps = @zaaps WHERE id = @id", "@zaaps", Convert.ToString(zaaps, CultureInfo.InvariantCulture) ?? string.Empty, "@id", owner.Character.Id);
         Journal("[test] " + owner.Character.Name + " : " + PetsKamas + " kamas, objets « " + objets + " »" + (mount ? ", monture " + owner.MountId : string.Empty) + " écrits dans la base");
 
         LiveSession s = owner.Session = new LiveSession(owner.Label, owner.Character.Login, owner.Character.Password);
@@ -2397,7 +2401,8 @@ internal static partial class Live
         int mark = s.ReceivedCount, start = s.MapId;
         var open = await zaap.OpenAsync(cell).ConfigureAwait(false);
         Check(open.Sent, "Zaap refusé par le bot : " + open.Message);
-        string wc = await s.Expect(p => p.StartsWith("WC") || p.StartsWith("GA;0") || p.StartsWith("Im"), "WC (destinations du zaap)", 20, mark).ConfigureAwait(false);
+        // Un zaap jamais utilisé est d'abord mémorisé (Im024, « nouveau zaap »), puis StarLoco envoie WC.
+        string wc = await s.Expect(p => p.StartsWith("WC") || p.StartsWith("GA;0") || (p.StartsWith("Im") && !p.StartsWith("Im024")), "WC (destinations du zaap)", 20, mark).ConfigureAwait(false);
         Check(wc.StartsWith("WC"), "Le serveur n'ouvre pas le zaap : " + wc);
         Check(await s.Until(() => zaap.IsOpen && zaap.Destinations.Count > 0, 5).ConfigureAwait(false), "Le bot n'a lu aucune destination");
         int kamas = s.Account.Game.character.Kamas;
