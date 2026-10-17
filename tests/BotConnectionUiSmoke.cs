@@ -38,7 +38,7 @@ internal static class BotConnectionUiSmoke
             Application.EnableVisualStyles();
             Run();
             Check(uiErrors.Count == 0, "Interface errors: " + string.Join(" / ", uiErrors.Select(e => e.GetType().Name + " " + e.Message)));
-            Console.WriteLine("OK: ChooseNickName au-dessus du choix du serveur (contrôles locaux, confirmation, ligne brute, AlEs, Ad/AlK, Annuler), boîte NEW_LEVEL unique, boîte de perte de connexion avec M04 puis retour à l'écran de connexion prérempli");
+            Console.WriteLine("OK: ChooseNickName au-dessus du choix du serveur (contrôles locaux, confirmation, ligne brute, AlEs, Ad/AlK, Annuler), boîte NEW_LEVEL unique, boîte de perte de connexion avec M04 et la question de reconnexion : Non → écran de connexion prérempli, Oui → même compte reconnecté");
         }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
@@ -97,6 +97,7 @@ internal static class BotConnectionUiSmoke
     private static void Ok(ChooseNickNameForm form) => Await((Task)Call(form, "OkAsync"));
     private static Form Dialog(string name) => BotDialogs.OpenDialogs.FirstOrDefault(x => x.Name == name && !x.IsDisposed && x.Visible);
     private static string DialogText(Form dialog) => All(dialog).OfType<Label>().First(x => x.Name == "dialog-message").Text;
+    private static Button DialogButton(Form dialog, BotDialogResult value) => All(dialog).OfType<Button>().First(x => Equals(x.Tag, value));
     private static void Hidden(Form form) { form.ShowInTaskbar = false; form.Opacity = 0; }
 
     private static void Run()
@@ -200,7 +201,8 @@ internal static class BotConnectionUiSmoke
 
     /// <summary>
     /// Fenêtre de jeu : AN ouvre la boîte NEW_LEVEL, un deuxième AN la remplace ; M04 n'ouvre rien seul ; la coupure du serveur ouvre
-    /// la boîte CONNECTION (DISCONNECT puis SRV_MSG_4) ; « OK » ferme la fenêtre et rouvre l'écran de connexion prérempli.
+    /// la boîte CONNECTION (DISCONNECT, SRV_MSG_4 puis ATTEMPT_RECONNECT, en Oui / Non comme SIMPLE_AUTO_RECONNECT le demande) ;
+    /// « Non » ferme la fenêtre et rouvre l'écran de connexion prérempli ; « Oui », sur une deuxième coupure, reconnecte le même compte.
     /// </summary>
     private static void LevelAndLostConnection(AccountConfig config)
     {
@@ -234,12 +236,15 @@ internal static class BotConnectionUiSmoke
             }
             Pump(() => Dialog(lostName) != null, "The server closing the socket did not open the lost-connection box");
             Form lost = Dialog(lostName);
-            Check(lost.Text == "Connexion" && DialogText(lost) == "Connexion interrompue avec le serveur.\n\nVotre connexion a été coupée pour des raisons de maintenance.",
-                "The lost-connection box is not DISCONNECT then SRV_MSG_4: " + DialogText(lost));
+            Check(lost.Text == "Connexion" && DialogText(lost) == "Connexion interrompue avec le serveur.\n\nVotre connexion a été coupée pour des raisons de maintenance."
+                + "\n\nVoulez-vous tenter de vous reconnecter en jeu ?", "The lost-connection box is not DISCONNECT, SRV_MSG_4 then ATTEMPT_RECONNECT: " + DialogText(lost));
+            Check(All(lost).OfType<Button>().Where(b => b.Visible).Select(b => b.Tag).OfType<BotDialogResult>().OrderBy(x => x)
+                .SequenceEqual(new[] { BotDialogResult.Yes, BotDialogResult.No }), "The lost-connection box does not ask Yes / No");
             Check(Dialog(levelName) == null && ReferenceEquals(lost.Owner, dashboard), "The NEW_LEVEL box stayed over the lost-connection box");
             Check(!dashboard.IsDisposed, "The game window closed before the lost-connection box was answered");
-            All(lost).OfType<Button>().First(b => b.Visible).PerformClick();
-            Pump(() => dashboard.IsDisposed && Application.OpenForms.OfType<LoginForm>().Any(), "OK did not close the game window and open the login screen");
+            DialogButton(lost, BotDialogResult.No).PerformClick();
+            Pump(() => dashboard.IsDisposed && Application.OpenForms.OfType<LoginForm>().Any(), "No did not close the game window and open the login screen");
+            Check(!Application.OpenForms.OfType<PersoSelection>().Any(), "No reconnected the account");
             var login = Application.OpenForms.OfType<LoginForm>().First();
             Check(((TextBox)Get(login, "login")).Text == "compte-fictif" && ((TextBox)Get(login, "password")).Text == "secret de test",
                 "The login screen lost the account credentials");
@@ -248,6 +253,41 @@ internal static class BotConnectionUiSmoke
                 "The login screen does not explain the disconnection: " + status);
             login.Close();
             Application.DoEvents();
+
+            // « Oui » (Login.autoLogin du client) : la fenêtre se ferme et le même compte se reconnecte aussitôt au Login.
+            var loginListener = new TcpListener(IPAddress.Loopback, 0); loginListener.Start();
+            try
+            {
+                GlobalConfig.writenewconfig("127.0.0.1", ((IPEndPoint)loginListener.LocalEndpoint).Port.ToString(), "5555", "1.34.1", "2528660", "2362079");
+                var second = new Accounts(config);
+                Task<Socket> acceptedAgain = listener.AcceptSocketAsync();
+                Await(second.Connexion.ConnectToServer(IPAddress.Loopback, ((IPEndPoint)listener.LocalEndpoint).Port));
+                Pump(() => acceptedAgain.IsCompleted, "The second game window account did not connect");
+                second.Game.character.SetPerso_Data(7, "Personnage fictif", 27, 0, 8);
+                var window = new GameClientFullform(second);
+                Hidden(window); window.Show(); Application.DoEvents();
+                Task<Socket> relogin = loginListener.AcceptSocketAsync();
+                using (Socket peer = acceptedAgain.Result) peer.Shutdown(SocketShutdown.Both);
+                Pump(() => Dialog(lostName) != null, "The second server closing did not open the lost-connection box");
+                Form ask = Dialog(lostName);
+                Check(DialogText(ask) == "Connexion interrompue avec le serveur.\n\nVoulez-vous tenter de vous reconnecter en jeu ?",
+                    "A loss without M0 is not DISCONNECT then ATTEMPT_RECONNECT: " + DialogText(ask));
+                DialogButton(ask, BotDialogResult.Yes).PerformClick();
+                Pump(() => window.IsDisposed && relogin.IsCompleted && Application.OpenForms.OfType<PersoSelection>().Any(),
+                    "Yes did not close the game window and connect the account again");
+                Check(!Application.OpenForms.OfType<LoginForm>().Any(), "Yes went back to the login screen instead of reconnecting");
+                var servers = Application.OpenForms.OfType<PersoSelection>().First();
+                Check(ReferenceEquals(((Accounts)Get(servers, "A")).accountConfig, config), "Yes reconnected another account");
+                using (Socket peer = relogin.Result)
+                {
+                    peer.ReceiveTimeout = 7000;
+                    Send(peer, "HCabcdefghijklmnopqrstuvwxyzabcdef\0");
+                    Check(Receive(peer) == "1.34.1" && Receive(peer) == "compte-fictif", "Yes did not log the same account in again");
+                    servers.Close();
+                    Application.DoEvents();
+                }
+            }
+            finally { loginListener.Stop(); }
         }
         finally { listener.Stop(); }
     }

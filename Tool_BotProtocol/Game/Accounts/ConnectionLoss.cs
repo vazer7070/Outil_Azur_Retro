@@ -58,7 +58,9 @@ namespace Tool_BotProtocol.Game.Accounts
             Message = message;
             Status = status ?? string.Empty;
             Title = ConnectionTexts.ConnectionTitle;
-            Text = ConnectionTexts.Disconnected + (message == null ? string.Empty : "\n\n" + message.Text);
+            OffersReconnect = ConnectionTexts.SimpleAutoReconnect;
+            Text = ConnectionTexts.Disconnected + (message == null ? string.Empty : "\n\n" + message.Text)
+                + (OffersReconnect ? "\n\n" + ConnectionTexts.AttemptReconnect : string.Empty);
         }
 
         public DisconnectCause Cause { get; }
@@ -70,7 +72,15 @@ namespace Tool_BotProtocol.Game.Accounts
         public string Status { get; }
         /// <summary>Titre de la boîte du client (<c>CONNECTION</c>).</summary>
         public string Title { get; }
-        /// <summary><c>DISCONNECT</c>, puis le texte du <c>M0</c> séparé par une ligne vide, comme <c>Aks.onClose</c>.</summary>
+        /// <summary>
+        /// Vrai quand la boîte demande « Oui / Non » s'il faut se reconnecter (<c>SIMPLE_AUTO_RECONNECT</c> de <c>lang.xml</c>, vrai
+        /// dans <c>lang_fr_807</c>) ; faux pour une simple boîte « OK ».
+        /// </summary>
+        public bool OffersReconnect { get; }
+        /// <summary>
+        /// Texte de la boîte, comme <c>Aks.onClose</c> : <c>DISCONNECT</c>, puis le texte du <c>M0</c> et enfin <c>ATTEMPT_RECONNECT</c>
+        /// quand <see cref="OffersReconnect"/>, chacun séparé par une ligne vide.
+        /// </summary>
         public string Text { get; }
     }
 
@@ -89,6 +99,20 @@ namespace Tool_BotProtocol.Game.Accounts
 
         public static string ConnectionTitle => MapActionTexts.Get("CONNECTION", "Connexion");
         public static string Disconnected => MapActionTexts.Get("DISCONNECT", "Connexion interrompue avec le serveur.");
+        /// <summary><c>ATTEMPT_RECONNECT</c> : question ajoutée à la boîte de perte de connexion quand le client propose de se reconnecter.</summary>
+        public static string AttemptReconnect => MapActionTexts.Get("ATTEMPT_RECONNECT", "Voulez-vous tenter de vous reconnecter en jeu ?");
+        /// <summary>
+        /// <c>Lang.getConfigText("SIMPLE_AUTO_RECONNECT")</c> : vrai si le client propose de se reconnecter après une perte de
+        /// connexion. Sans <c>lang.xml</c>, la valeur de <c>lang_fr_807</c> (vrai).
+        /// </summary>
+        public static bool SimpleAutoReconnect
+        {
+            get
+            {
+                string value = LangData.Text.Config("SIMPLE_AUTO_RECONNECT");
+                return value == null || string.Equals(value.Trim(), "true", StringComparison.OrdinalIgnoreCase);
+            }
+        }
         public static string InformationsTitle => MapActionTexts.Get("INFORMATIONS", "Informations");
         /// <summary><c>NEW_LEVEL</c> : boîte INFORMATIONS de <c>Account.onNewLevel</c>.</summary>
         public static string NewLevel(int level) => MapActionTexts.Get("NEW_LEVEL",

@@ -10,7 +10,9 @@ namespace Outil_Azur_complet.Bot
     /// <summary>
     /// Boîtes de la fenêtre de jeu liées au compte (lot X3) : nouveau niveau (<c>AN</c>, boîte <c>NEW_LEVEL</c> de
     /// <c>Account.onNewLevel</c>) et perte de connexion (<c>Aks.onClose</c> : titre <c>CONNECTION</c>, texte <c>DISCONNECT</c> suivi du
-    /// dernier <c>M0</c> reçu). Après la boîte de perte de connexion, la fenêtre se ferme et l'écran de connexion s'ouvre avec les
+    /// dernier <c>M0</c> reçu, puis, comme <c>SIMPLE_AUTO_RECONNECT</c> le demande au client français, la question
+    /// <c>ATTEMPT_RECONNECT</c> en « Oui / Non »). Après la réponse, la fenêtre se ferme : « Oui » relance la connexion du même compte
+    /// (<c>Login.autoLogin</c> du client : écran du choix du serveur, connecté aussitôt), « Non » ouvre l'écran de connexion avec les
     /// identifiants du compte. Une déconnexion demandée (Déconnexion, Changer de personnage) ou la fin de partie (<c>GO</c>, lot X2,
     /// sa propre boîte) n'ouvre pas cette boîte. Les événements arrivent sur le fil réseau et sont ramenés sur celui de la fenêtre.
     /// </summary>
@@ -25,10 +27,10 @@ namespace Outil_Azur_complet.Bot
         private bool disposed;
 
         /// <summary>
-        /// Retour après la boîte de perte de connexion : ouvre l'écran de connexion prérempli et ferme la fenêtre de jeu.
-        /// Remplaçable par un test.
+        /// Retour après la boîte de perte de connexion (dernier argument : vrai pour « Oui », se reconnecter) : ouvre l'écran du choix
+        /// du serveur connecté aussitôt, ou l'écran de connexion prérempli, puis ferme la fenêtre de jeu. Remplaçable par un test.
         /// </summary>
-        internal static Action<Form, AccountConfig, ConnectionLoss> ReturnAction = OpenLogin;
+        internal static Action<Form, AccountConfig, ConnectionLoss, bool> ReturnAction = OpenLogin;
 
         internal ConnectionPrompts(Form window, Accounts account)
         {
@@ -54,17 +56,21 @@ namespace Outil_Azur_complet.Bot
         {
             BotDialogs.Dismiss(levelDialog);
             BotDialogs.Dismiss(lostDialog);
-            await BotDialogs.InfoAsync(window, loss.Title, loss.Text, lostDialog);
+            BotDialogResult answer = loss.OffersReconnect
+                ? await BotDialogs.AskYesNoAsync(window, loss.Title, loss.Text, lostDialog)
+                : await BotDialogs.InfoAsync(window, loss.Title, loss.Text, lostDialog);
             // Fenêtre fermée pendant la boîte (par l'utilisateur ou un autre retour) : rien à rouvrir.
             if (disposed || window.IsDisposed || window.Disposing) return;
             AccountConfig config = account.accountConfig;
             if (config == null) return;
-            ReturnAction?.Invoke(window, config, loss);
+            ReturnAction?.Invoke(window, config, loss, loss.OffersReconnect && answer == BotDialogResult.Yes);
         });
 
-        private static void OpenLogin(Form window, AccountConfig config, ConnectionLoss loss)
+        private static void OpenLogin(Form window, AccountConfig config, ConnectionLoss loss, bool reconnect)
         {
-            new LoginForm(config, LoginStatus(loss)).Show();
+            // « Oui » : comme Login.autoLogin du client, le même compte se reconnecte sans repasser par la saisie.
+            if (reconnect) new PersoSelection(config).Show();
+            else new LoginForm(config, LoginStatus(loss)).Show();
             window.Close();
         }
 

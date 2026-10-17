@@ -402,8 +402,9 @@ internal static class BotSessionSmoke
             Until(() => losses.Count == 1, "The server closing the socket did not raise ConnectionLost");
             ConnectionLoss loss = losses.ToArray()[0];
             Check(loss.Cause == DisconnectCause.Lost && loss.WasInGame && ReferenceEquals(loss.Message, kick), "The lost connection lost its cause, game state or M0");
-            Check(loss.Title == "Connexion" && loss.Text == "Connexion interrompue avec le serveur.\n\nVous avez été kické par Modo.\nTriche",
-                "The lost-connection box text is not DISCONNECT then SRV_MSG_18: " + loss.Text);
+            // SIMPLE_AUTO_RECONNECT (vrai dans lang_fr_807, repli sans lang.xml) : la boîte finit par ATTEMPT_RECONNECT, en Oui / Non.
+            Check(loss.Title == "Connexion" && loss.OffersReconnect && loss.Text == "Connexion interrompue avec le serveur.\n\nVous avez été kické par Modo.\nTriche"
+                + "\n\nVoulez-vous tenter de vous reconnecter en jeu ?", "The lost-connection box text is not DISCONNECT, SRV_MSG_18 then ATTEMPT_RECONNECT: " + loss.Text);
             Check(account.PendingSystemMessage == null && account.ConnectionStatus == "Connexion perdue" && ReferenceEquals(account.LastDisconnect, loss),
                 "The kept M0 or the status survived the disconnection: " + account.ConnectionStatus);
         }
@@ -421,6 +422,28 @@ internal static class BotSessionSmoke
                 && account.PendingSystemMessage == null, "A requested disconnection raised ConnectionLost or kept the M0");
             Check(account.ConnectionStatus == "Déconnecté", "A requested disconnection changed the status: " + account.ConnectionStatus);
         }
+        // SIMPLE_AUTO_RECONNECT lu dans lang.xml (Lang.getConfigText) : à faux, la boîte n'a plus de question (ERROR_BOX du client).
+        string lang = Path.Combine(TestPaths.Work, "bot-session-lang"); Directory.CreateDirectory(lang);
+        File.WriteAllText(Path.Combine(lang, "lang.xml"), "<?xml version='1.0' encoding='utf-8'?>\n<BotLang famille=\"lang\" langue=\"fr\" version=\"1\" source=\"lang_fr_1.swf\">\n"
+            + "<texte cle=\"DISCONNECT\" valeur=\"Coupure (test)\" />\n<texte cle=\"ATTEMPT_RECONNECT\" valeur=\"Se reconnecter ? (test)\" />\n"
+            + "<config cle=\"SIMPLE_AUTO_RECONNECT\" valeur=\"false\" />\n</BotLang>\n", new UTF8Encoding(false));
+        try
+        {
+            Check(Tool_BotProtocol.Game.Data.LangData.Load(lang) == 1 && !ConnectionTexts.SimpleAutoReconnect && ConnectionTexts.AttemptReconnect == "Se reconnecter ? (test)",
+                "SIMPLE_AUTO_RECONNECT or ATTEMPT_RECONNECT was not read from lang.xml");
+            using (var account = Connected(listener, "synthetic-noquestion", out peer))
+            using (peer)
+            {
+                var losses = new ConcurrentQueue<ConnectionLoss>();
+                account.ConnectionLost += losses.Enqueue;
+                account.Game.character.SetPerso_Data(7, "Sans question", 30, 1, 1);
+                peer.Shutdown(SocketShutdown.Both);
+                Until(() => losses.Count == 1, "The server closing the socket did not raise ConnectionLost");
+                ConnectionLoss loss = losses.ToArray()[0];
+                Check(!loss.OffersReconnect && loss.Text == "Coupure (test)", "SIMPLE_AUTO_RECONNECT=false still asked to reconnect: " + loss.Text);
+            }
+        }
+        finally { Tool_BotProtocol.Game.Data.LangData.Clear(); }
     }
 
     /// <summary>Texte de repli d'un <c>SRV_MSG</c> inconnu, par le même chemin que <c>M0</c> (constructeur interne).</summary>
