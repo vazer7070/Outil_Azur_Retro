@@ -366,6 +366,10 @@
     <Compile Include="Bot\Panels\MountPanel.cs" />
     <Compile Include="Bot\Panels\PaddockPanel.cs" />
     <Compile Include="Bot\Panels\QuestsPanel.cs" />
+    <Compile Include="Bot\Panels\PetsExchangePanel.cs" />
+    <Compile Include="Bot\Controls\QuantityPopup.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Bot\Controls\TitleBadge.cs" />
     <Compile Include="Bot\Controls\ActorMenuRegistry.cs" />
     <Compile Include="Bot\Controls\ActorContextMenu.cs" />

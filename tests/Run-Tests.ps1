@@ -112,6 +112,8 @@ try {
     # Lot X3 (pseudo d'un compte neuf, M0, nouveau niveau, perte de connexion) : BotHandshakeSmoke, BotSessionSmoke, BotConnectionUiSmoke
     # et les scénarios x3a à x3c ; x3c arrête puis relance le serveur de jeu par AZUR_STARLOCO_GAME_STOP et AZUR_STARLOCO_GAME_START.
     $azurTests += 'BotConnectionUiSmoke'
+    # Lot X4 (repas du familier et de la monture, garde et résurrection) : couvert par BotInventoryGridSmoke, BotExchangeSmoke et les
+    # scénarios x4a à x4c de BotStarLocoLiveSmoke (environ 60 s) ; AZUR_STARLOCO_SCENARIOS=x4a,x4b,x4c ne joue que ceux-là.
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'

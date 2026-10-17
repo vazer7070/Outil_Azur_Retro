@@ -146,6 +146,8 @@ Après la relecture, le bot a été joué sur une copie locale du StarLoco du ki
 
 **X3 — Connexion : pseudo, perte de connexion, nouveau niveau, messages système.** Fenêtre du pseudo d’un compte neuf (`AlEr` → saisie, confirmation, ligne brute → `AlEs` ou reprise par `Ad`/`AlK`), cause de chaque déconnexion, boîte `CONNECTION` sur une perte de connexion (texte `DISCONNECT`, le dernier `M0<id>` reçu, `SRV_MSG_<id>`, puis la question `ATTEMPT_RECONNECT` en Oui / Non, `SIMPLE_AUTO_RECONNECT`) : « Oui » reconnecte le compte, « Non » rouvre l’écran de connexion prérempli, boîte `NEW_LEVEL` sur `AN`. `AlEr`/`AlEs` en jeu sont laissés au lot X32. Tests : `BotHandshakeSmoke`, `BotSessionSmoke`, `BotConnectionUiSmoke` ; scénarios x3a à x3c de `BotStarLocoLiveSmoke`.
 
+**X4 — Familiers et montures : nourrir, confier, ressusciter.** Ressource déposée sur le familier porté (`OM<objet>|8`) ou sur la monture annoncée par `Re+` (boîte de quantité du client, `OM<objet>|16|<quantité>`), comme `enabledFromSuperType` ; échange de familiers de type 9 (`ER9` garde, `ER17` résurrection, `ECK9` dans les deux cas) et volet **Familiers**. Tests : `BotInventoryGridSmoke`, `BotExchangeSmoke` ; scénarios x4a à x4c de `BotStarLocoLiveSmoke` (repas, garde chez un gardien d’action 4, résurrection chez un PNJ d’action 7).
+
 ## Couverture des fonctions
 
 Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par le test cité contre un serveur fictif local), **partiel** (une partie seulement), **absent**. Les fonctions rejouées par `BotStarLocoLiveSmoke` sont aussi vérifiées sur un vrai StarLoco local ; les autres lignes ne le sont pas encore. La colonne « Client 1.34 » nomme la fenêtre ou les paquets du client ; la colonne « StarLoco » dit ce que le serveur du kit en fait.
@@ -227,6 +229,7 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | D6 | Barre de raccourcis | `SM`, `OM`, `OU` | `SM` sans effet (`BN`) | partiel : barre déplaçable absente | `BotBannerSmoke`, `BotFightUiSmoke` |
 | D7 | Fiche des caractéristiques | `As`, `AB` | traité | fait | `BotStatsSheetSmoke` |
 | D8 | Inventaire | `OM`, `OU`, `OD`, `Od` | traité | fait | `BotInventoryGridSmoke`, `BotShopSmoke` |
+| D8b | Nourrir le familier et la monture (lot X4) | `OM` vers la case 8, `OM` vers la case 16 avec quantité | monture : poisson seul (`Im190` sinon) | fait | `BotInventoryGridSmoke`, `BotStarLocoLiveSmoke` |
 | D9 | Sorts | `SB`, `SF`, `SM` | `SF` seulement en fenêtre d’oubli | fait (zone d’effet non dessinée) | `BotStatsSheetSmoke`, `BotSpellsSmoke` |
 | D10 | Métiers | `JS`, `JX`, `JO` | traité | fait | `BotCraftSmoke` |
 
@@ -249,7 +252,7 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | F5 | Mode marchand | `ER4`, `ER6|`, `Eq` | traité ; expulse sur `ER6` seul | fait | `BotHouseMerchantSmoke` |
 | F6 | Maison | `hB`, `hS`, `GA507` | traité | fait | `BotHouseMerchantSmoke` |
 | F7 | Monture et enclos | `Rr`, `Rn`, `Rx`, `ER15`, `ER16` | ignore `Rr` sous le niveau 60 | partiel : ni ancêtres, ni recoloration, certificat hors inventaire | `BotMountSmoke` |
-| — | Garde de familiers (type 9), type 17 | `ER9`, `ER17` | traité | absent : le bot referme ces fenêtres | `BotExchangeSmoke` |
+| — | Garde et résurrection de familiers (type 9, lot X4) | `ER9`, `ER17`, `EMO`, `EK` | `ECK9` aux deux demandes, sans `EL` | fait | `BotExchangeSmoke`, `BotStarLocoLiveSmoke` |
 
 ### G. Progression, monde, combat
 
@@ -288,6 +291,8 @@ Lot X2 : l’orientation, « Se frapper », la tombe ramenée à la vie et le ma
 
 Lot X3 : le pseudo d’un compte neuf (par le bot seul et par la fenêtre du pseudo), le nouveau niveau (parchemin d’expérience écrit dans la base) et l’arrêt du serveur de jeu en pleine partie sont rejoués (scénarios x3a à x3c, x3c seulement avec `AZUR_STARLOCO_GAME_STOP` et `AZUR_STARLOCO_GAME_START`). Restent l’expulsion par un administrateur (`M018`), faute de compte d’administration ; `AlEr` et `AlEs` en jeu (potion de changement de nom, manque B-07), seulement journalisés : lot X32 ; l’astuce `TIP_GAIN_LEVEL` qui suit la boîte du nouveau niveau ; et, sur le StarLoco de test, l’enregistrement du pseudo dans la base, qui échoue côté serveur (voir `docs/BOT_STARLOCO.md`).
 
+Lot X4 : le repas du familier et de la monture, la garde chez un gardien (PNJ 297, carte 1140) et la résurrection (PNJ 1076, carte 741) sont rejoués (scénarios x4a à x4c). Restent les autres gardiens, le ressusciteur 753 (carte 9716, sans chemin connu depuis un zaap), l’objet d’énergie et la potion de vie du familier, et le refus `ERES` d’un compte non abonné (`SUBSCRIBER`).
+
 ### Carte et acteurs
 
 - Images des sols en pente : `swfsvg` sait rendre une image choisie, mais le décor versionné a été exporté sans les pentes.
@@ -318,7 +323,7 @@ Lot X3 : le pseudo d’un compte neuf (par le bot seul et par la fenêtre du pse
 - Ordre local des sorts de la barre : gardé sur la machine, jamais renvoyé au serveur.
 - Glisser un objet de l’inventaire vers la barre : format en place, non rejoué à la souris.
 - Fiche d’un sort sans zone d’effet ; infobulle des sorts de la barre restée simple.
-- Inventaire : bordure des objets de panoplie non portés, boîte de quantité du client, objets de la barre non signalés dans la grille.
+- Inventaire : bordure des objets de panoplie non portés, boîte de quantité du client pour jeter et détruire (le lot X4 l’emploie pour la monture et le retour au sac), objets de la barre non signalés dans la grille.
 - Les volets prennent la largeur du tiroir au lieu des fenêtres fixes du client.
 - Son : le bot ne joue ni bruitage ni musique. L’évaluation chiffrée et la recommandation (pas de lot son avant les animations) sont dans [la note sur le son](SON_BOT.md) (lot AN9).
 
@@ -337,7 +342,6 @@ Lot X3 : le pseudo d’un compte neuf (par le bot seul et par la fenêtre du pse
 - Hôtel de vente : tri et filtre des modèles par niveau, effets complets dans la liste.
 - Maison : emblème de guilde dans le volet, fenêtres de vente et d’intérieur flottantes.
 - Montures : ancêtres, recoloration et animation, certificat consulté depuis l’inventaire.
-- Garde de familiers (`ER9`) et échange de type 17 sans volet.
 
 ### Monde
 

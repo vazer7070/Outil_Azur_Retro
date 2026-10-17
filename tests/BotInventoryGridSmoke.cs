@@ -31,10 +31,15 @@ using Tool_BotProtocol.Game.Session;
 // panoplie portée OS+), équiper/déséquiper OM<id>|<position> sans quantité, glisser-déposer vers un emplacement ou le sac,
 // croix « deux mains », monture refusée localement, Entrée → OU, destruction Od<id>|<quantité> après la question
 // DO_U_DESTROY (Non n'envoie rien), OdE / OAE / Im119|44 affichés sous l'objet, icône synthétique au pixel témoin et
-// repli en initiales sans PNG, infobulle de la boutique. Aucune capture de fenêtre : passe sous Mono avec xvfb-run.
+// repli en initiales sans PNG, infobulle de la boutique. Lot X4 : ressource déposée sur le familier porté (OM<id>|8,
+// sans boîte), sur la monture annoncée par Re+ (boîte de quantité du client puis OM<id>|16|<quantité>), refus locaux
+// d'un objet qui ne se mange pas ou d'une case sans familier ni monture, messages Im du repas gardés malgré OQ/OCO.
+// Aucune capture de fenêtre : passe sous Mono avec xvfb-run.
 internal static class BotInventoryGridSmoke
 {
     private const BindingFlags Any = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
+    // Fiche synthétique de monture (Mount.parse), la même que BotMountSmoke : Re+ annonce une monture équipée.
+    private const string MountRecord = "-12:18:?,?,?,?,?,?,?,?,?,?,?,?,?,?:,,9:Fulgurante:1:1500,1000,2000:5:1:250:0:2000,10000:1000,1000:5000,7500:-2500,-10000,10000:3000,10000:-1:0::10,240:2,20:";
 
     [STAThread]
     private static void Main()
@@ -51,7 +56,7 @@ internal static class BotInventoryGridSmoke
         {
             Application.EnableVisualStyles(); Run();
             Check(uiErrors.Count == 0, "Interface errors: " + string.Join(" / ", uiErrors.Select(e => e.GetType().Name + " " + e.Message)));
-            Console.WriteLine("OK: grille du sac et plateau, filtres, fiche d'objet (effets, conditions, arme, panoplie OS+), OM sans quantité, glisser-déposer, Od après DO_U_DESTROY, OdE/OAE/Im, icône et repli, infobulle boutique");
+            Console.WriteLine("OK: grille du sac et plateau, filtres, fiche d'objet (effets, conditions, arme, panoplie OS+), OM sans quantité, glisser-déposer, Od après DO_U_DESTROY, OdE/OAE/Im, icône et repli, infobulle boutique, repas du familier et de la monture (OM|8, boîte de quantité, OM|16|n)");
         }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
@@ -125,8 +130,11 @@ internal static class BotInventoryGridSmoke
                 + "<objet id=\"2004\" nom=\"Arc fictif\" type=\"2\" gfx=\"1\" niveau=\"5\" pods=\"10\" deuxMains=\"true\" />\n"
                 + "<objet id=\"2005\" nom=\"Bois fictif\" type=\"35\" gfx=\"9\" niveau=\"1\" pods=\"2\" />\n"
                 + "<objet id=\"2006\" nom=\"Clé fictive\" type=\"18\" gfx=\"4\" niveau=\"1\" pods=\"0\" />\n"
+                + "<objet id=\"2007\" nom=\"Familier fictif\" type=\"80\" gfx=\"2\" niveau=\"1\" pods=\"1\" />\n"
+                + "<objet id=\"2008\" nom=\"Poisson fictif\" type=\"41\" gfx=\"6\" niveau=\"1\" pods=\"1\" />\n"
                 + "<type id=\"12\" nom=\"Potion\" superType=\"6\" />\n<type id=\"6\" nom=\"Épée\" superType=\"2\" />\n<type id=\"9\" nom=\"Anneau\" superType=\"3\" />\n"
                 + "<type id=\"2\" nom=\"Arc\" superType=\"2\" />\n<type id=\"35\" nom=\"Bois\" superType=\"9\" />\n<type id=\"18\" nom=\"Objet de quête\" superType=\"14\" />\n"
+                + "<type id=\"80\" nom=\"Familier\" superType=\"12\" />\n<type id=\"41\" nom=\"Poisson\" superType=\"9\" />\n<emplacements id=\"12\" emplacements=\"8\" />\n"
                 + "<emplacements id=\"2\" emplacements=\"1\" />\n<emplacements id=\"3\" emplacements=\"2,4\" />");
             Write(lang, "effects.xml", "effects",
                 "<entree table=\"E\" id=\"125\" c=\"11\" d=\"+#1{~1~2 à }#2 en vitalité\" j=\"true\" o=\"+\" />\n"
@@ -143,7 +151,10 @@ internal static class BotInventoryGridSmoke
                 + "<texte cle=\"PLAYER_WEIGHT\" valeur=\"%1 pods sur %2\" />\n<texte cle=\"KAMAS\" valeur=\"Kamas\" />\n<texte cle=\"LEVEL_SMALL\" valeur=\"Niv.\" />\n<texte cle=\"PODS\" valeur=\"pod{~ps}\" />\n"
                 + "<texte cle=\"ITEMSET_EQUIPED_ITEMS\" valeur=\"Objets équipés\" />\n<texte cle=\"ITEMSET_EFFECTS\" valeur=\"Effets actuels\" />\n<texte cle=\"TWO_HANDS_WEAPON\" valeur=\"Arme à deux mains\" />\n"
                 + "<texte cle=\"ALL\" valeur=\"Tout\" />\n<texte cle=\"EQUIPEMENT\" valeur=\"Équipement\" />\n<texte cle=\"NONEQUIPEMENT\" valeur=\"Divers\" />\n<texte cle=\"RESSOURECES\" valeur=\"Ressources\" />\n"
-                + "<texte cle=\"ALREADY_EQUIPED\" valeur=\"Objet déjà équipé (test).\" />\n<texte cle=\"ERROR_19\" valeur=\"Conditions non remplies (test)\" />\n<texte cle=\"ERROR_44\" valeur=\"pour équiper cet objet (test).\" />");
+                + "<texte cle=\"ALREADY_EQUIPED\" valeur=\"Objet déjà équipé (test).\" />\n<texte cle=\"ERROR_19\" valeur=\"Conditions non remplies (test)\" />\n<texte cle=\"ERROR_44\" valeur=\"pour équiper cet objet (test).\" />\n"
+                + "<texte cle=\"MIN_WORD\" valeur=\"mini (test)\" />\n<texte cle=\"MAX_WORD\" valeur=\"maxi (test)\" />\n"
+                + "<texte cle=\"INFOS_32\" valeur=\"Repas du familier apprécié (test).\" />\n<texte cle=\"INFOS_105\" valeur=\"Repas de la monture apprécié (test).\" />\n"
+                + "<texte cle=\"ERROR_53\" valeur=\"Le familier ne mange pas cela (test).\" />\n<texte cle=\"ERROR_90\" valeur=\"La monture ne mange pas cela (test).\" />");
             LangData.Clear();
             Check(LangData.Load(lang) == 4 && LangData.IsLoaded("items") && LangData.IsLoaded("effects") && LangData.IsLoaded("itemsets") && LangData.IsLoaded("lang"), "Synthetic lang XML not loaded");
             ServerMessages.Resolver = (type, id, args) => { string text = LangData.Text.Im(type, id, args); return string.IsNullOrEmpty(text) || (text.StartsWith("!") && text.EndsWith("!")) ? null : text; };
@@ -305,6 +316,81 @@ internal static class BotInventoryGridSmoke
                         Check(grid.SelectItem(1005u), "Key cell cannot be selected"); Application.DoEvents();
                         Check(!help.Text.Contains("(test)") && help.Text.StartsWith("Clé fictive"), "Changing the selection did not clear the server notice: " + help.Text);
                         Check(!drop.Enabled && !destroy.Enabled && equip.Enabled == false, "Quest item can be dropped or destroyed");
+
+                        // Nourrir (lot X4). Familier porté (case 8) et poisson ×6 : la case 8 s'allume pour une ressource, pas pour une potion.
+                        var reports = new List<string>(); drawer.Feedback += reports.Add;
+                        Feed(account, "OAKO3ee~7d7~1~8~;3ef~7d8~6~~");
+                        InventoryObjects pet = bag.GetByInventoryId(1006), fish = bag.GetByInventoryId(1007);
+                        PumpUntil(() => plateau[8].Item == pet && grid.IndexOf(1007u) >= 0, "pet and fish");
+                        Check(ItemSlots.PositionsFor(pet.Type).SequenceEqual(new[] { 8 }) && ItemSlots.IsFood(fish.Type) && ItemSlots.IsFood(wood.Type) && !ItemSlots.IsFood(potion.Type)
+                            && ItemSlots.FeedPositions(fish.Type, true, false).SequenceEqual(new[] { 8 }) && ItemSlots.FeedPositions(wood.Type, false, true).SequenceEqual(new[] { 16 })
+                            && ItemSlots.FeedPositions(potion.Type, true, true).Count == 0 && ItemSlots.FeedPositions(fish.Type, false, false).Count == 0,
+                            "Feeding slots do not follow enabledFromSuperType (super-type 9 on the worn pet and the announced mount)");
+                        Check(plateau[8].Accepts(wood) && plateau[8].Accepts(fish) && !plateau[8].Accepts(potion) && !plateau[8].Accepts(pet) && !plateau.HasMount && !plateau[16].Accepts(fish),
+                            "Pet slot must accept resources only while a pet is worn; the mount slot must refuse them without a mount");
+                        Check(!Result(bag.MoveToSlot(potion, 8)) && !Result(bag.MoveToSlot(fish, 16, 2)), "The model accepted a potion on the pet or food without a mount");
+                        NoPacket(peer, "Refused feeding reached the server");
+                        // Bois sur le familier : OM<id>|8 sans boîte de quantité ; le serveur refuse par Im153, gardé sous l'objet.
+                        plateau[8].AcceptDrop(Payload(1004u, 6, -1)); Check(Read(peer) == "OM1004|8", "Dropping a resource on the worn pet does not send OM<id>|8");
+                        PumpUntil(() => reports.LastOrDefault() == "Repas du familier demandé ; le serveur répond par OQ ou OR et un message.", "pet feeding feedback");
+                        Check(QuantityPopup.OpenPopups.Count == 0, "Feeding the pet opened the quantity box");
+                        Feed(account, "Im153"); PumpUntil(() => help.Text.EndsWith("Le familier ne mange pas cela (test)."), "Im153 message");
+                        // Poisson sur le familier : OM, puis StarLoco répond OQ, Im032 et OCO (fiche du familier) ; le message reste.
+                        plateau[8].AcceptDrop(Payload(1007u, 6, -1)); Check(Read(peer) == "OM1007|8", "Dropping fish on the worn pet does not send OM<id>|8");
+                        PumpUntil(() => !help.Text.Contains("(test)"), "previous notice cleared by the new drop");
+                        Feed(account, "OQ1007|5"); Feed(account, "Im032"); Feed(account, "OCO3ee~7d7~1~8~");
+                        PumpUntil(() => help.Text.EndsWith("Repas du familier apprécié (test)."), "Im032 message");
+                        Feed(account, "OCO3ee~7d7~1~8~"); Application.DoEvents();
+                        Check(fish.Qua == 5 && plateau[8].Item != null && plateau[8].Item.Inventory_ID == 1006u && help.Text.EndsWith("Repas du familier apprécié (test)."),
+                            "OQ/OCO after feeding were not applied or dropped the Im notice: " + help.Text);
+                        plateau[8].AcceptDrop(Payload(1000u, 3, -1)); NoPacket(peer, "Dropping a potion on the worn pet sent a packet");
+
+                        // Monture : sans Re+ la case 16 refuse le poisson ; Re+ l'allume, une pile passe par la boîte de quantité.
+                        plateau[16].AcceptDrop(Payload(1007u, 5, -1)); NoPacket(peer, "Dropping fish on the mount slot without a mount sent a packet");
+                        Check(QuantityPopup.OpenPopups.Count == 0, "A refused slot opened the quantity box");
+                        Feed(account, "Re+" + MountRecord); PumpUntil(() => plateau.HasMount, "Re+ mount");
+                        Check(plateau[16].Accepts(fish) && plateau[16].Accepts(wood) && !plateau[16].Accepts(potion) && plateau[16].Item == null && bag.HasMount,
+                            "Mount slot must accept resources once Re+ announced a mount");
+                        plateau[16].AcceptDrop(Payload(1007u, 5, -1)); PumpUntil(() => QuantityPopup.OpenPopups.Count == 1, "quantity box");
+                        QuantityPopup popup = QuantityPopup.OpenPopups[0];
+                        Check(popup.InputText == "5" && popup.Maximum == 5 && popup.Minimum == 1 && popup.Visible
+                            && All(popup).Any(control => control.Name == "quantity-min" && control.Text == "mini (test)") && All(popup).Any(control => control.Name == "quantity-max" && control.Text == "maxi (test)"),
+                            "Quantity box is not prefilled with the stack or misses MIN_WORD / MAX_WORD: " + popup.InputText);
+                        NoPacket(peer, "OM was sent before the quantity was chosen");
+                        popup.InputText = "2x"; Check(popup.InputText == "2", "The quantity field accepts non-digits");
+                        popup.Confirm(); Check(Read(peer) == "OM1007|16|2", "Feeding the mount does not send OM<id>|16|<quantity>");
+                        PumpUntil(() => QuantityPopup.OpenPopups.Count == 0 && reports.LastOrDefault() == "Repas de la monture demandé ; le serveur répond par OQ ou OR et un message.", "quantity box closed");
+                        Feed(account, "OQ1007|3"); Feed(account, "Im0105"); PumpUntil(() => help.Text.EndsWith("Repas de la monture apprécié (test)."), "Im0105 message");
+                        // « max » remplit la pile puis valide au second appui ; « min » met 1 ; Échap ou 0 n'envoient rien.
+                        plateau[16].AcceptDrop(Payload(1007u, 3, -1)); PumpUntil(() => QuantityPopup.OpenPopups.Count == 1, "second quantity box");
+                        popup = QuantityPopup.OpenPopups[0]; popup.PressMin(); Check(popup.InputText == "1", "min does not set 1");
+                        popup.PressMax(); Check(popup.InputText == "3" && QuantityPopup.OpenPopups.Count == 1, "max does not fill the stack");
+                        NoPacket(peer, "max sent before the second press");
+                        popup.PressMax(); Check(Read(peer) == "OM1007|16|3", "max pressed twice does not validate the whole stack");
+                        PumpUntil(() => QuantityPopup.OpenPopups.Count == 0, "max closed the box");
+                        plateau[16].AcceptDrop(Payload(1007u, 3, -1)); PumpUntil(() => QuantityPopup.OpenPopups.Count == 1, "third quantity box");
+                        typeof(QuantityPopup).GetMethod("OnKeyDown", Any).Invoke(QuantityPopup.OpenPopups[0], new object[] { new KeyEventArgs(Keys.Escape) });
+                        PumpUntil(() => QuantityPopup.OpenPopups.Count == 0 && reports.LastOrDefault() == "Déplacement annulé.", "Escape cancelled");
+                        NoPacket(peer, "Escape in the quantity box sent a packet");
+                        plateau[16].AcceptDrop(Payload(1007u, 3, -1)); PumpUntil(() => QuantityPopup.OpenPopups.Count == 1, "fourth quantity box");
+                        popup = QuantityPopup.OpenPopups[0]; popup.InputText = "0"; popup.Confirm();
+                        PumpUntil(() => QuantityPopup.OpenPopups.Count == 0, "zero closed the box"); NoPacket(peer, "A zero quantity sent a packet");
+                        Feed(account, "Im190"); PumpUntil(() => help.Text.EndsWith("La monture ne mange pas cela (test)."), "Im190 message");
+                        // Un seul exemplaire : pas de boîte, OM<id>|16 sans quantité ; une potion n'est jamais proposée à la monture.
+                        Feed(account, "OQ1004|1"); plateau[16].AcceptDrop(Payload(1004u, 1, -1)); Check(Read(peer) == "OM1004|16", "A single resource on the mount must send OM<id>|16 without a box");
+                        Check(QuantityPopup.OpenPopups.Count == 0, "A single item opened the quantity box");
+                        plateau[16].AcceptDrop(Payload(1000u, 3, -1)); NoPacket(peer, "Dropping a potion on the mount sent a packet");
+                        // Rendre une pile au sac depuis la barre de raccourcis passe aussi par la boîte (dropItem du client : -1 ou 16).
+                        Feed(account, "OM1000|36"); PumpUntil(() => (int)potion.position == 36, "potion on the shortcut bar");
+                        grid.AcceptDrop(Payload(1000u, 3, 36)); PumpUntil(() => QuantityPopup.OpenPopups.Count == 1, "bag quantity box");
+                        popup = QuantityPopup.OpenPopups[0]; popup.InputText = "9"; popup.Confirm();
+                        Check(Read(peer) == "OM1000|-1|3", "The bag quantity must be bounded by the stack (Math.min(value, Quantity))");
+                        Feed(account, "OM1000|"); PumpUntil(() => (int)potion.position == -1, "potion back to the bag");
+                        // Re- : la case de la monture refuse de nouveau la nourriture.
+                        Feed(account, "Re-"); PumpUntil(() => !plateau.HasMount, "Re- mount");
+                        Check(!plateau[16].Accepts(fish) && !Result(bag.MoveToSlot(fish, 16, 1)), "Food still accepted on the mount slot after Re-");
+                        NoPacket(peer, "Feeding after Re- reached the server");
+                        drawer.Feedback -= reports.Add;
 
                         // Icônes : sans PNG, initiales ; avec un PNG synthétique Items/<type>/<gfx>.png lu hors du fil de l'interface, pixel témoin.
                         Check(Initials("Potion fictive") == "PF" && Initials("Bois") == "BO" && Initials("") == "?", "Initials fallback is wrong");
