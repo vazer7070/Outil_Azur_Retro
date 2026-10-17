@@ -2194,9 +2194,12 @@ internal static partial class Live
                     "Refus locaux : nom du compte « " + sameAsLogin.Message + " », trop court « " + tooShort.Message + " », " + (n.SentCount - sentBefore) + " paquet(s) envoyé(s)");
 
                 int mark = n.ReceivedCount;
-                var first = await choice.ChooseAsync(taken).ConfigureAwait(false);
-                Check(first.Sent && n.SentSince(sentBefore).SequenceEqual(new[] { taken }), "Le pseudo pris n'est pas parti seul, en ligne brute : " + first.Message);
+                // Deuxième proposition faite aussitôt, avant d'attendre la fin du premier envoi : le Login local répond en quelques
+                // millisecondes, et un AlEs déjà reçu autoriserait légitimement la proposition suivante.
+                var sending = choice.ChooseAsync(taken);
                 var twice = await choice.ChooseAsync(chosen).ConfigureAwait(false);
+                var first = await sending.ConfigureAwait(false);
+                Check(first.Sent && n.SentSince(sentBefore).SequenceEqual(new[] { taken }), "Le pseudo pris n'est pas parti seul, en ligne brute : " + first.Message);
                 Check(!twice.Sent && n.SentCount == sentBefore + 1, "Un deuxième pseudo est parti avant la réponse du Login : " + twice.Message);
                 string alEs = await n.Expect(p => p == "AlEs" || p.StartsWith("Ad", StringComparison.Ordinal), "AlEs (pseudo pris)", 15, mark).ConfigureAwait(false);
                 Check(alEs == "AlEs", "Le Login a accepté le pseudo déjà pris « " + taken + " » : " + alEs);
@@ -2451,8 +2454,13 @@ internal static partial class Live
             var again = (Accounts)Field(screen, "A");
             again.Logger.log_event += (entry, color) => Journal("R [journal du bot] " + entry.message);
             Check(again.accountConfig.Account == a.Login && again.accountConfig.Password == a.Password, "« Oui » a reconnecté un autre compte que A");
-            Check(await WaitOnUi(() => screen.Alreadyhere && again.Game.Server.Servers.Values.Any(x => x == ServerStates.ONLINE) ? "ok" : null, 60).ConfigureAwait(false) != null,
-                "Après « Oui », la liste des serveurs n'a pas de serveur en ligne : " + again.ConnectionStatus);
+            if (await WaitOnUi(() => screen.Alreadyhere && again.Game.Server.Servers.Values.Any(x => x == ServerStates.ONLINE) ? "ok" : null, 60).ConfigureAwait(false) == null)
+            {
+                // Journal de l'écran du choix du serveur (abonné avant la connexion) : dit jusqu'où la connexion est allée.
+                string shownLog = await OnUi(() => ((RichTextBox)Field(screen, "journal")).Text.Replace("\n", " | ")).ConfigureAwait(false);
+                throw new Exception("Après « Oui », la liste des serveurs n'a pas de serveur en ligne : " + again.ConnectionStatus + " ; journal de l'écran : "
+                    + (shownLog.Length > 800 ? "…" + shownLog.Substring(shownLog.Length - 800) : shownLog));
+            }
             string[] listed = await OnUi(() => new[] { ((Label)Field(screen, "status")).Text,
                 string.Join(", ", again.Game.Server.Servers.OrderBy(x => x.Key).Select(x => x.Key + " " + x.Value)) }).ConfigureAwait(false);
             evidence = "A : " + (m04 ? "M04 reçu, " : "M04 non reçu avant la fermeture, ") + "perte " + loss.Cause + " en jeu, boîte « " + shown[0] + " » : « " + shown[1].Replace("\n", " ")
