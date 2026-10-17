@@ -16,8 +16,8 @@ using Tool_BotProtocol.Game.Accounts;
 
 // Lot X3 : écrans de la connexion contre des serveurs simulés en boucle locale, avec la boucle de messages de l'interface.
 // Compte neuf (B-05) : AlEr ouvre ChooseNickName au-dessus du choix du serveur (contrôles locaux, confirmation, ligne brute,
-// AlEs, Ad/AlK, Annuler). Fenêtre de jeu : AN ouvre NEW_LEVEL (V-25) ; M04 puis la coupure du serveur ouvrent la boîte
-// CONNECTION (DISCONNECT + SRV_MSG_4, V-20) ; « OK » ferme la fenêtre et rouvre l'écran de connexion prérempli (m-08).
+// AlEs, Ad/AlK, Annuler). Fenêtre de jeu : AN ouvre NEW_LEVEL (V-20) ; M04 (m-08) puis la coupure du serveur ouvrent la
+// boîte CONNECTION (DISCONNECT + SRV_MSG_4) ; « OK » ferme la fenêtre et rouvre l'écran de connexion prérempli (V-25).
 // Données fictives, fenêtres invisibles, aucune capture d'écran (BotUiSmoke, qui capture par PrintWindow, est propre à Windows).
 internal static class BotConnectionUiSmoke
 {
