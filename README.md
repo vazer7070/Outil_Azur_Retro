@@ -137,9 +137,9 @@ La fenêtre de jeu reprend celle du client 1.34 : la carte au centre, le bandeau
 * Interactions : dialogues PNJ, zaaps, zaapis, récolte manuelle, codes de coffre, documents, menus des joueurs, duels et combats de la carte (`BotDialogsSmoke`, `BotNpcDialogTextsSmoke`, `BotInteractivesSmoke`, `BotMapActionsSmoke`).
 * Chat, canaux, smileys et émotes (`BotChatProtocolSmoke`, `BotChatUiSmoke`).
 * Bandeau, options et raccourcis du client (`BotBannerSmoke`).
-* Fiches des caractéristiques et des sorts, inventaire en grille (`BotStatsSheetSmoke`, `BotInventoryGridSmoke`).
+* Fiches des caractéristiques et des sorts, inventaire en grille, repas du familier et de la monture (`BotStatsSheetSmoke`, `BotInventoryGridSmoke`).
 * Groupe, amis et guilde (`BotPartySmoke`, `BotFriendsSmoke`, `BotGuildSmoke`).
-* Échanges, coffre et banque, hôtel de vente, artisanat, montures, maisons et mode marchand (`BotExchangeSmoke`, `BotAuctionSmoke`, `BotCraftSmoke`, `BotMountSmoke`, `BotHouseMerchantSmoke`).
+* Échanges, coffre et banque, garde et résurrection des familiers, hôtel de vente, artisanat, montures, maisons et mode marchand (`BotExchangeSmoke`, `BotAuctionSmoke`, `BotCraftSmoke`, `BotMountSmoke`, `BotHouseMerchantSmoke`).
 * Alignement et conquête, quêtes, carte du monde, commandes du serveur (`BotAlignmentSmoke`, `BotQuestsSmoke`, `BotWorldMapSmoke`, `BotServerCommandsSmoke`).
 * Combat : placement, tours, sorts, attaque au corps à corps (case `²`, arme en main ou poings), ligne de temps, options, abandon et résultat (`BotCombatSmoke`, `BotFightProtocolSmoke`, `BotFightUiSmoke`). Les défis et le mode tactique ne sont pas faits.
 * Animations du client : déplacements, coups et morts, chiffres au-dessus des têtes, effets et projectiles des sorts, recoloration, accessoires, émotes, auras et ailes, pour les 24 classes et les 100 monstres les plus fréquents (`BotAnimationQueueSmoke`, `BotPointsHitDeathSmoke`, `BotSpellEffectsSmoke`, `BotSpellProjectilesSmoke`, `BotRecolorSmoke`, `BotAccessoriesSmoke`, `BotExtraClipsSmoke`). Le bot ne joue aucun son.

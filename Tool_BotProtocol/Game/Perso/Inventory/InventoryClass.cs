@@ -64,6 +64,11 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
         public InventoryObjects GetByInventoryId(uint inventoryId) => PlayerItems != null && PlayerItems.TryGetValue(inventoryId, out InventoryObjects item) ? item : null;
         public InventoryObjects GetObjetsPosition(InventorySlots P) => Objets.FirstOrDefault(x => x.position == P);
 
+        /// <summary>Objet porté sur la case du familier (8), celui que nourrit une ressource déposée dessus, ou null.</summary>
+        public InventoryObjects EquippedPet => Objets.FirstOrDefault(x => x != null && (int)x.position == ItemSlots.PetPosition);
+        /// <summary>Monture annoncée par le serveur (<c>Re+</c>) : la case 16 accepte alors une ressource (nourrir la monture).</summary>
+        public bool HasMount => Account?.CanUseMount == true;
+
         /// <summary>
         /// Ajoute les objets d'un enregistrement « O » du paquet OAK : fiches séparées par « ; »,
         /// chacune au format client <c>id~modèle~quantité~position~effets</c> en hexadécimal.
@@ -176,7 +181,10 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
         /// Déplace un objet vers un emplacement : <c>OM&lt;id&gt;|&lt;position&gt;</c>, la quantité n'étant ajoutée
         /// (<c>|&lt;quantité&gt;</c>) que lorsqu'elle est précisée, comme <c>Items.movement</c> du client. -1 range dans le sac,
         /// 0 à 16 équipe (16 = monture), 34 et plus pose dans la barre de raccourcis. Un emplacement d'équipement doit accepter
-        /// le type de l'objet (<see cref="ItemSlots.Accepts"/>) ; le serveur confirme par <c>OM</c> ou refuse par <c>OAE</c>/<c>Im119</c>.
+        /// le type de l'objet (<see cref="ItemSlots.Accepts(int, int, bool, bool)"/>) ; le serveur confirme par <c>OM</c> ou refuse
+        /// par <c>OAE</c>/<c>Im119</c>. Une ressource posée sur le familier porté (8) ou sur la monture annoncée (16) le nourrit
+        /// (lot X4) : <c>OM&lt;id&gt;|8</c>, <c>OM&lt;id&gt;|16|&lt;quantité&gt;</c> ; StarLoco répond <c>OQ</c>/<c>OR</c>, <c>OCO</c>,
+        /// <c>Im032</c>… pour le familier, <c>Re+</c> et <c>Im0105</c> pour la monture, <c>Im153</c> ou <c>Im190</c> en cas de refus.
         /// </summary>
         public async Task<bool> MoveToSlot(InventoryObjects item, int position, int? quantity = null)
         {
@@ -191,9 +199,14 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
                 Account.Logger.LogError("INVENTAIRE", $"{item.Name} est déjà à l'emplacement {ItemSlots.Name(position)}.");
                 return false;
             }
-            if (position >= 0 && position <= ItemSlots.MountPosition && !ItemSlots.Accepts(position, item.Type))
+            if (position >= 0 && position <= ItemSlots.MountPosition
+                && !ItemSlots.Accepts(position, item.Type, EquippedPet != null && EquippedPet != item, HasMount))
             {
-                Account.Logger.LogError("INVENTAIRE", $"{item.Name} ne peut pas être posé sur l'emplacement {ItemSlots.Name(position)}.");
+                string why = !ItemSlots.IsFood(item.Type) ? $"{item.Name} ne peut pas être posé sur l'emplacement {ItemSlots.Name(position)}."
+                    : position == ItemSlots.PetPosition ? $"Aucun familier porté à nourrir avec {item.Name}."
+                    : position == ItemSlots.MountPosition ? $"Aucune monture équipée à nourrir avec {item.Name}."
+                    : $"{item.Name} ne peut pas être posé sur l'emplacement {ItemSlots.Name(position)}.";
+                Account.Logger.LogError("INVENTAIRE", why);
                 return false;
             }
             if (quantity.HasValue && (quantity.Value <= 0 || quantity.Value > item.Qua))
@@ -203,7 +216,10 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
             }
             string packet = $"OM{item.Inventory_ID}|{position}" + (quantity.HasValue ? $"|{quantity.Value}" : string.Empty);
             await Account.Connexion.SendPacket(packet, true);
-            Account.Logger.LogInfo("INVENTAIRE", $"Déplacement de {item.Name} vers {ItemSlots.Name(position)} demandé ; le serveur confirme par OM.");
+            bool feeding = (position == ItemSlots.PetPosition || position == ItemSlots.MountPosition) && !ItemSlots.Accepts(position, item.Type);
+            Account.Logger.LogInfo("INVENTAIRE", feeding
+                ? $"{item.Name} donné à manger {(position == ItemSlots.PetPosition ? "au familier" : "à la monture")} ; le serveur répond par OQ ou OR et un message Im."
+                : $"Déplacement de {item.Name} vers {ItemSlots.Name(position)} demandé ; le serveur confirme par OM.");
             return true;
         }
         private bool CanAct(InventoryObjects item, out string reason)

@@ -189,6 +189,7 @@
     <Compile Include="Game\Exchanges\ExchangeRegistry.cs" />
     <Compile Include="Game\Exchanges\IExchange.cs" />
     <Compile Include="Game\Exchanges\PlayerExchange.cs" />
+    <Compile Include="Game\Exchanges\PetsExchange.cs" />
     <Compile Include="Game\Exchanges\StorageExchange.cs" />
     <Compile Include="Game\Exchanges\MerchantExchange.cs" />
     <Compile Include="Game\Exchanges\AuctionHouse.cs" />

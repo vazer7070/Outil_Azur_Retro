@@ -455,6 +455,9 @@ internal static partial class Live
         await Scenario("g2. boutique d'un PNJ : achat", 60, NpcShopAsync).ConfigureAwait(false);
         await Scenario("g3. zaap", 90, ZaapAsync).ConfigureAwait(false);
         await Scenario("h. corps à corps : épée et arc contre des monstres, poings en défi (lot X1)", 150, CloseCombatAsync).ConfigureAwait(false);
+        await Scenario("x4a. familier et monture nourris depuis l'inventaire (lot X4)", 60, PetsFeedingAsync).ConfigureAwait(false);
+        await Scenario("x4b. familier confié à un gardien puis repris (lot X4)", 100, PetsKeepingAsync).ConfigureAwait(false);
+        await Scenario("x4c. familier mort de repas rapprochés, ressuscité chez un PNJ (lot X4)", 140, PetsResurrectionAsync).ConfigureAwait(false);
     }
 }
 
@@ -2055,5 +2058,470 @@ internal static partial class Live
         await s.Expect(p => p.StartsWith("GM|") && p.Contains(";" + characterId + ";" + name + ";"), "GM du personnage", 15, selected).ConfigureAwait(false);
         Check(await s.Until(() => s.MapId == mapId && s.Map.Self != null && s.Map.Self.CellId >= 0, 10).ConfigureAwait(false), "Le bot n'a pas placé " + name + " sur la carte " + mapId);
         return s.Label + " " + name + " : " + Short(axk, 20) + ", " + Short(ask, 40) + ", " + Short(gdm, 16) + ", GM cellule " + s.Map.Self.CellId;
+    }
+}
+
+// Scénarios x4a à x4c (lot X4) : familier et monture nourris, garde chez un gardien de familiers, résurrection chez un PNJ qui la propose.
+internal static partial class Live
+{
+    /// <summary>
+    /// Carte de départ et PNJ 816 qui y vend le Chacha (familier 1728, type 2 de la table <c>pets</c> : il mange le Greu-Vette 598,
+    /// un poisson de type 41) ; poudre de résurrection 8012 (type 48, super-type 9 du client) ; certificat de garde 1735
+    /// (<c>Constant.getParchoByIdPets</c>) et fantôme 7537 (<c>pets.DeadTemplate</c>) du Chacha, d'après StarLoco et <c>game.sql</c>.
+    /// Les gardiens (action 4) et les ressusciteurs (action 7) sont cherchés dans <c>npc.xml</c> et dans la table <c>npcs</c> du jeu ;
+    /// ils sont joints par un zaap puis à pied, au plus <see cref="MaxTriggerWalk"/> cartes.
+    /// </summary>
+    private const int PetsMap = 164, PetsCell = 298, PetSellerTemplate = 816, ChachaTemplate = 1728, FishTemplate = 598, PowderTemplate = 8012,
+        ChachaCertificate = 1735, ChachaGhost = 7537, FishStack = 20, PetsKamas = 1000, MaxTriggerWalk = 10;
+
+    /// <summary>Personnage inventé d'un scénario x4 : session, objets écrits dans la base et objets vus, tous supprimés à la fin.</summary>
+    private sealed class PetOwner
+    {
+        public string Label;
+        public InventedCharacter Character;
+        public LiveSession Session;
+        public readonly List<InventedCharacter> Created = new List<InventedCharacter>();
+        public readonly HashSet<uint> Seen = new HashSet<uint>();
+        public readonly ConcurrentQueue<ServerMessage> Heard = new ConcurrentQueue<ServerMessage>();
+        public int FishId = -1, PowderId = -1, MountId;
+        public NpcActor Seller;
+        public Tool_BotProtocol.Game.Perso.Inventory.InventoryClass Bag => Session.Account.Game.character.Inventory;
+        public Tool_BotProtocol.Game.Perso.Inventory.InventoryObjects Fish => FishId > 0 ? Bag.GetByInventoryId((uint)FishId) : null;
+        public Tool_BotProtocol.Game.Perso.Inventory.InventoryObjects Powder => PowderId > 0 ? Bag.GetByInventoryId((uint)PowderId) : null;
+        public void Remember() { if (Session?.Account?.Game?.character?.Inventory != null) Seen.UnionWith(Bag.Objets.Select(x => x.Inventory_ID)); }
+    }
+
+    private static void RequirePetsData()
+    {
+        if (!Map.AllBotMaps.ContainsKey(PetsMap)) throw new SkipScenario("carte " + PetsMap + " absente des cartes du bot");
+        if (!LangData.IsLoaded("items")) throw new SkipScenario("textes du client absents : le bot ne connaît ni les ressources (super-type 9) ni la case du familier");
+    }
+
+    /// <summary>
+    /// x4a. Compte inventé avec 20 Greu-Vette, 2 poudres et une monture écrits dans la base, Chacha acheté au PNJ 816 puis porté
+    /// (<c>OM|8</c>) et nourri (<c>OM&lt;poisson&gt;|8</c> → OQ, Im du repas, OCO) ; poudre refusée par le familier (<c>Im153</c>) et par la
+    /// monture (<c>OM&lt;poudre&gt;|16|1</c> → <c>Im190</c>) ; poisson donné à la monture (<c>OM&lt;poisson&gt;|16|2</c> → Re+, <c>Im0105</c>).
+    /// </summary>
+    private static async Task<string> PetsFeedingAsync()
+    {
+        RequirePetsData();
+        using (MySql.Data.MySqlClient.MySqlConnection db = OpenAccountsDatabase(out string schema))
+        {
+            var owner = new PetOwner { Label = "C" };
+            try
+            {
+                var evidence = new List<string>();
+                await OpenPetOwnerAsync(db, schema, owner, FishStack, 2, true, evidence).ConfigureAwait(false);
+                LiveSession c = owner.Session;
+                Tool_BotProtocol.Game.Perso.Inventory.InventoryClass bag = owner.Bag;
+                Tool_BotProtocol.Game.Perso.Inventory.InventoryObjects pet = Owned(c, ChachaTemplate);
+
+                // Familier porté puis nourri : OM<poisson>|8 sans quantité ; StarLoco répond OQ, un Im du repas (INFOS_26 à 32) et OCO.
+                evidence.Add(await WearPetAsync(c, pet).ConfigureAwait(false));
+                evidence.Add(await FeedAsync(c, owner.Heard, owner.Fish, 8, null, p => p.StartsWith("Im0", StringComparison.Ordinal), "Im du repas du familier",
+                    ServerMessageKind.Info, id => id >= 25 && id <= 32).ConfigureAwait(false));
+                Check(await c.Until(() => owner.Fish?.Qua == FishStack - 1, 5).ConfigureAwait(false), "OQ du poisson non appliqué : " + owner.Fish?.Qua);
+                evidence.Add(await FeedAsync(c, owner.Heard, owner.Powder, 8, null, p => p.StartsWith("Im153", StringComparison.Ordinal), "Im153 (le familier refuse la poudre)",
+                    ServerMessageKind.Error, id => id == 53).ConfigureAwait(false));
+
+                // Monture : la poudre (super-type 9) est proposée comme le client le permet, StarLoco la refuse (Im190) ; poisson ×2 → Re+, Im0105.
+                evidence.Add(await FeedAsync(c, owner.Heard, owner.Powder, 16, 1, p => p.StartsWith("Im190", StringComparison.Ordinal), "Im190 (la monture refuse la poudre)",
+                    ServerMessageKind.Error, id => id == 90).ConfigureAwait(false));
+                int energy = c.Account.Game.Interactions.Mount.Current?.Energy ?? -1, rePlus = c.ReceivedCount;
+                evidence.Add(await FeedAsync(c, owner.Heard, owner.Fish, 16, 2, p => p.StartsWith("Im0105", StringComparison.Ordinal), "Im0105 (la monture apprécie)",
+                    ServerMessageKind.Info, id => id == 105).ConfigureAwait(false));
+                Check(c.ReceivedSince(rePlus).Any(p => p.StartsWith("Re+", StringComparison.Ordinal))
+                    && await c.Until(() => owner.Fish?.Qua == FishStack - 3 && (c.Account.Game.Interactions.Mount.Current?.Energy ?? -1) > energy, 5).ConfigureAwait(false),
+                    "Repas de la monture non appliqué : poisson " + owner.Fish?.Qua + ", énergie " + energy + " → " + c.Account.Game.Interactions.Mount.Current?.Energy);
+                evidence.Add("énergie de la monture " + energy + " → " + c.Account.Game.Interactions.Mount.Current?.Energy);
+                owner.Remember();
+                return string.Join(" ; ", evidence);
+            }
+            finally { await ClosePetOwnerAsync(db, schema, owner).ConfigureAwait(false); }
+        }
+    }
+
+    /// <summary>
+    /// x4b. Chacha acheté au PNJ 816, puis zaap et marche jusqu'à un gardien (PNJ dont <c>npc.xml</c> déclare l'action 4, placé dans la
+    /// table <c>npcs</c>) ; garde depuis l'action du menu (<c>ER9|&lt;pnj&gt;</c> → <c>ECK9</c>) : familier contre certificat 1735, puis
+    /// certificat contre un nouveau Chacha (<c>createNewFamilier</c>).
+    /// </summary>
+    private static async Task<string> PetsKeepingAsync()
+    {
+        RequirePetsData();
+        using (MySql.Data.MySqlClient.MySqlConnection db = OpenAccountsDatabase(out string schema))
+        {
+            var owner = new PetOwner { Label = "D" };
+            try
+            {
+                List<int[]> keepers = NpcsWithAction(db, NpcActions.Pets);
+                if (keepers.Count == 0) throw new SkipScenario("aucun PNJ placé dont npc.xml déclare la garde (action 4)");
+                var evidence = new List<string>();
+                await OpenPetOwnerAsync(db, schema, owner, 0, 0, false, evidence).ConfigureAwait(false);
+                LiveSession s = owner.Session;
+                Tool_BotProtocol.Game.Perso.Inventory.InventoryObjects pet = Owned(s, ChachaTemplate);
+                evidence.Add(await TravelAsync(s, keepers.Select(k => k[1])).ConfigureAwait(false));
+                NpcActor keeper = await FindNpcAsync(s, keepers.Where(k => k[1] == s.MapId).Select(k => k[0])).ConfigureAwait(false);
+
+                PetsExchange pets = s.Account.Game.Interactions.Exchanges.Get<PetsExchange>();
+                evidence.Add(await PetsTradeAsync(s, pets, NpcActions.Pets, keeper, new[] { pet.Inventory_ID }, ChachaCertificate, PetsService.Keeping).ConfigureAwait(false));
+                owner.Remember();
+                Tool_BotProtocol.Game.Perso.Inventory.InventoryObjects certificate = Owned(s, ChachaCertificate);
+                Check(certificate != null && Owned(s, ChachaTemplate) == null, "Après la garde, le bot devrait avoir le certificat et plus de Chacha");
+                evidence.Add(await PetsTradeAsync(s, pets, NpcActions.Pets, keeper, new[] { certificate.Inventory_ID }, ChachaTemplate, PetsService.Keeping).ConfigureAwait(false));
+                owner.Remember();
+                Check(Owned(s, ChachaTemplate) != null && Owned(s, ChachaCertificate) == null, "Après le retrait, le bot devrait avoir un Chacha et plus de certificat");
+                return string.Join(" ; ", evidence);
+            }
+            finally { await ClosePetOwnerAsync(db, schema, owner).ConfigureAwait(false); }
+        }
+    }
+
+    /// <summary>
+    /// x4c. Chacha acheté au PNJ 816, porté et nourri à la suite : StarLoco retire un point de vie à chaque repas trop rapproché (Im027)
+    /// jusqu'au fantôme 7537 (<c>Im154</c>, OM vers le sac) ; un fantôme ne se nourrit plus. Puis zaap et marche jusqu'à un PNJ dont
+    /// <c>npc.xml</c> déclare la résurrection (action 7) : <c>ER17|&lt;pnj&gt;</c> → <c>ECK9</c>, fantôme et poudre contre le Chacha.
+    /// </summary>
+    private static async Task<string> PetsResurrectionAsync()
+    {
+        RequirePetsData();
+        using (MySql.Data.MySqlClient.MySqlConnection db = OpenAccountsDatabase(out string schema))
+        {
+            var owner = new PetOwner { Label = "E" };
+            try
+            {
+                List<int[]> healers = NpcsWithAction(db, NpcActions.PetResurrection);
+                if (healers.Count == 0) throw new SkipScenario("aucun PNJ placé dont npc.xml déclare la résurrection des familiers (action 7)");
+                var evidence = new List<string>();
+                await OpenPetOwnerAsync(db, schema, owner, FishStack, 1, false, evidence).ConfigureAwait(false);
+                LiveSession s = owner.Session;
+                Tool_BotProtocol.Game.Perso.Inventory.InventoryClass bag = owner.Bag;
+                Tool_BotProtocol.Game.Perso.Inventory.InventoryObjects pet = Owned(s, ChachaTemplate);
+                evidence.Add(await WearPetAsync(s, pet).ConfigureAwait(false));
+
+                int meals = 0;
+                string death = null;
+                while (death == null && meals < FishStack)
+                {
+                    Tool_BotProtocol.Game.Perso.Inventory.InventoryObjects food = owner.Fish;
+                    Check(food != null && food.Qua > 0, "Plus de poisson après " + meals + " repas");
+                    int mark = s.ReceivedCount;
+                    Check(await bag.MoveToSlot(food, Tool_BotProtocol.Game.Perso.Inventory.ItemSlots.PetPosition).ConfigureAwait(false), "Repas " + (meals + 1) + " refusé par le bot");
+                    meals++;
+                    await s.Expect(p => p.StartsWith("OCO", StringComparison.Ordinal), "OCO après le repas " + meals, 10, mark).ConfigureAwait(false);
+                    death = s.ReceivedSince(mark).FirstOrDefault(p => p.StartsWith("Im154", StringComparison.Ordinal));
+                }
+                Check(death != null, "Pas de fantôme après " + meals + " repas");
+                Tool_BotProtocol.Game.Perso.Inventory.InventoryObjects ghost = null;
+                Check(await s.Until(() => (ghost = bag.GetByInventoryId(pet.Inventory_ID)) != null && ghost.ID == ChachaGhost && (int)ghost.position == -1 && bag.EquippedPet == null, 5).ConfigureAwait(false),
+                    "Le bot n'a pas lu le fantôme : modèle " + ghost?.ID + ", position " + (int?)ghost?.position);
+                Check(owner.Heard.Any(m => m.Kind == ServerMessageKind.Error && m.NumericId == 54 && !string.IsNullOrEmpty(m.Text)), "Im154 non transmis par la session");
+                evidence.Add(meals + " repas rapprochés → " + death + ", " + ghost.Name + " (" + ghost.ID + ") rangé dans le sac");
+                int sentMark = s.SentCount;
+                Check(!await bag.MoveToSlot(owner.Fish, Tool_BotProtocol.Game.Perso.Inventory.ItemSlots.PetPosition).ConfigureAwait(false)
+                    && !s.SentSince(sentMark).Any(p => p.StartsWith("OM", StringComparison.Ordinal)), "Le bot nourrit encore un familier mort");
+                owner.Remember();
+
+                evidence.Add(await TravelAsync(s, healers.Select(k => k[1])).ConfigureAwait(false));
+                NpcActor healer = await FindNpcAsync(s, healers.Where(k => k[1] == s.MapId).Select(k => k[0])).ConfigureAwait(false);
+                PetsExchange pets = s.Account.Game.Interactions.Exchanges.Get<PetsExchange>();
+                evidence.Add(await PetsTradeAsync(s, pets, NpcActions.PetResurrection, healer, new[] { ghost.Inventory_ID, (uint)owner.PowderId }, ChachaTemplate, PetsService.Resurrection).ConfigureAwait(false));
+                Check(await s.Until(() => bag.GetByInventoryId(ghost.Inventory_ID)?.ID == ChachaTemplate && owner.Powder == null, 5).ConfigureAwait(false),
+                    "Le Chacha ressuscité ou la poudre consommée ne sont pas lus : modèle " + bag.GetByInventoryId(ghost.Inventory_ID)?.ID + ", poudre " + owner.Powder?.Qua);
+                owner.Remember();
+                return string.Join(" ; ", evidence);
+            }
+            finally { await ClosePetOwnerAsync(db, schema, owner).ConfigureAwait(false); }
+        }
+    }
+
+    /// <summary>
+    /// Compte inventé posé sur la carte 164 avec des kamas, <paramref name="fish"/> Greu-Vette, <paramref name="powder"/> poudres de
+    /// résurrection et, au besoin, une monture écrits dans la base (identifiants hors de la plage de StarLoco), connecté, puis un Chacha
+    /// acheté au PNJ 816 : les entrées de familier (<c>world.entity.pets</c>) ne se chargent qu'au démarrage du Game ou à l'achat.
+    /// </summary>
+    private static async Task OpenPetOwnerAsync(MySql.Data.MySqlClient.MySqlConnection db, string schema, PetOwner owner, int fish, int powder, bool mount, List<string> evidence)
+    {
+        int baseId = 500000000 + random.Next(1, 100000) * 10;
+        owner.Character = Invent(db, schema, a.Id, PetsMap, PetsCell, 10000, owner.Created);
+        var objets = new StringBuilder();
+        if (fish > 0)
+        {
+            owner.FishId = baseId;
+            Sql(db, "INSERT INTO " + schema + ".`world.entity.objects` (id, template, quantity, position, stats, puit) VALUES (@id, @template, @quantity, -1, '', 0)",
+                "@id", owner.FishId, "@template", FishTemplate, "@quantity", fish);
+            objets.Append(owner.FishId).Append('|');
+        }
+        if (powder > 0)
+        {
+            owner.PowderId = baseId + 1;
+            Sql(db, "INSERT INTO " + schema + ".`world.entity.objects` (id, template, quantity, position, stats, puit) VALUES (@id, @template, @quantity, -1, '', 0)",
+                "@id", owner.PowderId, "@template", PowderTemplate, "@quantity", powder);
+            objets.Append(owner.PowderId).Append('|');
+        }
+        if (mount)
+        {
+            owner.MountId = -baseId;
+            Sql(db, "INSERT INTO " + schema + ".`world.entity.mounts` (id, color, sex, name, xp, level, endurance, amour, maturity, serenity, reproductions, fatigue, energy,"
+                + " objects, ancestors, capacitys, size, map, cell, owner, orientation, fecundatedDate, couple, savage)"
+                + " VALUES (@id, 10, 0, 'Essai', 0, 1, 0, 0, 1000, 0, 0, 0, 1000, '', ',,,,,,,,,,,,,', '0', 100, @map, @cell, @owner, 1, -1, -1, 0)",
+                "@id", owner.MountId, "@map", PetsMap, "@cell", PetsCell, "@owner", owner.Character.Id);
+        }
+        Sql(db, "UPDATE " + schema + ".players SET kamas = @kamas, objets = @objets, mount = @mount WHERE id = @id",
+            "@kamas", PetsKamas, "@objets", objets.ToString(), "@mount", mount ? owner.MountId : -1, "@id", owner.Character.Id);
+        // Zaaps connus : ceux qu'un personnage créé par StarLoco reçoit avec ALL_ZAAP (CREATE_PERSONNAGE : toutes les cartes de la
+        // table zaaps du jeu) ; le personnage de A ne sert pas de modèle, sa colonne n'est écrite qu'à sa première sauvegarde.
+        object zaaps = Scalar(db, "SELECT GROUP_CONCAT(mapID ORDER BY mapID SEPARATOR ',') FROM zaaps");
+        Sql(db, "UPDATE " + schema + ".players SET zaaps = @zaaps WHERE id = @id", "@zaaps", Convert.ToString(zaaps, CultureInfo.InvariantCulture) ?? string.Empty, "@id", owner.Character.Id);
+        Journal("[test] " + owner.Character.Name + " : " + PetsKamas + " kamas, objets « " + objets + " »" + (mount ? ", monture " + owner.MountId : string.Empty) + " écrits dans la base");
+
+        LiveSession s = owner.Session = new LiveSession(owner.Label, owner.Character.Login, owner.Character.Password);
+        evidence.Add(await EnterExistingAsync(s, owner.Character.Id, owner.Character.Name, PetsMap).ConfigureAwait(false));
+        s.Account.Game.Session.ServerMessageReceived += owner.Heard.Enqueue;
+        Check(await s.Until(() => (!mount || owner.Bag.HasMount) && (fish == 0 || owner.Fish?.Qua == fish) && (powder == 0 || owner.Powder?.Qua == powder), 10).ConfigureAwait(false),
+            "Monture (Re+) ou objets écrits dans la base absents : monture " + owner.Bag.HasMount + ", poisson " + owner.Fish?.Qua + ", poudre " + owner.Powder?.Qua);
+        if (fish > 0) Check(Tool_BotProtocol.Game.Perso.Inventory.ItemSlots.IsFood(owner.Fish.Type), "Poisson (type " + owner.Fish.Type + ") hors du super-type 9 des textes du client");
+        if (powder > 0) Check(Tool_BotProtocol.Game.Perso.Inventory.ItemSlots.IsFood(owner.Powder.Type), "Poudre (type " + owner.Powder.Type + ") hors du super-type 9 des textes du client");
+        if (mount) evidence.Add("Re+ à l'entrée : monture " + owner.MountId + ", énergie " + s.Account.Game.Interactions.Mount.Current?.Energy);
+        if (fish > 0)
+        {
+            // Sans familier porté, la case 8 refuse la nourriture sans rien envoyer.
+            int sentMark = s.SentCount;
+            Check(!await owner.Bag.MoveToSlot(owner.Fish, Tool_BotProtocol.Game.Perso.Inventory.ItemSlots.PetPosition).ConfigureAwait(false)
+                && !s.SentSince(sentMark).Any(p => p.StartsWith("OM", StringComparison.Ordinal)), "Le bot nourrit un familier absent");
+        }
+
+        // Achat du Chacha : ER0|<pnj>, EB1728|1 ; StarLoco crée le familier et son entrée (pets).
+        await s.Until(() => s.Map.Npcs.Any(n => n.TemplateId == PetSellerTemplate), 10).ConfigureAwait(false);
+        owner.Seller = s.Map.Npcs.FirstOrDefault(n => n.TemplateId == PetSellerTemplate);
+        if (owner.Seller == null) throw new SkipScenario("pas de PNJ " + PetSellerTemplate + " sur la carte " + PetsMap);
+        evidence.Add(await BuyPetAsync(s, owner.Seller).ConfigureAwait(false));
+        owner.Remember();
+    }
+
+    /// <summary>
+    /// Ferme la session, relit les objets enregistrés par StarLoco, supprime objets, entrées de familier et monture du scénario, puis le
+    /// compte et le personnage inventés.
+    /// </summary>
+    private static async Task ClosePetOwnerAsync(MySql.Data.MySqlClient.MySqlConnection db, string schema, PetOwner owner)
+    {
+        owner.Session?.Dispose();
+        await Task.Delay(1500).ConfigureAwait(false);
+        try
+        {
+            if (owner.Character != null && owner.Character.Id > 0)
+            {
+                object saved = Scalar(db, "SELECT objets FROM " + schema + ".players WHERE id = @id AND account = @account", "@id", owner.Character.Id, "@account", owner.Character.Guid);
+                foreach (string part in Convert.ToString(saved, CultureInfo.InvariantCulture).Split('|'))
+                    if (uint.TryParse(part, NumberStyles.None, CultureInfo.InvariantCulture, out uint id)) owner.Seen.Add(id);
+            }
+            if (owner.FishId > 0) owner.Seen.Add((uint)owner.FishId);
+            if (owner.PowderId > 0) owner.Seen.Add((uint)owner.PowderId);
+            foreach (uint id in owner.Seen)
+            {
+                Sql(db, "DELETE FROM " + schema + ".`world.entity.objects` WHERE id = @id", "@id", (long)id);
+                Sql(db, "DELETE FROM " + schema + ".`world.entity.pets` WHERE id = @id", "@id", (long)id);
+            }
+            if (owner.MountId != 0) Sql(db, "DELETE FROM " + schema + ".`world.entity.mounts` WHERE id = @id", "@id", owner.MountId);
+            if (owner.Seen.Count > 0 || owner.MountId != 0)
+                Journal("[test] objets " + string.Join(",", owner.Seen.OrderBy(x => x)) + (owner.MountId != 0 ? " et monture " + owner.MountId : string.Empty) + " supprimés de la base");
+        }
+        catch (Exception error) { Journal("!! [test] nettoyage des objets du scénario x4 impossible : " + error.Message); }
+        await ForgetAsync(db, schema, new LiveSession[0], owner.Created).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// PNJ placés par StarLoco (table <c>npcs</c> de la base du jeu) dont <c>npc.xml</c> déclare <paramref name="action"/>, sur une carte
+    /// du bot : paires { modèle, carte }. Vide sans <c>npc.xml</c>, le menu de repli ne proposant ni la garde ni la résurrection.
+    /// </summary>
+    private static List<int[]> NpcsWithAction(MySql.Data.MySqlClient.MySqlConnection db, int action)
+    {
+        var found = new List<int[]>();
+        if (!LangData.IsLoaded("npc")) return found;
+        using (var command = new MySql.Data.MySqlClient.MySqlCommand("SELECT npcid, mapid FROM npcs ORDER BY mapid, npcid", db))
+        using (var reader = command.ExecuteReader())
+            while (reader.Read())
+            {
+                int template = Convert.ToInt32(reader.GetValue(0), CultureInfo.InvariantCulture), map = Convert.ToInt32(reader.GetValue(1), CultureInfo.InvariantCulture);
+                if (Map.AllBotMaps.ContainsKey(map) && NpcActions.ForTemplate(template, out bool fromClient).Contains(action) && fromClient) found.Add(new[] { template, map });
+            }
+        return found;
+    }
+
+    /// <summary>PNJ de la carte courante dont le modèle est l'un de <paramref name="templates"/>.</summary>
+    private static async Task<NpcActor> FindNpcAsync(LiveSession s, IEnumerable<int> templates)
+    {
+        var wanted = new HashSet<int>(templates);
+        await s.Until(() => s.Map.Npcs.Any(n => wanted.Contains(n.TemplateId)), 10).ConfigureAwait(false);
+        NpcActor npc = s.Map.Npcs.FirstOrDefault(n => wanted.Contains(n.TemplateId));
+        Check(npc != null, "PNJ " + string.Join(",", wanted) + " absent de la carte " + s.MapId);
+        return npc;
+    }
+
+    /// <summary>
+    /// Chemin le plus court de <paramref name="from"/> à <paramref name="to"/> par les déclencheurs de téléportation sans condition
+    /// (sorties de carte de <c>scripted_cells</c>) entre cartes du bot, ou null au-delà de <see cref="MaxTriggerWalk"/> cartes.
+    /// </summary>
+    private static List<Trigger> TriggerRoute(int from, int to)
+    {
+        var previous = new Dictionary<int, Trigger> { [from] = null };
+        var depth = new Dictionary<int, int> { [from] = 0 };
+        var queue = new Queue<int>();
+        queue.Enqueue(from);
+        while (queue.Count > 0 && !previous.ContainsKey(to))
+        {
+            int map = queue.Dequeue();
+            if (depth[map] >= MaxTriggerWalk) continue;
+            foreach (Trigger exit in Triggers.ForMap(map).Values
+                .Where(t => t.IsTeleport && (string.IsNullOrEmpty(t.Conditions) || t.Conditions == "-1") && Map.AllBotMaps.ContainsKey(t.TargetMapId))
+                .OrderBy(t => t.CellId))
+            {
+                if (previous.ContainsKey(exit.TargetMapId)) continue;
+                previous[exit.TargetMapId] = exit;
+                depth[exit.TargetMapId] = depth[map] + 1;
+                queue.Enqueue(exit.TargetMapId);
+            }
+        }
+        if (!previous.ContainsKey(to)) return null;
+        var route = new List<Trigger>();
+        for (int map = to; previous[map] != null; map = previous[map].MapId) route.Insert(0, previous[map]);
+        return route;
+    }
+
+    /// <summary>
+    /// Va de la carte courante à l'une des cartes <paramref name="targets"/> : zaap de la carte (<c>WC</c>), destination d'où le chemin à
+    /// pied est le plus court (<c>WU&lt;carte&gt;</c> ; ALL_ZAAP du kit : tous les zaaps sont connus), puis les déclencheurs un à un.
+    /// </summary>
+    private static async Task<string> TravelAsync(LiveSession s, IEnumerable<int> targets)
+    {
+        int[] wanted = targets.Distinct().ToArray();
+        ZaapDialog zaap = s.Account.Game.Interactions.Zaap;
+        short cell = s.Map.MapCells.Where(c => c != null && zaap.IsZaapCell(c.CellID)).Select(c => c.CellID).DefaultIfEmpty((short)-1).First();
+        if (cell < 0) throw new SkipScenario("aucun zaap sur la carte " + s.MapId);
+        int mark = s.ReceivedCount, start = s.MapId;
+        var open = await zaap.OpenAsync(cell).ConfigureAwait(false);
+        Check(open.Sent, "Zaap refusé par le bot : " + open.Message);
+        // Un zaap jamais utilisé est d'abord mémorisé (Im024, « nouveau zaap »), puis StarLoco envoie WC.
+        string wc = await s.Expect(p => p.StartsWith("WC") || p.StartsWith("GA;0") || (p.StartsWith("Im") && !p.StartsWith("Im024")), "WC (destinations du zaap)", 20, mark).ConfigureAwait(false);
+        Check(wc.StartsWith("WC"), "Le serveur n'ouvre pas le zaap : " + wc);
+        Check(await s.Until(() => zaap.IsOpen && zaap.Destinations.Count > 0, 5).ConfigureAwait(false), "Le bot n'a lu aucune destination");
+        int kamas = s.Account.Game.character.Kamas;
+        var best = zaap.Destinations.Where(d => !d.IsCurrent && d.Cost <= kamas && Map.AllBotMaps.ContainsKey(d.MapId))
+            .SelectMany(d => wanted.Select(t => new { Destination = d, Target = t, Route = d.MapId == t ? new List<Trigger>() : TriggerRoute(d.MapId, t) }))
+            .Where(x => x.Route != null).OrderBy(x => x.Route.Count).ThenBy(x => x.Destination.Cost).FirstOrDefault();
+        if (best == null)
+        {
+            await zaap.LeaveAsync().ConfigureAwait(false);
+            throw new SkipScenario("cartes " + string.Join(",", wanted) + " injoignables depuis les zaaps (" + MaxTriggerWalk + " cartes à pied au plus)");
+        }
+        int travel = s.ReceivedCount;
+        var go = await zaap.TeleportAsync(best.Destination.MapId).ConfigureAwait(false);
+        Check(go.Sent, "Téléportation refusée par le bot : " + go.Message);
+        await s.Expect("GDM|" + best.Destination.MapId, "GDM|" + best.Destination.MapId + " (arrivée au zaap)", 20, travel).ConfigureAwait(false);
+        Check(await s.Until(() => s.MapId == best.Destination.MapId && s.Map.Self != null && s.Map.Self.CellId >= 0, 10).ConfigureAwait(false), "Le bot n'est pas sur la carte du zaap d'arrivée");
+        await Task.Delay(400).ConfigureAwait(false);
+        foreach (Trigger step in best.Route) await WalkThroughTrigger(s, step).ConfigureAwait(false);
+        Check(s.MapId == best.Target, "Le bot n'est pas arrivé sur la carte " + best.Target + " : " + s.MapId);
+        return "zaap de la carte " + start + " → WU" + best.Destination.MapId + " (" + best.Destination.Cost + " k), puis " + best.Route.Count + " carte(s) à pied ("
+            + string.Join(" → ", best.Route.Select(t => t.MapId + ":" + t.CellId)) + ") → carte " + best.Target;
+    }
+
+    /// <summary>Boutique du PNJ 816 : <c>ER0|&lt;pnj&gt;</c>, <c>EB1728|1</c>, puis <c>EV</c>.</summary>
+    private static async Task<string> BuyPetAsync(LiveSession s, NpcActor seller)
+    {
+        NpcShop shop = s.Account.Game.Interactions.Shop;
+        int mark = s.ReceivedCount;
+        var open = await shop.OpenAsync((int)seller.Id).ConfigureAwait(false);
+        Check(open.Sent, "Boutique refusée par le bot : " + open.Message);
+        string eck = await s.Expect(p => p.StartsWith("ECK") || p.StartsWith("ERE") || p.StartsWith("EV"), "ECK0 (boutique ouverte)", 10, mark).ConfigureAwait(false);
+        Check(eck.StartsWith("ECK"), "Le serveur n'ouvre pas la boutique du PNJ " + PetSellerTemplate + " : " + eck);
+        Check(await s.Until(() => shop.IsOpen && shop.Articles.Any(x => x.TemplateId == ChachaTemplate), 10).ConfigureAwait(false), "Chacha absent de la boutique du PNJ " + PetSellerTemplate);
+        int buyMark = s.ReceivedCount;
+        var buy = await shop.BuyAsync(ChachaTemplate, 1).ConfigureAwait(false);
+        Check(buy.Sent, "Achat du Chacha refusé par le bot : " + buy.Message);
+        string ebk = await s.Expect(p => p.StartsWith("EBK") || p.StartsWith("EBE"), "EBK (achat accepté)", 10, buyMark).ConfigureAwait(false);
+        Check(ebk.StartsWith("EBK"), "Achat du Chacha refusé par le serveur : " + ebk);
+        Check(await s.Until(() => Owned(s, ChachaTemplate) != null && !shop.IsPending, 10).ConfigureAwait(false), "Le Chacha n'arrive pas dans l'inventaire (OAKO)");
+        int closeMark = s.ReceivedCount;
+        Check((await shop.LeaveAsync().ConfigureAwait(false)).Sent, "Fermeture de la boutique refusée par le bot");
+        await s.Expect("EV", "EV (boutique fermée)", 10, closeMark).ConfigureAwait(false);
+        var pet = Owned(s, ChachaTemplate);
+        return "achat au PNJ " + seller.DisplayName + " : " + ebk + ", " + pet.Name + " (" + pet.Inventory_ID + ", type " + pet.Type + ")";
+    }
+
+    /// <summary>Familier porté : <c>OM&lt;familier&gt;|8</c>, confirmé par le même OM.</summary>
+    private static async Task<string> WearPetAsync(LiveSession s, Tool_BotProtocol.Game.Perso.Inventory.InventoryObjects pet)
+    {
+        var bag = s.Account.Game.character.Inventory;
+        int mark = s.ReceivedCount;
+        Check(await bag.MoveToSlot(pet, Tool_BotProtocol.Game.Perso.Inventory.ItemSlots.PetPosition).ConfigureAwait(false), "Le bot refuse de porter " + pet.Name);
+        string om = await s.Expect("OM" + pet.Inventory_ID + "|8", "OM|8 (familier porté)", 10, mark).ConfigureAwait(false);
+        Check(await s.Until(() => bag.EquippedPet?.Inventory_ID == pet.Inventory_ID, 5).ConfigureAwait(false), "Le bot ne voit pas le familier porté");
+        return pet.Name + " porté : " + om;
+    }
+
+    /// <summary>
+    /// Nourriture posée sur la case <paramref name="position"/> : paquet du client (<c>OM&lt;objet&gt;|&lt;case&gt;[|&lt;quantité&gt;]</c>),
+    /// réponse <c>Im</c> attendue, puis le même message transmis par la session du bot avec son texte du client.
+    /// </summary>
+    private static async Task<string> FeedAsync(LiveSession s, ConcurrentQueue<ServerMessage> heard, Tool_BotProtocol.Game.Perso.Inventory.InventoryObjects food, int position, int? quantity,
+        Func<string, bool> answer, string what, ServerMessageKind kind, Func<int, bool> numeric)
+    {
+        Check(food != null, "Objet à donner absent de l'inventaire");
+        int mark = s.ReceivedCount, sent = s.SentCount, before = heard.Count;
+        Check(await s.Account.Game.character.Inventory.MoveToSlot(food, position, quantity).ConfigureAwait(false), "Le bot refuse de poser " + food.Name + " sur la case " + position);
+        string packet = "OM" + food.Inventory_ID + "|" + position + (quantity.HasValue ? "|" + quantity.Value : string.Empty);
+        Check(s.SentSince(sent).Contains(packet), packet + " non envoyé : " + string.Join(", ", s.SentSince(sent)));
+        string im = await s.Expect(answer, what, 10, mark).ConfigureAwait(false);
+        Check(await s.Until(() => heard.Skip(before).Any(m => m.Kind == kind && m.NumericId.HasValue && numeric(m.NumericId.Value) && !string.IsNullOrEmpty(m.Text)), 5).ConfigureAwait(false),
+            "La session du bot ne transmet pas " + im + " avec son texte");
+        ServerMessage message = heard.Skip(before).First(m => m.Kind == kind && m.NumericId.HasValue && numeric(m.NumericId.Value));
+        string others = string.Join(", ", s.ReceivedSince(mark).Where(p => p.StartsWith("OQ") || p.StartsWith("OR") || p.StartsWith("OCO") || p.StartsWith("Re+")).Select(p => Short(p, 18)));
+        return packet + " → " + im + " « " + Short(message.Text, 50) + " »" + (others.Length > 0 ? " (" + others + ")" : string.Empty);
+    }
+
+    /// <summary>
+    /// Échange de familiers chez un PNJ depuis l'action de son menu (<c>npc.xml</c>) : <c>ER9|&lt;pnj&gt;</c> (garde) ou
+    /// <c>ER17|&lt;pnj&gt;</c> (résurrection), <c>ECK9|&lt;pnj&gt;</c> dans les deux cas ; <c>EMO+&lt;objet&gt;|1</c> par objet, proposition du
+    /// PNJ <c>EmKO+&lt;modèle&gt;|1|&lt;modèle&gt;|…</c> et <c>EK1</c> ; validation refusée pendant le délai du client, puis <c>EK</c> → <c>EVa</c>.
+    /// </summary>
+    private static async Task<string> PetsTradeAsync(LiveSession s, PetsExchange pets, int action, NpcActor npc, uint[] offered, int expected, PetsService service)
+    {
+        int[] actions = NpcActions.ForTemplate(npc.TemplateId, out bool fromClient);
+        Check(fromClient && actions.Contains(action), "Le menu du PNJ " + npc.TemplateId + " ne propose pas l'action " + action + " : " + string.Join(",", actions));
+        int mark = s.ReceivedCount, sent = s.SentCount;
+        var request = await s.Account.Game.Interactions.Npc.RequestActionAsync(action, (int)npc.Id).ConfigureAwait(false);
+        Check(request.Sent, "Demande d'échange de familiers refusée par le bot : " + request.Message);
+        string er = "ER" + (action == NpcActions.Pets ? ExchangeTypes.Pets : ExchangeTypes.PetsResurrection) + "|" + npc.Id;
+        Check(s.SentSince(sent).Contains(er), er + " non envoyé : " + string.Join(", ", s.SentSince(sent)));
+        string eck = await s.Expect("ECK", "ECK9 (échange de familiers)", 10, mark).ConfigureAwait(false);
+        Check(eck == "ECK9|" + npc.Id, "Réponse inattendue à " + er + " : " + eck);
+        Check(await s.Until(() => pets.IsOpen && pets.Service == service && pets.NpcId == (int)npc.Id, 5).ConfigureAwait(false),
+            "Le bot n'ouvre pas l'échange de familiers : ouvert " + pets.IsOpen + ", service " + pets.Service + ", PNJ " + pets.NpcId);
+        foreach (uint id in offered)
+        {
+            int offerMark = s.ReceivedCount;
+            var add = await pets.AddItemAsync(id, 1).ConfigureAwait(false);
+            Check(add.Sent, "Proposition de " + id + " refusée par le bot : " + add.Message);
+            await s.Expect("EMKO+" + id + "|1", "EMKO+" + id + "|1", 10, offerMark).ConfigureAwait(false);
+        }
+        string offer = await s.Expect(p => p.StartsWith("EmKO+" + expected + "|1|" + expected + "|", StringComparison.Ordinal), "EmKO+" + expected + " (proposition du PNJ)", 10, mark).ConfigureAwait(false);
+        Check(await s.Until(() => pets.DistantReady && pets.DistantItems.Any(x => x.TemplateId == expected) && pets.LocalItems.Count == offered.Length, 5).ConfigureAwait(false),
+            "Proposition du PNJ mal lue : prêt " + pets.DistantReady + ", objets " + string.Join(",", pets.DistantItems.Select(x => x.TemplateId)));
+        var early = await pets.ValidateAsync().ConfigureAwait(false);
+        Check(!early.Sent, "Validation acceptée avant le délai du client");
+        Check(await s.Until(() => pets.CanValidate, 6).ConfigureAwait(false), "Validation toujours bloquée après le délai");
+        int validated = s.ReceivedCount;
+        var ok = await pets.ValidateAsync().ConfigureAwait(false);
+        Check(ok.Sent && s.SentSince(sent).Contains("EK"), "EK non envoyé : " + ok.Message);
+        string done = await s.Expect("EV", "EVa (échange effectué)", 10, validated).ConfigureAwait(false);
+        Check(done == "EVa", "Échange de familiers refermé sans être effectué : " + done);
+        string expectedLog = service == PetsService.Resurrection ? "Résurrection effectuée par " : "Garde effectuée par ";
+        Check(await s.Until(() => !pets.IsOpen && pets.LastMessage.StartsWith(expectedLog, StringComparison.Ordinal), 5).ConfigureAwait(false),
+            "Le bot n'a pas refermé l'échange : " + pets.IsOpen + " / " + pets.LastMessage);
+        string received = string.Join(", ", s.ReceivedSince(validated).Where(p => p.StartsWith("EK") || p.StartsWith("OR") || p.StartsWith("OQ") || p.StartsWith("OAKO") || p.StartsWith("OCO") || p.StartsWith("Im021"))
+            .Select(p => Short(p, 22)));
+        return npc.DisplayName + " (modèle " + npc.TemplateId + ", actions " + string.Join(",", actions) + ") : " + er + " → " + eck + ", "
+            + string.Join(" + ", offered.Select(id => "EMO+" + id + "|1")) + " → " + Short(offer, 30) + " ; EK → " + received + ", " + done + " (« " + pets.LastMessage + " »)";
     }
 }

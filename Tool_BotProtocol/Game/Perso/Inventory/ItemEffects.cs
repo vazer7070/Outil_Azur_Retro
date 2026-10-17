@@ -257,6 +257,13 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
         public const int MountPosition = 16;
         /// <summary>Première position de la barre de raccourcis du client (<c>ITEM_OFFSET</c>) ; au-delà, l'objet n'est pas équipé.</summary>
         public const int ShortcutOffset = 34;
+        /// <summary>Emplacement du familier (<c>_ctr8</c>, <c>ITEM_POS_FAMILIER</c>).</summary>
+        public const int PetPosition = 8;
+        /// <summary>
+        /// Super-type des ressources : la fenêtre <c>Inventory</c> du client l'associe aux cases du familier et de la monture
+        /// (<c>CONTAINER_BY_TYPE.type9 = _ctr8, _ctrMount</c>), où déposer une ressource la donne à manger (lot X4).
+        /// </summary>
+        public const int ResourceSuperType = 9;
 
         /// <summary>Super-types équipables d'après <c>Inventory.SUPERTYPE_NOT_EQUIPABLE</c> du client : tout sauf 6, 8, 9, 14 à 22.</summary>
         private static readonly int[] NotEquipable = { 9, 14, 15, 16, 17, 18, 6, 19, 21, 20, 8, 22 };
@@ -305,6 +312,32 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
         }
 
         public static bool Accepts(int position, int type) => position >= 0 && PositionsFor(type).Contains(position);
+
+        /// <summary>Ressource (super-type 9, sinon catégorie « ressources » de la table du bot) : nourriture possible du familier ou de la monture.</summary>
+        public static bool IsFood(int type) => CategoryOf(type) == ItemCategory.Resources;
+
+        /// <summary>
+        /// Cases où une ressource se dépose pour nourrir, comme <c>enabledFromSuperType</c> du client : pour le super-type 9,
+        /// une case n'est allumée que si son contenu n'est pas vide, c'est-à-dire la case du familier quand un objet y est
+        /// porté et celle de la monture quand le serveur a annoncé une monture (<c>Re+</c>, icône <c>UI_InventoryMountIcon</c>).
+        /// Le client ne filtre pas davantage (le poisson, type 41, n'est exigé que par StarLoco, qui répond <c>Im190</c>) ;
+        /// vide pour tout autre type.
+        /// </summary>
+        public static IReadOnlyList<int> FeedPositions(int type, bool petEquipped, bool hasMount)
+        {
+            if (!IsFood(type)) return new int[0];
+            var positions = new List<int>(2);
+            if (petEquipped) positions.Add(PetPosition);
+            if (hasMount) positions.Add(MountPosition);
+            return positions;
+        }
+
+        /// <summary>
+        /// Emplacement accepté compte tenu de l'occupation : équipement d'après <see cref="PositionsFor(int)"/>, ou nourriture
+        /// d'après <see cref="FeedPositions"/> (familier porté, monture annoncée).
+        /// </summary>
+        public static bool Accepts(int position, int type, bool petEquipped, bool hasMount) =>
+            Accepts(position, type) || (position >= 0 && FeedPositions(type, petEquipped, hasMount).Contains(position));
 
         /// <summary>Nom français de l'emplacement (le client n'en nomme aucun dans ses textes).</summary>
         public static string Name(int position)

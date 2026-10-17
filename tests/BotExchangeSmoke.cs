@@ -28,7 +28,9 @@ using Tool_BotProtocol.Game.Perso.Inventory;
 // (registre, type inconnu refermé par EV), demandes ERK (plus d'EV automatique quand une interface répond, EA/EV),
 // échange entre joueurs (EMO±/EMG/EK, EMK/EmK/EK<0|1><id>, délai de validation), échange PNJ, coffre (ECK5, EL, EMO±,
 // EMG±, EsK), paquets mal formés ; puis volets Échange et Coffre (boîte Oui / Non / Ignorer, grilles, icônes d'objets lues
-// depuis un dossier temporaire avec des textes LangData synthétiques).
+// depuis un dossier temporaire avec des textes LangData synthétiques). Lot X4 : échange de familiers (type 9) ouvert par
+// ECK9 après ER9 (garde) ou ER17 (résurrection), EMO±/EMG/EK, proposition du PNJ EmKO+ et EK1 sans acteur, EVa ; ECK17
+// reste refermé par EV ; volet Familiers.
 internal static class BotExchangeSmoke
 {
     [STAThread]
@@ -40,7 +42,7 @@ internal static class BotExchangeSmoke
             if (!File.Exists(path)) path = Path.ChangeExtension(path, "exe");
             return File.Exists(path) ? Assembly.LoadFrom(path) : null;
         };
-        try { Application.EnableVisualStyles(); Run(); Console.WriteLine("OK: registre ECK, ERK/EA/EV, échange EMO/EMG/EK, coffre EL/EsK, type inconnu refermé, volets Échange et Coffre"); }
+        try { Application.EnableVisualStyles(); Run(); Console.WriteLine("OK: registre ECK, ERK/EA/EV, échange EMO/EMG/EK, coffre EL/EsK, type inconnu refermé, volets Échange et Coffre, familiers ER9/ER17 → ECK9 et volet Familiers"); }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
 
@@ -321,6 +323,59 @@ internal static class BotExchangeSmoke
                     Check(!storage.IsOpen && registry.Current == null && account.AccountStates == AccountStates.CONNECTED_INACTIVE && probes[0].Calls.Last() == "clear", "Clear kept an open exchange");
                     NoPacket(peer, "Clear sent a packet");
 
+                    // Familiers (lot X4) : seul le type 9 est enregistré ; rien ne part avant ECK9.
+                    PetsExchange pets = registry.Get<PetsExchange>();
+                    Check(pets != null && ExchangeRegistry.IsRegistered(ExchangeTypes.Pets) && !ExchangeRegistry.IsRegistered(ExchangeTypes.PetsResurrection) && registry.For(9) == pets,
+                        "Pets exchange must be registered for type 9 only");
+                    Check(!Sent(pets.AddItemAsync(3, 1)) && !Sent(pets.SetKamasAsync(1)) && !Sent(pets.ValidateAsync()) && !Sent(pets.LeaveAsync()), "Pets exchange actions accepted before ECK9");
+                    NoPacket(peer, "Closed pets exchange sent a packet");
+                    // Garde : action 4 du menu du PNJ → ER9|<pnj>, StarLoco répond ECK9|<pnj>.
+                    Check(Sent(windows.Npc.RequestActionAsync(NpcActions.Pets, -8)) && Read(peer) == "ER9|-8", "Pet keeping does not send ER9|<npc>");
+                    Feed(account, "ECK9|-8");
+                    Check(pets.IsOpen && registry.Current == pets && pets.Service == PetsService.Keeping && pets.NpcId == -8 && pets.NpcName == "Marchand fictif"
+                        && account.AccountStates == AccountStates.EXCHANGE && pets.ServiceHint.StartsWith("Garde"), "ECK9 after ER9 did not open the pet keeping: " + pets.Service + " / " + pets.NpcName);
+                    Check(!Sent(pets.ValidateAsync()) && pets.ValidationWait > TimeSpan.Zero, "Validation allowed right after ECK9");
+                    Check(!Sent(pets.AddItemAsync(1001, 1)) && !Sent(pets.AddItemAsync(3, 9)) && !Sent(pets.AddItemAsync(999, 1)) && !Sent(pets.RemoveItemAsync(3, 1)),
+                        "Equipped, unknown, too many or unoffered items were accepted");
+                    NoPacket(peer, "Refused pets actions reached the server");
+                    Check(Sent(pets.AddItemAsync(3, 1)) && Read(peer) == "EMO+3|1", "Pets offer does not send EMO+<id>|<qty>");
+                    Feed(account, "EMKO+3|1");
+                    Check(pets.LocalItems.Count == 1 && pets.LocalItems[0].Name == "Potion fictive" && pets.LocalItems[0].Quantity == 1 && pets.LocalItems[0].TemplateId == 2001,
+                        "EMKO+ was not applied to the local side");
+                    // Certificat remis par le PNJ (EmKO+<modèle>|1|<modèle>|<effets>), puis EK1 sans acteur : le PNJ accepte.
+                    Feed(account, "EmKO+2002|1|2002|"); Feed(account, "EK1");
+                    Check(pets.DistantItems.Count == 1 && pets.DistantItems[0].TemplateId == 2002 && pets.DistantItems[0].Name == "Épée fictive" && pets.DistantReady && !pets.LocalReady,
+                        "NPC proposal or EK1 without actor was not applied to the NPC side");
+                    Check(Sent(pets.SetKamasAsync(5000)) && Read(peer) == "EMG1000", "Pets kamas are not bounded by the character kamas");
+                    Feed(account, "EMKG1000"); Check(pets.LocalKamas == 1000, "EMKG not applied");
+                    // Paquets illisibles : journalisés, état inchangé, jamais d'exception.
+                    foreach (string packet in new[] { "EMKO+x|1", "EmKO+5|1", "EmKOx", "EKz", "EMKG-4" }) Feed(account, packet);
+                    Check(pets.IsOpen && pets.LocalItems.Count == 1 && pets.DistantItems.Count == 1 && pets.LocalKamas == 1000 && logs.Any(entry => entry.Contains("Paquet EmK illisible"))
+                        && logs.Any(entry => entry.Contains("Paquet EK illisible")), "Malformed pets packets were not contained");
+                    Feed(account, "EL1;2"); Check(pets.RawList == "1;2" && pets.IsOpen, "EL for type 9 was not kept raw");
+                    Check(Sent(pets.RemoveItemAsync(3, 1)) && Read(peer) == "EMO-3|1", "Pets withdrawal does not send EMO-<id>|<qty>");
+                    Feed(account, "EMKO-3"); Check(pets.LocalItems.Count == 0, "EMKO- not applied");
+                    Check(Sent(pets.AddItemAsync(3, 1)) && Read(peer) == "EMO+3|1", "Second pets offer was not sent"); Feed(account, "EMKO+3|1");
+                    Check(!Sent(pets.ValidateAsync()), "Validation allowed right after a change");
+                    PumpUntil(() => pets.CanValidate, 5);
+                    Check(Sent(pets.ValidateAsync()) && Read(peer) == "EK", "Pets validation does not send EK");
+                    Feed(account, "EK142"); Check(pets.LocalReady && pets.DistantReady, "EK1<self> not applied to the local side");
+                    Feed(account, "EVa");
+                    Check(!pets.IsOpen && registry.Current == null && account.AccountStates == AccountStates.CONNECTED_INACTIVE && pets.LastMessage == "Garde effectuée par Marchand fictif."
+                        && pets.LocalItems.Count == 0 && pets.DistantItems.Count == 0 && pets.Service == PetsService.Unknown, "EVa did not close the pet keeping: " + pets.LastMessage);
+                    // Résurrection : action 7 → ER17|<pnj>, StarLoco répond aussi ECK9 ; la demande notée fixe le service.
+                    Check(Sent(windows.Npc.RequestActionAsync(NpcActions.PetResurrection, -8)) && Read(peer) == "ER17|-8", "Pet resurrection does not send ER17|<npc>");
+                    Feed(account, "ECK9|-8");
+                    Check(pets.IsOpen && pets.Service == PetsService.Resurrection && pets.ServiceHint.StartsWith("Résurrection"), "ECK9 after ER17 did not open the resurrection");
+                    Check(Sent(pets.LeaveAsync()) && Read(peer) == "EV" && pets.IsOpen, "Leave does not send EV or closed before the server");
+                    Feed(account, "EV"); Check(!pets.IsOpen && pets.LastMessage.Length > 0 && account.AccountStates == AccountStates.CONNECTED_INACTIVE, "EV did not close the resurrection");
+                    // ECK9 sans demande notée : service inconnu (aucune action de PNJ lue) ; ECK17, que StarLoco n'envoie pas, refermé par EV.
+                    Feed(account, "ECK9|-8"); Check(pets.IsOpen && pets.Service == PetsService.Unknown, "ECK9 without request must leave the service unknown");
+                    Feed(account, "EV"); Check(!pets.IsOpen, "EV did not close the unknown pets exchange");
+                    Feed(account, "ECK17|-8");
+                    Check(Read(peer) == "EV" && !pets.IsOpen && registry.Current == null && registry.LastMessage.Contains("ECK17"), "ECK17 must stay unsupported and be closed with EV");
+                    Feed(account, "EV"); NoPacket(peer, "Pets section sent extra packets");
+
                     // Textes du client et icônes d'objets synthétiques, dans un dossier temporaire.
                     string lang = Path.Combine(folder, "BotLang"); Directory.CreateDirectory(lang);
                     Write(lang, "items.xml", "items", "<objet id=\"2001\" nom=\"Potion fictive\" type=\"12\" gfx=\"7\" niveau=\"1\" description=\"\" />");
@@ -433,6 +488,42 @@ internal static class BotExchangeSmoke
                         Click(Get(chest, "storageLeave")); Check(Read(peer) == "EV" && drawer.Current == chest, "Close does not send EV");
                         Feed(account, "EV"); Application.DoEvents();
                         Check(!drawer.IsOpen(chest) && chestGrid.Items.Count == 0, "Storage panel stayed open after EV");
+
+                        // Volet Familiers (lot X4) : ER9 puis ECK9 l'ouvre ; Proposer → EMO+, certificat du PNJ et EK1, Valider après le
+                        // délai → EK, EVa le ferme ; ER17 puis ECK9 → « Résurrection chez … », × envoie EV et attend la réponse.
+                        var petsPanel = drawer.Get<PetsExchangePanel>();
+                        Check(petsPanel != null && !drawer.IsOpen(petsPanel), "Pets panel is not registered in the drawer");
+                        Check(Sent(windows.Npc.RequestActionAsync(NpcActions.Pets, -8)) && Read(peer) == "ER9|-8", "Pet keeping does not send ER9 with the form open");
+                        FeedFromNetwork(account, "ECK9|-8"); PumpUntil(() => drawer.Current == petsPanel);
+                        Check(drawer.Visible && ((Label)Get(petsPanel, "petsHeading")).Text == "Garde chez Marchand fictif" && ((Label)Get(petsPanel, "distantTitle")).Text == "Marchand fictif"
+                            && ((Label)Get(petsPanel, "petsStatus")).Text.StartsWith("Garde :"), "Pets panel heading or hint is wrong: " + ((Label)Get(petsPanel, "petsHeading")).Text);
+                        var petsBag = (ListView)Get(petsPanel, "petsBag");
+                        var petsLocal = (ExchangeItemGrid)Get(petsPanel, "localGrid"); var petsDistant = (ExchangeItemGrid)Get(petsPanel, "distantGrid");
+                        var petsAdd = (Control)Get(petsPanel, "petsAdd"); var petsRemove = (Control)Get(petsPanel, "petsRemove"); var petsValidate = (Control)Get(petsPanel, "petsValidate");
+                        Check(RowWithTag(petsBag, 3u) != null && RowWithTag(petsBag, 1001u) == null && !petsAdd.Enabled && !petsRemove.Enabled, "Pets bag list or buttons are wrong");
+                        RowWithTag(petsBag, 3u).Selected = true; Application.DoEvents(); Check(petsAdd.Enabled, "Proposer disabled for a bag item");
+                        ((NumericUpDown)Get(petsPanel, "petsQuantity")).Value = 1;
+                        Click(petsAdd); Check(Read(peer) == "EMO+3|1", "Proposer does not send EMO+<id>|<qty>");
+                        FeedFromNetwork(account, "EMKO+3|1"); PumpUntil(() => petsLocal.Items.Count == 1);
+                        Check(RowWithTag(petsBag, 3u).SubItems[1].Text == "4", "Remaining quantity not refreshed: " + RowWithTag(petsBag, 3u).SubItems[1].Text);
+                        FeedFromNetwork(account, "EmKO+2002|1|2002|"); FeedFromNetwork(account, "EK1"); PumpUntil(() => petsDistant.Items.Count == 1 && petsDistant.Ready);
+                        Check(((Label)Get(petsPanel, "distantTitle")).Text == "Marchand fictif · prêt" && ((Label)Get(petsPanel, "petsStatus")).Text.Contains("Marchand fictif accepte la proposition."),
+                            "NPC readiness is not shown");
+                        Check(!petsValidate.Enabled && petsValidate.Text.StartsWith("Valider ("), "Pets validation is not delayed after a change");
+                        PumpUntil(() => petsValidate.Enabled, 5); Check(petsValidate.Text == "Valider", "Pets countdown text was not cleared");
+                        Click(petsValidate); Check(Read(peer) == "EK", "Valider does not send EK");
+                        FeedFromNetwork(account, "EK142"); PumpUntil(() => petsLocal.Ready && ((Label)Get(petsPanel, "localTitle")).Text == "Vous · prêt");
+                        FeedFromNetwork(account, "EVa"); PumpUntil(() => !drawer.IsOpen(petsPanel));
+                        Check(petsLocal.Items.Count == 0 && petsDistant.Items.Count == 0 && ((Label)Get(petsPanel, "petsStatus")).Text.EndsWith("Garde effectuée par Marchand fictif."),
+                            "Pets panel was not reset after EVa: " + ((Label)Get(petsPanel, "petsStatus")).Text);
+                        Check(Sent(windows.Npc.RequestActionAsync(NpcActions.PetResurrection, -8)) && Read(peer) == "ER17|-8", "Pet resurrection does not send ER17 with the form open");
+                        FeedFromNetwork(account, "ECK9|-8"); PumpUntil(() => drawer.Current == petsPanel);
+                        Check(((Label)Get(petsPanel, "petsHeading")).Text == "Résurrection chez Marchand fictif" && ((Label)Get(petsPanel, "petsStatus")).Text.StartsWith("Résurrection :"),
+                            "Resurrection heading or hint is wrong");
+                        drawer.RequestClose(petsPanel); Check(Read(peer) == "EV" && drawer.IsOpen(petsPanel), "Closing the pets panel does not send EV or closed before the server");
+                        FeedFromNetwork(account, "EV"); PumpUntil(() => !drawer.IsOpen(petsPanel));
+                        Feed(account, "ECK17|-8"); Check(Read(peer) == "EV", "ECK17 not closed with the form open");
+                        Application.DoEvents(); Check(drawer.Current != petsPanel, "ECK17 opened the pets panel");
 
                         Feed(account, "ECK99|x"); Check(Read(peer) == "EV", "Unsupported type not closed with the form open");
                         Application.DoEvents(); Check(drawer.Current == null || !(drawer.Current is ExchangePanel || drawer.Current is StoragePanel), "Unsupported type opened a panel");

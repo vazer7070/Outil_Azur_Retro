@@ -104,6 +104,9 @@ namespace Tool_BotProtocol.Game.Interactions
             InteractionResult refused = CheckCanOpen();
             if (refused != null) return Task.FromResult(refused);
             string packet = "ER" + type.ToString(CultureInfo.InvariantCulture) + "|" + npcId.ToString(CultureInfo.InvariantCulture);
+            // Garde (ER9) et résurrection (ER17) s'ouvrent toutes deux par ECK9 : la fenêtre retient la demande (lot X4).
+            if (type == Exchanges.ExchangeTypes.Pets || type == Exchanges.ExchangeTypes.PetsResurrection)
+                Account?.Game?.Interactions?.Exchanges?.Get<Exchanges.PetsExchange>()?.NoteRequest(type, npcId);
             return SendAsync(packet, "« " + NpcActions.Label(action) + " » demandé à " + ResolveName(npcId) + " (" + packet + ").");
         }
 

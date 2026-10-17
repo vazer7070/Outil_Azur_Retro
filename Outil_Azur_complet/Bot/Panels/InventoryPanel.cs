@@ -9,6 +9,7 @@ using Outil_Azur_complet.Bot.Controls;
 using Outil_Azur_complet.Bot.Controls.Banner;
 using Outil_Azur_complet.Bot.Controls.Chat;
 using Tool_BotProtocol.Game;
+using Tool_BotProtocol.Game.Montures;
 using Tool_BotProtocol.Game.Perso;
 using Tool_BotProtocol.Game.Perso.Inventory;
 using Tool_BotProtocol.Game.Session;
@@ -23,6 +24,10 @@ namespace Outil_Azur_complet.Bot.Panels
     /// <c>Items.movement</c> à deux paramètres), Utiliser <c>OU&lt;objet&gt;|</c>, Jeter <c>OD&lt;objet&gt;|&lt;quantité&gt;</c>
     /// après un second clic, Détruire <c>Od&lt;objet&gt;|&lt;quantité&gt;</c> après la question <c>DO_U_DESTROY</c>.
     /// L'état local attend toujours la réponse du serveur (<c>OM</c>, <c>OR</c>, <c>OQ</c>, <c>OAE</c>, <c>OdE</c>, <c>ODE</c>, <c>Im</c>).
+    /// Nourrir (lot X4) : une ressource glissée sur le familier porté envoie <c>OM&lt;objet&gt;|8</c> ; sur la monture annoncée
+    /// (<c>Re+</c>), une pile passe d'abord par la boîte de quantité du client (<see cref="QuantityPopup"/>) puis
+    /// <c>OM&lt;objet&gt;|16|&lt;quantité&gt;</c>. Les réponses <c>Im</c> du repas (<c>INFOS_25</c> à <c>INFOS_32</c>, <c>INFOS_105</c>,
+    /// <c>ERROR_53</c>, <c>ERROR_54</c>, <c>ERROR_90</c>) s'affichent sous l'objet.
     /// </summary>
     public sealed class InventoryPanel : GamePanel
     {
@@ -45,9 +50,15 @@ namespace Outil_Azur_complet.Bot.Panels
         // Dernier refus du serveur (OAE, ODE, OdE, Im1…) : gardé sous l'objet jusqu'au prochain changement de sélection ou
         // d'inventaire, car la fenêtre de jeu rafraîchit les volets visibles à chaque mise à jour d'état.
         private string serverNotice;
+        // Message Im (refus, repas du familier ou de la monture) : StarLoco envoie OCO, OQ ou OR autour de lui, il survit donc
+        // aux mises à jour d'inventaire et ne s'efface qu'au changement de sélection ou au dépôt suivant (lot X4).
+        private bool noticeFromIm;
         private InventoryClass bag;
         private CharacterClass character;
         private GameSession session;
+        private MountActions mount;
+        /// <summary>Messages d'information du repas d'un familier (<c>PetEntry.eat</c> de StarLoco) et de la monture (<c>Im0105</c>).</summary>
+        private static readonly int[] FeedingInfos = { 25, 26, 27, 28, 29, 30, 31, 32, 105 };
 
         public override string Title => "Inventaire";
         public override Image Icon => ClientAssets.Icon("icone-inventaire", 24);
@@ -144,6 +155,8 @@ namespace Outil_Azur_complet.Bot.Panels
             if (bag != null) bag.RefreshInventory += OnInventoryChanged;
             if (character != null) { character.RefreshCaracteristiques += OnStatsChanged; character.PodsRefresh += OnStatsChanged; }
             if (session != null) session.ServerMessageReceived += OnServerMessage;
+            mount = game.Interactions?.Mount;
+            if (mount != null) mount.Changed += OnMountChanged;
         }
 
         protected override void OnUnbind(GameClass game)
@@ -151,28 +164,38 @@ namespace Outil_Azur_complet.Bot.Panels
             if (bag != null) bag.RefreshInventory -= OnInventoryChanged;
             if (character != null) { character.RefreshCaracteristiques -= OnStatsChanged; character.PodsRefresh -= OnStatsChanged; }
             if (session != null) session.ServerMessageReceived -= OnServerMessage;
-            bag = null; character = null; session = null;
+            if (mount != null) mount.Changed -= OnMountChanged;
+            bag = null; character = null; session = null; mount = null;
         }
 
         private void OnInventoryChanged(bool changed) => OnUi(() =>
         {
             if (!changed) ShowHelp(Game?.character?.Inventory?.LastServerMessage);
-            else { serverNotice = null; RefreshView(); }
+            else { if (!noticeFromIm) serverNotice = null; RefreshView(); }
         });
 
         private void OnStatsChanged() => OnUi(UpdateHeader);
 
-        /// <summary>Refus du serveur annoncés par <c>Im</c> (<c>Im119|44</c> : conditions non remplies) affichés sous l'objet quand le volet est ouvert.</summary>
+        /// <summary><c>Re+</c> / <c>Re-</c> : la case de la monture montre son icône et accepte une ressource seulement avec une monture.</summary>
+        private void OnMountChanged() => OnUi(() => { if (plateau != null && Game != null) plateau.HasMount = Game.character?.Inventory?.HasMount == true; });
+
+        /// <summary>
+        /// Refus du serveur annoncés par <c>Im</c> (<c>Im119|44</c> : conditions non remplies) et réponses au repas du familier
+        /// ou de la monture (<c>Im032</c>, <c>Im0105</c>, <c>Im153</c>, <c>Im190</c>…) affichés sous l'objet quand le volet est ouvert.
+        /// </summary>
         private void OnServerMessage(ServerMessage message)
         {
-            if (message == null || message.Kind != ServerMessageKind.Error) return;
-            OnUi(() => { if (Host != null && Host.IsOpen(this)) ShowHelp(message.Text); });
+            if (message == null) return;
+            bool feeding = message.Kind == ServerMessageKind.Info && message.NumericId.HasValue && Array.IndexOf(FeedingInfos, message.NumericId.Value) >= 0;
+            if (message.Kind != ServerMessageKind.Error && !feeding) return;
+            OnUi(() => { if (Host != null && Host.IsOpen(this)) ShowHelp(message.Text, true); });
         }
 
-        private void ShowHelp(string message)
+        private void ShowHelp(string message, bool fromIm = false)
         {
             if (string.IsNullOrEmpty(message) || inventoryHelp == null) return;
             serverNotice = message;
+            noticeFromIm = fromIm;
             Feedback(message);
             UpdateActions();
         }
@@ -188,6 +211,7 @@ namespace Outil_Azur_complet.Bot.Panels
             try
             {
                 plateau.SetItems(all.Where(IsWorn));
+                plateau.HasMount = items.HasMount;
                 plateau.Selected = selectedId;
                 inventory.SetItems(all.Where(item => !IsWorn(item) && (filter == null || ItemSlots.CategoryOf(item.Type) == filter.Value))
                     .OrderBy(item => ItemSlots.CategoryOf(item.Type)).ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase));
@@ -232,7 +256,7 @@ namespace Outil_Azur_complet.Bot.Panels
 
         private void Select(uint? id, bool fromPlateau)
         {
-            if (selectedId != id) { DisarmDrop(); serverNotice = null; }
+            if (selectedId != id) { DisarmDrop(); serverNotice = null; noticeFromIm = false; }
             selectedId = id;
             refreshing = true;
             try
@@ -363,19 +387,39 @@ namespace Outil_Azur_complet.Bot.Panels
             finally { destroyPending = false; }
         }
 
-        /// <summary>Dépôt d'un objet glissé : vers un emplacement (<c>OM&lt;objet&gt;|&lt;position&gt;</c>) ou vers le sac (<c>-1</c>).</summary>
+        /// <summary>
+        /// Dépôt d'un objet glissé : vers un emplacement (<c>OM&lt;objet&gt;|&lt;position&gt;</c>) ou vers le sac (<c>-1</c>). Comme
+        /// <c>dropItem</c> du client, une pile de plus d'un exemplaire posée sur la monture (16) ou rendue au sac (-1) ouvre
+        /// d'abord la boîte de quantité (valeur et maximum : la pile) ; seule une valeur positive part, bornée à la pile
+        /// (<c>OM&lt;objet&gt;|16|&lt;quantité&gt;</c>). Ailleurs, ou pour un seul exemplaire, aucune quantité n'est envoyée.
+        /// </summary>
         private async Task MoveAsync(ShortcutPayload payload, int position)
         {
             if (payload == null || Game == null) return;
             InventoryObjects item = Game.character?.Inventory?.GetByInventoryId((uint)payload.Id);
             if (item == null) { Feedback("Cet objet n'est plus dans l'inventaire."); return; }
             Select(item.Inventory_ID, position >= 0);
+            serverNotice = null; noticeFromIm = false;
             try
             {
-                // La monture se nourrit par pile (StarLoco lit la quantité) ; ailleurs le client n'envoie pas de quantité.
-                int? quantity = position == ItemSlots.MountPosition && payload.Quantity > 1 ? payload.Quantity : (int?)null;
+                int? quantity = null;
+                // Case refusée (le client ne l'allume pas) : pas de boîte de quantité, le modèle refuse et journalise.
+                ItemSlot target = position >= 0 ? plateau?[position] : null;
+                bool accepted = target == null || target.Accepts(item);
+                if (accepted && item.Qua > 1 && (position == -1 || position == ItemSlots.MountPosition) && (int)item.position != position)
+                {
+                    int? chosen = await QuantityPopup.AskAsync(View, item.Qua, item.Qua);
+                    InventoryObjects current = Game?.character?.Inventory?.GetByInventoryId(item.Inventory_ID);
+                    if (chosen == null || chosen.Value <= 0) { Feedback("Déplacement annulé."); return; }
+                    if (current == null) { Feedback("Cet objet n'est plus dans l'inventaire."); return; }
+                    item = current;
+                    quantity = Math.Min(chosen.Value, current.Qua);
+                }
+                bool feeding = (position == ItemSlots.PetPosition || position == ItemSlots.MountPosition) && !ItemSlots.Accepts(position, item.Type);
                 bool sent = await Game.character.Inventory.MoveToSlot(item, position, quantity);
-                Feedback(sent ? (position < 0 ? "Rangement demandé ; le serveur confirme par OM." : "Équipement demandé ; le serveur confirme par OM.") : "Déplacement refusé : voir le journal.");
+                Feedback(!sent ? "Déplacement refusé : voir le journal."
+                    : feeding ? (position == ItemSlots.PetPosition ? "Repas du familier demandé" : "Repas de la monture demandé") + " ; le serveur répond par OQ ou OR et un message."
+                    : position < 0 ? "Rangement demandé ; le serveur confirme par OM." : "Équipement demandé ; le serveur confirme par OM.");
             }
             catch (Exception error) { Feedback(error.Message); }
         }
