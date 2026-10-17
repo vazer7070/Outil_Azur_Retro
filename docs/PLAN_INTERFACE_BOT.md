@@ -144,7 +144,7 @@ Après la relecture, le bot a été joué sur une copie locale du StarLoco du ki
 
 **X2 — Tombe, fantôme et menu de son personnage.** Tombe et fantôme lus dans le sprite du `GM`, menu de son propre personnage (« Se frapper » `BM*`, « Libérer mon âme » `GF`, « Changer de direction » et son sélecteur `eD`), boîte du mariage (`GA;617` → `GA618` / `GA619`), mode héroïque (`ALK` des morts, `AR<id>`, boîte de fin de partie sur `GO`). Tests : `BotSessionSmoke`, `BotMapActionsSmoke` ; scénarios x2a à x2c de `BotStarLocoLiveSmoke` (orientation vue par l’autre compte, tombe ramenée à la vie par la statue du phénix, mariage).
 
-**X3 — Connexion : pseudo, perte de connexion, nouveau niveau, messages système.** Fenêtre du pseudo d’un compte neuf (`AlEr` → saisie, confirmation, ligne brute → `AlEs` ou reprise par `Ad`/`AlK`), cause de chaque déconnexion, boîte `CONNECTION` sur une perte de connexion (texte `DISCONNECT` puis le dernier `M0<id>` reçu, `SRV_MSG_<id>`) et retour à l’écran de connexion prérempli, boîte `NEW_LEVEL` sur `AN`. `AlEr`/`AlEs` en jeu sont laissés au lot X32. Tests : `BotHandshakeSmoke`, `BotSessionSmoke`, `BotConnectionUiSmoke` ; scénarios x3a à x3c de `BotStarLocoLiveSmoke`.
+**X3 — Connexion : pseudo, perte de connexion, nouveau niveau, messages système.** Fenêtre du pseudo d’un compte neuf (`AlEr` → saisie, confirmation, ligne brute → `AlEs` ou reprise par `Ad`/`AlK`), cause de chaque déconnexion, boîte `CONNECTION` sur une perte de connexion (texte `DISCONNECT`, le dernier `M0<id>` reçu, `SRV_MSG_<id>`, puis la question `ATTEMPT_RECONNECT` en Oui / Non, `SIMPLE_AUTO_RECONNECT`) : « Oui » reconnecte le compte, « Non » rouvre l’écran de connexion prérempli, boîte `NEW_LEVEL` sur `AN`. `AlEr`/`AlEs` en jeu sont laissés au lot X32. Tests : `BotHandshakeSmoke`, `BotSessionSmoke`, `BotConnectionUiSmoke` ; scénarios x3a à x3c de `BotStarLocoLiveSmoke`.
 
 ## Couverture des fonctions
 
@@ -160,7 +160,7 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | Paramètres de connexion | — | — | fait | `BotConfigSmoke` |
 | Messages du serveur | `Im`, `cs`, `M1` | traité | fait | `BotSessionSmoke`, `BotLangDataSmoke` |
 | Pseudo d’un compte neuf | `AlEr`, ligne brute, `AlEs`, fenêtre `ChooseNickName` | `WAIT_NICKNAME` : toute ligne est le pseudo ; caractère interdit : `AlEs` puis pseudo retenu quand même | fait (connexion seulement ; en jeu : lot X32) | `BotHandshakeSmoke` (Windows), `BotConnectionUiSmoke`, x3a |
-| Messages système et perte de connexion | `M0<id>` gardé, boîte `CONNECTION` à `Aks.onClose`, retour à la connexion | `M04` à l’arrêt du Game, `M018` à une expulsion | fait | `BotSessionSmoke`, `BotConnectionUiSmoke`, x3c |
+| Messages système et perte de connexion | `M0<id>` gardé, boîte `CONNECTION` à `Aks.onClose` en Oui / Non (`ATTEMPT_RECONNECT`), reconnexion ou retour à la connexion | `M04` à l’arrêt du Game, `M018` à une expulsion, perdus tous deux par la fermeture immédiate de la session | fait | `BotSessionSmoke`, `BotConnectionUiSmoke`, x3c |
 | Nouveau niveau | `AN`, boîte `NEW_LEVEL` | `AN` envoyé deux fois par gain | fait ; sans l’astuce `TIP_GAIN_LEVEL` | `BotSessionSmoke`, `BotConnectionUiSmoke`, x3b |
 | Mode héroïque : morts, réinitialisation, fin de partie | `ALK` (champs 10 et 11), `AR<id>`, `GO` | `HEROIC` faux par défaut ; `AR<id>` ranime sans vérifier la mort | partiel : non rejoué sur le vrai serveur ; écran `GameOver` du client non exporté (boîte à la place) | `BotSessionSmoke`, `BotMapActionsSmoke` |
 

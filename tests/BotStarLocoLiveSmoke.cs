@@ -460,7 +460,7 @@ internal static partial class Live
         await Scenario("x3a. compte neuf sans pseudo : AlEr, pseudo pris (AlEs) puis accepté, par le bot puis par sa fenêtre ChooseNickName (lot X3)", 90, NewAccountNicknameAsync).ConfigureAwait(false);
         await Scenario("x3b. parchemin d'expérience : AN2, boîte « Nouveau niveau » dans la fenêtre de jeu (lot X3)", 90, LevelUpAsync).ConfigureAwait(false);
         // Toujours en dernier : arrête puis redémarre le serveur de jeu (A et B restent déconnectés).
-        await Scenario("x3c. serveur de jeu arrêté en pleine partie : M04, boîte de perte de connexion, retour à la connexion (lot X3)", 300, GameStopAsync).ConfigureAwait(false);
+        await Scenario("x3c. serveur de jeu arrêté en pleine partie : boîte de perte de connexion, « Oui » reconnecte A (lot X3)", 360, GameStopAsync).ConfigureAwait(false);
     }
 }
 
@@ -2383,10 +2383,11 @@ internal static partial class Live
 
     /// <summary>
     /// Coupure du serveur de jeu en pleine partie (toujours le dernier scénario) : <c>AZUR_STARLOCO_GAME_STOP</c> arrête le Game par son
-    /// crochet d'arrêt (<c>Main</c> : sauvegarde du monde, puis <c>kickAll</c> envoie <c>M04</c> à chaque joueur et ferme sa connexion).
-    /// A et B constatent une perte de connexion (<see cref="DisconnectCause.Lost"/>, en jeu, <c>M04</c> gardé s'il est arrivé) ; la fenêtre
-    /// de A ouvre la boîte <c>CONNECTION</c> (<c>DISCONNECT</c> puis <c>SRV_MSG_4</c>) ; « OK » ferme la fenêtre et ouvre l'écran de
-    /// connexion avec les identifiants de A. <c>AZUR_STARLOCO_GAME_START</c> relance ensuite le Game, même après un échec.
+    /// crochet d'arrêt (<c>Main</c> : sauvegarde du monde, puis <c>kickAll</c> écrit <c>M04</c> à chaque joueur et ferme sa connexion
+    /// aussitôt). A et B constatent une perte de connexion (<see cref="DisconnectCause.Lost"/>, en jeu, <c>M04</c> gardé s'il est arrivé) ;
+    /// la fenêtre de A ouvre la boîte <c>CONNECTION</c> (<c>DISCONNECT</c>, <c>SRV_MSG_4</c> s'il est arrivé, puis <c>ATTEMPT_RECONNECT</c>
+    /// en Oui / Non). <c>AZUR_STARLOCO_GAME_START</c> relance le Game (même après un échec) ; une fois le Game de nouveau enregistré
+    /// auprès du Login, « Oui » ferme la fenêtre et reconnecte le compte de A jusqu'à la liste des serveurs, comme <c>Login.autoLogin</c>.
     /// </summary>
     private static async Task<string> GameStopAsync()
     {
@@ -2407,7 +2408,9 @@ internal static partial class Live
         Accounts accountA = a.Account, accountB = b.Account;
         Task<int> stopping = RunCommandAsync("arrêt du jeu", stop, 120);
         string evidence;
-        int restarted;
+        int restarted = -1;
+        bool restartRun = false;
+        PersoSelection servers = null;
         try
         {
             Check(await Task.WhenAny(lostA.Task, Task.Delay(TimeSpan.FromSeconds(90))).ConfigureAwait(false) == lostA.Task, "A n'a pas constaté la coupure du serveur de jeu");
@@ -2415,20 +2418,14 @@ internal static partial class Live
             bool m04 = a.ReceivedSince(markA).Contains("M04");
             Check(loss.Cause == DisconnectCause.Lost && loss.WasInGame && accountA.LastDisconnect == loss, "Perte de connexion de A mal lue : " + loss.Cause + ", en jeu " + loss.WasInGame);
             Check(m04 ? loss.Message != null && loss.Message.Id == 4 : loss.Message == null, "M04 " + (m04 ? "reçu mais absent de" : "non reçu mais présent dans") + " la perte de connexion : " + loss.Message);
-            Check(loss.Text == ConnectionTexts.Disconnected + (m04 ? "\n\n" + loss.Message.Text : ""), "Texte de la perte de connexion : " + loss.Text);
+            Check(loss.OffersReconnect && loss.Text == ConnectionTexts.Disconnected + (m04 ? "\n\n" + loss.Message.Text : "") + "\n\n" + ConnectionTexts.AttemptReconnect,
+                "Texte de la perte de connexion : " + loss.Text);
             Form box = await WaitOnUi(() => OpenDialog(lostName), 15).ConfigureAwait(false);
             Check(box != null, "La boîte de perte de connexion ne s'est pas ouverte dans la fenêtre de A");
-            string[] shown = await OnUi(() => new[] { box.Text, DialogMessage(box), ReferenceEquals(box.Owner, window).ToString(), window.IsDisposed.ToString() }).ConfigureAwait(false);
-            Check(shown[0] == loss.Title && shown[1] == loss.Text && shown[2] == "True" && shown[3] == "False",
-                "Boîte « " + shown[0] + " » : « " + shown[1] + " », au-dessus de la fenêtre de A " + shown[2] + ", fenêtre fermée " + shown[3]);
-            await OnUi(() => AllControls(box).OfType<Button>().First(x => x.Visible).PerformClick()).ConfigureAwait(false);
-            LoginForm login = await WaitOnUi(() => window.IsDisposed ? Application.OpenForms.OfType<LoginForm>().FirstOrDefault() : null, 15).ConfigureAwait(false);
-            Check(login != null, "« OK » n'a pas fermé la fenêtre de jeu de A ni ouvert l'écran de connexion");
-            string[] filled = await OnUi(() => new[] { ((TextBox)Field(login, "login")).Text, ((TextBox)Field(login, "password")).Text, ((Label)Field(login, "status")).Text }).ConfigureAwait(false);
-            await OnUi(() => login.Close()).ConfigureAwait(false);
-            Check(filled[0] == a.Login && filled[1] == a.Password, "L'écran de connexion n'a pas repris le compte et le mot de passe de A");
-            Check(filled[2].StartsWith(ConnectionTexts.Disconnected, StringComparison.Ordinal) && filled[2].EndsWith("Reconnectez-vous.", StringComparison.Ordinal)
-                && (!m04 || filled[2].Contains(loss.Message.Text.Replace("\n", " "))), "État de l'écran de connexion : " + filled[2]);
+            string[] shown = await OnUi(() => new[] { box.Text, DialogMessage(box), ReferenceEquals(box.Owner, window).ToString(), window.IsDisposed.ToString(),
+                string.Join("/", AllControls(box).OfType<Button>().Where(x => x.Visible).Select(x => x.Tag).OfType<BotDialogResult>().OrderBy(x => x)) }).ConfigureAwait(false);
+            Check(shown[0] == loss.Title && shown[1] == loss.Text && shown[2] == "True" && shown[3] == "False" && shown[4] == "Yes/No",
+                "Boîte « " + shown[0] + " » : « " + shown[1] + " », au-dessus de la fenêtre de A " + shown[2] + ", fenêtre fermée " + shown[3] + ", boutons " + shown[4]);
 
             Check(await Task.WhenAny(lostB.Task, Task.Delay(TimeSpan.FromSeconds(15))).ConfigureAwait(false) == lostB.Task, "B n'a pas constaté la coupure du serveur de jeu");
             ConnectionLoss lossB = lostB.Task.Result;
@@ -2437,17 +2434,40 @@ internal static partial class Live
                 "Perte de connexion de B mal lue : " + lossB.Cause + ", en jeu " + lossB.WasInGame + ", message " + lossB.Message);
             int stopped = await stopping.ConfigureAwait(false);
             Check(stopped == 0, "La commande d'arrêt du serveur de jeu a échoué (code " + stopped + ")");
+
+            // Le Game relancé et enregistré auprès du Login, « Oui » reconnecte le compte de A (Login.autoLogin du client).
+            restartRun = true;
+            restarted = await RunCommandAsync("redémarrage du jeu", restart, 240).ConfigureAwait(false);
+            Check(restarted == 0, "Le serveur de jeu n'a pas redémarré (code " + restarted + ")");
+            Check(await OnUi(() => ReferenceEquals(OpenDialog(lostName), box)).ConfigureAwait(false), "La boîte de perte de connexion s'est refermée sans réponse");
+            await OnUi(() => AllControls(box).OfType<Button>().First(x => Equals(x.Tag, BotDialogResult.Yes)).PerformClick()).ConfigureAwait(false);
+            servers = await WaitOnUi(() => window.IsDisposed ? Application.OpenForms.OfType<PersoSelection>().FirstOrDefault() : null, 15).ConfigureAwait(false);
+            Check(servers != null, "« Oui » n'a pas fermé la fenêtre de jeu de A ni ouvert l'écran du choix du serveur");
+            Check(await OnUi(() => !Application.OpenForms.OfType<LoginForm>().Any()).ConfigureAwait(false), "« Oui » a rouvert l'écran de connexion au lieu de reconnecter A");
+            PersoSelection screen = servers;
+            var again = (Accounts)Field(screen, "A");
+            again.Logger.log_event += (entry, color) => Journal("R [journal du bot] " + entry.message);
+            Check(again.accountConfig.Account == a.Login && again.accountConfig.Password == a.Password, "« Oui » a reconnecté un autre compte que A");
+            Check(await WaitOnUi(() => screen.Alreadyhere && again.Game.Server.Servers.Values.Any(x => x == ServerStates.ONLINE) ? "ok" : null, 60).ConfigureAwait(false) != null,
+                "Après « Oui », la liste des serveurs n'a pas de serveur en ligne : " + again.ConnectionStatus);
+            string[] listed = await OnUi(() => new[] { ((Label)Field(screen, "status")).Text,
+                string.Join(", ", again.Game.Server.Servers.OrderBy(x => x.Key).Select(x => x.Key + " " + x.Value)) }).ConfigureAwait(false);
             evidence = "A : " + (m04 ? "M04 reçu, " : "M04 non reçu avant la fermeture, ") + "perte " + loss.Cause + " en jeu, boîte « " + shown[0] + " » : « " + shown[1].Replace("\n", " ")
-                + " » ; OK → fenêtre fermée, écran de connexion prérempli (« " + filled[2] + " ») ; B : " + (m04B ? "M04, " : "") + "perte " + lossB.Cause + " (" + accountB.ConnectionStatus + ")";
+                + " » (Oui / Non) ; B : " + (m04B ? "M04, " : "") + "perte " + lossB.Cause + " (" + accountB.ConnectionStatus + ") ; serveur de jeu redémarré ; « Oui » → fenêtre fermée, "
+                + a.Login + " reconnecté au Login : serveurs " + listed[1] + " (« " + listed[0] + " »)";
         }
         finally
         {
             accountA.ConnectionLost -= onA;
             accountB.ConnectionLost -= onB;
-            if (!stopping.IsCompleted) await Task.WhenAny(stopping, Task.Delay(TimeSpan.FromSeconds(120))).ConfigureAwait(false);
-            restarted = await RunCommandAsync("redémarrage du jeu", restart, 240).ConfigureAwait(false);
+            if (servers != null) await OnUi(() => { if (!servers.IsDisposed) servers.Close(); }).ConfigureAwait(false);
+            if (!restartRun)
+            {
+                if (!stopping.IsCompleted) await Task.WhenAny(stopping, Task.Delay(TimeSpan.FromSeconds(120))).ConfigureAwait(false);
+                restarted = await RunCommandAsync("redémarrage du jeu", restart, 240).ConfigureAwait(false);
+            }
         }
         Check(restarted == 0, "Le serveur de jeu n'a pas redémarré (code " + restarted + ")");
-        return evidence + " ; serveur de jeu redémarré";
+        return evidence;
     }
 }
