@@ -59,8 +59,9 @@ namespace Outil_Azur_complet.Bot
             BotDialogResult answer = loss.OffersReconnect
                 ? await BotDialogs.AskYesNoAsync(window, loss.Title, loss.Text, lostDialog)
                 : await BotDialogs.InfoAsync(window, loss.Title, loss.Text, lostDialog);
-            // Fenêtre fermée pendant la boîte (par l'utilisateur ou un autre retour) : rien à rouvrir.
-            if (disposed || window.IsDisposed || window.Disposing) return;
+            // Boîte refermée sans réponse (remplacée par une nouvelle perte, fenêtre libérée) ou fenêtre fermée pendant la boîte :
+            // rien à rouvrir.
+            if (answer == BotDialogResult.None || disposed || window.IsDisposed || window.Disposing) return;
             AccountConfig config = account.accountConfig;
             if (config == null) return;
             ReturnAction?.Invoke(window, config, loss, loss.OffersReconnect && answer == BotDialogResult.Yes);
