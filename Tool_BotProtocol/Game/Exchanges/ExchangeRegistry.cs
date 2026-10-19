@@ -32,6 +32,8 @@ namespace Tool_BotProtocol.Game.Exchanges
         public const int MountStorage = 15;
         public const int Shed = 16;
         public const int PetsResurrection = 17;
+        /// <summary>Type 18 : même fenêtre <c>Exchange</c> que les types 2, 9 et 17 chez le client (<c>Exchange.onCreate</c>) ; StarLoco ne l'envoie pas.</summary>
+        public const int NpcExchangeWindow = 18;
 
         /// <summary>Nom lisible d'un type pour le journal.</summary>
         public static string Describe(int type)
@@ -55,6 +57,7 @@ namespace Tool_BotProtocol.Game.Exchanges
                 case MountStorage: return "sacoches de la monture";
                 case Shed: return "étable";
                 case PetsResurrection: return "résurrection de familier";
+                case NpcExchangeWindow: return "échange (type 18)";
                 default: return "type " + type.ToString(CultureInfo.InvariantCulture);
             }
         }
@@ -187,10 +190,21 @@ namespace Tool_BotProtocol.Game.Exchanges
             return Task.CompletedTask;
         }
 
-        /// <summary><c>ERE&lt;code&gt;</c> : demande refusée (codes de <c>Exchange.onRequest</c>).</summary>
+        /// <summary>
+        /// <c>ERE&lt;code&gt;</c> : demande refusée (codes de <c>Exchange.onRequest</c>). Exception (lot X4-CORR) : StarLoco envoie
+        /// <c>EREO</c> juste après le <c>ECK9</c> qui répond à <c>ER17</c> (<c>GameClient.request</c>, branche « 17 » sans <c>return</c>,
+        /// puis le contrôle « déjà en échange ») ; le client 1.34 afficherait ALREADY_EXCHANGE alors que l'échange est bien ouvert.
+        /// Ce seul <c>EREO</c>, annoncé par la fenêtre des familiers, est journalisé en débogage et ne change ni
+        /// <see cref="LastMessage"/> ni l'échange en cours ; tout autre <c>ERE</c> reste une erreur.
+        /// </summary>
         internal void OnRequestError(string code)
         {
             string reason;
+            if (!string.IsNullOrEmpty(code) && code[0] == 'O' && Current is PetsExchange pets && pets.IsOpen && pets.ConsumeResurrectionEreo())
+            {
+                account?.Logger?.LogDebug(Reference, "EREO reçu juste après le ECK9 qui répond à ER17 : StarLoco l'envoie à chaque résurrection (GameClient.request, branche « 17 » sans return) ; l'échange reste ouvert.");
+                return;
+            }
             switch ((code ?? string.Empty).Length > 0 ? code[0] : '\0')
             {
                 case 'O': reason = Text("ALREADY_EXCHANGE", "Ce joueur (ou vous-même) est déjà occupé par un échange."); break;

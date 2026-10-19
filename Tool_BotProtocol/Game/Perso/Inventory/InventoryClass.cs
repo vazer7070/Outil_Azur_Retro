@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Xml.Linq;
+using Tool_BotProtocol.Game.Exchanges;
 using Tool_BotProtocol.Game.Perso.Inventory.Enums;
 using Tool_BotProtocol.Utils.Interfaces;
 
@@ -185,10 +186,12 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
         /// par <c>OAE</c>/<c>Im119</c>. Une ressource posée sur le familier porté (8) ou sur la monture annoncée (16) le nourrit
         /// (lot X4) : <c>OM&lt;id&gt;|8</c>, <c>OM&lt;id&gt;|16|&lt;quantité&gt;</c> ; StarLoco répond <c>OQ</c>/<c>OR</c>, <c>OCO</c>,
         /// <c>Im032</c>… pour le familier, <c>Re+</c> et <c>Im0105</c> pour la monture, <c>Im153</c> ou <c>Im190</c> en cas de refus.
+        /// Refusé sans envoi pendant un échange ouvert, comme <c>canMoveItem</c> du client (<see cref="MoveForbiddenByExchange"/>).
         /// </summary>
         public async Task<bool> MoveToSlot(InventoryObjects item, int position, int? quantity = null)
         {
             if (!CanAct(item, out string reason)) { Account?.Logger?.LogError("INVENTAIRE", reason); return false; }
+            if (MoveForbiddenByExchange(out string exchange)) { Account.Logger.LogError("INVENTAIRE", exchange); return false; }
             if (position < -1 || (position > ItemSlots.MountPosition && position < ItemSlots.ShortcutOffset))
             {
                 Account.Logger.LogError("INVENTAIRE", $"Emplacement {position} inconnu pour {item.Name}.");
@@ -232,6 +235,36 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
             return true;
         }
         /// <summary>
+        /// Comme <c>Inventory.canMoveItem</c> du client 1.34 : aucun déplacement d'objet (glisser, déposer, double-clic, jeter au sol :
+        /// <c>OM</c>, <c>OD</c>) tant que <c>datacenter.Exchange</c> existe, c'est-à-dire pendant un échange ouvert par <c>ECK</c> 1, 2, 3,
+        /// 9, 12, 13, 17 ou 18 (<c>Exchange.onCreate</c> et <c>onRequest</c>) ; le client affiche alors <c>CANT_MOVE_ITEM</c>. Boutique,
+        /// banque, hôtel de vente, étable… n'en créent pas : le client y laisse déplacer. Utiliser (<c>OU</c>) et détruire (<c>Od</c>) ne
+        /// passent pas par ce contrôle chez le client. Rien n'est envoyé : StarLoco ne vérifie aucun échange dans
+        /// <c>movementObject</c>, et <c>NpcExchangePets.apply</c> lève une <c>NullPointerException</c> (session coupée) si le familier
+        /// proposé a été équipé entre-temps (lot X4-CORR).
+        /// </summary>
+        public bool MoveForbiddenByExchange(out string reason)
+        {
+            reason = null;
+            IExchange current = Account?.Game?.Interactions?.Exchanges?.Current;
+            if (current == null || !current.IsOpen) return false;
+            switch (current.ExchangeType)
+            {
+                case ExchangeTypes.Player:
+                case ExchangeTypes.NpcExchange:
+                case ExchangeTypes.Craft:
+                case ExchangeTypes.Pets:
+                case ExchangeTypes.SecureCraftClient:
+                case ExchangeTypes.SecureCraftArtisan:
+                case ExchangeTypes.PetsResurrection:
+                case ExchangeTypes.NpcExchangeWindow:
+                    reason = ExchangeRegistry.Text("CANT_MOVE_ITEM", "Vous ne pouvez pas déplacer d'objet pendant un échange.");
+                    return true;
+                default:
+                    return false;
+            }
+        }
+        /// <summary>
         /// Demande au serveur d'équiper l'objet : <c>OM&lt;id&gt;|&lt;emplacement&gt;</c>, comme <c>Items.movement</c> du client
         /// (sans quantité : le client ne l'ajoute que lorsqu'elle est fournie).
         /// La position locale n'est modifiée qu'à la réception de <c>OM</c> ; un refus arrive en <c>OAE…</c>.
@@ -239,6 +272,7 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
         public async Task<bool> Equip_item(InventoryObjects I)
         {
             if (!CanAct(I, out string reason)) { Account?.Logger?.LogError("INVENTAIRE", reason); return false; }
+            if (MoveForbiddenByExchange(out string exchange)) { Account.Logger.LogError("INVENTAIRE", exchange); return false; }
             if(I.Level > Account.Game.character.Level)
             {
                 Account.Logger.LogError("INVENTAIRE", $"Le niveau de l'objet {I.Name} est supérieur à ton niveau");
@@ -266,6 +300,7 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
         public async Task<bool> Desequip_Item(InventoryObjects O)
         {
             if (!CanAct(O, out string reason)) { Account?.Logger?.LogError("INVENTAIRE", reason); return false; }
+            if (MoveForbiddenByExchange(out string exchange)) { Account.Logger.LogError("INVENTAIRE", exchange); return false; }
             if(O.position == InventorySlots.NOT_EQUIPPED || (int)O.position >= ItemSlots.ShortcutOffset)
             {
                 Account.Logger.LogError("INVENTAIRE", $"{O.Name} n'est pas équipé");
@@ -283,10 +318,15 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
             Account.Logger.LogInfo("INVENTAIRE", $"Utilisation de {G.Name} demandée ; le serveur confirme.");
             return true;
         }
-        /// <summary>Jette un objet au sol : <c>OD&lt;id&gt;|&lt;quantité&gt;</c> comme <c>Items.drop</c>. Le serveur répond par OR/OQ ou ODE.</summary>
+        /// <summary>
+        /// Jette un objet au sol : <c>OD&lt;id&gt;|&lt;quantité&gt;</c> comme <c>Items.drop</c>. Le serveur répond par OR/OQ ou ODE.
+        /// Refusé pendant un échange ouvert, comme <c>dropDownItem</c> du client (<see cref="MoveForbiddenByExchange"/>) ; StarLoco
+        /// ignorerait d'ailleurs le paquet sans répondre (<c>dropObject</c>).
+        /// </summary>
         public async Task<bool> Drop_Item(InventoryObjects item, int quantity)
         {
             if (!CanAct(item, out string reason)) { Account?.Logger?.LogError("INVENTAIRE", reason); return false; }
+            if (MoveForbiddenByExchange(out string exchange)) { Account.Logger.LogError("INVENTAIRE", exchange); return false; }
             if (quantity <= 0 || quantity > item.Qua)
             {
                 Account.Logger.LogError("INVENTAIRE", $"Quantité invalide pour jeter {item.Name} (1 à {item.Qua}).");
