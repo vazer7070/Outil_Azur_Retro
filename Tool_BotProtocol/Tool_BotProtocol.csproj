@@ -199,6 +199,7 @@
     <Compile Include="Game\Exchanges\MerchantExchange.cs" />
     <Compile Include="Game\Exchanges\AuctionHouse.cs" />
     <Compile Include="Game\Exchanges\CraftExchange.cs" />
+    <Compile Include="Game\Exchanges\CraftSecureExchange.cs" />
     <Compile Include="Game\Exchanges\CrafterBook.cs" />
     <Compile Include="Game\Habitat\House.cs" />
     <Compile Include="Game\Habitat\HouseActions.cs" />

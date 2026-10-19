@@ -121,6 +121,10 @@ try {
     # BotHandshakeSmoke et les scénarios x32a et x32b de BotStarLocoLiveSmoke (potion, kamas et personnages écrits dans la base par le test) ;
     # AZUR_STARLOCO_SCENARIOS=x32a,x32b ne joue que ceux-là après le scénario a.
 
+    # Lot X5 (artisanat sécurisé : fenêtre CraftSecureExchange des types 12 et 13, demandes ERK 12/13, paiement EP/Ep, volet) : couvert
+    # par BotCraftSmoke, BotExchangeSmoke et le scénario x5 de BotStarLocoLiveSmoke (deux comptes inventés sur une carte à forge) ;
+    # AZUR_STARLOCO_SCENARIOS=x5 ne joue que celui-là après la connexion.
+
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'
         $azurAdmin = Join-Path $MySqlBin 'mysqladmin.exe'

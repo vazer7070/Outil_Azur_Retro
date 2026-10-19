@@ -8,7 +8,7 @@ namespace Tool_BotProtocol.Frames.Jeu
     /// <summary>
     /// Échanges (famille <c>E</c> de <c>dofus.aks.Exchange</c>, client 1.34) : <c>ECK&lt;type&gt;[|&lt;données&gt;]</c> est aiguillé
     /// vers la fenêtre enregistrée pour ce type (<see cref="ExchangeRegistry"/>), qui reçoit ensuite les mouvements
-    /// <c>EMK</c>/<c>EmK</c>/<c>EsK</c>, les états <c>EK</c> et la charge <c>Ew</c>. <c>ERK</c> est une demande d'échange,
+    /// <c>EMK</c>/<c>EmK</c>/<c>EsK</c>, les états <c>EK</c>, les paiements <c>Ep</c> et la charge <c>Ew</c>. <c>ERK</c> est une demande d'échange,
     /// présentée au joueur (jamais acceptée seule) ; <c>ERE</c> un refus. <c>EL</c> et <c>EV</c> passent par
     /// <c>InteractionFrame</c>. Propriétaire : lot F4.
     /// </summary>
@@ -44,6 +44,10 @@ namespace Tool_BotProtocol.Frames.Jeu
         /// <summary><c>EK&lt;0|1&gt;[&lt;acteur&gt;]</c> : état « prêt » d'un participant.</summary>
         [MessageAttribution("EK")]
         public void ExchangeReady(TcpClient client, string message) => Exchanges(client)?.OnReady(message.Substring(2));
+
+        /// <summary><c>Ep&lt;type&gt;;&lt;G|O±&gt;…</c> : paiement ou prime de l'artisanat sécurisé (lot X5).</summary>
+        [MessageAttribution("Ep")]
+        public void CraftPayment(TcpClient client, string message) => Exchanges(client)?.OnPayment(message.Substring(2));
 
         /// <summary><c>Ew&lt;pods&gt;;&lt;max&gt;</c> : charge de la monture pendant un échange avec ses sacoches.</summary>
         [MessageAttribution("Ew")]
