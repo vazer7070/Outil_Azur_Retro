@@ -30,6 +30,7 @@ using Tool_BotProtocol.Game.Perso.Inventory;
 // EMG±, EsK), paquets mal formés ; puis volets Échange et Coffre (boîte Oui / Non / Ignorer, grilles, icônes d'objets lues
 // depuis un dossier temporaire avec des textes LangData synthétiques). Lot X4 : échange de familiers (type 9) ouvert par
 // ECK9 après ER9 (garde) ou ER17 (résurrection), EMO±/EMG/EK, proposition du PNJ EmKO+ et EK1 sans acteur, EVa ; ECK17
+// (lot X4-CORR : le EREO que StarLoco envoie juste après le ECK9 d'un ER17 est ignoré une seule fois, celui d'un ER9 reste une erreur) ;
 // reste refermé par EV ; volet Familiers.
 internal static class BotExchangeSmoke
 {
@@ -128,6 +129,7 @@ internal static class BotExchangeSmoke
         string folder = Path.Combine(TestPaths.Work, "bot-exchange"); Directory.CreateDirectory(folder); Environment.CurrentDirectory = folder;
         var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
         var logs = new ConcurrentQueue<string>();
+        var debug = new ConcurrentQueue<string>();
         try
         {
             LangData.Clear();
@@ -152,6 +154,7 @@ internal static class BotExchangeSmoke
             using (var account = new Accounts(new AccountConfig("synthetic-exchange", "synthetic", "loopback")))
             {
                 account.Logger.log_event += (entry, color) => logs.Enqueue(entry.message);
+                account.Logger.debug_event += entry => debug.Enqueue(entry.message);
                 Task<Socket> accept = listener.AcceptSocketAsync();
                 Complete(account.Connexion.ConnectToServer(IPAddress.Loopback, ((IPEndPoint)listener.LocalEndpoint).Port)); Complete(accept);
                 using (Socket peer = accept.Result)
@@ -334,6 +337,9 @@ internal static class BotExchangeSmoke
                     Feed(account, "ECK9|-8");
                     Check(pets.IsOpen && registry.Current == pets && pets.Service == PetsService.Keeping && pets.NpcId == -8 && pets.NpcName == "Marchand fictif"
                         && account.AccountStates == AccountStates.EXCHANGE && pets.ServiceHint.StartsWith("Garde"), "ECK9 after ER9 did not open the pet keeping: " + pets.Service + " / " + pets.NpcName);
+                    // Lot X4-CORR : un EREO après le ECK9 d'un ER9 reste une erreur (StarLoco ne l'envoie que pour ER17).
+                    int reported = logs.Count(entry => entry.Contains("(EREO)"));
+                    Feed(account, "EREO"); Check(logs.Count(entry => entry.Contains("(EREO)")) == reported + 1 && pets.IsOpen, "EREO after the ECK9 of ER9 must still be reported");
                     Check(!Sent(pets.ValidateAsync()) && pets.ValidationWait > TimeSpan.Zero, "Validation allowed right after ECK9");
                     Check(!Sent(pets.AddItemAsync(1001, 1)) && !Sent(pets.AddItemAsync(3, 9)) && !Sent(pets.AddItemAsync(999, 1)) && !Sent(pets.RemoveItemAsync(3, 1)),
                         "Equipped, unknown, too many or unoffered items were accepted");
@@ -367,10 +373,24 @@ internal static class BotExchangeSmoke
                     Check(Sent(windows.Npc.RequestActionAsync(NpcActions.PetResurrection, -8)) && Read(peer) == "ER17|-8", "Pet resurrection does not send ER17|<npc>");
                     Feed(account, "ECK9|-8");
                     Check(pets.IsOpen && pets.Service == PetsService.Resurrection && pets.ServiceHint.StartsWith("Résurrection"), "ECK9 after ER17 did not open the resurrection");
+                    // Lot X4-CORR : StarLoco envoie EREO juste après ce ECK9 (GameClient.request, branche « 17 » sans return) : ignoré une fois,
+                    // journalisé en débogage, LastMessage et échange inchangés ; un second EREO est de nouveau une erreur.
+                    string beforeEreo = registry.LastMessage; reported = logs.Count(entry => entry.Contains("(EREO)"));
+                    Feed(account, "EREO");
+                    Check(pets.IsOpen && registry.Current == pets && registry.LastMessage == beforeEreo && logs.Count(entry => entry.Contains("(EREO)")) == reported
+                        && debug.Any(entry => entry.Contains("EREO reçu juste après le ECK9")), "The EREO that follows the ECK9 of ER17 was not ignored");
+                    Feed(account, "EREO"); Check(logs.Count(entry => entry.Contains("(EREO)")) == reported + 1 && pets.IsOpen, "A second EREO must be reported");
                     Check(Sent(pets.LeaveAsync()) && Read(peer) == "EV" && pets.IsOpen, "Leave does not send EV or closed before the server");
                     Feed(account, "EV"); Check(!pets.IsOpen && pets.LastMessage.Length > 0 && account.AccountStates == AccountStates.CONNECTED_INACTIVE, "EV did not close the resurrection");
+                    // Un paquet d'échange reçu avant le EREO (serveur corrigé) abandonne l'exception : le EREO qui suit est une erreur.
+                    Check(Sent(windows.Npc.RequestActionAsync(NpcActions.PetResurrection, -8)) && Read(peer) == "ER17|-8", "Second resurrection request was not sent");
+                    Feed(account, "ECK9|-8"); Feed(account, "EK1"); reported = logs.Count(entry => entry.Contains("(EREO)"));
+                    Feed(account, "EREO"); Check(logs.Count(entry => entry.Contains("(EREO)")) == reported + 1, "An EREO after another exchange packet must be reported");
+                    Feed(account, "EV"); Check(!pets.IsOpen, "EV did not close the second resurrection");
                     // ECK9 sans demande notée : service inconnu (aucune action de PNJ lue) ; ECK17, que StarLoco n'envoie pas, refermé par EV.
                     Feed(account, "ECK9|-8"); Check(pets.IsOpen && pets.Service == PetsService.Unknown, "ECK9 without request must leave the service unknown");
+                    reported = logs.Count(entry => entry.Contains("(EREO)"));
+                    Feed(account, "EREO"); Check(logs.Count(entry => entry.Contains("(EREO)")) == reported + 1, "EREO without a noted ER17 must be reported");
                     Feed(account, "EV"); Check(!pets.IsOpen, "EV did not close the unknown pets exchange");
                     Feed(account, "ECK17|-8");
                     Check(Read(peer) == "EV" && !pets.IsOpen && registry.Current == null && registry.LastMessage.Contains("ECK17"), "ECK17 must stay unsupported and be closed with EV");

@@ -28,7 +28,9 @@ namespace Tool_BotProtocol.Game.Exchanges
     /// Échange avec un PNJ gardien ou ressusciteur de familiers (type 9), lot X4. Le client 1.34 ouvre pour ce type la même
     /// interface <c>Exchange</c> que pour un joueur (<c>Exchange.onCreate</c> : types 2, 9, 17 et 18), avec le PNJ comme autre
     /// côté. Demandes : <c>ER9|&lt;pnj&gt;</c> (garde) ou <c>ER17|&lt;pnj&gt;</c> (résurrection), envoyées par le menu du PNJ ;
-    /// StarLoco répond <c>ECK9|&lt;pnj&gt;</c> dans les deux cas et ne transmet aucune liste <c>EL</c>. Envois du client :
+    /// StarLoco répond <c>ECK9|&lt;pnj&gt;</c> dans les deux cas et ne transmet aucune liste <c>EL</c> ; après <c>ER17</c> il envoie aussi
+    /// <c>EREO</c> aussitôt après <c>ECK9</c> (branche « 17 » sans <c>return</c> de <c>GameClient.request</c>) : le client 1.34 afficherait
+    /// ALREADY_EXCHANGE, le bot le journalise en débogage et l'échange reste ouvert (lot X4-CORR). Envois du client :
     /// <c>EMO+&lt;objet&gt;|&lt;quantité&gt;</c>, <c>EMO-&lt;objet&gt;|&lt;quantité&gt;</c>, <c>EMG&lt;kamas&gt;</c>, <c>EK</c>, <c>EV</c> ;
     /// réceptions : <c>EMKO±</c>/<c>EMKG</c> (son côté), <c>EmKO+&lt;id&gt;|&lt;qté&gt;|&lt;modèle&gt;|&lt;effets&gt;</c>, <c>EmKO-</c>
     /// (proposition du PNJ), <c>EK&lt;0|1&gt;[&lt;acteur&gt;]</c> (sans acteur : le PNJ), fin <c>EVa</c> (effectué) ou <c>EV</c>.
@@ -48,6 +50,8 @@ namespace Tool_BotProtocol.Game.Exchanges
         private long lastChange = Stopwatch.GetTimestamp();
         private int requestedType = -1, requestedNpc;
         private long requestedAt;
+        // 1 entre le ECK9 qui répond à un ER17 noté et le paquet d'échange suivant : StarLoco envoie alors un EREO parasite.
+        private int resurrectionEreo;
 
         internal PetsExchange(Accounts.Accounts account) : base(account) { }
 
@@ -172,6 +176,7 @@ namespace Tool_BotProtocol.Game.Exchanges
             NpcName = npc == 0 ? "PNJ inconnu" : ResolveName(npc, out template);
             bool recent = noted >= 0 && (Stopwatch.GetTimestamp() - notedAt) / Stopwatch.Frequency < 60 && (npc == 0 || notedNpc == npc);
             Service = recent ? (noted == ExchangeTypes.PetsResurrection ? PetsService.Resurrection : PetsService.Keeping) : FromNpc(template);
+            Volatile.Write(ref resurrectionEreo, recent && noted == ExchangeTypes.PetsResurrection ? 1 : 0);
             Touch();
             MarkOpen();
             Log((Service == PetsService.Resurrection ? "Résurrection de familier" : Service == PetsService.Keeping ? "Garde de familier" : "Échange de familiers")
@@ -179,9 +184,17 @@ namespace Tool_BotProtocol.Game.Exchanges
             Notify();
         }
 
+        /// <summary>
+        /// Vrai une seule fois, entre le <c>ECK9</c> qui répond à un <c>ER17</c> noté et tout autre paquet de l'échange : StarLoco envoie
+        /// alors <c>EREO</c> (<c>GameClient.request</c>, branche « 17 » sans <c>return</c>). Un paquet d'échange reçu avant ce <c>EREO</c>
+        /// (serveur corrigé) remet le drapeau à zéro, pour ne jamais avaler un <c>EREO</c> légitime.
+        /// </summary>
+        internal bool ConsumeResurrectionEreo() => Interlocked.Exchange(ref resurrectionEreo, 0) == 1;
+
         /// <summary><c>EL</c> : StarLoco n'en envoie pas pour ce type ; le contenu est gardé brut et journalisé, sans être interprété.</summary>
         protected override void HandleList(string payload)
         {
+            Volatile.Write(ref resurrectionEreo, 0);
             RawList = payload;
             Account?.Logger?.LogDebug(Reference, "Liste EL reçue pour l'échange de familiers (non interprétée) : " + (payload.Length > 120 ? payload.Substring(0, 120) + "…" : payload));
             Notify();
@@ -200,6 +213,7 @@ namespace Tool_BotProtocol.Game.Exchanges
         /// <summary><c>EK&lt;0|1&gt;&lt;acteur&gt;</c> : l'acteur du compte est « soi » ; sans acteur (StarLoco) c'est le PNJ.</summary>
         protected override void HandleReady(string data)
         {
+            Volatile.Write(ref resurrectionEreo, 0);
             if (data.Length == 0 || (data[0] != '0' && data[0] != '1')) { Malformed("EK", data); return; }
             bool ready = data[0] == '1';
             int self = Account?.Game?.character?.id ?? 0;
@@ -227,15 +241,18 @@ namespace Tool_BotProtocol.Game.Exchanges
             lock (sync) { local = new List<ExchangeItem>(); distant = new List<ExchangeItem>(); }
             LocalKamas = 0; DistantKamas = 0; LocalReady = false; DistantReady = false; RawList = string.Empty;
             NpcId = 0; NpcName = string.Empty; Service = PetsService.Unknown;
+            Volatile.Write(ref resurrectionEreo, 0);
         }
 
         protected override void OnClearing()
         {
             lock (sync) requestedType = -1;
+            Volatile.Write(ref resurrectionEreo, 0);
         }
 
         private bool ApplyMovement(string data, bool mine)
         {
+            Volatile.Write(ref resurrectionEreo, 0);
             if (data.Length < 2) return false;
             if (data[0] == 'G')
             {

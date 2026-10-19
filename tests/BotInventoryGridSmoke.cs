@@ -34,6 +34,10 @@ using Tool_BotProtocol.Game.Session;
 // repli en initiales sans PNG, infobulle de la boutique. Lot X4 : ressource déposée sur le familier porté (OM<id>|8,
 // sans boîte), sur la monture annoncée par Re+ (boîte de quantité du client puis OM<id>|16|<quantité>), refus locaux
 // d'un objet qui ne se mange pas ou d'une case sans familier ni monture, messages Im du repas gardés malgré OQ/OCO.
+// Lot X4-CORR : aucun OM/OD pendant un échange ouvert (canMoveItem : ECK9 refuse, ECK0 laisse faire, EV rend la main), seuls les
+// messages du repas survivent aux mises à jour d'inventaire (Im119|44 s'efface au OQ suivant, et à l'OR qui retire l'objet), bouton
+// « OK » de la boîte de quantité non rogné, boîte gardée malgré une perte d'activation ou une boîte Oui / Non, abandonnée par un clic
+// dans la fenêtre de jeu, filtre « chiffres seuls » exercé sur le champ lui-même, croix _mcMountCross sur la case 16 sans monture.
 // Aucune capture de fenêtre : passe sous Mono avec xvfb-run.
 internal static class BotInventoryGridSmoke
 {
@@ -91,6 +95,37 @@ internal static class BotInventoryGridSmoke
     private static void Click(object button) => ((Button)button).PerformClick();
     private static void Answer(Form dialog, string choice) => All(dialog).OfType<Button>().First(button => button.Text == choice).PerformClick();
     private static bool Near(Color a, Color b) => Math.Abs(a.R - b.R) <= 16 && Math.Abs(a.G - b.G) <= 16 && Math.Abs(a.B - b.B) <= 16;
+    /// <summary>
+    /// Vrai quand la case se dessine déjà exactement comme avec <see cref="ItemSlot.Crossed"/> forcé : la croix
+    /// <c>inventaire-croix</c> (image du client ou repli) y est peinte. Faux dès qu'un pixel diffère (case sans croix,
+    /// ou rendu vide) : la comparaison ne peut pas réussir à vide.
+    /// </summary>
+    private static bool CrossDrawn(ItemSlot slot)
+    {
+        bool crossed = slot.Crossed;
+        try
+        {
+            using (Bitmap now = Render(slot))
+            {
+                slot.Crossed = true;
+                using (Bitmap forced = Render(slot)) return SamePixels(now, forced);
+            }
+        }
+        finally { slot.Crossed = crossed; }
+    }
+    private static Bitmap Render(Control control)
+    {
+        var image = new Bitmap(control.Width, control.Height);
+        control.DrawToBitmap(image, new Rectangle(Point.Empty, control.Size));
+        return image;
+    }
+    private static bool SamePixels(Bitmap a, Bitmap b)
+    {
+        if (a.Size != b.Size) return false;
+        for (int y = 0; y < a.Height; y++)
+            for (int x = 0; x < a.Width; x++) if (a.GetPixel(x, y) != b.GetPixel(x, y)) return false;
+        return true;
+    }
     private static void Png(string path, Color color, int size)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path));
@@ -154,7 +189,8 @@ internal static class BotInventoryGridSmoke
                 + "<texte cle=\"ALREADY_EQUIPED\" valeur=\"Objet déjà équipé (test).\" />\n<texte cle=\"ERROR_19\" valeur=\"Conditions non remplies (test)\" />\n<texte cle=\"ERROR_44\" valeur=\"pour équiper cet objet (test).\" />\n"
                 + "<texte cle=\"MIN_WORD\" valeur=\"mini (test)\" />\n<texte cle=\"MAX_WORD\" valeur=\"maxi (test)\" />\n"
                 + "<texte cle=\"INFOS_32\" valeur=\"Repas du familier apprécié (test).\" />\n<texte cle=\"INFOS_105\" valeur=\"Repas de la monture apprécié (test).\" />\n"
-                + "<texte cle=\"ERROR_53\" valeur=\"Le familier ne mange pas cela (test).\" />\n<texte cle=\"ERROR_90\" valeur=\"La monture ne mange pas cela (test).\" />");
+                + "<texte cle=\"ERROR_53\" valeur=\"Le familier ne mange pas cela (test).\" />\n<texte cle=\"ERROR_90\" valeur=\"La monture ne mange pas cela (test).\" />\n"
+                + "<texte cle=\"ERROR_54\" valeur=\"Le familier est mort (test).\" />\n<texte cle=\"CANT_MOVE_ITEM\" valeur=\"Impossible de déplacer un objet pendant un échange (test).\" />");
             LangData.Clear();
             Check(LangData.Load(lang) == 4 && LangData.IsLoaded("items") && LangData.IsLoaded("effects") && LangData.IsLoaded("itemsets") && LangData.IsLoaded("lang"), "Synthetic lang XML not loaded");
             ServerMessages.Resolver = (type, id, args) => { string text = LangData.Text.Im(type, id, args); return string.IsNullOrEmpty(text) || (text.StartsWith("!") && text.EndsWith("!")) ? null : text; };
@@ -313,6 +349,16 @@ internal static class BotInventoryGridSmoke
                         Feed(account, "OAEA"); PumpUntil(() => help.Text.EndsWith("Objet déjà équipé (test)."), "OAEA message");
                         Feed(account, "Im119|44"); PumpUntil(() => help.Text.EndsWith("pour équiper cet objet (test)."), "Im119|44 message");
                         panel.RefreshView(); Check(help.Text.EndsWith("pour équiper cet objet (test)."), "RefreshView dropped the server notice");
+                        // Lot X4-CORR : un refus hors repas s'efface à la mise à jour d'inventaire suivante (OQ, OM, OR…), comme avant X4.
+                        Feed(account, "OQ1000|3"); PumpUntil(() => !help.Text.Contains("(test)"), "Im119|44 cleared by the next inventory update");
+                        Check(help.Text.StartsWith("Potion fictive · 3 · dans le sac") && panel.CurrentItem == potion, "The inventory update lost the selection: " + help.Text);
+                        Feed(account, "Im119|44"); PumpUntil(() => help.Text.EndsWith("pour équiper cet objet (test)."), "Im119|44 message again");
+                        Check(grid.SelectItem(1003u), "Bow cell cannot be selected"); Application.DoEvents();
+                        Feed(account, "Im119|44"); PumpUntil(() => help.Text.StartsWith("Arc fictif") && help.Text.EndsWith("pour équiper cet objet (test)."), "Im119|44 under the bow");
+                        Feed(account, "OR1003"); PumpUntil(() => grid.IndexOf(1003u) < 0, "bow removed by OR");
+                        Check(panel.CurrentItem == null && help.Text == "Sélectionnez un objet. Le serveur confirme chaque action.", "A stale refusal stayed after OR removed the selected item: " + help.Text);
+                        Check(grid.SelectItem(1000u), "Potion cell cannot be selected after OR"); Application.DoEvents();
+                        Feed(account, "Im119|44"); PumpUntil(() => help.Text.EndsWith("pour équiper cet objet (test)."), "Im119|44 before the selection change");
                         Check(grid.SelectItem(1005u), "Key cell cannot be selected"); Application.DoEvents();
                         Check(!help.Text.Contains("(test)") && help.Text.StartsWith("Clé fictive"), "Changing the selection did not clear the server notice: " + help.Text);
                         Check(!drop.Enabled && !destroy.Enabled && equip.Enabled == false, "Quest item can be dropped or destroyed");
@@ -343,12 +389,21 @@ internal static class BotInventoryGridSmoke
                         Feed(account, "OCO3ee~7d7~1~8~"); Application.DoEvents();
                         Check(fish.Qua == 5 && plateau[8].Item != null && plateau[8].Item.Inventory_ID == 1006u && help.Text.EndsWith("Repas du familier apprécié (test)."),
                             "OQ/OCO after feeding were not applied or dropped the Im notice: " + help.Text);
+                        // Familier mort (lot X4-CORR) : Im154 est un message du repas, il survit à l'OM vers le sac et à l'OCO qui le suivent.
+                        Feed(account, "Im154"); PumpUntil(() => help.Text.EndsWith("Le familier est mort (test)."), "Im154 message");
+                        Feed(account, "OM1006|"); Feed(account, "OCO3ee~7d7~1~~"); PumpUntil(() => plateau[8].Item == null && grid.IndexOf(1006u) >= 0, "dead pet back to the bag");
+                        Check(help.Text.EndsWith("Le familier est mort (test)."), "Im154 did not survive the OM and OCO of the dead pet: " + help.Text);
+                        Feed(account, "OM1006|8"); PumpUntil(() => plateau[8].Item != null && plateau[8].Item.Inventory_ID == 1006u, "pet worn again");
                         plateau[8].AcceptDrop(Payload(1000u, 3, -1)); NoPacket(peer, "Dropping a potion on the worn pet sent a packet");
 
                         // Monture : sans Re+ la case 16 refuse le poisson ; Re+ l'allume, une pile passe par la boîte de quantité.
                         plateau[16].AcceptDrop(Payload(1007u, 5, -1)); NoPacket(peer, "Dropping fish on the mount slot without a mount sent a packet");
                         Check(QuantityPopup.OpenPopups.Count == 0, "A refused slot opened the quantity box");
+                        // Lot X4-CORR : sans monture, la case 16 vide est barrée (_mcMountCross de mountChanged) ; Re+ remplace la croix par l'icône.
+                        Check(!plateau[16].Crossed && CrossDrawn(plateau[16]), "The empty mount slot without a mount is not crossed (_mcMountCross)");
+                        Check(!CrossDrawn(plateau[15]), "The shield slot is crossed without a two-handed weapon (or the rendering is empty)");
                         Feed(account, "Re+" + MountRecord); PumpUntil(() => plateau.HasMount, "Re+ mount");
+                        Check(!CrossDrawn(plateau[16]), "The mount cross stayed after Re+");
                         Check(plateau[16].Accepts(fish) && plateau[16].Accepts(wood) && !plateau[16].Accepts(potion) && plateau[16].Item == null && bag.HasMount,
                             "Mount slot must accept resources once Re+ announced a mount");
                         plateau[16].AcceptDrop(Payload(1007u, 5, -1)); PumpUntil(() => QuantityPopup.OpenPopups.Count == 1, "quantity box");
@@ -357,7 +412,17 @@ internal static class BotInventoryGridSmoke
                             && All(popup).Any(control => control.Name == "quantity-min" && control.Text == "mini (test)") && All(popup).Any(control => control.Name == "quantity-max" && control.Text == "maxi (test)"),
                             "Quantity box is not prefilled with the stack or misses MIN_WORD / MAX_WORD: " + popup.InputText);
                         NoPacket(peer, "OM was sent before the quantity was chosen");
-                        popup.InputText = "2x"; Check(popup.InputText == "2", "The quantity field accepts non-digits");
+                        // Lot X4-CORR : le bouton « OK » tient dans la barre (52 px de 116 à 168 ; la barre faisait 164 px).
+                        Control okButton = All(popup).First(control => control.Name == "quantity-ok");
+                        Check(okButton.Right <= okButton.Parent.ClientSize.Width - okButton.Parent.Padding.Right,
+                            "The OK button is clipped by the action bar: right edge " + okButton.Right + " in " + okButton.Parent.ClientSize.Width + " px");
+                        // Chiffres seuls (restrict = "0-9"), vérifié sur le champ lui-même : collage filtré par TextChanged, frappe par KeyPress.
+                        var field = (TextBox)All(popup).First(control => control.Name == "quantity-input");
+                        field.Text = "2x"; Check(field.Text == "2" && popup.InputText == "2", "The quantity field accepts non-digits (TextChanged filter): " + field.Text);
+                        MethodInfo keyPress = typeof(Control).GetMethod("OnKeyPress", Any);
+                        var letter = new KeyPressEventArgs('x'); var digit = new KeyPressEventArgs('7'); var back = new KeyPressEventArgs('\b');
+                        foreach (KeyPressEventArgs press in new[] { letter, digit, back }) keyPress.Invoke(field, new object[] { press });
+                        Check(letter.Handled && !digit.Handled && !back.Handled && field.Text == "2", "The quantity field lets a typed letter through (KeyPress filter)");
                         popup.Confirm(); Check(Read(peer) == "OM1007|16|2", "Feeding the mount does not send OM<id>|16|<quantity>");
                         PumpUntil(() => QuantityPopup.OpenPopups.Count == 0 && reports.LastOrDefault() == "Repas de la monture demandé ; le serveur répond par OQ ou OR et un message.", "quantity box closed");
                         Feed(account, "OQ1007|3"); Feed(account, "Im0105"); PumpUntil(() => help.Text.EndsWith("Repas de la monture apprécié (test)."), "Im0105 message");
@@ -375,6 +440,25 @@ internal static class BotInventoryGridSmoke
                         plateau[16].AcceptDrop(Payload(1007u, 3, -1)); PumpUntil(() => QuantityPopup.OpenPopups.Count == 1, "fourth quantity box");
                         popup = QuantityPopup.OpenPopups[0]; popup.InputText = "0"; popup.Confirm();
                         PumpUntil(() => QuantityPopup.OpenPopups.Count == 0, "zero closed the box"); NoPacket(peer, "A zero quantity sent a packet");
+                        // Lot X4-CORR : une perte d'activation ou une boîte Oui / Non ouverte par un paquet (ERK, PIK…) ne ferme pas la boîte,
+                        // un clic sur cette boîte non plus (elle est au-dessus du _bgHidder) ; un clic dans la fenêtre de jeu l'abandonne.
+                        plateau[16].AcceptDrop(Payload(1007u, 3, -1)); PumpUntil(() => QuantityPopup.OpenPopups.Count == 1, "fifth quantity box");
+                        popup = QuantityPopup.OpenPopups[0];
+                        typeof(Form).GetMethod("OnActivated", Any).Invoke(popup, new object[] { EventArgs.Empty });
+                        typeof(Form).GetMethod("OnDeactivate", Any).Invoke(popup, new object[] { EventArgs.Empty }); Application.DoEvents();
+                        Check(QuantityPopup.OpenPopups.Count == 1 && !popup.Result.IsCompleted, "A lost activation abandoned the quantity box");
+                        Task<BotDialogResult> asked = BotDialogs.AskYesNoIgnoreAsync(form, "Échange", "Demande fictive arrivée par un paquet");
+                        PumpUntil(() => BotDialogs.OpenDialogs.Count == 1, "request dialog");
+                        Check(QuantityPopup.OpenPopups.Count == 1 && !popup.Result.IsCompleted, "A dialog opened by a packet abandoned the quantity box");
+                        Form request = BotDialogs.OpenDialogs[0];
+                        Message onDialog = Message.Create(request.Handle, 0x0201, IntPtr.Zero, IntPtr.Zero);
+                        Check(!((IMessageFilter)popup).PreFilterMessage(ref onDialog), "A click on the dialog above the box was swallowed"); Application.DoEvents();
+                        Check(QuantityPopup.OpenPopups.Count == 1 && !popup.Result.IsCompleted, "A click on the dialog above abandoned the quantity box");
+                        Answer(request, "Non"); PumpUntil(() => BotDialogs.OpenDialogs.Count == 0, "request dialog closed"); Complete(asked);
+                        Message onGame = Message.Create(form.Handle, 0x0201, IntPtr.Zero, IntPtr.Zero);
+                        Check(((IMessageFilter)popup).PreFilterMessage(ref onGame), "A click in the game window is not swallowed like _bgHidder");
+                        PumpUntil(() => QuantityPopup.OpenPopups.Count == 0 && reports.LastOrDefault() == "Déplacement annulé.", "click in the game window cancelled the box");
+                        NoPacket(peer, "An abandoned quantity box sent a packet");
                         Feed(account, "Im190"); PumpUntil(() => help.Text.EndsWith("La monture ne mange pas cela (test)."), "Im190 message");
                         // Un seul exemplaire : pas de boîte, OM<id>|16 sans quantité ; une potion n'est jamais proposée à la monture.
                         Feed(account, "OQ1004|1"); plateau[16].AcceptDrop(Payload(1004u, 1, -1)); Check(Read(peer) == "OM1004|16", "A single resource on the mount must send OM<id>|16 without a box");
@@ -390,6 +474,25 @@ internal static class BotInventoryGridSmoke
                         Feed(account, "Re-"); PumpUntil(() => !plateau.HasMount, "Re- mount");
                         Check(!plateau[16].Accepts(fish) && !Result(bag.MoveToSlot(fish, 16, 1)), "Food still accepted on the mount slot after Re-");
                         NoPacket(peer, "Feeding after Re- reached the server");
+                        Check(CrossDrawn(plateau[16]), "The mount cross did not come back after Re-");
+
+                        // Lot X4-CORR, canMoveItem du client : un échange de familiers ouvert (ECK9, datacenter.Exchange) interdit OM et OD
+                        // sans rien envoyer (CANT_MOVE_ITEM) ; Od reste permis ; la boutique (ECK0) laisse déplacer ; EV rend la main.
+                        Feed(account, "ECK9|-8"); PumpUntil(() => account.Game.Interactions.Exchanges.Current?.IsOpen == true, "pets exchange open");
+                        Check(!Result(bag.MoveToSlot(ring, 2)) && !Result(bag.MoveToSlot(pet, -1)) && !Result(bag.Equip_item(sword)) && !Result(bag.Desequip_Item(pet))
+                            && !Result(bag.Drop_Item(wood, 1)), "Inventory moves were accepted during an open exchange (canMoveItem)");
+                        plateau[2].AcceptDrop(Payload(1002u, 1, -1)); grid.AcceptDrop(Payload(1006u, 1, 8));
+                        NoPacket(peer, "A move during the open exchange reached the server");
+                        string blocked; bool forbidden = bag.MoveForbiddenByExchange(out blocked);
+                        Check(reports.LastOrDefault() == "Déplacement refusé : voir le journal." && forbidden && blocked == "Impossible de déplacer un objet pendant un échange (test).",
+                            "The refusal does not carry CANT_MOVE_ITEM: " + blocked + " / " + reports.LastOrDefault());
+                        Check(Result(bag.Destroy(wood, 1)) && Read(peer) == "Od1004|1", "Od must stay allowed during an exchange (the client does not pass destroyItem through canMoveItem)");
+                        Feed(account, "EV"); PumpUntil(() => account.Game.Interactions.Exchanges.Current == null, "pets exchange closed");
+                        Check(!bag.MoveForbiddenByExchange(out blocked) && Result(bag.MoveToSlot(ring, 2)) && Read(peer) == "OM1002|2", "OM is not sent again once the exchange is closed");
+                        Feed(account, "OM1002|2"); PumpUntil(() => plateau[2].Item == ring, "ring worn after the exchange");
+                        Feed(account, "ECK0|-8"); PumpUntil(() => account.Game.Interactions.Exchanges.Current?.IsOpen == true, "shop open");
+                        Check(!bag.MoveForbiddenByExchange(out blocked) && Result(bag.Desequip_Item(ring)) && Read(peer) == "OM1002|-1", "OM must still be sent while a shop (ECK0) is open");
+                        Feed(account, "OM1002|"); Feed(account, "EV"); PumpUntil(() => plateau[2].Item == null && account.Game.Interactions.Exchanges.Current == null, "ring back, shop closed");
                         drawer.Feedback -= reports.Add;
 
                         // Icônes : sans PNG, initiales ; avec un PNG synthétique Items/<type>/<gfx>.png lu hors du fil de l'interface, pixel témoin.

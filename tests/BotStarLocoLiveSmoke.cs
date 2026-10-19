@@ -463,6 +463,12 @@ internal static partial class Live
     {
         bool inGame = await Scenario("a. connexion, création et entrée en jeu des deux comptes", 120, ConnectBothAsync).ConfigureAwait(false);
         if (!inGame) return;
+        // Lot X4-CORR : x4b et x4c quittent la carte 164 par son zaap ; ils passent avant tout scénario qui fait marcher, combattre ou
+        // téléporter A et B depuis cette carte, car un null laissé dans GameCase.players (voir SeparateAsync) y interdit ensuite toute
+        // téléportation jusqu'au redémarrage du Game. Les trois scénarios ne touchent ni A ni B.
+        await Scenario("x4a. familier et monture nourris depuis l'inventaire (lot X4)", 60, PetsFeedingAsync).ConfigureAwait(false);
+        await Scenario("x4b. familier confié à un gardien puis repris (lot X4)", 100, PetsKeepingAsync).ConfigureAwait(false);
+        await Scenario("x4c. familier mort de repas rapprochés, ressuscité chez un PNJ (lot X4)", 140, PetsResurrectionAsync).ConfigureAwait(false);
         await Scenario("b. même carte, déplacement, changement de carte et retour", 150, SameMapAsync).ConfigureAwait(false);
         await Scenario("c. chat général et message privé", 40, ChatAsync).ConfigureAwait(false);
         await Scenario("c2. émote assise de B jouée en bande dans la fenêtre de A (lot AN8)", 40, EmoteAsync).ConfigureAwait(false);
@@ -478,9 +484,6 @@ internal static partial class Live
         await Scenario("g2. boutique d'un PNJ : achat", 60, NpcShopAsync).ConfigureAwait(false);
         await Scenario("g3. zaap", 90, ZaapAsync).ConfigureAwait(false);
         await Scenario("h. corps à corps : épée et arc contre des monstres, poings en défi (lot X1)", 150, CloseCombatAsync).ConfigureAwait(false);
-        await Scenario("x4a. familier et monture nourris depuis l'inventaire (lot X4)", 60, PetsFeedingAsync).ConfigureAwait(false);
-        await Scenario("x4b. familier confié à un gardien puis repris (lot X4)", 100, PetsKeepingAsync).ConfigureAwait(false);
-        await Scenario("x4c. familier mort de repas rapprochés, ressuscité chez un PNJ (lot X4)", 140, PetsResurrectionAsync).ConfigureAwait(false);
     }
 }
 
@@ -2387,11 +2390,57 @@ internal static partial class Live
     }
 
     /// <summary>
-    /// Ferme la session, relit les objets enregistrés par StarLoco, supprime objets, entrées de familier et monture du scénario, puis le
-    /// compte et le personnage inventés.
+    /// Lot X4-CORR : avant la déconnexion, détruit en jeu tout ce que le sac contient encore (<c>Od&lt;id&gt;|&lt;quantité&gt;</c>, confirmé
+    /// par <c>OR</c>). Un objet créé par StarLoco pendant le scénario (Chacha acheté, certificat, fantôme, Chacha rendu ou ressuscité) ne
+    /// vit qu'en mémoire du Game (<c>modification = 0</c>) jusqu'à la sauvegarde du monde : un <c>DELETE</c> SQL ne l'atteint pas et la
+    /// sauvegarde suivante l'écrit (<c>REPLACE INTO</c>) sans propriétaire ; <c>destroyObject</c> le retire de la mémoire et de la base
+    /// (<c>World.removeGameObject</c>). Un échange resté ouvert est d'abord refermé (<c>EV</c>), un objet porté d'abord rangé
+    /// (<c>OM&lt;id&gt;|-1</c>), StarLoco ignorant <c>Od</c> sur un objet équipé. Rend les identifiants détruits, ceux que StarLoco avait déjà
+    /// retirés (<c>OR</c> reçu pendant le scénario) et les échecs, sans rien supposer.
+    /// </summary>
+    private static async Task DestroyBagAsync(PetOwner owner, List<uint> destroyed, List<uint> gone, List<string> failed)
+    {
+        LiveSession s = owner.Session;
+        if (s == null || !InGame(s)) { failed.Add("session absente ou hors jeu : rien détruit en jeu"); return; }
+        owner.Remember();
+        Tool_BotProtocol.Game.Perso.Inventory.InventoryClass bag = owner.Bag;
+        IExchange exchange = s.Account.Game.Interactions.Exchanges.Current;
+        if (exchange != null && exchange.IsOpen)
+        {
+            await s.Send("EV").ConfigureAwait(false);
+            if (!await s.Until(() => !exchange.IsOpen, 5).ConfigureAwait(false)) failed.Add("échange " + exchange.ExchangeType + " toujours ouvert après EV");
+        }
+        foreach (Tool_BotProtocol.Game.Perso.Inventory.InventoryObjects item in bag.Objets.Where(x => x != null && x.Qua > 0).OrderBy(x => x.Inventory_ID).ToList())
+        {
+            uint id = item.Inventory_ID;
+            try
+            {
+                if ((int)item.position != -1)
+                {
+                    Check(await bag.MoveToSlot(item, -1).ConfigureAwait(false), "rangement dans le sac refusé par le bot");
+                    Check(await s.Until(() => (int)item.position == -1, 5).ConfigureAwait(false), "le serveur ne range pas l'objet (position " + (int)item.position + ")");
+                }
+                int mark = s.ReceivedCount;
+                Check(await bag.Destroy(item, item.Qua).ConfigureAwait(false), "destruction refusée par le bot");
+                Check(await s.Until(() => bag.GetByInventoryId(id) == null, 5).ConfigureAwait(false) && s.ReceivedSince(mark).Contains("OR" + id), "pas de OR" + id + " du serveur");
+                destroyed.Add(id);
+            }
+            catch (Exception error) { failed.Add(id + " (" + item.Name + ") : " + error.Message); }
+        }
+        string[] received = s.ReceivedSince(0);
+        gone.AddRange(owner.Seen.Where(id => !destroyed.Contains(id) && received.Contains("OR" + id)).OrderBy(x => x));
+    }
+
+    /// <summary>
+    /// Détruit en jeu ce que le sac contient (<see cref="DestroyBagAsync"/>), ferme la session, relit les objets enregistrés par StarLoco,
+    /// supprime les lignes restantes (objets, entrées de familier, monture), relit la base et journalise exactement ce qui a été fait ;
+    /// puis le compte et le personnage inventés.
     /// </summary>
     private static async Task ClosePetOwnerAsync(MySql.Data.MySqlClient.MySqlConnection db, string schema, PetOwner owner)
     {
+        var destroyed = new List<uint>(); var gone = new List<uint>(); var failed = new List<string>();
+        try { await DestroyBagAsync(owner, destroyed, gone, failed).ConfigureAwait(false); }
+        catch (Exception error) { failed.Add("destruction en jeu interrompue : " + error.Message); }
         owner.Session?.Dispose();
         await Task.Delay(1500).ConfigureAwait(false);
         try
@@ -2404,18 +2453,32 @@ internal static partial class Live
             }
             if (owner.FishId > 0) owner.Seen.Add((uint)owner.FishId);
             if (owner.PowderId > 0) owner.Seen.Add((uint)owner.PowderId);
-            foreach (uint id in owner.Seen)
+            var objectRows = new List<uint>(); var petRows = new List<uint>();
+            foreach (uint id in owner.Seen.OrderBy(x => x))
             {
-                Sql(db, "DELETE FROM " + schema + ".`world.entity.objects` WHERE id = @id", "@id", (long)id);
-                Sql(db, "DELETE FROM " + schema + ".`world.entity.pets` WHERE id = @id", "@id", (long)id);
+                if (Sql(db, "DELETE FROM " + schema + ".`world.entity.objects` WHERE id = @id", "@id", (long)id) > 0) objectRows.Add(id);
+                if (Sql(db, "DELETE FROM " + schema + ".`world.entity.pets` WHERE id = @id", "@id", (long)id) > 0) petRows.Add(id);
             }
-            if (owner.MountId != 0) Sql(db, "DELETE FROM " + schema + ".`world.entity.mounts` WHERE id = @id", "@id", owner.MountId);
-            if (owner.Seen.Count > 0 || owner.MountId != 0)
-                Journal("[test] objets " + string.Join(",", owner.Seen.OrderBy(x => x)) + (owner.MountId != 0 ? " et monture " + owner.MountId : string.Empty) + " supprimés de la base");
+            bool mountRow = owner.MountId != 0 && Sql(db, "DELETE FROM " + schema + ".`world.entity.mounts` WHERE id = @id", "@id", owner.MountId) > 0;
+            // Ni détruit en jeu, ni retiré par StarLoco, ni trouvé en base : encore en mémoire du Game, la prochaine sauvegarde du monde l'écrira.
+            List<uint> unknown = owner.Seen.Where(id => !destroyed.Contains(id) && !gone.Contains(id) && !objectRows.Contains(id)).OrderBy(x => x).ToList();
+            string ids = string.Join(",", owner.Seen.Select(id => id.ToString(CultureInfo.InvariantCulture)));
+            long leftObjects = ids.Length == 0 ? 0 : Convert.ToInt64(Scalar(db, "SELECT COUNT(*) FROM " + schema + ".`world.entity.objects` WHERE id IN (" + ids + ")"), CultureInfo.InvariantCulture);
+            long leftPets = ids.Length == 0 ? 0 : Convert.ToInt64(Scalar(db, "SELECT COUNT(*) FROM " + schema + ".`world.entity.pets` WHERE id IN (" + ids + ")"), CultureInfo.InvariantCulture);
+            long leftMounts = owner.MountId == 0 ? 0 : Convert.ToInt64(Scalar(db, "SELECT COUNT(*) FROM " + schema + ".`world.entity.mounts` WHERE id = @id", "@id", owner.MountId), CultureInfo.InvariantCulture);
+            Journal("[test] nettoyage x4 : objets détruits en jeu (Od → OR) " + Ids(destroyed) + " ; déjà retirés par StarLoco (OR) " + Ids(gone)
+                + " ; lignes d'objets supprimées de la base " + Ids(objectRows) + " ; entrées de familier supprimées " + Ids(petRows)
+                + " ; monture " + (owner.MountId == 0 ? "aucune" : owner.MountId + (mountRow ? " supprimée de la base" : " absente de la base"))
+                + " ; relecture : " + leftObjects + " objet(s), " + leftPets + " familier(s), " + leftMounts + " monture(s) du scénario encore en base");
+            if (unknown.Count > 0) Journal("!! [test] objets " + Ids(unknown) + " ni détruits en jeu, ni retirés par StarLoco, ni trouvés en base : la prochaine sauvegarde du monde peut les écrire sans propriétaire");
+            if (failed.Count > 0) Journal("!! [test] destruction en jeu manquée : " + string.Join(" / ", failed));
+            if (leftObjects + leftPets + leftMounts > 0) Journal("!! [test] des lignes du scénario x4 restent en base (objets " + ids + (owner.MountId != 0 ? ", monture " + owner.MountId : string.Empty) + ")");
         }
         catch (Exception error) { Journal("!! [test] nettoyage des objets du scénario x4 impossible : " + error.Message); }
         await ForgetAsync(db, schema, new LiveSession[0], owner.Created).ConfigureAwait(false);
     }
+
+    private static string Ids(IEnumerable<uint> ids) { string text = string.Join(",", ids.Select(id => id.ToString(CultureInfo.InvariantCulture))); return text.Length == 0 ? "aucun" : text; }
 
     /// <summary>
     /// PNJ placés par StarLoco (table <c>npcs</c> de la base du jeu) dont <c>npc.xml</c> déclare <paramref name="action"/>, sur une carte
@@ -2504,7 +2567,16 @@ internal static partial class Live
         int travel = s.ReceivedCount;
         var go = await zaap.TeleportAsync(best.Destination.MapId).ConfigureAwait(false);
         Check(go.Sent, "Téléportation refusée par le bot : " + go.Message);
-        await s.Expect("GDM|" + best.Destination.MapId, "GDM|" + best.Destination.MapId + " (arrivée au zaap)", 20, travel).ConfigureAwait(false);
+        try { await s.Expect("GDM|" + best.Destination.MapId, "GDM|" + best.Destination.MapId + " (arrivée au zaap)", 20, travel).ConfigureAwait(false); }
+        catch (TimeoutException) when (s.ReceivedSince(travel).Any(p => p.StartsWith("GA;2;", StringComparison.Ordinal)))
+        {
+            // Lot X4-CORR : ce n'est pas le bot. StarLoco a commencé la téléportation (GA;2, GM|-) puis s'est interrompu : un null laissé
+            // dans GameCase.players de la carte de départ par deux départs simultanés de la même cellule (voir SeparateAsync) fait lever
+            // une NullPointerException dans GAME_SEND_ERASE_ON_MAP_TO_MAP avant le GDM. L'état du serveur est en cause, pas un lot du bot.
+            throw new Exception("GA;2 reçu sans GDM|" + best.Destination.MapId + " : téléportation interrompue par StarLoco (NullPointerException dans"
+                + " GAME_SEND_ERASE_ON_MAP_TO_MAP, entrée nulle laissée dans GameCase.players de la carte " + start + " par deux départs simultanés"
+                + " de la même cellule) ; le Game doit être redémarré");
+        }
         Check(await s.Until(() => s.MapId == best.Destination.MapId && s.Map.Self != null && s.Map.Self.CellId >= 0, 10).ConfigureAwait(false), "Le bot n'est pas sur la carte du zaap d'arrivée");
         await Task.Delay(400).ConfigureAwait(false);
         foreach (Trigger step in best.Route) await WalkThroughTrigger(s, step).ConfigureAwait(false);
@@ -2583,6 +2655,14 @@ internal static partial class Live
         Check(s.SentSince(sent).Contains(er), er + " non envoyé : " + string.Join(", ", s.SentSince(sent)));
         string eck = await s.Expect("ECK", "ECK9 (échange de familiers)", 10, mark).ConfigureAwait(false);
         Check(eck == "ECK9|" + npc.Id, "Réponse inattendue à " + er + " : " + eck);
+        string ereo = null;
+        if (service == PetsService.Resurrection)
+        {
+            // Lot X4-CORR : StarLoco répond ECK9 puis EREO à tout ER17 (GameClient.request, branche « 17 » sans return) ; le bot
+            // ignore ce EREO et l'échange reste ouvert.
+            ereo = await s.Expect(p => p.StartsWith("ERE", StringComparison.Ordinal), "EREO (écart StarLoco après ER17)", 10, mark).ConfigureAwait(false);
+            Check(ereo == "EREO", "Réponse inattendue après le ECK9 de " + er + " : " + ereo);
+        }
         Check(await s.Until(() => pets.IsOpen && pets.Service == service && pets.NpcId == (int)npc.Id, 5).ConfigureAwait(false),
             "Le bot n'ouvre pas l'échange de familiers : ouvert " + pets.IsOpen + ", service " + pets.Service + ", PNJ " + pets.NpcId);
         foreach (uint id in offered)
@@ -2608,7 +2688,7 @@ internal static partial class Live
             "Le bot n'a pas refermé l'échange : " + pets.IsOpen + " / " + pets.LastMessage);
         string received = string.Join(", ", s.ReceivedSince(validated).Where(p => p.StartsWith("EK") || p.StartsWith("OR") || p.StartsWith("OQ") || p.StartsWith("OAKO") || p.StartsWith("OCO") || p.StartsWith("Im021"))
             .Select(p => Short(p, 22)));
-        return npc.DisplayName + " (modèle " + npc.TemplateId + ", actions " + string.Join(",", actions) + ") : " + er + " → " + eck + ", "
+        return npc.DisplayName + " (modèle " + npc.TemplateId + ", actions " + string.Join(",", actions) + ") : " + er + " → " + eck + (ereo != null ? " puis " + ereo + " (ignoré)" : string.Empty) + ", "
             + string.Join(" + ", offered.Select(id => "EMO+" + id + "|1")) + " → " + Short(offer, 30) + " ; EK → " + received + ", " + done + " (« " + pets.LastMessage + " »)";
     }
 }

@@ -331,6 +331,14 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
             return true;
         }
 
+        /// <summary>« Retirer de la barre » : <c>OM&lt;id&gt;|-1|&lt;quantité&gt;</c>, refusé pendant un échange ouvert comme <c>canMoveItem</c> du client (lot X4-CORR).</summary>
+        private Task<bool> RemoveItemAsync(uint inventoryId, InventoryObjects held)
+        {
+            if (account?.Game?.character?.Inventory?.MoveForbiddenByExchange(out string exchange) == true) { Report(exchange); return Task.FromResult(false); }
+            return Send("OM" + inventoryId.ToString(CultureInfo.InvariantCulture) + "|" + ((int)InventorySlots.NOT_EQUIPPED).ToString(CultureInfo.InvariantCulture) + "|" + Math.Max(1, held.Qua).ToString(CultureInfo.InvariantCulture),
+                held.Name + " rangé dans l'inventaire (le serveur confirme par OM).");
+        }
+
         /// <summary>
         /// Objet déposé sur la case <paramref name="position"/> (1 à 14) : <c>OM&lt;id&gt;|&lt;position + 34&gt;|&lt;quantité&gt;</c>.
         /// La case change à la réponse <c>OM</c> du serveur (positions 35 à 48 acceptées pour les objets utilisables).
@@ -344,6 +352,8 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
             if ((int)item.position == target) return false;
             if (!IsShortcutItem(item)) { Report(BannerArt.Text("CANT_MOVE_ITEM_HERE", "Impossible de déplacer cet objet ici.")); return false; }
             if (!Connected) { Report("Connectez le personnage avant de ranger la barre d'objets."); return false; }
+            // canMoveItem du client : aucun OM pendant un échange ouvert (lot X4-CORR).
+            if (account.Game.character.Inventory.MoveForbiddenByExchange(out string exchange)) { Report(exchange); return false; }
             quantity = Math.Max(1, Math.Min(item.Qua, quantity));
             return await Send("OM" + inventoryId.ToString(CultureInfo.InvariantCulture) + "|" + target.ToString(CultureInfo.InvariantCulture) + "|" + quantity.ToString(CultureInfo.InvariantCulture),
                 item.Name + " placé dans la case " + position + " (le serveur confirme par OM).");
@@ -524,8 +534,7 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
                     menu.Items.Add(new ToolStripMenuItem("Utiliser", null, (s, e) => _ = UseItemAsync(item)));
                     InventoryObjects held = account?.Game?.character?.Inventory?.GetByInventoryId(item);
                     if (held != null)
-                        menu.Items.Add(new ToolStripMenuItem("Retirer de la barre", null, (s, e) => _ = Send("OM" + item.ToString(CultureInfo.InvariantCulture) + "|" + ((int)InventorySlots.NOT_EQUIPPED).ToString(CultureInfo.InvariantCulture) + "|" + Math.Max(1, held.Qua).ToString(CultureInfo.InvariantCulture),
-                            held.Name + " rangé dans l'inventaire (le serveur confirme par OM).")));
+                        menu.Items.Add(new ToolStripMenuItem("Retirer de la barre", null, (s, e) => _ = RemoveItemAsync(item, held)));
                 }
                 var place = new ToolStripMenuItem("Placer un objet ici >>");
                 foreach (InventoryObjects candidate in Items().Where(o => o.position == InventorySlots.NOT_EQUIPPED && IsShortcutItem(o)).OrderBy(o => o.Name, StringComparer.CurrentCulture).Take(40))
