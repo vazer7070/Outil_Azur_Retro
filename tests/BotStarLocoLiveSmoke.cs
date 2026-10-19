@@ -485,6 +485,8 @@ internal static partial class Live
         await Scenario("x4a. familier et monture nourris depuis l'inventaire (lot X4)", 60, PetsFeedingAsync).ConfigureAwait(false);
         await Scenario("x4b. familier confié à un gardien puis repris (lot X4)", 100, PetsKeepingAsync).ConfigureAwait(false);
         await Scenario("x4c. familier mort de repas rapprochés, ressuscité chez un PNJ (lot X4)", 140, PetsResurrectionAsync).ConfigureAwait(false);
+        await Scenario("x32a. potion de changement de nom : AlEr, fenêtre du nom sur la fenêtre de jeu, refus, AlEs, nom accepté par GM|~ (lot X32)", 90, RenameAsync).ConfigureAwait(false);
+        await Scenario("x32b. roulette du Bouftou : 100 kamas, TC → TV envoyé, boîte « mini-jeu », joueur libéré (lot X32)", 90, RouletteAsync).ConfigureAwait(false);
         // Toujours en dernier : arrête puis redémarre le serveur de jeu (A et B restent déconnectés).
         await Scenario("x3c. serveur de jeu arrêté en pleine partie : boîte de perte de connexion, « Oui » reconnecte A (lot X3)", 360, GameStopAsync).ConfigureAwait(false);
     }
@@ -3189,5 +3191,268 @@ internal static partial class Live
         }
         await GoHome(s).ConfigureAwait(false);
         return s.Label + " sur la carte " + s.MapId + " après le combat";
+    }
+}
+
+// Scénarios x32a et x32b (lot X32) : potion de changement de nom en jeu (manque B-07) et roulette du Bouftou (mini-jeu TC/TV, manque V-45).
+internal static partial class Live
+{
+    /// <summary>
+    /// Potion de changement de nom : objet 10860 (type 12), action d'objet 12 de StarLoco (<c>ObjectAction</c> : <c>setChangeName(true)</c>
+    /// → <c>AlEr</c>, potion gardée, hors combat). Roulette du Bouftou : PNJ 408 de la carte 3336 (cellule 198), question 1646, réponse
+    /// 1273 « Payer 100 kamas » → action 36 « 100;30 » (<c>Action.java</c>) : 100 kamas retirés (<c>As</c>, <c>Im046;100</c>), dialogue
+    /// clos (<c>DV</c>), puis <c>TC30|7001010000</c> 1,5 s plus tard (<c>TC31</c> une fois sur 200) avec le joueur « absent » et
+    /// <c>IN_TUTORIAL</c> jusqu'à son <c>TV</c> ; un <c>DC</c> pendant ce temps recevrait <c>ERES</c>.
+    /// </summary>
+    private const int NamePotionTemplate = 10860, RouletteMap = 3336, RouletteNpcTemplate = 408, RouletteNpcCell = 198, RouletteQuestion = 1646,
+        RouletteAnswer = 1273, RoulettePrice = 100, RouletteKamas = 1000;
+
+    /// <summary>
+    /// Nom de personnage absent de la base, lu par StarLoco (première lettre « N », hors des préfixes de paquets) et valide pour lui
+    /// (lettres seules, voyelles et consonnes alternées : aucune lettre triplée).
+    /// </summary>
+    private static string FreeCharacterName(MySql.Data.MySqlClient.MySqlConnection db, string schema)
+    {
+        const string consonants = "lmnrstvz", vowels = "aeiou";
+        for (int i = 0; i < 20; i++)
+        {
+            var name = new System.Text.StringBuilder("N");
+            for (int k = 0; k < 6; k++) name.Append(k % 2 == 0 ? vowels[random.Next(vowels.Length)] : consonants[random.Next(consonants.Length)]);
+            string candidate = name.ToString();
+            if (!NameChange.IsReadByStarLoco(candidate)) continue;
+            if (Convert.ToInt32(Scalar(db, "SELECT COUNT(*) FROM " + schema + ".players WHERE name = @name", "@name", candidate), CultureInfo.InvariantCulture) == 0) return candidate;
+        }
+        throw new Exception("aucun nom de personnage libre trouvé dans la base");
+    }
+
+    private static Task TypeNameAsync(ChooseNickNameForm dialog, string name) =>
+        OnUi(() => dialog.GetType().GetProperty("Nickname", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(dialog, name, null));
+
+    private static async Task PressOkAsync(ChooseNickNameForm dialog) =>
+        await (await OnUi(() => (Task)dialog.GetType().GetMethod("OkAsync", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(dialog, null)).ConfigureAwait(false)).ConfigureAwait(false);
+
+    private static GameClientFullform OpenScreen(LiveSession s) =>
+        new GameClientFullform(s.Account) { StartPosition = FormStartPosition.Manual, Location = new Point(60, 60), Size = new Size(1000, 700), ShowInTaskbar = false };
+
+    /// <summary>
+    /// Changement de nom en jeu : un compte et un personnage inventés reçoivent par la base la potion 10860 et ont leur fenêtre de jeu.
+    /// « Utiliser » (<c>OU</c>) → <c>AlEr</c> : la fenêtre <c>ChooseNickName</c> s'ouvre au-dessus de la fenêtre de jeu, la potion reste
+    /// dans le sac. Le nom de A (préfixe « Essai- » : « E » est un préfixe de paquet de StarLoco) est refusé sur place ; « Nom1 » (chiffre)
+    /// part en ligne brute et revient <c>AlEs</c>, la saisie rouvre avec <c>NICKNAME_ALREADY_USED</c> ; un nom libre part et revient
+    /// <c>AlEr</c> (StarLoco le renvoie malgré la réussite), la potion est retirée (<c>OR</c>) et le <c>GM|~</c> du personnage porte le
+    /// nouveau nom : la fenêtre se ferme, le bot connaît le nouveau nom, la session n'est jamais coupée. Tout est supprimé de la base.
+    /// </summary>
+    private static async Task<string> RenameAsync()
+    {
+        if (!Map.AllBotMaps.ContainsKey(TombMap)) throw new SkipScenario("carte " + TombMap + " absente des cartes du bot");
+        using (MySql.Data.MySqlClient.MySqlConnection db = OpenAccountsDatabase(out string schema))
+        {
+            var created = new List<InventedCharacter>();
+            LiveSession c = null;
+            GameClientFullform screen = null;
+            int potionId = 1900000000 + random.Next(0, 99999999);
+            bool potionWritten = false;
+            try
+            {
+                InventedCharacter hero = Invent(db, schema, a.Id, TombMap, TombCell, 10000, created);
+                Sql(db, "INSERT INTO " + schema + ".`world.entity.objects` (id, template, quantity, position, stats, puit) VALUES (@id, @template, 1, -1, '', 0)",
+                    "@id", potionId, "@template", NamePotionTemplate);
+                potionWritten = true;
+                Sql(db, "UPDATE " + schema + ".players SET objets = @objets WHERE id = @id AND account = @account",
+                    "@objets", potionId.ToString(CultureInfo.InvariantCulture) + "|", "@id", hero.Id, "@account", hero.Guid);
+                Journal("[test] potion de changement de nom " + NamePotionTemplate + " (objet " + potionId + ") dans le sac de " + hero.Name);
+                c = new LiveSession("C", hero.Login, hero.Password);
+                var requests = new List<NicknameRequest>(); var accepted = new List<string>(); var renamed = new List<string>();
+                int lost = 0;
+                string entered = await EnterExistingAsync(c, hero.Id, hero.Name, TombMap, s =>
+                {
+                    s.Account.Game.Session.NameChange.Requested += request => { lock (requests) requests.Add(request); };
+                    s.Account.Game.Session.NameChange.Accepted += name => { lock (accepted) accepted.Add(name); };
+                    s.Account.Game.Session.CharacterRenamed += name => { lock (renamed) renamed.Add(name); };
+                    s.Account.ConnectionLost += loss => Interlocked.Increment(ref lost);
+                    s.Account.Game.character.Player_Selection += () => OnUi(() => { if (screen == null) { screen = OpenScreen(s); screen.Show(); } });
+                }).ConfigureAwait(false);
+                Tool_BotProtocol.Game.Perso.Inventory.InventoryObjects potion = null;
+                Check(await c.Until(() => (potion = Owned(c, NamePotionTemplate)) != null, 10).ConfigureAwait(false), "La potion " + NamePotionTemplate + " manque à l'inventaire lu par le bot (ASK)");
+                Check(await WaitOnUi(() => screen != null && screen.IsHandleCreated && screen.Visible ? screen : null, 20).ConfigureAwait(false) != null, "La fenêtre de jeu de C ne s'est pas ouverte");
+                object prompts = await OnUi(() => Field(screen, "connectionPrompts")).ConfigureAwait(false);
+                Check(prompts != null, "La fenêtre de jeu n'a pas de ConnectionPrompts");
+                Check(await OnUi(() => Member(prompts, "NameForm") == null).ConfigureAwait(false), "Une fenêtre du nom est ouverte avant la potion");
+                NameChange change = c.Account.Game.Session.NameChange;
+
+                // 1. « Utiliser » : OU<objet>| → AlEr (Player.setChangeName) ; la potion reste dans le sac ; fenêtre du nom sur la fenêtre de jeu.
+                int mark = c.ReceivedCount, sent = c.SentCount;
+                var used = await Tool_BotProtocol.Game.Perso.Inventory.SpecialItems.UseAsync(c.Account.Game, potion).ConfigureAwait(false);
+                Check(used.Sent, "« Utiliser » refusé par le bot : " + used.Message);
+                Check(await c.Until(() => c.SentSince(sent).Any(p => p.StartsWith("OU" + potionId + "|", StringComparison.Ordinal)), 5).ConfigureAwait(false), "OU" + potionId + "| non envoyé");
+                await c.Expect(p => p == "AlEr", "AlEr (potion de changement de nom)", 15, mark).ConfigureAwait(false);
+                Check(await c.Until(() => Count(requests) == 1 && change.IsPending, 5).ConfigureAwait(false), "AlEr n'a pas ouvert la demande de nom du bot");
+                Check(Last(requests).Attempt == 1 && Last(requests).Refused == null && Last(requests).Error == null, "Première demande : " + Describe(Last(requests)));
+                var dialog = await WaitOnUi(() => Member(prompts, "NameForm") as ChooseNickNameForm, 15).ConfigureAwait(false);
+                Check(dialog != null, "AlEr n'a pas ouvert la fenêtre du nom au-dessus de la fenêtre de jeu");
+                string[] opened = await OnUi(() => new[] { Member(dialog, "Step").ToString(), (string)Member(dialog, "HelpText"), ReferenceEquals(dialog.Owner, screen).ToString(), dialog.Visible.ToString() }).ConfigureAwait(false);
+                Check(opened[0] == "Input" && opened[1] == ConnectionTexts.NicknameHelp && opened[2] == "True" && opened[3] == "True",
+                    "Fenêtre du nom mal ouverte : étape " + opened[0] + ", aide « " + opened[1] + " », au-dessus de la fenêtre " + opened[2] + ", visible " + opened[3]);
+                Check(Owned(c, NamePotionTemplate) != null, "La potion a disparu du sac avant le nom");
+
+                // 2. Refus local : le nom de A commence par une lettre que StarLoco lit comme un préfixe de paquet (« E » de « Essai- »).
+                string unreadable = a.Account.Game.character.Name;
+                if (string.IsNullOrEmpty(unreadable) || NameChange.IsReadByStarLoco(unreadable)) unreadable = "Gaston";
+                await TypeNameAsync(dialog, unreadable).ConfigureAwait(false);
+                await PressOkAsync(dialog).ConfigureAwait(false);
+                string[] refusedLocally = await OnUi(() => new[] { Member(dialog, "Step").ToString(), (string)Member(dialog, "ErrorText") }).ConfigureAwait(false);
+                Check(refusedLocally[0] == "Input" && refusedLocally[1] == NameChange.UnreadableByServer(unreadable),
+                    "Nom « " + unreadable + " » : étape " + refusedLocally[0] + ", erreur « " + refusedLocally[1] + " »");
+                Check(!c.SentSince(sent).Any(p => p == unreadable), "Le nom refusé localement est parti au serveur");
+
+                // 3. Nom invalide pour StarLoco (chiffre) : OK, confirmation, OK → ligne brute → AlEs → saisie rouverte avec NICKNAME_ALREADY_USED.
+                const string invalid = "Nom1";
+                await TypeNameAsync(dialog, invalid).ConfigureAwait(false);
+                await PressOkAsync(dialog).ConfigureAwait(false);
+                string[] confirm = await OnUi(() => new[] { Member(dialog, "Step").ToString(), (string)Member(dialog, "HelpText") }).ConfigureAwait(false);
+                Check(confirm[0] == "Confirm" && confirm[1] == ConnectionTexts.NicknameConfirm(invalid), "Confirmation : étape " + confirm[0] + ", texte « " + confirm[1] + " »");
+                int before = c.ReceivedCount;
+                await PressOkAsync(dialog).ConfigureAwait(false);
+                Check(await c.Until(() => c.SentSince(sent).Any(p => p == invalid), 5).ConfigureAwait(false), "Le nom « " + invalid + " » n'est pas parti en ligne brute");
+                string refusal = await c.Expect(p => p == "AlEs" || p == "AlEr", "AlEs (nom refusé)", 15, before).ConfigureAwait(false);
+                Check(refusal == "AlEs", "StarLoco a répondu " + refusal + " au lieu de AlEs pour « " + invalid + " »");
+                Check(await c.Until(() => Count(requests) == 2, 5).ConfigureAwait(false) && Last(requests).Refused == invalid && Last(requests).Error == ConnectionTexts.NicknameAlreadyUsed,
+                    "Deuxième demande : " + Describe(Last(requests)));
+                string reopened = await WaitOnUi(() => Member(dialog, "Step").ToString() == "Input" && (string)Member(dialog, "ErrorText") == ConnectionTexts.NicknameAlreadyUsed
+                    ? (string)Member(dialog, "Nickname") : null, 10).ConfigureAwait(false);
+                Check(reopened == invalid, "AlEs n'a pas rouvert la saisie avec NICKNAME_ALREADY_USED et le nom refusé (« " + reopened + " »)");
+                Check(Owned(c, NamePotionTemplate) != null, "La potion a été consommée par un nom refusé");
+
+                // 4. Nom libre : ligne brute → AlEr (renvoyé malgré la réussite), OR (potion retirée), GM|~ au nouveau nom → fenêtre fermée.
+                string chosen = FreeCharacterName(db, schema);
+                await TypeNameAsync(dialog, chosen).ConfigureAwait(false);
+                await PressOkAsync(dialog).ConfigureAwait(false);
+                before = c.ReceivedCount;
+                await PressOkAsync(dialog).ConfigureAwait(false);
+                Check(await c.Until(() => c.SentSince(sent).Any(p => p == chosen), 5).ConfigureAwait(false), "Le nom « " + chosen + " » n'est pas parti en ligne brute");
+                string answer = await c.Expect(p => p == "AlEr" || p == "AlEs", "AlEr (nom accepté)", 15, before).ConfigureAwait(false);
+                Check(answer == "AlEr", "StarLoco a répondu " + answer + " pour le nom libre « " + chosen + " »");
+                await c.Expect(p => p.StartsWith("GM|~", StringComparison.Ordinal) && p.Contains(";" + hero.Id + ";" + chosen + ";"), "GM|~ au nouveau nom", 15, before).ConfigureAwait(false);
+                Check(await c.Until(() => Count(accepted) == 1 && !change.IsPending && c.Account.Game.character.Name == chosen, 5).ConfigureAwait(false),
+                    "Le GM|~ au nouveau nom n'a pas clos la demande (accepté " + Count(accepted) + ", en attente " + change.IsPending + ", nom « " + c.Account.Game.character.Name + " »)");
+                Check(Count(renamed) == 1 && Last(renamed) == chosen && Last(accepted) == chosen, "CharacterRenamed / Accepted : " + string.Join(",", Snapshot(renamed)) + " / " + string.Join(",", Snapshot(accepted)));
+                Check(Count(requests) == 3 && Last(requests).Refused == chosen && Last(requests).Error == null, "AlEr de réussite : " + Describe(Last(requests)));
+                Check(await WaitOnUi(() => dialog.IsDisposed && Member(prompts, "NameForm") == null ? "fermée" : null, 10).ConfigureAwait(false) != null,
+                    "La fenêtre du nom reste ouverte après le GM|~ au nouveau nom");
+                bool removed = await c.Until(() => Owned(c, NamePotionTemplate) == null, 5).ConfigureAwait(false);
+                string removal = c.ReceivedSince(before).FirstOrDefault(p => p.StartsWith("OR", StringComparison.Ordinal) || p.StartsWith("OQ", StringComparison.Ordinal));
+                Check(lost == 0 && c.Account.Connexion != null && c.Account.Connexion.IsConnected(), "Le changement de nom a déconnecté C");
+                string stored = Scalar(db, "SELECT name FROM " + schema + ".players WHERE id = @id", "@id", hero.Id) as string;
+                return entered + " ; OU → AlEr, fenêtre du nom sur la fenêtre de jeu ; « " + unreadable + " » refusé sur place ; « " + invalid + " » → AlEs, saisie rouverte ; « "
+                    + chosen + " » → AlEr, " + (removal == null ? "(ni OR ni OQ)" : Short(removal, 16)) + ", GM|~ au nouveau nom, fenêtre fermée, potion "
+                    + (removed ? "retirée du sac" : "encore dans le sac") + ", jamais déconnecté ; base « " + stored + " »";
+            }
+            finally
+            {
+                if (screen != null) await OnUi(() => { if (!screen.IsDisposed) { screen.Close(); screen.Dispose(); } }).ConfigureAwait(false);
+                await ForgetAsync(db, schema, new[] { c }, created).ConfigureAwait(false);
+                if (potionWritten)
+                    try { Sql(db, "DELETE FROM " + schema + ".`world.entity.objects` WHERE id = @id AND template = @template", "@id", potionId, "@template", NamePotionTemplate); }
+                    catch (Exception error) { Journal("!! [test] potion " + potionId + " non supprimée de la base : " + error.Message); }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Roulette du Bouftou : un compte et un personnage inventés (1000 kamas) posés sur la carte 3336 avec leur fenêtre de jeu. <c>DC</c>
+    /// au PNJ 408 → <c>DCK</c>, <c>DQ1646</c> ; réponse 1273 → <c>Im046;100</c>, 100 kamas de moins, <c>DV</c>, puis <c>TC30|7001010000</c>
+    /// (ou <c>TC31</c>) : le bot envoie aussitôt <c>TV&lt;rang&gt;|&lt;cellule&gt;|&lt;orientation&gt;</c> et sa fenêtre ouvre la boîte
+    /// « mini-jeu » ; un second <c>DC</c> obtient <c>DCK</c> (joueur libéré du mini-jeu) et non <c>ERES</c>. Tout est supprimé de la base.
+    /// </summary>
+    private static async Task<string> RouletteAsync()
+    {
+        if (!Map.AllBotMaps.TryGetValue(RouletteMap, out Map map)) throw new SkipScenario("carte " + RouletteMap + " absente des cartes du bot");
+        if (!map.HasMapData)
+            try { map.DecompressMap(map.MapData); }
+            catch (Exception error) { throw new SkipScenario("carte " + RouletteMap + " sans cellules lisibles : " + error.Message); }
+        Cell npcCell = map.GetCellFromId((short)RouletteNpcCell);
+        Cell start = map.MapCells.Where(cell => cell != null && cell.IsWalkable() && cell.CellID != RouletteNpcCell)
+            .OrderBy(cell => npcCell == null ? 0 : cell.GetDistanceBetweenCells(npcCell)).ThenBy(cell => cell.CellID).FirstOrDefault();
+        Check(start != null, "aucune cellule praticable sur la carte " + RouletteMap);
+        using (MySql.Data.MySqlClient.MySqlConnection db = OpenAccountsDatabase(out string schema))
+        {
+            var created = new List<InventedCharacter>();
+            LiveSession c = null;
+            GameClientFullform screen = null;
+            try
+            {
+                InventedCharacter player = Invent(db, schema, a.Id, RouletteMap, start.CellID, 10000, created);
+                Sql(db, "UPDATE " + schema + ".players SET kamas = @kamas WHERE id = @id AND account = @account", "@kamas", RouletteKamas, "@id", player.Id, "@account", player.Guid);
+                c = new LiveSession("C", player.Login, player.Password);
+                var started = new List<TutorialRequest>();
+                int lost = 0;
+                string entered = await EnterExistingAsync(c, player.Id, player.Name, RouletteMap, s =>
+                {
+                    s.Account.Game.Session.Tutorial.Started += request => { lock (started) started.Add(request); };
+                    s.Account.ConnectionLost += loss => Interlocked.Increment(ref lost);
+                    s.Account.Game.character.Player_Selection += () => OnUi(() => { if (screen == null) { screen = OpenScreen(s); screen.Show(); } });
+                }).ConfigureAwait(false);
+                Check(await WaitOnUi(() => screen != null && screen.IsHandleCreated && screen.Visible ? screen : null, 20).ConfigureAwait(false) != null, "La fenêtre de jeu de C ne s'est pas ouverte");
+                string miniGameName = "mini-jeu/" + player.Login;
+                Check(await OnUi(() => OpenDialog(miniGameName) == null).ConfigureAwait(false), "Une boîte « mini-jeu » est ouverte avant la roulette");
+                Check(await c.Until(() => c.Account.Game.character.Kamas == RouletteKamas, 10).ConfigureAwait(false), "Kamas lus " + c.Account.Game.character.Kamas + " au lieu de " + RouletteKamas);
+                NpcActor npc = await FindNpcAsync(c, new[] { RouletteNpcTemplate }).ConfigureAwait(false);
+                NpcDialog dialog = c.Account.Game.Interactions.Npc;
+
+                // DC → DCK, DQ1646 ; DR1646|1273 → Im046;100, DV, puis TC 1,5 s plus tard.
+                int mark = c.ReceivedCount, sent = c.SentCount;
+                var open = await dialog.OpenAsync((int)npc.Id).ConfigureAwait(false);
+                Check(open.Sent, "DC refusé par le bot : " + open.Message);
+                string dck = await c.Expect(p => p.StartsWith("DCK", StringComparison.Ordinal) || p.StartsWith("ERE", StringComparison.Ordinal), "DCK", 10, mark).ConfigureAwait(false);
+                Check(dck.StartsWith("DCK", StringComparison.Ordinal), "Le PNJ " + RouletteNpcTemplate + " répond " + dck);
+                string dq = await c.Expect("DQ", "DQ (question du PNJ)", 10, mark).ConfigureAwait(false);
+                Check(await c.Until(() => dialog.IsOpen && dialog.QuestionId == RouletteQuestion && dialog.AnswerIds.Contains(RouletteAnswer), 5).ConfigureAwait(false),
+                    "Question " + dialog.QuestionId + " (" + Short(dq, 40) + ") au lieu de " + RouletteQuestion + " avec la réponse " + RouletteAnswer);
+                int answered = c.ReceivedCount;
+                var answer = await dialog.AnswerAsync(RouletteAnswer).ConfigureAwait(false);
+                Check(answer.Sent, "DR refusé par le bot : " + answer.Message);
+                string im = await c.Expect(p => p.StartsWith("Im046;", StringComparison.Ordinal), "Im046 (kamas payés)", 10, answered).ConfigureAwait(false);
+                string tc = await c.Expect(p => p.StartsWith("TC", StringComparison.Ordinal), "TC (mini-jeu)", 15, answered).ConfigureAwait(false);
+                Check(tc == "TC30|7001010000" || tc == "TC31|7001010000", "TC inattendu : " + tc);
+                int rank = tc.StartsWith("TC31", StringComparison.Ordinal) ? 1 : 0;
+                Check(await c.Until(() => c.SentSince(sent).Any(p => p.StartsWith("TV", StringComparison.Ordinal)), 5).ConfigureAwait(false), "TV non envoyé après " + tc);
+                string tv = c.SentSince(sent).First(p => p.StartsWith("TV", StringComparison.Ordinal));
+                string expectedEnd = "TV" + rank + "|" + c.Account.Game.character.Cell.CellID + "|" + c.Account.Game.character.Orientation;
+                Check(tv == expectedEnd, "Fin envoyée " + tv + " au lieu de " + expectedEnd);
+                Check(Count(started) == 1 && Last(started).Id == 30 + rank && Last(started).EndPacket == tv && Last(started).Name == "Roulette du Bouftou",
+                    "Started : " + Count(started) + " mini-jeu(x), dernier " + (Last(started) == null ? "(aucun)" : Last(started).Id + " " + Last(started).EndPacket));
+                Form box = await WaitOnUi(() => OpenDialog(miniGameName), 10).ConfigureAwait(false);
+                Check(box != null, "TC n'a pas ouvert la boîte « mini-jeu » dans la fenêtre de C");
+                string[] shown = await OnUi(() => new[] { box.Text, DialogMessage(box), ReferenceEquals(box.Owner, screen).ToString() }).ConfigureAwait(false);
+                Check(shown[0] == ConnectionTexts.InformationsTitle && shown[1] == Last(started).Describe() && shown[2] == "True",
+                    "Boîte « " + shown[0] + " » : « " + shown[1] + " », au-dessus de la fenêtre de C " + shown[2]);
+                bool paid = await c.Until(() => c.Account.Game.character.Kamas == RouletteKamas - RoulettePrice, 5).ConfigureAwait(false);
+                // L'action 36 rend « quitter » : StarLoco clôt le dialogue (DV) avant TC ; sinon le bot le quitte lui-même.
+                if (!await c.Until(() => !dialog.IsOpen, 5).ConfigureAwait(false)) { await dialog.LeaveAsync().ConfigureAwait(false); await c.Until(() => !dialog.IsOpen, 5).ConfigureAwait(false); }
+
+                // Joueur libéré par TV : un nouveau DC obtient DCK (ERES tant que l'action IN_TUTORIAL reste posée).
+                int again = c.ReceivedCount;
+                var reopen = await dialog.OpenAsync((int)npc.Id).ConfigureAwait(false);
+                Check(reopen.Sent, "Second DC refusé par le bot : " + reopen.Message);
+                string freed = await c.Expect(p => p.StartsWith("DCK", StringComparison.Ordinal) || p.StartsWith("ERE", StringComparison.Ordinal), "DCK (joueur libéré)", 10, again).ConfigureAwait(false);
+                Check(freed.StartsWith("DCK", StringComparison.Ordinal), "Après " + tv + ", le PNJ répond " + freed + " : le joueur est resté dans le mini-jeu");
+                await c.Expect("DQ", "DQ (seconde question)", 10, again).ConfigureAwait(false);
+                Check(await c.Until(() => dialog.IsOpen, 5).ConfigureAwait(false), "Le second dialogue ne s'est pas ouvert chez le bot");
+                var leave = await dialog.LeaveAsync().ConfigureAwait(false);
+                Check(leave.Sent, "DV refusé par le bot : " + leave.Message);
+                await c.Expect(p => p == "DV", "DV (fin du second dialogue)", 10, again).ConfigureAwait(false);
+                await OnUi(() => AllControls(box).OfType<Button>().First(x => x.Visible).PerformClick()).ConfigureAwait(false);
+                Check(await WaitOnUi(() => OpenDialog(miniGameName) == null ? "fermée" : null, 5).ConfigureAwait(false) != null, "« OK » ne ferme pas la boîte « mini-jeu »");
+                Check(lost == 0 && c.Account.Connexion != null && c.Account.Connexion.IsConnected(), "La roulette a déconnecté C");
+                return entered + " ; DC → " + Short(dck, 8) + ", DQ" + RouletteQuestion + ", DR → " + Short(im, 12) + ", kamas " + (paid ? (RouletteKamas - RoulettePrice) + " (As)" : c.Account.Game.character.Kamas + " (pas de As lu)")
+                    + ", " + tc + " → " + tv + " (" + (rank == 1 ? "gagné" : "perdu") + "), boîte « " + shown[0] + " » : « " + shown[1].Replace("\n", " ") + " », second DC → " + Short(freed, 8)
+                    + " (joueur libéré), DV, OK ferme la boîte";
+            }
+            finally
+            {
+                if (screen != null) await OnUi(() => { if (!screen.IsDisposed) { screen.Close(); screen.Dispose(); } }).ConfigureAwait(false);
+                await ForgetAsync(db, schema, new[] { c }, created).ConfigureAwait(false);
+            }
+        }
     }
 }
