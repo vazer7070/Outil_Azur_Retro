@@ -3296,15 +3296,40 @@ internal static partial class Live
     private static CraftSecureExchange SecureCraft(LiveSession s) => s.Account.Game.Interactions.Exchanges.Get<CraftSecureExchange>();
 
     /// <summary>
-    /// Première carte du bot (identifiant croissant) qui a une forge, une cellule praticable hors déclencheur à moins de 4 cases d'elle pour
-    /// l'artisan (même distance que <c>PathFinding.getDistanceBetween</c> : |ΔX| + |ΔY| des coordonnées de <c>GameCase</c>, calculées comme
-    /// <c>Cell</c>) et une autre cellule, à deux cases au moins de l'artisan, pour le client.
+    /// Cellules d'une carte du bot décodées à la demande : <c>Map.AllBotMaps</c> ne garde que <c>MapData</c>, <c>DecompressMap</c> remplit
+    /// <c>MapCells</c> et <c>Interactives</c> comme à l'entrée sur la carte (<c>SetRefreshMap</c>) ; <c>null</c> si les données sont illisibles.
+    /// </summary>
+    private static Map DecodeCells(Map info)
+    {
+        var decoded = new Map { MapID = info.MapID, MapWidth = info.MapWidth, MapHeight = info.MapHeight, X = info.X, Y = info.Y, Back_ID = info.Back_ID, MapData = info.MapData };
+        try { decoded.DecompressMap(info.MapData); return decoded; }
+        catch (Exception) { return null; }
+    }
+
+    /// <summary>
+    /// Vrai si une cellule de <paramref name="mapData"/> peut porter l'objet <paramref name="gfx"/> en couche 2 : ses douze bits bas sont
+    /// les deux derniers caractères du bloc de dix (<c>DecompressCell</c> : <c>(c8 &lt;&lt; 6) + c9</c>), lus avant de décoder toute la carte.
+    /// </summary>
+    private static bool MayHoldObject(string mapData, int gfx)
+    {
+        char high = Tool_BotProtocol.Utils.Crypto.Hash.caracteres_array[(gfx & 0xFFF) >> 6], low = Tool_BotProtocol.Utils.Crypto.Hash.caracteres_array[gfx & 63];
+        for (int i = 8; i + 1 < mapData.Length; i += 10)
+            if (mapData[i] == high && mapData[i + 1] == low) return true;
+        return false;
+    }
+
+    /// <summary>
+    /// Première carte du bot (identifiant croissant, cellules décodées à la demande) qui a une forge, une cellule praticable hors déclencheur
+    /// à moins de 4 cases d'elle pour l'artisan (même distance que <c>PathFinding.getDistanceBetween</c> : |ΔX| + |ΔY| des coordonnées de
+    /// <c>GameCase</c>, calculées comme <c>Cell</c>) et une autre cellule, à deux cases au moins de l'artisan, pour le client.
     /// </summary>
     private static bool FindForge(out Map map, out Cell forge, out Cell artisanCell, out Cell clientCell)
     {
         map = null; forge = null; artisanCell = null; clientCell = null;
-        foreach (Map candidate in Map.AllBotMaps.Values.Where(m => m?.MapCells != null && m.MapCells.Length > 0).OrderBy(m => m.MapID))
+        foreach (Map info in Map.AllBotMaps.Values.Where(m => m != null && !string.IsNullOrEmpty(m.MapData) && MayHoldObject(m.MapData, ForgeGfx)).OrderBy(m => m.MapID))
         {
+            Map candidate = DecodeCells(info);
+            if (candidate == null || candidate.MapCells == null) continue;
             IReadOnlyDictionary<int, Trigger> triggers = Triggers.ForMap(candidate.MapID);
             Func<Cell, bool> free = c => c != null && c.IsWalkable() && c.C_Types != Tool_BotProtocol.Game.Maps.Enums.CellTypes.TELEPORT_CELL && !triggers.ContainsKey(c.CellID);
             foreach (int cellId in candidate.Interactives.Where(p => p.Value?.gfx == ForgeGfx).Select(p => p.Key).OrderBy(id => id))
