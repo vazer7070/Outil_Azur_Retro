@@ -148,6 +148,8 @@ Après la relecture, le bot a été joué sur une copie locale du StarLoco du ki
 
 **X4 — Familiers et montures : nourrir, confier, ressusciter.** Ressource déposée sur le familier porté (`OM<objet>|8`) ou sur la monture annoncée par `Re+` (boîte de quantité du client, `OM<objet>|16|<quantité>`), comme `enabledFromSuperType` ; échange de familiers de type 9 (`ER9` garde, `ER17` résurrection, `ECK9` dans les deux cas) et volet **Familiers**. Tests : `BotInventoryGridSmoke`, `BotExchangeSmoke` ; scénarios x4a à x4c de `BotStarLocoLiveSmoke` (repas, garde chez un gardien d’action 4, résurrection chez un PNJ d’action 7).
 
+**X5 — Artisanat sécurisé (a) : protocole et fenêtre.** Fenêtre `CraftSecureExchange` des types 12 (artisan) et 13 (client) : `ECK12` / `ECK13|<cases>;<compétence>`, ingrédients des deux côtés (`EMO±`, `EMKO±`, `EmKO±`), paiement et prime du client (`EP<1|2>G`, `EP<1|2>O±` → `Ep<type>;…`), `EK` avec le délai du client, `EcK;<modèle>;T / B<nom>;<effets>`, `EcEF`, `EcEI`, `EV` ; demandes `ERK` de types 12 et 13 posées dans la boîte de l'échange avec les textes du client ; volet **Artisanat sécurisé**. Les entrées de menu `ER12` / `ER13` et `ERET` restent au lot X6. Tests : `BotCraftSmoke`, `BotExchangeSmoke`, scénario x5 de `BotStarLocoLiveSmoke`.
+
 ## Couverture des fonctions
 
 Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par le test cité contre un serveur fictif local), **partiel** (une partie seulement), **absent**. Les fonctions rejouées par `BotStarLocoLiveSmoke` sont aussi vérifiées sur un vrai StarLoco local ; les autres lignes ne le sont pas encore. La colonne « Client 1.34 » nomme la fenêtre ou les paquets du client ; la colonne « StarLoco » dit ce que le serveur du kit en fait.
@@ -253,6 +255,7 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | F6 | Maison | `hB`, `hS`, `GA507` | traité | fait | `BotHouseMerchantSmoke` |
 | F7 | Monture et enclos | `Rr`, `Rn`, `Rx`, `ER15`, `ER16` | ignore `Rr` sous le niveau 60 | partiel : ni ancêtres, ni recoloration, certificat hors inventaire | `BotMountSmoke` |
 | — | Garde et résurrection de familiers (type 9, lot X4) | `ER9`, `ER17`, `EMO`, `EK` | `ECK9` aux deux demandes, sans `EL` | fait | `BotExchangeSmoke`, `BotStarLocoLiveSmoke` |
+| — | Artisanat sécurisé (types 12 et 13, lot X5) | `ER12`, `ER13`, `EP`, `EK` | `ECK12` / `ECK13`, `Ep`, `EcK` | fait (fenêtre et volet ; entrées de menu `ER12` / `ER13` : lot X6) | `BotCraftSmoke`, `BotExchangeSmoke`, `BotStarLocoLiveSmoke` |
 
 ### G. Progression, monde, combat
 
@@ -339,6 +342,7 @@ Lot X4 : le repas du familier et de la monture, la garde chez un gardien (PNJ 29
 - Défense des percepteurs (`gTJ`/`gTV`, inopérants chez StarLoco), noms des percepteurs (famille de langue non exportée), actions sur les montures de l’onglet Enclos, aperçu de l’emblème à la création.
 - Menu du personnage lui-même : se frapper, libérer son âme, changer de direction.
 - Artisanat sécurisé (`ER12`/`ER13`), aide à la forgemagie, compétences des artisans publics sur la carte.
+- Lot X5 : l'artisanat sécurisé a sa fenêtre et son volet ; restent les entrées de menu `ER12` / `ER13` et la lecture de `ERET` (lot X6).
 - Hôtel de vente : tri et filtre des modèles par niveau, effets complets dans la liste.
 - Maison : emblème de guilde dans le volet, fenêtres de vente et d’intérieur flottantes.
 - Montures : ancêtres, recoloration et animation, certificat consulté depuis l’inventaire.

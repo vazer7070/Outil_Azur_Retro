@@ -117,6 +117,9 @@ try {
     # Lot X4-CORR (OM et OD refusés pendant un échange, EREO après ER17 ignoré, seuls les messages du repas gardés sous l'objet, boîte de
     # quantité abandonnée au clic seulement et « OK » entier, croix de la case 16 sans monture, x4a à x4c joués juste après le scénario a,
     # objets des scénarios x4 détruits en jeu) : couvert par les mêmes tests.
+    # Lot X5 (artisanat sécurisé : fenêtre CraftSecureExchange des types 12 et 13, demandes ERK 12/13, paiement EP/Ep, volet) : couvert
+    # par BotCraftSmoke, BotExchangeSmoke et le scénario x5 de BotStarLocoLiveSmoke (deux comptes inventés sur une carte à forge) ;
+    # AZUR_STARLOCO_SCENARIOS=x5 ne joue que celui-là après la connexion.
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'
