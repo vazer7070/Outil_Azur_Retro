@@ -488,6 +488,7 @@ internal static partial class Live
         await Scenario("h. corps à corps : épée et arc contre des monstres, poings en défi (lot X1)", 150, CloseCombatAsync).ConfigureAwait(false);
         await Scenario("x3a. compte neuf sans pseudo : AlEr, pseudo pris (AlEs) puis accepté, par le bot puis par sa fenêtre ChooseNickName (lot X3)", 90, NewAccountNicknameAsync).ConfigureAwait(false);
         await Scenario("x3b. parchemin d'expérience : AN2, boîte « Nouveau niveau » dans la fenêtre de jeu (lot X3)", 90, LevelUpAsync).ConfigureAwait(false);
+        await Scenario("x5. artisanat sécurisé : ER13 du client, ERK 12, ECK12 / ECK13, ingrédients, paiement, EK des deux, EcK, EV (lot X5)", 150, SecureCraftAsync).ConfigureAwait(false);
         // Toujours en dernier : arrête puis redémarre le serveur de jeu (A et B restent déconnectés).
         await Scenario("x3c. serveur de jeu arrêté en pleine partie : boîte de perte de connexion, « Oui » reconnecte A (lot X3)", 360, GameStopAsync).ConfigureAwait(false);
     }
@@ -3269,5 +3270,254 @@ internal static partial class Live
         }
         await GoHome(s).ConfigureAwait(false);
         return s.Label + " sur la carte " + s.MapId + " après le combat";
+    }
+}
+
+// Scénario x5 (lot X5) : artisanat sécurisé entre deux comptes inventés, l'artisan à côté d'une forge.
+internal static partial class Live
+{
+    /// <summary>
+    /// Forge : objet interactif <c>gfx</c> 7012 des cartes (StarLoco lit l'identifiant de l'objet de la couche 2 marqué interactif,
+    /// <c>CryptManager.decompileMapData</c>) ; <c>jobs_data.crafts</c> du forgeur d'épées 11 vaut « 7012;20,145 » (compétence 20 à cette forge),
+    /// son outil est le marteau 494 et la recette de la petite épée de Boisaille 40 (table <c>crafts</c>) est « 303*2;473*2 ».
+    /// </summary>
+    private const int ForgeGfx = 7012, SwordSmithJob = 11, ForgeSwordSkill = 20, SwordSmithHammer = 494, AshWood = 303, ChestnutWood = 473, SmallWoodSword = 40;
+    /// <summary>
+    /// Expérience écrite dans la colonne <c>jobs</c> (« 11,8100 ») : niveau 20 du métier (table <c>experience</c>, colonne <c>metier</c> :
+    /// 8097 au niveau 20), soit quatre cases (<c>JobConstant.getTotalCaseByJobLevel</c>) ; une recette à deux ingrédients réussit alors
+    /// à coup sûr (<c>getChanceByNbrCaseByLvl</c> : 100 % jusqu'à cases − 2 ingrédients), ce qui rend le scénario déterministe.
+    /// </summary>
+    private const long SwordSmithXp = 8100;
+    /// <summary>Paiement, prime si réussite et kamas du client ; StarLoco exige l'artisan à moins de 4 cases de la forge (<c>getDistanceBetween</c> &lt; 4).</summary>
+    private const int CraftPayKamas = 150, CraftBonusKamas = 50, CraftClientKamas = 1000, ForgeReach = 3;
+
+    private static Tool_BotProtocol.Game.Jobs.Jobs SwordJob(LiveSession s) => s.Account.Game.character.GetJobsSnapshot().FirstOrDefault(job => job?.ID == SwordSmithJob);
+
+    private static CraftSecureExchange SecureCraft(LiveSession s) => s.Account.Game.Interactions.Exchanges.Get<CraftSecureExchange>();
+
+    /// <summary>
+    /// Première carte du bot (identifiant croissant) qui a une forge, une cellule praticable hors déclencheur à moins de 4 cases d'elle pour
+    /// l'artisan (même distance que <c>PathFinding.getDistanceBetween</c> : |ΔX| + |ΔY| des coordonnées de <c>GameCase</c>, calculées comme
+    /// <c>Cell</c>) et une autre cellule, à deux cases au moins de l'artisan, pour le client.
+    /// </summary>
+    private static bool FindForge(out Map map, out Cell forge, out Cell artisanCell, out Cell clientCell)
+    {
+        map = null; forge = null; artisanCell = null; clientCell = null;
+        foreach (Map candidate in Map.AllBotMaps.Values.Where(m => m?.MapCells != null && m.MapCells.Length > 0).OrderBy(m => m.MapID))
+        {
+            IReadOnlyDictionary<int, Trigger> triggers = Triggers.ForMap(candidate.MapID);
+            Func<Cell, bool> free = c => c != null && c.IsWalkable() && c.C_Types != Tool_BotProtocol.Game.Maps.Enums.CellTypes.TELEPORT_CELL && !triggers.ContainsKey(c.CellID);
+            foreach (int cellId in candidate.Interactives.Where(p => p.Value?.gfx == ForgeGfx).Select(p => p.Key).OrderBy(id => id))
+            {
+                Cell at = candidate.GetCellFromId((short)cellId);
+                if (at == null) continue;
+                Cell near = candidate.MapCells.Where(c => free(c) && c.CellID != at.CellID)
+                    .Select(c => new { c, d = at.GetDistanceBetweenCells(c) }).Where(x => x.d <= ForgeReach)
+                    .OrderBy(x => x.d).ThenBy(x => x.c.CellID).Select(x => x.c).FirstOrDefault();
+                if (near == null) continue;
+                Cell apart = candidate.MapCells.Where(c => free(c) && c.CellID != at.CellID && c.CellID != near.CellID)
+                    .Select(c => new { c, d = near.GetDistanceBetweenCells(c) }).Where(x => x.d >= 2)
+                    .OrderBy(x => x.d).ThenBy(x => x.c.CellID).Select(x => x.c).FirstOrDefault();
+                if (apart == null) continue;
+                map = candidate; forge = at; artisanCell = near; clientCell = apart;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Deux comptes inventés sur une carte à forge : l'artisan (métier 11 au niveau 20 écrit dans la base, marteau 494 en position 1) et
+    /// le client (deux bois de frêne, deux bois de châtaignier, 1000 kamas). Le client envoie <c>ER13|&lt;artisan&gt;|20</c> (ligne brute :
+    /// l'entrée du menu est le lot X6) ; StarLoco répond <c>ERK&lt;client&gt;|&lt;artisan&gt;|12</c> aux deux (<c>GameClient.request</c>) ; la
+    /// demande est posée à l'artisan (<c>A_WANT_CRAFT_CLIENT</c>) et attendue par le client (<c>WAIT_FOR_CRAFT_CLIENT</c>) ; <c>EA</c> ouvre
+    /// <c>ECK12|4;20</c> chez l'artisan et <c>ECK13|4;20</c> chez le client ; le client pose les ingrédients (<c>EMO+</c> → <c>EMKO+</c> /
+    /// <c>EmKO+…|&lt;modèle&gt;|</c>, recette 40 reconnue des deux côtés), propose 150 kamas de paiement et 50 de prime (<c>EP1G</c>,
+    /// <c>EP2G</c> → <c>Ep1;G</c>, <c>Ep2;G</c> aux deux) ; <c>EK</c> du client puis de l'artisan (<c>EK1&lt;id&gt;</c> aux deux) ; StarLoco
+    /// fabrique : <c>EcK;40;T&lt;client&gt;;…</c> à l'artisan, <c>EcK;40;B&lt;artisan&gt;;…</c> au client, <c>OAKO</c> de l'épée et <c>OR</c>
+    /// des bois chez le client, kamas 800 / 200 (<c>As</c>), <c>JX</c> de l'artisan, <c>EK0</c> ; « Fermer » de l'artisan → <c>EV</c> aux deux.
+    /// Les objets restants sont détruits en jeu puis les comptes supprimés (même nettoyage que x4).
+    /// </summary>
+    private static async Task<string> SecureCraftAsync()
+    {
+        RequireMaps();
+        foreach (string family in new[] { "jobs", "skills", "crafts", "items", "lang" })
+            if (!LangData.IsLoaded(family)) throw new SkipScenario("textes du client « " + family + " » absents : le bot ne reconnaît ni le métier, ni la recette, ni les textes de la demande");
+        if (!FindForge(out Map forgeMap, out Cell forge, out Cell artisanCell, out Cell clientCell))
+            throw new SkipScenario("aucune carte du bot n'a de forge (objet " + ForgeGfx + ") avec une cellule praticable à moins de 4 cases");
+        using (MySql.Data.MySqlClient.MySqlConnection db = OpenAccountsDatabase(out string schema))
+        {
+            var artisan = new PetOwner { Label = "Art" }; var client = new PetOwner { Label = "Cli" };
+            var evidence = new List<string>();
+            EventHandler<ExchangeRequestEventArgs> keep = (s, e) => e.Handled = true;
+            PlayerExchange artisanRequests = null;
+            try
+            {
+                // Base : artisan et client posés sur la carte, objets à identifiants hors de la plage de StarLoco.
+                int baseId = 600000000 + random.Next(1, 100000) * 10;
+                int hammerId = baseId, ashId = baseId + 1, chestnutId = baseId + 2;
+                artisan.Character = Invent(db, schema, a.Id, forgeMap.MapID, artisanCell.CellID, 10000, artisan.Created);
+                Sql(db, "INSERT INTO " + schema + ".`world.entity.objects` (id, template, quantity, position, stats, puit) VALUES (@id, @template, 1, 1, '', 0)",
+                    "@id", hammerId, "@template", SwordSmithHammer);
+                Sql(db, "UPDATE " + schema + ".players SET kamas = 0, objets = @objets, jobs = @jobs WHERE id = @id",
+                    "@objets", hammerId.ToString(CultureInfo.InvariantCulture) + "|", "@jobs", SwordSmithJob + "," + SwordSmithXp.ToString(CultureInfo.InvariantCulture), "@id", artisan.Character.Id);
+                client.Character = Invent(db, schema, b.Id, forgeMap.MapID, clientCell.CellID, 10000, client.Created);
+                Sql(db, "INSERT INTO " + schema + ".`world.entity.objects` (id, template, quantity, position, stats, puit) VALUES (@id, @template, 2, -1, '', 0)", "@id", ashId, "@template", AshWood);
+                Sql(db, "INSERT INTO " + schema + ".`world.entity.objects` (id, template, quantity, position, stats, puit) VALUES (@id, @template, 2, -1, '', 0)", "@id", chestnutId, "@template", ChestnutWood);
+                Sql(db, "UPDATE " + schema + ".players SET kamas = @kamas, objets = @objets WHERE id = @id",
+                    "@kamas", CraftClientKamas, "@objets", ashId.ToString(CultureInfo.InvariantCulture) + "|" + chestnutId.ToString(CultureInfo.InvariantCulture) + "|", "@id", client.Character.Id);
+                foreach (uint id in new[] { (uint)hammerId }) artisan.Seen.Add(id);
+                foreach (uint id in new[] { (uint)ashId, (uint)chestnutId }) client.Seen.Add(id);
+                Journal("[test] carte " + forgeMap.MapID + " : forge en " + forge.CellID + ", artisan " + artisan.Character.Name + " en " + artisanCell.CellID + " (distance " + forge.GetDistanceBetweenCells(artisanCell)
+                    + "), client " + client.Character.Name + " en " + clientCell.CellID + " ; marteau " + hammerId + ", bois " + ashId + " et " + chestnutId + " écrits dans la base");
+
+                // Entrées en jeu l'une après l'autre (lot CORR-LIVE) ; métier, outil, sac et kamas lus par le bot.
+                LiveSession art = artisan.Session = new LiveSession(artisan.Label, artisan.Character.Login, artisan.Character.Password);
+                evidence.Add(await EnterExistingAsync(art, artisan.Character.Id, artisan.Character.Name, forgeMap.MapID).ConfigureAwait(false));
+                Check(await art.Until(() => SwordJob(art) != null && SwordJob(art).Level >= 20 && SwordJob(art).Skills.Any(skill => skill != null && skill.Id == ForgeSwordSkill), 10).ConfigureAwait(false),
+                    "Métier 11 niveau 20 avec la compétence 20 non lu (JS/JX) : " + (SwordJob(art) == null ? "absent" : "niveau " + SwordJob(art).Level + ", " + SwordJob(art).Skills.Count + " compétence(s)"));
+                Tool_BotProtocol.Game.Perso.Inventory.InventoryObjects hammer = art.Account.Game.character.Inventory.GetByInventoryId((uint)hammerId);
+                Check(hammer != null && (int)hammer.position == 1, "Marteau " + hammerId + " absent ou non équipé (position " + (hammer == null ? "?" : ((int)hammer.position).ToString(CultureInfo.InvariantCulture)) + ")");
+                artisan.Remember();
+                LiveSession cli = client.Session = new LiveSession(client.Label, client.Character.Login, client.Character.Password);
+                evidence.Add(await EnterExistingAsync(cli, client.Character.Id, client.Character.Name, forgeMap.MapID).ConfigureAwait(false));
+                Tool_BotProtocol.Game.Perso.Inventory.InventoryClass bag = cli.Account.Game.character.Inventory;
+                Check(await cli.Until(() => bag.GetByInventoryId((uint)ashId)?.Qua == 2 && bag.GetByInventoryId((uint)chestnutId)?.Qua == 2 && cli.Account.Game.character.Kamas == CraftClientKamas, 10).ConfigureAwait(false),
+                    "Bois ou kamas du client absents : frêne " + bag.GetByInventoryId((uint)ashId)?.Qua + ", châtaignier " + bag.GetByInventoryId((uint)chestnutId)?.Qua + ", kamas " + cli.Account.Game.character.Kamas);
+                client.Remember();
+                Check(await art.Until(() => art.Map.GetActor(cli.Id) != null, 10).ConfigureAwait(false) && await cli.Until(() => cli.Map.GetActor(art.Id) != null, 10).ConfigureAwait(false),
+                    "Les deux personnages ne se voient pas sur la carte " + forgeMap.MapID);
+                string artName = art.Account.Game.character.Name, cliName = cli.Account.Game.character.Name;
+                evidence.Add("métier " + Tool_BotProtocol.Game.Jobs.JobCatalog.JobName(SwordSmithJob) + " niveau " + SwordJob(art).Level + ", compétence " + Tool_BotProtocol.Game.Jobs.JobCatalog.SkillName(ForgeSwordSkill));
+
+                // ER13 du client (ligne brute) : ERK<client>|<artisan>|12 aux deux ; demande posée à l'artisan, attendue par le client.
+                artisanRequests = art.Account.Game.Interactions.Exchange;
+                artisanRequests.RequestReceived += keep;
+                PlayerExchange clientRequests = cli.Account.Game.Interactions.Exchange;
+                int artMark = art.ReceivedCount, cliMark = cli.ReceivedCount;
+                await cli.Send("ER13|" + art.Id.ToString(CultureInfo.InvariantCulture) + "|" + ForgeSwordSkill.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
+                string erkClient = await cli.Expect(p => p.StartsWith("ERK", StringComparison.Ordinal) || p.StartsWith("ERE", StringComparison.Ordinal) || p == "BN", "ERK (demande d'artisanat sécurisé) chez le client", 15, cliMark).ConfigureAwait(false);
+                string expectedErk = "ERK" + cli.Id + "|" + art.Id + "|12";
+                Check(erkClient == expectedErk, "Réponse de StarLoco à ER13 : " + erkClient + " (attendu " + expectedErk + " ; ERET = artisan trop loin de la forge, BN = pas d'outil équipé)");
+                string erkArtisan = await art.Expect("ERK", "ERK chez l'artisan", 15, artMark).ConfigureAwait(false);
+                Check(erkArtisan == expectedErk, "ERK de l'artisan : " + erkArtisan);
+                Check(await art.Until(() => artisanRequests.PendingRequest != null, 5).ConfigureAwait(false) && await cli.Until(() => clientRequests.PendingRequest != null, 5).ConfigureAwait(false), "Demande non posée");
+                ExchangeRequest asked = artisanRequests.PendingRequest, waiting = clientRequests.PendingRequest;
+                Check(asked.Type == 12 && asked.IsSecureCraft && !asked.Outgoing && asked.PartnerId == cli.Id && asked.PartnerName == cliName && asked.Text.Contains(cliName) && asked.Text.Contains("artisan"),
+                    "Demande reçue par l'artisan : type " + asked.Type + ", sortante " + asked.Outgoing + ", partenaire " + asked.PartnerName + ", texte « " + asked.Text + " »");
+                Check(waiting.Type == 12 && waiting.IsSecureCraft && waiting.Outgoing && waiting.PartnerId == art.Id && waiting.Text.Contains(artName),
+                    "Demande envoyée par le client : type " + waiting.Type + ", sortante " + waiting.Outgoing + ", texte « " + waiting.Text + " »");
+                evidence.Add(erkClient + " aux deux ; artisan : « " + asked.Text.Replace("\n", " ") + " » ; client : « " + waiting.Text.Replace("\n", " ") + " »");
+
+                // EA de l'artisan : ECK12|4;20 chez lui, ECK13|4;20 chez le client ; fenêtres ouvertes, demandes consommées.
+                artMark = art.ReceivedCount; cliMark = cli.ReceivedCount;
+                var accepted = await artisanRequests.AcceptAsync().ConfigureAwait(false);
+                Check(accepted.Sent, "EA refusé par le bot : " + accepted.Message);
+                string eckArtisan = await art.Expect("ECK", "ECK12 chez l'artisan", 15, artMark).ConfigureAwait(false);
+                string eckClient = await cli.Expect("ECK", "ECK13 chez le client", 15, cliMark).ConfigureAwait(false);
+                Check(eckArtisan == "ECK12|4;20" && eckClient == "ECK13|4;20", "ECK reçus : " + eckArtisan + " / " + eckClient + " (attendu ECK12|4;20 / ECK13|4;20)");
+                CraftSecureExchange secureArt = SecureCraft(art), secureCli = SecureCraft(cli);
+                Check(await art.Until(() => secureArt.IsOpen, 5).ConfigureAwait(false) && await cli.Until(() => secureCli.IsOpen, 5).ConfigureAwait(false), "Fenêtres de l'artisanat sécurisé non ouvertes");
+                Check(secureArt.IsArtisan && !secureArt.IsClient && secureArt.Slots == 4 && secureArt.SkillId == ForgeSwordSkill && secureArt.PartnerId == cli.Id && secureArt.Job?.ID == SwordSmithJob
+                    && artisanRequests.PendingRequest == null && art.Account.AccountStates == AccountStates.EXCHANGE,
+                    "Fenêtre de l'artisan : artisan " + secureArt.IsArtisan + ", cases " + secureArt.Slots + ", compétence " + secureArt.SkillId + ", partenaire " + secureArt.PartnerId + ", métier " + secureArt.Job?.ID);
+                Check(secureCli.IsClient && !secureCli.IsArtisan && secureCli.Slots == 4 && secureCli.SkillId == ForgeSwordSkill && secureCli.PartnerId == art.Id && secureCli.PartnerName == artName
+                    && clientRequests.PendingRequest == null && cli.Account.AccountStates == AccountStates.EXCHANGE,
+                    "Fenêtre du client : client " + secureCli.IsClient + ", cases " + secureCli.Slots + ", compétence " + secureCli.SkillId + ", partenaire " + secureCli.PartnerName);
+                evidence.Add(eckArtisan + " / " + eckClient + " : « " + secureArt.SkillName + " », " + secureArt.Slots + " cases, artisan " + artName + " ↔ client " + cliName);
+
+                // Ingrédients posés par le client : EMKO+ chez lui, EmKO+…|<modèle>| chez l'artisan ; recette 40 reconnue des deux côtés.
+                artMark = art.ReceivedCount; cliMark = cli.ReceivedCount;
+                var placed = await secureCli.AddIngredientAsync((uint)ashId, 2).ConfigureAwait(false);
+                Check(placed.Sent, "EMO+ du frêne refusé : " + placed.Message);
+                await cli.Expect("EMKO+" + ashId + "|2", "EMKO+ du frêne", 15, cliMark).ConfigureAwait(false);
+                string emk = await art.Expect("EmKO+" + ashId + "|2|" + AshWood, "EmKO+ du frêne chez l'artisan", 15, artMark).ConfigureAwait(false);
+                artMark = art.ReceivedCount; cliMark = cli.ReceivedCount;
+                placed = await secureCli.AddIngredientAsync((uint)chestnutId, 2).ConfigureAwait(false);
+                Check(placed.Sent, "EMO+ du châtaignier refusé : " + placed.Message);
+                await cli.Expect("EMKO+" + chestnutId + "|2", "EMKO+ du châtaignier", 15, cliMark).ConfigureAwait(false);
+                await art.Expect("EmKO+" + chestnutId + "|2|" + ChestnutWood, "EmKO+ du châtaignier chez l'artisan", 15, artMark).ConfigureAwait(false);
+                Check(await cli.Until(() => secureCli.IngredientCount == 2 && secureCli.LocalIngredients.Count == 2, 5).ConfigureAwait(false)
+                    && await art.Until(() => secureArt.IngredientCount == 2 && secureArt.DistantIngredients.Count == 2, 5).ConfigureAwait(false),
+                    "Ingrédients : client " + secureCli.IngredientCount + ", artisan " + secureArt.IngredientCount);
+                Check(secureCli.ExpectedRecipe?.ResultTemplateId == SmallWoodSword && secureArt.ExpectedRecipe?.ResultTemplateId == SmallWoodSword,
+                    "Recette 40 non reconnue : client " + secureCli.ExpectedRecipe?.ResultTemplateId + ", artisan " + secureArt.ExpectedRecipe?.ResultTemplateId);
+                Check(!secureCli.LocalReady && !secureArt.DistantReady, "Validation posée sans EK");
+                evidence.Add("EMKO+ ×2 chez le client, " + Short(emk, 40) + " chez l'artisan, recette " + Tool_BotProtocol.Game.Jobs.JobCatalog.ItemName(SmallWoodSword) + " reconnue des deux côtés");
+
+                // Paiement et prime du client (EP1G, EP2G → Ep1;G, Ep2;G aux deux) ; l'artisan ne peut rien proposer.
+                var artisanPays = await secureArt.SetPayKamasAsync(10, CraftPayment.Pay).ConfigureAwait(false);
+                Check(!artisanPays.Sent, "L'artisan a pu proposer un paiement");
+                artMark = art.ReceivedCount; cliMark = cli.ReceivedCount;
+                var pay = await secureCli.SetPayKamasAsync(CraftPayKamas, CraftPayment.Pay).ConfigureAwait(false);
+                Check(pay.Sent, "EP1G refusé : " + pay.Message);
+                await cli.Expect("Ep1;G" + CraftPayKamas, "Ep1;G chez le client", 15, cliMark).ConfigureAwait(false);
+                await art.Expect("Ep1;G" + CraftPayKamas, "Ep1;G chez l'artisan", 15, artMark).ConfigureAwait(false);
+                artMark = art.ReceivedCount; cliMark = cli.ReceivedCount;
+                pay = await secureCli.SetPayKamasAsync(CraftBonusKamas, CraftPayment.PayIfSuccess).ConfigureAwait(false);
+                Check(pay.Sent, "EP2G refusé : " + pay.Message);
+                await cli.Expect("Ep2;G" + CraftBonusKamas, "Ep2;G chez le client", 15, cliMark).ConfigureAwait(false);
+                await art.Expect("Ep2;G" + CraftBonusKamas, "Ep2;G chez l'artisan", 15, artMark).ConfigureAwait(false);
+                Check(await art.Until(() => secureArt.PayKamas == CraftPayKamas && secureArt.PayIfSuccessKamas == CraftBonusKamas, 5).ConfigureAwait(false)
+                    && secureCli.PayKamas == CraftPayKamas && secureCli.PayIfSuccessKamas == CraftBonusKamas,
+                    "Paiement lu : client " + secureCli.PayKamas + "/" + secureCli.PayIfSuccessKamas + ", artisan " + secureArt.PayKamas + "/" + secureArt.PayIfSuccessKamas);
+                evidence.Add("Ep1;G" + CraftPayKamas + " et Ep2;G" + CraftBonusKamas + " aux deux");
+
+                // Combiner : EK du client après le délai de 3 s (EK1<client> aux deux), puis EK de l'artisan → fabrication.
+                Check(await cli.Until(() => secureCli.CanValidate, 6).ConfigureAwait(false), "« Combiner » du client toujours grisé après 6 s");
+                artMark = art.ReceivedCount; cliMark = cli.ReceivedCount;
+                var combine = await secureCli.CombineAsync().ConfigureAwait(false);
+                Check(combine.Sent, "EK du client refusé : " + combine.Message);
+                await cli.Expect("EK1" + cli.Id, "EK1<client> chez le client", 15, cliMark).ConfigureAwait(false);
+                await art.Expect("EK1" + cli.Id, "EK1<client> chez l'artisan", 15, artMark).ConfigureAwait(false);
+                Check(await cli.Until(() => secureCli.LocalReady && !secureCli.IsValidatePending, 5).ConfigureAwait(false) && await art.Until(() => secureArt.DistantReady, 5).ConfigureAwait(false)
+                    && !secureArt.IsCombinePending && !secureCli.IsCombinePending, "Validation du client non lue : client prêt " + secureCli.LocalReady + ", vu par l'artisan " + secureArt.DistantReady);
+                Check(await art.Until(() => secureArt.CanValidate, 6).ConfigureAwait(false), "« Combiner » de l'artisan toujours grisé après 6 s");
+                int kamasClientBefore = cli.Account.Game.character.Kamas, kamasArtisanBefore = art.Account.Game.character.Kamas;
+                uint xpBefore = SwordJob(art).ActualXP;
+                artMark = art.ReceivedCount; cliMark = cli.ReceivedCount;
+                combine = await secureArt.CombineAsync().ConfigureAwait(false);
+                Check(combine.Sent, "EK de l'artisan refusé : " + combine.Message);
+                string craftArtisan = await art.Expect(p => p.StartsWith("Ec", StringComparison.Ordinal), "EcK chez l'artisan", 20, artMark).ConfigureAwait(false);
+                string craftClient = await cli.Expect(p => p.StartsWith("Ec", StringComparison.Ordinal), "EcK chez le client", 20, cliMark).ConfigureAwait(false);
+                Check(craftArtisan.StartsWith("EcK;" + SmallWoodSword + ";T" + cliName + ";", StringComparison.Ordinal) && craftClient.StartsWith("EcK;" + SmallWoodSword + ";B" + artName + ";", StringComparison.Ordinal),
+                    "Résultat de la fabrication : artisan " + craftArtisan + ", client " + craftClient + " (attendu EcK;40;T<client>;… / EcK;40;B<artisan>;…)");
+                Check(await cli.Until(() => bag.Objets.Any(x => x != null && x.ID == SmallWoodSword) && bag.GetByInventoryId((uint)ashId) == null && bag.GetByInventoryId((uint)chestnutId) == null, 10).ConfigureAwait(false),
+                    "Épée (OAKO) ou bois consommés (OR) non lus chez le client : épée " + bag.Objets.Any(x => x != null && x.ID == SmallWoodSword) + ", frêne " + bag.GetByInventoryId((uint)ashId)?.Qua + ", châtaignier " + bag.GetByInventoryId((uint)chestnutId)?.Qua);
+                Check(await cli.Until(() => cli.Account.Game.character.Kamas == kamasClientBefore - CraftPayKamas - CraftBonusKamas, 10).ConfigureAwait(false)
+                    && await art.Until(() => art.Account.Game.character.Kamas == kamasArtisanBefore + CraftPayKamas + CraftBonusKamas, 10).ConfigureAwait(false),
+                    "Kamas après la fabrication : client " + cli.Account.Game.character.Kamas + " (attendu " + (kamasClientBefore - CraftPayKamas - CraftBonusKamas) + "), artisan " + art.Account.Game.character.Kamas + " (attendu " + (kamasArtisanBefore + CraftPayKamas + CraftBonusKamas) + ")");
+                Check(await art.Until(() => secureArt.LastOutcome == CraftOutcome.Success && secureArt.LastResultTemplateId == SmallWoodSword && secureArt.IngredientCount == 0 && secureArt.PayKamas == 0 && !secureArt.LocalReady && !secureArt.DistantReady && !secureArt.IsCombinePending, 10).ConfigureAwait(false)
+                    && await cli.Until(() => secureCli.LastOutcome == CraftOutcome.Success && secureCli.LastResultTemplateId == SmallWoodSword && secureCli.IngredientCount == 0 && secureCli.PayKamas == 0 && !secureCli.LocalReady && !secureCli.DistantReady && !secureCli.IsCombinePending, 10).ConfigureAwait(false),
+                    "État après EcK et EK0 : artisan " + secureArt.LastOutcome + "/" + secureArt.IngredientCount + "/" + secureArt.LocalReady + ", client " + secureCli.LastOutcome + "/" + secureCli.IngredientCount + "/" + secureCli.LocalReady);
+                Check(secureArt.IsOpen && secureCli.IsOpen, "La fenêtre s'est fermée après la fabrication (StarLoco la garde ouverte)");
+                Check(secureArt.LastMessage.Contains(cliName) && secureCli.LastMessage.Contains(artName) && secureCli.LastMessage.Contains(Tool_BotProtocol.Game.Jobs.JobCatalog.ItemName(SmallWoodSword)),
+                    "Messages de la fabrication : artisan « " + secureArt.LastMessage + " », client « " + secureCli.LastMessage + " »");
+                bool gainedXp = await art.Until(() => SwordJob(art)?.ActualXP > xpBefore, 5).ConfigureAwait(false);
+                bool shown = art.ReceivedSince(artMark).Any(p => p.StartsWith("IO" + art.Id + "|+" + SmallWoodSword, StringComparison.Ordinal));
+                evidence.Add("EK1 ×2 puis " + Short(craftArtisan, 40) + " / " + Short(craftClient, 40) + " ; épée " + SmallWoodSword + " dans le sac du client, bois consommés, kamas " + kamasClientBefore + " → " + cli.Account.Game.character.Kamas
+                    + " et " + kamasArtisanBefore + " → " + art.Account.Game.character.Kamas + (gainedXp ? ", JX " + xpBefore + " → " + SwordJob(art).ActualXP : ", sans JX") + (shown ? ", IO+" + SmallWoodSword : ", sans IO") + " ; « " + secureCli.LastMessage + " »");
+
+                // Fermeture par l'artisan : EV aux deux.
+                artMark = art.ReceivedCount; cliMark = cli.ReceivedCount;
+                var left = await secureArt.LeaveAsync().ConfigureAwait(false);
+                Check(left.Sent, "EV refusé : " + left.Message);
+                await art.Expect(p => p == "EV" || p == "EVa", "EV chez l'artisan", 15, artMark).ConfigureAwait(false);
+                await cli.Expect(p => p == "EV" || p == "EVa", "EV chez le client", 15, cliMark).ConfigureAwait(false);
+                Check(await art.Until(() => !secureArt.IsOpen && art.Account.AccountStates == AccountStates.CONNECTED_INACTIVE, 5).ConfigureAwait(false)
+                    && await cli.Until(() => !secureCli.IsOpen && cli.Account.AccountStates == AccountStates.CONNECTED_INACTIVE, 5).ConfigureAwait(false),
+                    "Fenêtres encore ouvertes après EV : artisan " + secureArt.IsOpen + ", client " + secureCli.IsOpen);
+                evidence.Add("EV aux deux, fenêtres fermées");
+                artisan.Remember(); client.Remember();
+                return string.Join(" ; ", evidence);
+            }
+            finally
+            {
+                if (artisanRequests != null) artisanRequests.RequestReceived -= keep;
+                // Nettoyage comme x4 (objets détruits en jeu, lignes de la base, comptes), un compte après l'autre.
+                await ClosePetOwnerAsync(db, schema, client).ConfigureAwait(false);
+                await ClosePetOwnerAsync(db, schema, artisan).ConfigureAwait(false);
+            }
+        }
     }
 }
