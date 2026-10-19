@@ -1,5 +1,6 @@
 using System;
 using Tool_BotProtocol.Frames.Messages;
+using Tool_BotProtocol.Game.Exchanges;
 using Tool_BotProtocol.Game.Jobs;
 using Tool_BotProtocol.Network;
 
@@ -46,11 +47,28 @@ namespace Tool_BotProtocol.Frames.Jeu
 
         /// <summary><c>EcK;&lt;modèle&gt;…</c> : objet créé.</summary>
         [MessageAttribution("EcK")]
-        public void CraftSuccess(TcpClient client, string message) => Run(client, message, jobs => jobs.OnCraft(true, message.Substring(3)));
+        public void CraftSuccess(TcpClient client, string message) => Craft(client, message, true);
 
         /// <summary><c>EcEI</c> / <c>EcEF</c> : recette inconnue ou échec.</summary>
         [MessageAttribution("EcE")]
-        public void CraftError(TcpClient client, string message) => Run(client, message, jobs => jobs.OnCraft(false, message.Substring(3)));
+        public void CraftError(TcpClient client, string message) => Craft(client, message, false);
+
+        /// <summary>Résultat d'une fabrication : à l'artisanat sécurisé (lot X5) quand c'est l'échange en cours, sinon à l'atelier.</summary>
+        private static void Craft(TcpClient client, string message, bool success)
+        {
+            string body = message.Substring(3);
+            var secure = client?.account?.Game?.Interactions?.Exchanges?.Current as CraftSecureExchange;
+            if (secure != null && secure.IsOpen)
+            {
+                try { secure.OnCraft(success, body); }
+                catch (Exception error) when (!(error is OutOfMemoryException))
+                {
+                    client.account?.Logger?.LogError("ARTISANAT", "Paquet ignoré (" + Preview(message) + ") : " + error.Message);
+                }
+                return;
+            }
+            Run(client, message, jobs => jobs.OnCraft(success, body));
+        }
 
         /// <summary><c>EA&lt;n&gt;</c> : étape d'une série de fabrication.</summary>
         [MessageAttribution("EA")]

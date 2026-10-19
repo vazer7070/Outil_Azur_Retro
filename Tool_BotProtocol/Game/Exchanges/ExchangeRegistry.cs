@@ -25,8 +25,10 @@ namespace Tool_BotProtocol.Game.Exchanges
         public const int Pets = 9;
         public const int AuctionSell = 10;
         public const int AuctionBuy = 11;
-        public const int SecureCraftClient = 12;
-        public const int SecureCraftArtisan = 13;
+        /// <summary>Artisanat sécurisé côté artisan (<c>CraftSecure.player1</c> de StarLoco ; <c>isClient</c> faux dans le client).</summary>
+        public const int SecureCraftArtisan = 12;
+        /// <summary>Artisanat sécurisé côté client (celui qui paie et reçoit l'objet ; <c>isClient</c> = type 13 dans le client).</summary>
+        public const int SecureCraftClient = 13;
         /// <summary>Livre des artisans (interface <c>CrafterList</c> du client, liste de métiers ; StarLoco : <c>GameCase</c>).</summary>
         public const int CrafterList = 14;
         public const int MountStorage = 15;
@@ -51,8 +53,8 @@ namespace Tool_BotProtocol.Game.Exchanges
                 case Pets: return "familiers";
                 case AuctionSell: return "hôtel de vente (vente)";
                 case AuctionBuy: return "hôtel de vente (achat)";
-                case SecureCraftClient:
-                case SecureCraftArtisan: return "artisanat sécurisé";
+                case SecureCraftArtisan: return "artisanat sécurisé (artisan)";
+                case SecureCraftClient: return "artisanat sécurisé (client)";
                 case CrafterList: return "livre des artisans";
                 case MountStorage: return "sacoches de la monture";
                 case Shed: return "étable";
@@ -226,6 +228,14 @@ namespace Tool_BotProtocol.Game.Exchanges
         internal void OnDistantMovement(string data) => Dispatch("EmK", data, window => window.OnDistantMovement(data));
         internal void OnStorageMovement(string data) => Dispatch("EsK", data, window => window.OnStorageMovement(data));
         internal void OnReady(string data) => Dispatch("EK", data, window => window.OnReady(data));
+
+        /// <summary><c>Ep&lt;type&gt;;…</c> : paiement de l'artisanat sécurisé (lot X5), transmis à sa fenêtre seulement.</summary>
+        internal void OnPayment(string data)
+        {
+            IExchange window = Current;
+            if (window is CraftSecureExchange secure && secure.IsOpen) Safe(secure, "Ep", w => secure.OnPayment(data));
+            else account?.Logger?.LogDebug(Reference, "Paquet Ep" + (data ?? string.Empty) + " reçu hors artisanat sécurisé : ignoré.");
+        }
         internal void OnPods(string data) => Dispatch("Ew", data, window => window.OnPods(data));
 
         /// <summary>
