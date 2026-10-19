@@ -21,16 +21,38 @@ namespace Tool_BotProtocol.Game.Exchanges
         }
         public int RequesterId { get; }
         public int TargetId { get; }
-        /// <summary>Type demandé : 1 pour un échange entre joueurs (12/13 : artisanat sécurisé, refusé par le bot).</summary>
+        /// <summary>
+        /// Type demandé : 1 échange entre joueurs ; 12 et 13 artisanat sécurisé (lot X5). Reçu, 12 signifie qu'un client sollicite
+        /// l'artisan du compte (<c>A_WANT_CRAFT_CLIENT</c>) et 13 qu'un artisan l'invite à son atelier (<c>A_WANT_CRAFT_ARTISAN</c>) ;
+        /// envoyé, StarLoco annonce 12 au demandeur quel que soit son rôle (<c>ER12</c> comme <c>ER13</c>).
+        /// </summary>
         public int Type { get; }
         /// <summary>Vrai quand le personnage du compte a fait la demande (il attend la réponse de l'autre joueur).</summary>
         public bool Outgoing { get; }
         public int PartnerId => Outgoing ? TargetId : RequesterId;
         public string PartnerName { get; }
+        /// <summary>Artisanat sécurisé (types 12 et 13) : l'acceptation ouvre <c>ECK12</c> ou <c>ECK13</c> au lieu de <c>ECK1</c>.</summary>
+        public bool IsSecureCraft => Type == ExchangeTypes.SecureCraftArtisan || Type == ExchangeTypes.SecureCraftClient;
+        /// <summary>Texte du client pour cette demande (question posée au joueur, ou attente de la réponse de l'autre).</summary>
+        public string Text
+        {
+            get
+            {
+                if (Outgoing)
+                {
+                    if (Type == ExchangeTypes.SecureCraftArtisan) return ExchangeRegistry.Text("WAIT_FOR_CRAFT_CLIENT", "En attente de la réponse du client " + PartnerName + "…", PartnerName);
+                    if (Type == ExchangeTypes.SecureCraftClient) return ExchangeRegistry.Text("WAIT_FOR_CRAFT_ARTISAN", "En attente de la réponse de l'artisan " + PartnerName + "…", PartnerName);
+                    return ExchangeRegistry.Text("WAIT_FOR_EXCHANGE", "En attente de la réponse de " + PartnerName + "…", PartnerName);
+                }
+                if (Type == ExchangeTypes.SecureCraftArtisan) return ExchangeRegistry.Text("A_WANT_CRAFT_CLIENT", PartnerName + " fait appel à vos talents d'artisan. Acceptez-vous ?", PartnerName);
+                if (Type == ExchangeTypes.SecureCraftClient) return ExchangeRegistry.Text("A_WANT_CRAFT_ARTISAN", PartnerName + " vous invite à rejoindre son atelier. Acceptez-vous ?", PartnerName);
+                return ExchangeRegistry.Text("A_WANT_EXCHANGE", PartnerName + " vous propose un échange.", PartnerName);
+            }
+        }
     }
 
     /// <summary>
-    /// Demande d'échange reçue d'un autre joueur. Un abonné qui présentera la question au joueur met <see cref="Handled"/>
+    /// Demande d'échange (type 1) ou d'artisanat sécurisé (types 12 et 13) reçue d'un autre joueur. Un abonné qui présentera la question au joueur met <see cref="Handled"/>
     /// à vrai et répondra plus tard (<see cref="PlayerExchange.AcceptAsync"/>, <see cref="PlayerExchange.RefuseAsync"/>) ;
     /// sans abonné, le bot refuse poliment (<c>EV</c>) : il n'accepte jamais seul.
     /// </summary>
@@ -47,7 +69,8 @@ namespace Tool_BotProtocol.Game.Exchanges
     /// acceptation <c>EA</c> ou refus <c>EV</c>, ouverture <c>ECK1</c> ; mouvements <c>EMO+&lt;objet&gt;|&lt;quantité&gt;</c>,
     /// <c>EMO-&lt;objet&gt;|&lt;quantité&gt;</c>, <c>EMG&lt;kamas&gt;</c> confirmés par <c>EMK…</c> (son côté) et <c>EmK…</c> (l'autre côté) ;
     /// validation <c>EK</c> (bouton actif 3 s après la dernière modification, <c>DELAY_BEFORE_VALIDATE</c>), états <c>EK&lt;0|1&gt;&lt;id&gt;</c> ;
-    /// fin <c>EV</c> (annulé) ou <c>EVa</c> (effectué). Aucun état local ne change avant la réponse du serveur.
+    /// fin <c>EV</c> (annulé) ou <c>EVa</c> (effectué). Aucun état local ne change avant la réponse du serveur. Les demandes d'artisanat
+    /// sécurisé (<c>ERK</c> de types 12 et 13, lot X5) passent par la même attente et la même boîte ; leur fenêtre est <see cref="CraftSecureExchange"/>.
     /// </summary>
     [ExchangeType(ExchangeTypes.Player)]
     [ExchangeType(ExchangeTypes.NpcExchange)]
@@ -210,7 +233,7 @@ namespace Tool_BotProtocol.Game.Exchanges
             {
                 var outgoing = new ExchangeRequest(requester, target, type, true, ResolveName(target, false));
                 lock (sync) pending = outgoing;
-                Log(Lang("WAIT_FOR_EXCHANGE", "En attente de la réponse de " + outgoing.PartnerName + "…", outgoing.PartnerName));
+                Log(outgoing.Text);
                 Notify();
                 return;
             }
@@ -221,7 +244,7 @@ namespace Tool_BotProtocol.Game.Exchanges
             }
             var incoming = new ExchangeRequest(requester, target, type, false, ResolveName(requester, false));
             lock (sync) pending = incoming;
-            if (type != ExchangeTypes.Player)
+            if (type != ExchangeTypes.Player && !incoming.IsSecureCraft)
             {
                 Log("Demande « " + ExchangeTypes.Describe(type) + " » de " + incoming.PartnerName + " refusée : le bot ne la prend pas en charge.");
                 await DropRequestAsync(false).ConfigureAwait(false);
@@ -235,13 +258,21 @@ namespace Tool_BotProtocol.Game.Exchanges
                 await DropRequestAsync(false).ConfigureAwait(false);
                 return;
             }
-            Log(Lang("A_WANT_EXCHANGE", incoming.PartnerName + " vous propose un échange.", incoming.PartnerName));
+            Log(incoming.Text);
             var args = new ExchangeRequestEventArgs(incoming);
             RaiseRequest(args);
             Notify();
             if (args.Handled) return;
             Log("Demande d'échange de " + incoming.PartnerName + " refusée : le bot n'accepte pas d'échange automatiquement.");
             await DropRequestAsync(false).ConfigureAwait(false);
+        }
+
+        /// <summary>La demande en attente a abouti ailleurs (<c>ECK12</c> / <c>ECK13</c> ouvert par <see cref="CraftSecureExchange"/>) : oubliée sans rien envoyer.</summary>
+        internal void ForgetRequest()
+        {
+            bool had;
+            lock (sync) { had = pending != null; pending = null; }
+            if (had) Notify();
         }
 
         /// <summary><c>ERE</c> après une demande : elle est abandonnée.</summary>
