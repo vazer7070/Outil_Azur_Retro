@@ -13,7 +13,9 @@ namespace Outil_Azur_complet.Bot
     /// (plus de deux caractères, différent du nom du compte : <c>NICKNAME_EQUALS_LOGIN</c>) puis demande la confirmation
     /// (<c>DO_CHOOSE_NICKNAME</c>) ; le second l'envoie. « Annuler » revient à la saisie depuis la confirmation, sinon déconnecte
     /// (retour à l'écran de connexion du client). Un refus du serveur (<c>AlEs</c>) rouvre la saisie avec <c>NICKNAME_ALREADY_USED</c>.
-    /// Ouverte et refermée par <see cref="PersoSelection"/> selon <see cref="NicknameChoice"/>.
+    /// Ouverte et refermée par <see cref="PersoSelection"/> selon <see cref="NicknameChoice"/>. En jeu (potion de changement de nom,
+    /// lot X32), la même fenêtre sert au nom du personnage au-dessus de la fenêtre de jeu (<see cref="ConnectionPrompts"/>, sur
+    /// <see cref="Tool_BotProtocol.Game.Session.NameChange"/>) : « Annuler » la ferme alors sans déconnecter.
     /// </summary>
     public sealed class ChooseNickNameForm : Form
     {
@@ -21,14 +23,14 @@ namespace Outil_Azur_complet.Bot
 
         private const int ContentWidth = 380;
         private static readonly Color ErrorInk = Color.FromArgb(158, 38, 24);
-        private readonly NicknameChoice choice;
+        private readonly NicknamePrompt choice;
         private readonly Label help, error;
         private readonly TextBox input;
         private readonly Button ok, cancel;
         private bool settled, dragging;
         private Point dragStart;
 
-        public ChooseNickNameForm(NicknameChoice choice)
+        public ChooseNickNameForm(NicknamePrompt choice)
         {
             this.choice = choice ?? throw new ArgumentNullException(nameof(choice));
             FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; StartPosition = FormStartPosition.Manual;
@@ -102,7 +104,7 @@ namespace Outil_Azur_complet.Bot
             }
         }
 
-        /// <summary>« Annuler » : retour à la saisie depuis la confirmation ; sinon déconnexion, comme le client.</summary>
+        /// <summary>« Annuler » : retour à la saisie depuis la confirmation ; sinon déconnexion comme le client (en jeu : simple fermeture).</summary>
         internal void CancelStep()
         {
             if (Step == NicknameStep.Confirm) { SetStep(NicknameStep.Input); input.SelectAll(); return; }
