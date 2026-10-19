@@ -224,7 +224,11 @@ internal static partial class Live
         finally
         {
             if (window != null && !window.IsDisposed) { window.Close(); Application.DoEvents(); window.Dispose(); }
-            a.Dispose(); b.Dispose();
+            // Une déconnexion après l'autre : deux retraits simultanés de la même cellule corrompent sa liste de joueurs chez StarLoco
+            // jusqu'au redémarrage du Game, donc aussi le passage suivant (voir SeparateAsync).
+            a.Dispose();
+            Thread.Sleep(1000);
+            b.Dispose();
             Thread.Sleep(500);
             AppendServerLogs();
         }
@@ -400,10 +404,29 @@ internal static partial class Live
         string letter = name.Substring(0, Math.Max(0, name.IndexOf('.')));
         if (onlyScenarios.Length > 0 && letter != "a" && !onlyScenarios.Contains(letter)) { Record(name, "non joué", "absent de AZUR_STARLOCO_SCENARIOS"); return false; }
         Say("---- scénario " + name + " (délai " + seconds + " s)");
+        // Remise en état (lot CORR-LIVE), hors du délai du scénario : chacun part de la carte de départ, vie pleine, sans combat ni fenêtre ouverte.
+        string prepared = null;
+        if (letter != "a")
+        {
+            Task<string> prepare = PrepareAsync();
+            Task ready = await Task.WhenAny(prepare, Task.Delay(TimeSpan.FromSeconds(PrepareSeconds))).ConfigureAwait(false);
+            try
+            {
+                if (ready != prepare) throw new TimeoutException("délai de " + PrepareSeconds + " s dépassé");
+                prepared = await prepare.ConfigureAwait(false);
+            }
+            catch (Exception error)
+            {
+                Record(name, "échec", "remise en état avant le scénario : " + error.GetType().Name + " : " + error.Message);
+                Journal("!! " + error);
+                await RecoverAsync().ConfigureAwait(false);
+                return false;
+            }
+        }
         Task<string> run = body();
         Task finished = await Task.WhenAny(run, Task.Delay(TimeSpan.FromSeconds(seconds))).ConfigureAwait(false);
         if (finished != run) { Record(name, "échec", "délai de " + seconds + " s dépassé"); await RecoverAsync().ConfigureAwait(false); return false; }
-        try { Record(name, "ok", await run.ConfigureAwait(false)); return true; }
+        try { string evidence = await run.ConfigureAwait(false); Record(name, "ok", prepared == null ? evidence : "remise en état : " + prepared + " ; " + evidence); return true; }
         catch (SkipScenario skip) { Record(name, "non joué", skip.Message); return false; }
         catch (Exception error) { Record(name, "échec", error.GetType().Name + " : " + error.Message); Journal("!! " + error); }
         await RecoverAsync().ConfigureAwait(false);
@@ -473,7 +496,7 @@ internal static partial class Live
     private const string TestPrefix = "Essai-";
     private static readonly Random random = new Random();
     private static int startMap;
-    private static readonly SemaphoreSlim creationGate = new SemaphoreSlim(1, 1);
+    private static readonly SemaphoreSlim creationGate = new SemaphoreSlim(1, 1), worldEntryGate = new SemaphoreSlim(1, 1);
 
     /// <summary>Nom accepté par GameClient.addCharacter de StarLoco : lettres et un tiret, jamais trois fois la même lettre.</summary>
     private static string NewCharacterName()
@@ -551,15 +574,23 @@ internal static partial class Live
         Check(await s.Until(() => s.Account.AccountCharactersInfo.Values.Any(v => v.StartsWith(s.CharacterName + "|")), 5).ConfigureAwait(false), "Le bot n'a pas lu le personnage créé dans ALK.");
         int id = s.Account.AccountCharactersInfo.First(c => c.Value.StartsWith(s.CharacterName + "|")).Key;
 
-        // Sélection comme SelectPlayerPerso.PlaySelected : AS<id> ; le bot répond GC1 à ASK.
+        // Sélection comme SelectPlayerPerso.PlaySelected : AS<id> ; le bot répond GC1 à ASK. Une entrée en jeu à la fois (lot CORR-LIVE) :
+        // les deux personnages neufs arrivent sur la même cellule, et deux ajouts simultanés à sa liste de joueurs peuvent en perdre un
+        // chez StarLoco (voir SeparateAsync).
         int selected = s.ReceivedCount;
-        await s.Send("AS" + id).ConfigureAwait(false);
-        string ask = await s.Expect(p => p.StartsWith("ASK") || p.StartsWith("ASE"), "ASK (personnage sélectionné)", 15, selected).ConfigureAwait(false);
-        Check(ask.StartsWith("ASK|" + id + "|" + s.CharacterName + "|"), "Sélection refusée : " + ask);
-        string gck = await s.Expect("GCK", "GCK (partie créée)", 15, selected).ConfigureAwait(false);
-        string stats = await s.Expect("As", "As (caractéristiques)", 15, selected).ConfigureAwait(false);
-        string gdm = await s.Expect("GDM", "GDM (carte)", 15, selected).ConfigureAwait(false);
-        string gm = await s.Expect(p => p.StartsWith("GM|") && p.Contains(";" + id + ";" + s.CharacterName + ";"), "GM du personnage sur sa carte", 15, selected).ConfigureAwait(false);
+        string ask, gck, stats, gdm, gm;
+        await worldEntryGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await s.Send("AS" + id).ConfigureAwait(false);
+            ask = await s.Expect(p => p.StartsWith("ASK") || p.StartsWith("ASE"), "ASK (personnage sélectionné)", 15, selected).ConfigureAwait(false);
+            Check(ask.StartsWith("ASK|" + id + "|" + s.CharacterName + "|"), "Sélection refusée : " + ask);
+            gck = await s.Expect("GCK", "GCK (partie créée)", 15, selected).ConfigureAwait(false);
+            stats = await s.Expect("As", "As (caractéristiques)", 15, selected).ConfigureAwait(false);
+            gdm = await s.Expect("GDM", "GDM (carte)", 15, selected).ConfigureAwait(false);
+            gm = await s.Expect(p => p.StartsWith("GM|") && p.Contains(";" + id + ";" + s.CharacterName + ";"), "GM du personnage sur sa carte", 15, selected).ConfigureAwait(false);
+        }
+        finally { worldEntryGate.Release(); }
         Check(s.Account.Game.character.id == id && s.Account.Game.character.Name == s.CharacterName && s.Account.Game.character.Race_ID == classId,
             "Le bot n'a pas le personnage sélectionné : " + s.Account.Game.character.Name + " classe " + s.Account.Game.character.Race_ID);
         Check(await s.Until(() => s.Map.MapID > 0 && s.Map.Self != null && s.Map.Self.CellId >= 0, 10).ConfigureAwait(false), "Le bot n'a pas placé son personnage sur la carte " + gdm);
@@ -931,15 +962,25 @@ internal static partial class Live
         {
             short current = (short)(Self(s)?.CellId ?? -1);
             short other = fight.PlacementCells.FirstOrDefault(c => c != current && !fight.Fighters.Values.Any(f => f.CellId == c));
-            if (other > 0)
-            {
-                int before = s.ReceivedCount;
-                var placed = await fight.PlaceAsync(other).ConfigureAwait(false);
-                Check(placed.Sent, s.Label + " : placement refusé par le bot : " + placed.Message);
-                await s.Expect(p => p.StartsWith("GIC|") && p.Contains(s.Id + ";" + other), "GIC (nouvelle cellule de placement)", 10, before).ConfigureAwait(false);
-                Check(await s.Until(() => Self(s)?.CellId == other, 5).ConfigureAwait(false), s.Label + " : le bot n'a pas déplacé son combattant en placement");
-            }
+            if (other > 0) await MoveInPlacement(s, other).ConfigureAwait(false);
         }
+        await ReadyAsync(s, mark).ConfigureAwait(false);
+    }
+
+    /// <summary>Change de cellule de placement : <c>Gp&lt;cellule&gt;</c>, puis <c>GIC</c> du serveur appliqué par le bot.</summary>
+    private static async Task MoveInPlacement(LiveSession s, short cell)
+    {
+        Fights fight = s.Account.Game.Fight;
+        int before = s.ReceivedCount;
+        var placed = await fight.PlaceAsync(cell).ConfigureAwait(false);
+        Check(placed.Sent, s.Label + " : placement refusé par le bot : " + placed.Message);
+        await s.Expect(p => p.StartsWith("GIC|") && p.Contains(s.Id + ";" + cell), "GIC (nouvelle cellule de placement)", 10, before).ConfigureAwait(false);
+        Check(await s.Until(() => Self(s)?.CellId == cell, 5).ConfigureAwait(false), s.Label + " : le bot n'a pas déplacé son combattant en placement");
+    }
+
+    private static async Task ReadyAsync(LiveSession s, int mark)
+    {
+        Fights fight = s.Account.Game.Fight;
         var ready = await fight.SetReadyAsync(true).ConfigureAwait(false);
         Check(ready.Sent, s.Label + " : « prêt » refusé par le bot : " + ready.Message);
         // StarLoco lance le combat dès que le dernier joueur est prêt : son GR1 n'est alors pas envoyé (état déjà « combat »), GS le remplace.
@@ -997,18 +1038,32 @@ internal static partial class Live
                 string launched = await s.Expect(p => p.StartsWith("GA;300;" + s.Id + ";") || p.StartsWith("GA;301;" + s.Id + ";") || p.StartsWith("GA;302;" + s.Id + ";")
                     || p.StartsWith("GA;0") || p.StartsWith("GAE"), "GA;300 (sort lancé)", 10, castMark).ConfigureAwait(false);
                 Check(launched.StartsWith("GA;30"), s.Label + " : le serveur refuse le sort " + spell + " : " + launched);
-                string pa = await s.Expect(p => p.StartsWith("GA;102;" + s.Id + ";"), "GA;102 (PA utilisés)", 10, castMark).ConfigureAwait(false);
+                // Dernier ennemi tué : StarLoco envoie GE (fin du combat) avant le GA;102 du sort ; le bot quitte alors le combat (PA à -1,
+                // combattants effacés) et ne lit plus ce GA;102, comme le constate CloseCombatTurnAsync pour le corps à corps.
+                Func<bool> over = () => s.ReceivedSince(castMark).Any(p => p.StartsWith("GE", StringComparison.Ordinal));
+                string pa = await s.Expect(p => p.StartsWith("GA;102;" + s.Id + ";") || p.StartsWith("GE", StringComparison.Ordinal), "GA;102 (PA utilisés)", 10, castMark).ConfigureAwait(false);
                 string damage = null;
                 if (!launched.StartsWith("GA;302"))
                     damage = await s.Expect(p => p.StartsWith("GA;100;") && p.Contains(";" + target.Id + ","), "GA;100 (dégâts sur la cible)", 10, castMark).ConfigureAwait(false);
-                await s.Until(() => !fight.IsActionPending, 5).ConfigureAwait(false);
-                int used = -int.Parse(pa.Split(';')[3].Split(',')[1], CultureInfo.InvariantCulture);
-                Check(await s.Until(() => fight.ActionPoints == paStart - used, 5).ConfigureAwait(false), s.Label + " : PA du bot " + fight.ActionPoints + ", attendu " + (paStart - used));
+                await s.Until(() => !fight.IsActionPending || over(), 5).ConfigureAwait(false);
+                if (!pa.StartsWith("GE", StringComparison.Ordinal))
+                {
+                    int used = -int.Parse(pa.Split(';')[3].Split(',')[1], CultureInfo.InvariantCulture);
+                    Check(await s.Until(() => fight.ActionPoints == paStart - used || over(), 5).ConfigureAwait(false), s.Label + " : PA du bot " + fight.ActionPoints + ", attendu " + (paStart - used));
+                }
                 if (damage != null)
                 {
                     int delta = int.Parse(damage.Split(';')[3].Split(',')[1], CultureInfo.InvariantCulture);
                     // Fights.Fighters renvoie des copies : relire le combattant à chaque essai.
-                    Check(await s.Until(() => LifeOf(s, target.Id) == lifeBefore + delta, 5).ConfigureAwait(false), s.Label + " : vie de la cible " + LifeOf(s, target.Id) + ", attendu " + (lifeBefore + delta));
+                    Check(await s.Until(() => LifeOf(s, target.Id) == lifeBefore + delta || over(), 5).ConfigureAwait(false), s.Label + " : vie de la cible " + LifeOf(s, target.Id) + ", attendu " + (lifeBefore + delta));
+                }
+                if (over())
+                {
+                    string ge = s.ReceivedSince(castMark).First(p => p.StartsWith("GE", StringComparison.Ordinal));
+                    Check(await s.Until(() => !fight.IsInFight, 5).ConfigureAwait(false), s.Label + " : GE reçu après le sort, le bot reste en combat");
+                    evidence.Add(s.Label + " lance le sort " + spell + " (" + LangDataSpell(spell.Value) + ") : " + Short(launched, 36) + (damage != null ? ", " + damage : " (échec critique)")
+                        + " → combat terminé par ce sort (" + Short(ge, 24) + ")");
+                    return "fin";
                 }
                 evidence.Add(s.Label + " lance le sort " + spell + " (" + LangDataSpell(spell.Value) + ") : " + Short(launched, 36) + ", " + pa + (damage != null ? ", " + damage : " (échec critique)")
                     + " → PA " + paStart + "→" + fight.ActionPoints + ", PV de " + target.Name + " " + lifeBefore + "→" + LifeOf(s, target.Id));
@@ -1196,7 +1251,8 @@ internal static partial class Live
         evidence.Add(turns + " tour(s), " + Short(ge, 60) + " → " + (own == null ? "personnage absent du résultat" : own.Kind.ToString()));
         await WaitBackOnMap(a).ConfigureAwait(false);
         // Retour sur la carte de départ (défaite : le serveur renvoie au point de sauvegarde).
-        if (a.MapId != home && back != null && a.MapId == back.MapId) await WalkThroughTrigger(a, back).ConfigureAwait(false);
+        string returned = await ReturnAfterFightAsync(a, home, back).ConfigureAwait(false);
+        if (returned != null) evidence.Add(returned);
         return string.Join(" ; ", evidence) + " ; carte finale " + a.MapId;
     }
 
@@ -1346,10 +1402,13 @@ internal static partial class Live
         // Achats en même temps chez le même marchand : l'arc pour A (Crâ, fenêtre de jeu), l'épée pour B (Iop).
         Task<string> bow = BuyAndWieldAsync(a, BowTemplate), sword = BuyAndWieldAsync(b, SwordTemplate);
         evidence.AddRange(await Task.WhenAll(bow, sword).ConfigureAwait(false));
-        // A sort vaincu du scénario f (1 PV) : quelques secondes assis pour survivre au premier tour des monstres.
-        await RestAsync(a, evidence, 15, 20).ConfigureAwait(false);
+        // A et B ont toute leur vie (remise en état : « .vie » après la défaite du scénario f).
         evidence.Add(await TeamMonsterFightAsync(evidence).ConfigureAwait(false));
         evidence.Add(await WieldAsync(a, 0).ConfigureAwait(false));
+        // Après le combat, A et B peuvent partager une cellule (point de sauvegarde après la défaite, ou même déclencheur au retour) :
+        // le défi se joue depuis deux cellules, ses deux fins de combat ajoutant chacun à sa cellule en même temps (voir SeparateAsync).
+        string apart = await SeparateAsync().ConfigureAwait(false);
+        if (apart != null) evidence.Add(apart);
         evidence.Add(await FistsDuelAsync(evidence).ConfigureAwait(false));
         return string.Join(" ; ", evidence);
     }
@@ -1421,21 +1480,6 @@ internal static partial class Live
         return om + " → " + stats.Summary + " (" + stats.Source + ")";
     }
 
-    /// <summary>Assis (émote 1 ; StarLoco rend alors 1 PV par seconde, <c>ILS1000</c>) jusqu'à <paramref name="goal"/> PV, <paramref name="seconds"/> s au plus.</summary>
-    private static async Task RestAsync(LiveSession s, List<string> evidence, int goal, int seconds)
-    {
-        Func<int> life = () => s.Account.Game.character.stats.VitalityActual;
-        int max = s.Account.Game.character.stats.MaxVitality, before = life();
-        goal = Math.Min(goal, max);
-        if (before >= goal) return;
-        DateTime start = DateTime.UtcNow;
-        int mark = s.ReceivedCount;
-        var sit = await s.Account.Game.Chat.SitAsync().ConfigureAwait(false);
-        bool seated = sit.Sent && await s.Until(() => s.ReceivedSince(mark).Any(p => p.StartsWith("eUK" + s.Id + "|1", StringComparison.Ordinal)), 5).ConfigureAwait(false);
-        await s.Until(() => life() >= goal, Math.Max(1, seconds - (int)(DateTime.UtcNow - start).TotalSeconds)).ConfigureAwait(false);
-        evidence.Add(s.Label + (seated ? " se repose assis" : " se repose debout") + " : " + before + " → " + life() + "/" + max + " PV en " + (int)(DateTime.UtcNow - start).TotalSeconds + " s");
-    }
-
     /// <summary>
     /// B lance un combat contre le groupe le plus faible de la carte ou d'une voisine, A le rejoint pendant le placement
     /// (<c>GA903&lt;combat&gt;;&lt;id de B&gt;</c>, comme le clic sur l'épée du combat) ; chacun se met à portée et frappe à son tour
@@ -1450,9 +1494,13 @@ internal static partial class Live
             {
                 Trigger reverse = Triggers.ForMap(go.TargetMapId).Values.FirstOrDefault(t => t.IsTeleport && t.TargetMapId == home);
                 if (reverse == null) continue;
-                await Task.WhenAll(WalkThroughTrigger(b, go), WalkThroughTrigger(a, go)).ConfigureAwait(false);
+                // L'un après l'autre : deux téléportations simultanées depuis la cellule du déclencheur corrompent sa liste de joueurs
+                // chez StarLoco (voir SeparateAsync), puis toute téléportation depuis la carte échoue (x4b et x4c).
+                await WalkThroughTrigger(b, go).ConfigureAwait(false);
+                await WalkThroughTrigger(a, go).ConfigureAwait(false);
                 if (await b.Until(() => b.Map.MonsterGroups.Count > 0, 3).ConfigureAwait(false)) { back = reverse; break; }
-                await Task.WhenAll(WalkThroughTrigger(b, reverse), WalkThroughTrigger(a, reverse)).ConfigureAwait(false);
+                await WalkThroughTrigger(b, reverse).ConfigureAwait(false);
+                await WalkThroughTrigger(a, reverse).ConfigureAwait(false);
             }
         if (b.Map.MonsterGroups.Count == 0) throw new SkipScenario("aucun groupe de monstres sur la carte " + home + " ni sur ses voisines");
         Check(a.MapId == b.MapId, "A n'a pas suivi B sur la carte " + b.MapId);
@@ -1482,7 +1530,7 @@ internal static partial class Live
         Check(join.Sent, "A ne peut pas rejoindre le combat : " + join.Message);
         string joined = await a.Expect(p => p.StartsWith("GJK") || p.StartsWith("GA;903;") || p.StartsWith("Im191"), "GJK (A rejoint le combat de B)", 10, joinMark).ConfigureAwait(false);
         Check(joined.StartsWith("GJK"), "StarLoco refuse que A rejoigne le combat : " + joined);
-        await PlaceAndReady(a, joinMark, false).ConfigureAwait(false);
+        evidence.Add(await PlaceForWeaponAndReady(a, joinMark).ConfigureAwait(false));
         await PlaceAndReady(b, markB, false).ConfigureAwait(false);
         await b.Expect("GS", "GS (début du combat)", 30, markB).ConfigureAwait(false);
         var proofs = new Dictionary<int, string>();
@@ -1504,17 +1552,25 @@ internal static partial class Live
             if (proofs.Count == 2) break;
             await PassIfStillMyTurn(s).ConfigureAwait(false);
         }
-        // Abandon (GQ) des deux personnages : StarLoco les compte comme morts et termine le combat.
-        foreach (LiveSession s in new[] { a, b })
-            if (s.Account.Game.Fight.IsInFight) await s.Account.Game.Fight.GiveUpAsync().ConfigureAwait(false);
+        // Abandon (GQ) des deux personnages : StarLoco les compte comme morts et termine le combat. L'un après l'autre, A revenu sur
+        // la carte avant l'abandon de B : leurs retours (GC1) ajoutent sinon les deux joueurs en même temps à la même cellule.
+        if (a.Account.Game.Fight.IsInFight)
+        {
+            await a.Account.Game.Fight.GiveUpAsync().ConfigureAwait(false);
+            await a.Expect(p => p.StartsWith("GE") || p.StartsWith("GV"), "GE ou GV (fin du combat, A)", 30, joinMark).ConfigureAwait(false);
+            await WaitBackOnMap(a).ConfigureAwait(false);
+        }
+        if (b.Account.Game.Fight.IsInFight) await b.Account.Game.Fight.GiveUpAsync().ConfigureAwait(false);
         string ge = await b.Expect(p => p.StartsWith("GE") || p.StartsWith("GV"), "GE (fin du combat, B)", 30, markB).ConfigureAwait(false);
         await a.Expect(p => p.StartsWith("GE") || p.StartsWith("GV"), "GE ou GV (fin du combat, A)", 30, joinMark).ConfigureAwait(false);
         await WaitBackOnMap(a).ConfigureAwait(false);
         await WaitBackOnMap(b).ConfigureAwait(false);
-        // Défaite : StarLoco renvoie au point de sauvegarde ; sinon revenir par le déclencheur.
+        // Défaite : StarLoco renvoie au point de sauvegarde ; sinon revenir par le déclencheur (ou « .start » depuis une cellule non praticable).
         foreach (LiveSession s in new[] { a, b })
-            if (s.MapId != home && back != null && s.MapId == back.MapId) await WalkThroughTrigger(s, back).ConfigureAwait(false);
-            else await GoHome(s).ConfigureAwait(false);
+        {
+            string returned = await ReturnAfterFightAsync(s, home, back).ConfigureAwait(false);
+            if (returned != null) evidence.Add(returned);
+        }
         Check(proofs.ContainsKey(b.Id), "B n'a pas frappé avec l'épée en " + turns + " tour(s) de joueur");
         Check(proofs.ContainsKey(a.Id), "A n'a pas tiré à l'arc en " + turns + " tour(s) de joueur");
         return group + " : " + gjk + ", A rejoint B (" + Short(joined, 20) + "), " + turns + " tour(s) de joueur ; " + proofs[b.Id] + " ; " + proofs[a.Id] + " ; " + Short(ge, 30);
@@ -1583,6 +1639,36 @@ internal static partial class Live
     /// <summary>Ennemi que le bot accepte d'attaquer depuis la cellule actuelle, le plus faible d'abord.</summary>
     private static CombatFighter InCloseCombatReach(LiveSession s) =>
         Enemies(s).Where(e => s.Account.Game.Fight.GetCloseCombatUnavailableReason((short)e.CellId) == null).OrderBy(e => e.Life).FirstOrDefault();
+
+    /// <summary>
+    /// Placement de A, qui rejoint le combat avec l'arc (portée 2 à 6) : cellule de placement libre sans ennemi au contact (sinon A,
+    /// taclé en s'écartant, perd ses PM et ne peut pas tirer à une case), avec un ennemi à portée de l'arme si possible, puis la plus
+    /// éloignée des ennemis ; enfin « prêt ». Renvoie le placement choisi.
+    /// </summary>
+    private static async Task<string> PlaceForWeaponAndReady(LiveSession s, int mark)
+    {
+        Fights fight = s.Account.Game.Fight;
+        CloseCombatStats weapon = fight.CloseCombat;
+        Check(await s.Until(() => fight.IsPlacement && fight.PlacementCells.Length > 0 && Self(s) != null && Enemies(s).Any(), 10).ConfigureAwait(false),
+            s.Label + " : pas de cellules de placement (GP) ou pas d'ennemi en placement");
+        short current = (short)Self(s).CellId;
+        var foes = Enemies(s).Select(e => s.Map.GetCellFromId((short)e.CellId)).Where(c => c != null).ToList();
+        var best = fight.PlacementCells.Where(c => c == current || !fight.Fighters.Values.Any(f => f.CellId == c))
+            .Select(c => s.Map.GetCellFromId(c)).Where(c => c != null)
+            .Select(c => new
+            {
+                Cell = c,
+                Nearest = foes.Count == 0 ? int.MaxValue : foes.Min(f => c.GetDistanceBetweenCells(f)),
+                InReach = foes.Count(f => { int d = c.GetDistanceBetweenCells(f); return d >= weapon.MinRange && d <= weapon.MaxRange && (!weapon.LineOnly || c.AreCellsOnline(f)); })
+            })
+            .OrderByDescending(x => x.Nearest > 1).ThenByDescending(x => x.InReach > 0).ThenByDescending(x => x.Nearest).ThenBy(x => x.Cell.CellID != current)
+            .FirstOrDefault();
+        Check(best != null, s.Label + " : aucune cellule de placement libre");
+        if (best.Cell.CellID != current) await MoveInPlacement(s, best.Cell.CellID).ConfigureAwait(false);
+        await ReadyAsync(s, mark).ConfigureAwait(false);
+        return s.Label + " se place en " + best.Cell.CellID + (best.Cell.CellID != current ? " (au lieu de " + current + ")" : "") + " pour " + weapon.Summary
+            + " : ennemi le plus proche à " + best.Nearest + " case(s), " + best.InReach + " à portée";
+    }
 
     /// <summary>Cellules libres à portée de PM (en cases, comme <see cref="StepToward"/>) d'où un ennemi est à portée de l'arme, les plus proches d'abord.</summary>
     private static List<short> CellsInCloseCombatReach(LiveSession s, CloseCombatStats weapon)
@@ -1818,8 +1904,9 @@ internal static partial class Live
     /// <summary>Ferme les sessions, puis supprime de la base les comptes et personnages inventés (StarLoco les enregistre à la déconnexion).</summary>
     private static async Task ForgetAsync(MySql.Data.MySqlClient.MySqlConnection db, string schema, IEnumerable<LiveSession> sessions, IEnumerable<InventedCharacter> created)
     {
-        foreach (LiveSession s in sessions) s?.Dispose();
-        await Task.Delay(1500).ConfigureAwait(false);
+        // Une déconnexion après l'autre (voir SeparateAsync).
+        foreach (LiveSession s in sessions) { s?.Dispose(); await Task.Delay(500).ConfigureAwait(false); }
+        await Task.Delay(1000).ConfigureAwait(false);
         foreach (InventedCharacter invented in created)
         {
             try
@@ -2945,5 +3032,162 @@ internal static partial class Live
             .Select(p => Short(p, 22)));
         return npc.DisplayName + " (modèle " + npc.TemplateId + ", actions " + string.Join(",", actions) + ") : " + er + " → " + eck + ", "
             + string.Join(" + ", offered.Select(id => "EMO+" + id + "|1")) + " → " + Short(offer, 30) + " ; EK → " + received + ", " + done + " (« " + pets.LastMessage + " »)";
+    }
+}
+
+// Lot CORR-LIVE : chaque scénario part d'un état connu (carte de départ, vie pleine, ni combat ni fenêtre ouverte, A et B sur
+// deux cellules), quel que soit le résultat du précédent, et la suite évite deux courses de StarLoco décrites ci-dessous.
+internal static partial class Live
+{
+    /// <summary>Délai de la remise en état qui précède chaque scénario (hors du délai du scénario lui-même).</summary>
+    private const int PrepareSeconds = 60;
+
+    /// <summary>
+    /// Commandes de joueur de StarLoco (<c>CommandPlayer.analyse</c>, appelée pour tout message du canal général qui commence par un
+    /// point) : « .start » téléporte hors combat en <see cref="StartCommandMap"/> cellule <see cref="StartCommandCell"/>, « .vie » rend
+    /// toute la vie (<c>As</c>). Le client officiel les envoie de la même façon (<c>BM*|.start|</c>). Le canal général refuse un
+    /// message moins de 500 ms après le précédent (<c>M10</c>) : <see cref="CommandGapMs"/> avant et après chaque commande.
+    /// </summary>
+    private const string StartCommand = ".start", LifeCommand = ".vie";
+    private const int StartCommandMap = 164, StartCommandCell = 298, CommandGapMs = 700;
+
+    private static bool InGame(LiveSession s) =>
+        s?.Account?.Connexion != null && s.Account.Connexion.IsConnected() && s.Account.Game?.character != null && s.Account.Game.Map?.Self != null;
+
+    private static Cell OwnCell(LiveSession s) => s.Map.Self == null ? null : s.Map.GetCellFromId((short)s.Map.Self.CellId);
+
+    /// <summary>
+    /// Remise en état de A et B avant un scénario : échange et combat abandonnés (<see cref="RecoverAsync"/>), dialogue, boutique ou
+    /// zaap refermés, retour sur la carte de départ et sur une cellule praticable (<see cref="ReturnToStartAsync"/>), vie pleine
+    /// (<see cref="RestoreLifeAsync"/>), puis A et B sur deux cellules (<see cref="SeparateAsync"/>). Renvoie ce qui a été fait, ou null.
+    /// </summary>
+    private static async Task<string> PrepareAsync()
+    {
+        var done = new List<string>();
+        await RecoverAsync().ConfigureAwait(false);
+        foreach (LiveSession s in new[] { a, b })
+        {
+            if (!InGame(s)) continue;
+            string closed = await CloseWindowsAsync(s).ConfigureAwait(false);
+            if (closed != null) done.Add(closed);
+            if (mapsAvailable && startMap > 0)
+            {
+                Cell own = OwnCell(s);
+                if (s.MapId != startMap) done.Add(await ReturnToStartAsync(s, "sur la carte " + s.MapId).ConfigureAwait(false));
+                else if (own == null || !own.IsWalkable()) done.Add(await ReturnToStartAsync(s, "cellule " + (own?.CellID ?? -1) + " non praticable").ConfigureAwait(false));
+            }
+            string life = await RestoreLifeAsync(s).ConfigureAwait(false);
+            if (life != null) done.Add(life);
+        }
+        string apart = await SeparateAsync().ConfigureAwait(false);
+        if (apart != null) done.Add(apart);
+        if (done.Count == 0) return null;
+        Journal("[test] remise en état : " + string.Join(" ; ", done));
+        return string.Join(", ", done);
+    }
+
+    /// <summary>Dialogue de PNJ, boutique ou zaap restés ouverts par un scénario en échec : <c>LeaveAsync</c> de chacun.</summary>
+    private static async Task<string> CloseWindowsAsync(LiveSession s)
+    {
+        var closed = new List<string>();
+        InteractionsClass interactions = s.Account.Game.Interactions;
+        if (interactions.Npc.IsOpen && (await interactions.Npc.LeaveAsync().ConfigureAwait(false)).Sent) closed.Add("dialogue");
+        if (interactions.Shop.IsOpen && (await interactions.Shop.LeaveAsync().ConfigureAwait(false)).Sent) closed.Add("boutique");
+        if (interactions.Zaap.IsOpen && (await interactions.Zaap.LeaveAsync().ConfigureAwait(false)).Sent) closed.Add("zaap");
+        if (closed.Count == 0) return null;
+        Check(await s.Until(() => !interactions.Npc.IsOpen && !interactions.Shop.IsOpen && !interactions.Zaap.IsOpen, 10).ConfigureAwait(false),
+            s.Label + " : fenêtre restée ouverte après LeaveAsync (" + string.Join(", ", closed) + ")");
+        return s.Label + " ferme " + string.Join(", ", closed);
+    }
+
+    /// <summary>Message du canal général qui est une commande de joueur de StarLoco, espacé des autres messages du canal.</summary>
+    private static async Task CommandAsync(LiveSession s, string command)
+    {
+        await Task.Delay(CommandGapMs).ConfigureAwait(false);
+        var sent = await s.Account.Game.Chat.SendAsync('*', command).ConfigureAwait(false);
+        Check(sent.Sent, s.Label + " : « " + command + " » refusée par le bot : " + sent.Message);
+    }
+
+    /// <summary>
+    /// Retour sur la carte de départ : « .start » quand elle est la carte de cette commande (sinon à pied par les déclencheurs).
+    /// Seul moyen de quitter une cellule non praticable où StarLoco a posé le personnage (voir <see cref="ReturnAfterFightAsync"/>).
+    /// </summary>
+    private static async Task<string> ReturnToStartAsync(LiveSession s, string reason)
+    {
+        int from = s.MapId, cell = s.Map.Self?.CellId ?? -1;
+        if (startMap != StartCommandMap)
+        {
+            List<Trigger> route = TriggerRoute(s.MapId, startMap);
+            Check(route != null, s.Label + " : carte de départ " + startMap + " injoignable à pied depuis la carte " + s.MapId + " (" + reason + ")");
+            foreach (Trigger step in route) await WalkThroughTrigger(s, step).ConfigureAwait(false);
+            return s.Label + " revient à pied de la carte " + from + " (" + reason + ")";
+        }
+        int mark = s.ReceivedCount;
+        await CommandAsync(s, StartCommand).ConfigureAwait(false);
+        if (from != StartCommandMap)
+            await s.Expect("GDM|" + StartCommandMap, "GDM|" + StartCommandMap + " après « " + StartCommand + " »", 20, mark).ConfigureAwait(false);
+        Check(await s.Until(() => s.MapId == StartCommandMap && s.Map.Self != null && s.Map.Self.CellId == StartCommandCell, 10).ConfigureAwait(false),
+            s.Label + " : « " + StartCommand + " » ne ramène pas en " + StartCommandMap + " cellule " + StartCommandCell + " (carte " + s.MapId + ", cellule " + s.Map.Self?.CellId + ")");
+        await Task.Delay(CommandGapMs).ConfigureAwait(false);
+        return s.Label + " « " + StartCommand + " » (" + reason + ") : carte " + from + " cellule " + cell + " → carte " + StartCommandMap + " cellule " + StartCommandCell;
+    }
+
+    /// <summary>« .vie » si le personnage n'a pas toute sa vie (défaite : StarLoco la remet à 1 ; assis, il n'en rend qu'un point par seconde).</summary>
+    private static async Task<string> RestoreLifeAsync(LiveSession s)
+    {
+        Func<int> life = () => s.Account.Game.character.stats.VitalityActual;
+        int max = s.Account.Game.character.stats.MaxVitality, before = life();
+        if (max <= 0 || before >= max) return null;
+        await CommandAsync(s, LifeCommand).ConfigureAwait(false);
+        Check(await s.Until(() => life() >= max, 10).ConfigureAwait(false), s.Label + " : « " + LifeCommand + " » sans effet : " + life() + "/" + max + " PV");
+        await Task.Delay(CommandGapMs).ConfigureAwait(false);
+        return s.Label + " « " + LifeCommand + " » : " + before + " → " + life() + "/" + max + " PV";
+    }
+
+    /// <summary>
+    /// A et B sur la même cellule : B fait quelques pas. StarLoco range les joueurs de chaque cellule dans une <c>ArrayList</c> non
+    /// synchronisée (<c>GameCase.players</c>), modifiée par le fil de session de chaque joueur : deux retraits simultanés sur la même
+    /// cellule (deux marches qui en partent, deux téléportations depuis le même déclencheur, deux déconnexions) peuvent y laisser un
+    /// <c>null</c>, deux ajouts simultanés (fins de combat) y perdre un joueur. Avec un <c>null</c>, toute téléportation depuis la carte
+    /// lève une <c>NullPointerException</c> dans <c>GAME_SEND_ERASE_ON_MAP_TO_MAP</c> après <c>GA;2</c> et <c>GM|-</c>, sans <c>GDM</c>,
+    /// jusqu'au redémarrage du Game. Deux clients officiels qui agissent dans la même milliseconde subiraient la même course.
+    /// </summary>
+    private static async Task<string> SeparateAsync()
+    {
+        if (!mapsAvailable || !InGame(a) || !InGame(b) || a.MapId != b.MapId || a.Map.Self.CellId != b.Map.Self.CellId) return null;
+        int shared = b.Map.Self.CellId;
+        Cell target = FreeCellNear(b, 2, 6);
+        Check(target != null, "Aucune cellule libre près de B pour quitter la cellule " + shared + " de A");
+        int sentMark = b.SentCount;
+        var moved = await b.Account.Game.Manager.Mouvements.MoveToAsync(target).ConfigureAwait(false);
+        Check(moved == Tool_BotProtocol.Game.Managers.Mouvements.MoveResults.EXIT, "B : pas de côté refusé par le bot : " + moved);
+        Check(await b.Until(() => b.SentSince(sentMark).Any(p => p.StartsWith("GKK", StringComparison.Ordinal)) && b.Map.Self?.CellId == target.CellID, 15).ConfigureAwait(false),
+            "B n'a pas quitté la cellule " + shared + " (cellule " + b.Map.Self?.CellId + ", attendu " + target.CellID + ")");
+        await Task.Delay(400).ConfigureAwait(false);
+        return "B quitte la cellule " + shared + " de A pour la cellule " + target.CellID;
+    }
+
+    /// <summary>
+    /// Retour sur la carte <paramref name="home"/> après un combat sur une carte voisine : à pied par <paramref name="back"/>, sauf si
+    /// StarLoco a posé le personnage sur une cellule non praticable. <c>GameClient.actionAck</c> ne retire jamais de la liste des actions
+    /// du joueur les déplacements faits en combat (il rend la main avant <c>removeAction</c>) ; quand le sort ou le coup qui finit le
+    /// combat est suivi de <c>GE</c> puis de <c>GAF0</c>, le <c>GKK0</c> de réponse est traité hors combat comme la fin du vieux
+    /// déplacement 0 d'un combat précédent : le personnage est mis sur la dernière cellule de ce chemin, sur la carte courante (cellule
+    /// 181 de la carte 765 après le défi du scénario e, non praticable et isolée). Le client officiel envoie le même <c>GKK</c> (il reste
+    /// « en combat » jusqu'à l'affichage du résultat) ; un joueur bloqué ainsi tape « .start ».
+    /// </summary>
+    private static async Task<string> ReturnAfterFightAsync(LiveSession s, int home, Trigger back)
+    {
+        if (s.MapId == home) return null;
+        Cell own = OwnCell(s);
+        if (own != null && !own.IsWalkable())
+            return await ReturnToStartAsync(s, "cellule " + own.CellID + " de la carte " + s.MapId + " non praticable après le combat").ConfigureAwait(false);
+        if (back != null && s.MapId == back.MapId)
+        {
+            await WalkThroughTrigger(s, back).ConfigureAwait(false);
+            return s.Label + " revient par le déclencheur " + back.CellId + " de la carte " + back.MapId;
+        }
+        await GoHome(s).ConfigureAwait(false);
+        return s.Label + " sur la carte " + s.MapId + " après le combat";
     }
 }
