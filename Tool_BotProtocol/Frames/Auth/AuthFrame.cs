@@ -55,9 +55,10 @@ namespace Tool_BotProtocol.Frames.Auth
         public void NicknameUnavailable(TcpClient client, string message) => RequestNickname(client, true);
 
         /// <summary>
-        /// Seule la phase de connexion (avant <c>ASK</c>) est traitée ; une session en jeu n'est jamais déconnectée par ces paquets.
-        /// Sans interface abonnée à <see cref="NicknameChoice.Requested"/>, personne ne peut répondre : la connexion est refusée
-        /// plutôt que de laisser le Login attendre un pseudo qui ne viendra pas.
+        /// Pendant la connexion (avant <c>ASK</c>), la demande va au pseudo du compte ; sans interface abonnée à
+        /// <see cref="NicknamePrompt.Requested"/>, personne ne peut répondre : la connexion est refusée plutôt que de laisser le Login
+        /// attendre un pseudo qui ne viendra pas. En jeu (potion de changement de nom, lot X32), la demande va à
+        /// <see cref="Tool_BotProtocol.Game.Session.NameChange"/> et une session n'est jamais déconnectée par ces paquets.
         /// </summary>
         private static void RequestNickname(TcpClient client, bool alreadyUsed)
         {
@@ -65,8 +66,9 @@ namespace Tool_BotProtocol.Frames.Auth
             if (account == null) return;
             if (account.Game?.character != null && account.Game.character.id > 0)
             {
-                account.Logger?.LogDanger("SESSION", (alreadyUsed ? "AlEs" : "AlEr")
-                    + " reçu en jeu (choix d'un nouveau nom, lot X32) : ignoré, la session continue.");
+                if (!account.Game.Session.NameChange.OnRequested(alreadyUsed))
+                    account.Logger?.LogDanger("SESSION", (alreadyUsed ? "AlEs" : "AlEr")
+                        + " reçu en jeu (changement de nom, lot X32) : aucune interface pour saisir le nom, la session continue.");
                 return;
             }
             if (!account.Nickname.OnRequested(alreadyUsed))

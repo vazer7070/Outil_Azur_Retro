@@ -39,7 +39,17 @@ namespace Tool_BotProtocol.Game.Session
         private readonly object sync = new object();
         private long referenceTimestamp;
 
-        internal GameSession(Accounts.Accounts owner) { account = owner; }
+        internal GameSession(Accounts.Accounts owner)
+        {
+            account = owner;
+            NameChange = new NameChange(owner);
+            Tutorial = new TutorialPlay(owner);
+        }
+
+        /// <summary>Changement de nom du personnage en jeu après la potion (<c>AlEr</c> / <c>AlEs</c> en jeu, lot X32).</summary>
+        public NameChange NameChange { get; }
+        /// <summary>Mini-jeux lancés par <c>TC</c> et clos par <c>TV</c> (roulette du Bouftou, lot X32).</summary>
+        public TutorialPlay Tutorial { get; }
 
         /// <summary>Type de partie de <c>GCK|&lt;type&gt;|&lt;nom&gt;</c> (1 = solo, seul type du client) ; 0 avant <c>GCK</c>.</summary>
         public int GameType { get; private set; }
@@ -95,6 +105,8 @@ namespace Tool_BotProtocol.Game.Session
         /// </summary>
         public event Action GameOver;
         public event Action<ServerMessage> ServerMessageReceived;
+        /// <summary>Le <c>GM|~</c> du personnage porte un autre nom que celui connu : renommé par le serveur (potion, lot X32).</summary>
+        public event Action<string> CharacterRenamed;
         public event EventHandler<InvitationEventArgs> PartyInviteReceived;
         public event EventHandler<InvitationEventArgs> GuildInviteReceived;
 
@@ -140,6 +152,14 @@ namespace Tool_BotProtocol.Game.Session
         internal void OnLevelUp(int level) => Raise(LevelUp, handler => handler(level));
 
         internal void OnGameOver() => Raise(GameOver, handler => handler());
+
+        /// <summary>Nom du personnage changé par le serveur (lu dans son sprite <c>GM</c>) : clôt la demande de nom en cours.</summary>
+        internal void OnSelfRenamed(string previous, string name)
+        {
+            account?.Logger?.LogInfo("SESSION", "Le serveur renomme le personnage « " + previous + " » en « " + name + " ».");
+            NameChange.OnRenamed(name);
+            Raise(CharacterRenamed, handler => handler(name));
+        }
 
         internal void OnServerMessages(IEnumerable<ServerMessage> messages)
         {
@@ -192,6 +212,8 @@ namespace Tool_BotProtocol.Game.Session
                 referenceTimestamp = 0;
                 LastServerMessage = null;
             }
+            NameChange.Reset();
+            Tutorial.Clear();
         }
     }
 }

@@ -159,6 +159,7 @@
     <Compile Include="Frames\Jeu\ServerSelectionFrame.cs" />
     <Compile Include="Frames\Jeu\SessionFrame.cs" />
     <Compile Include="Frames\Jeu\SpellFrame.cs" />
+    <Compile Include="Frames\Jeu\TutorialFrame.cs" />
     <Compile Include="Frames\Messages\MessageAttribution.cs" />
     <Compile Include="Frames\Messages\MessagesData.cs" />
     <Compile Include="Frames\Messages\MessagesReception.cs" />
@@ -166,6 +167,7 @@
     <Compile Include="Game\Accounts\AccountStates.cs" />
     <Compile Include="Game\Accounts\ConnectionLoss.cs" />
     <Compile Include="Game\Accounts\NicknameChoice.cs" />
+    <Compile Include="Game\Accounts\NicknamePrompt.cs" />
     <Compile Include="Game\Actions\GameActionRouter.cs" />
     <Compile Include="Game\Actions\MapActions.cs" />
     <Compile Include="Game\Actions\MapActions.Self.cs" />
@@ -280,7 +282,9 @@
     <Compile Include="Game\Perso\Stats\StatsBase.cs" />
     <Compile Include="Game\Perso\Stats\StatsEnum.cs" />
     <Compile Include="Game\Session\GameSession.cs" />
+    <Compile Include="Game\Session\NameChange.cs" />
     <Compile Include="Game\Session\ServerMessage.cs" />
+    <Compile Include="Game\Session\TutorialPlay.cs" />
     <Compile Include="Game\Social\Friends.cs" />
     <Compile Include="Game\Social\FriendsActions.cs" />
     <Compile Include="Game\Alignement\Alignment.cs" />

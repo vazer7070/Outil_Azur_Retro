@@ -50,6 +50,13 @@ namespace Tool_BotProtocol.Frames.Jeu
                 account.Game.PersoInWorld[unchecked((int)actor.Id)] = new Dictionary<string, Cell> { { actor.Name ?? string.Empty, cell } };
                 if (actor.IsSelf)
                 {
+                    // Nom changé par le serveur (potion de changement de nom, lot X32) : le client n'a pas d'autre annonce que ce GM|~.
+                    if (!string.IsNullOrEmpty(actor.Name) && !string.IsNullOrEmpty(character.Name) && !string.Equals(actor.Name, character.Name, StringComparison.Ordinal))
+                    {
+                        string previous = character.Name;
+                        character.Name = actor.Name;
+                        account.Game.Session.OnSelfRenamed(previous, actor.Name);
+                    }
                     if (cell != null) character.Cell = cell;
                     character.Orientation = actor.Orientation;
                     if (actor.Gfx > 0) character.GFX = actor.Gfx;
