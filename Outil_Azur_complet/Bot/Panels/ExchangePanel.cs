@@ -14,8 +14,8 @@ namespace Outil_Azur_complet.Bot.Panels
     /// <summary>
     /// Échange avec un joueur ou un PNJ (interface <c>Exchange</c> du client 1.34) : sa proposition et celle de l'autre côte
     /// à côte, kamas et état « prêt » de chaque côté, sac du personnage dessous. Le volet s'ouvre sur <c>ECK1</c>/<c>ECK2</c>
-    /// (ou pendant l'attente d'une demande envoyée) et se ferme sur <c>EV</c>. Une demande reçue (<c>ERK</c>) est posée dans une
-    /// boîte Oui / Non / Ignorer : Oui envoie <c>EA</c>, Non <c>EV</c>, Ignorer <c>EV</c> et ignore le joueur pour la session.
+    /// (ou pendant l'attente d'une demande envoyée) et se ferme sur <c>EV</c>. Une demande reçue (<c>ERK</c>, échange ou artisanat
+    /// sécurisé) est posée dans une boîte Oui / Non / Ignorer : Oui envoie <c>EA</c>, Non <c>EV</c>, Ignorer <c>EV</c> et ignore le joueur pour la session.
     /// « Valider » (<c>EK</c>) reste grisé 3 secondes après chaque modification, comme le bouton du client.
     /// </summary>
     public sealed class ExchangePanel : GamePanel
@@ -142,8 +142,8 @@ namespace Outil_Azur_complet.Bot.Panels
                 if (IsDisposed || !ReferenceEquals(exchange.PendingRequest, request)) return;
                 CloseRequestDialog();
                 Form[] before = BotDialogs.OpenDialogs.ToArray();
-                Task<BotDialogResult> question = BotDialogs.AskYesNoIgnoreAsync(Host, ExchangeRegistry.Text("EXCHANGE", "Échange"),
-                    ExchangeRegistry.Text("A_WANT_EXCHANGE", request.PartnerName + " vous propose un échange.", request.PartnerName));
+                // Texte selon le type demandé : A_WANT_EXCHANGE, ou A_WANT_CRAFT_CLIENT / A_WANT_CRAFT_ARTISAN pour l'artisanat sécurisé (lot X5).
+                Task<BotDialogResult> question = BotDialogs.AskYesNoIgnoreAsync(Host, ExchangeRegistry.Text("EXCHANGE", "Échange"), request.Text);
                 requestShown = request;
                 requestDialog = BotDialogs.OpenDialogs.Except(before).LastOrDefault();
                 BotDialogResult answer = await question;
