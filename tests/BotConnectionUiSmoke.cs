@@ -13,11 +13,13 @@ using Outil_Azur_complet.Bot;
 using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
+using Tool_BotProtocol.Game.Session;
 
 // Lot X3 : écrans de la connexion contre des serveurs simulés en boucle locale, avec la boucle de messages de l'interface.
 // Compte neuf (B-05) : AlEr ouvre ChooseNickName au-dessus du choix du serveur (contrôles locaux, confirmation, ligne brute,
 // AlEs, Ad/AlK, Annuler). Fenêtre de jeu : AN ouvre NEW_LEVEL (V-20) ; M04 (m-08) puis la coupure du serveur ouvrent la
 // boîte CONNECTION (DISCONNECT + SRV_MSG_4) ; « OK » ferme la fenêtre et rouvre l'écran de connexion prérempli (V-25).
+// Lot X32 : en jeu, AlEr ouvre ChooseNickName au-dessus de la fenêtre de jeu (B-07), TC ouvre la boîte « mini-jeu » (V-45).
 // Données fictives, fenêtres invisibles, aucune capture d'écran (BotUiSmoke, qui capture par PrintWindow, est propre à Windows).
 internal static class BotConnectionUiSmoke
 {
@@ -38,7 +40,7 @@ internal static class BotConnectionUiSmoke
             Application.EnableVisualStyles();
             Run();
             Check(uiErrors.Count == 0, "Interface errors: " + string.Join(" / ", uiErrors.Select(e => e.GetType().Name + " " + e.Message)));
-            Console.WriteLine("OK: ChooseNickName au-dessus du choix du serveur (contrôles locaux, confirmation, ligne brute, AlEs, Ad/AlK, Annuler), boîte NEW_LEVEL unique, boîte de perte de connexion avec M04 et la question de reconnexion : Non → écran de connexion prérempli, Oui → même compte reconnecté");
+            Console.WriteLine("OK: ChooseNickName au-dessus du choix du serveur (contrôles locaux, confirmation, ligne brute, AlEs, Ad/AlK, Annuler), boîte NEW_LEVEL unique, boîte de perte de connexion avec M04 et la question de reconnexion : Non → écran de connexion prérempli, Oui → même compte reconnecté ; X32 : nom en jeu (AlEr → ChooseNickName sur la fenêtre de jeu, refus locaux, ligne brute, AlEs, GM|~ ferme, Annuler sans déconnexion), boîte « mini-jeu » sur TC avec TV envoyé");
         }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
@@ -112,6 +114,7 @@ internal static class BotConnectionUiSmoke
             MessagesReception.Init();
             var config = new AccountConfig("compte-fictif", "secret de test", "Privé");
             NicknameScreen(config);
+            NameChangeAndMiniGame(config);
             LevelAndLostConnection(config);
         }
         finally
@@ -195,6 +198,110 @@ internal static class BotConnectionUiSmoke
                 }
                 servers.Close();
             }
+        }
+        finally { listener.Stop(); }
+    }
+
+
+    /// <summary>
+    /// Lot X32 : en jeu, <c>AlEr</c> ouvre la fenêtre <c>ChooseNickName</c> au-dessus de la fenêtre de jeu (contrôles locaux : trop
+    /// court, nom du compte, première lettre lue comme un paquet par StarLoco), « OK » puis « OK » envoie la ligne brute, <c>AlEs</c>
+    /// rouvre la saisie avec <c>NICKNAME_ALREADY_USED</c>, <c>AlEr</c> puis le <c>GM|~</c> du personnage au nouveau nom referment la
+    /// fenêtre sans déconnecter ; « Annuler » la ferme sans déconnecter ; <c>TC30|7001010000</c> envoie <c>TV0</c> (sans cellule
+    /// connue) et ouvre la boîte « mini-jeu » dans la fenêtre de jeu.
+    /// </summary>
+    private static void NameChangeAndMiniGame(AccountConfig config)
+    {
+        const string miniGameName = "mini-jeu/compte-fictif";
+        var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
+        try
+        {
+            var account = new Accounts(config);
+            Task<Socket> accepted = listener.AcceptSocketAsync();
+            Await(account.Connexion.ConnectToServer(IPAddress.Loopback, ((IPEndPoint)listener.LocalEndpoint).Port));
+            Pump(() => accepted.IsCompleted, "The game window account did not connect");
+            account.Game.character.SetPerso_Data(7, "Ancien", 25, 0, 8);
+            account.AccountStates = AccountStates.CONNECTED_INACTIVE;
+            var dashboard = new GameClientFullform(account);
+            Hidden(dashboard); dashboard.Show(); Application.DoEvents();
+            object prompts = Get(dashboard, "connectionPrompts");
+            Check(prompts != null, "The game window has no ConnectionPrompts");
+            NameChange change = account.Game.Session.NameChange;
+            int lost = 0; account.ConnectionLost += loss => lost++;
+            using (Socket peer = accepted.Result)
+            {
+                peer.ReceiveTimeout = 7000;
+                Await(MessagesReception.ReceptionAsync(account.Connexion, "AlEr"));
+                Pump(() => Prop(prompts, "NameForm") != null, "AlEr in game did not open the name window");
+                var form = (ChooseNickNameForm)Prop(prompts, "NameForm");
+                Pump(() => form.Visible, "The name window is not shown");
+                Check(ReferenceEquals(form.Owner, dashboard) && form.Text == ConnectionTexts.NicknameTitle && Step(form) == "Input" && Error(form) == null,
+                    "The first name request is not an input window owned by the game window");
+                Check(change.IsPending && !account.Nickname.IsPending, "AlEr in game did not open the NameChange request");
+                NoLine(peer, "AlEr in game sent a line");
+
+                // Contrôles locaux (client, puis règle de StarLoco sur la première lettre) : rien ne part.
+                Type(form, "ab"); Ok(form);
+                Check(Error(form) == ConnectionTexts.NicknameTooShort && Step(form) == "Input", "A two-character name was not refused locally");
+                Type(form, "COMPTE-FICTIF"); Ok(form);
+                Check(Error(form) == ConnectionTexts.NicknameEqualsLogin && Step(form) == "Input", "The account name was not refused locally");
+                Type(form, "Gaston"); Ok(form);
+                Check(Error(form) == NameChange.UnreadableByServer("Gaston") && Step(form) == "Input", "A name starting with a packet letter was not refused locally: " + Error(form));
+                NoLine(peer, "A locally refused name was sent");
+                Type(form, "Nouveau"); Ok(form);
+                Check(Step(form) == "Confirm" && (string)Prop(form, "HelpText") == ConnectionTexts.NicknameConfirm("Nouveau") && Error(form) == null,
+                    "The first valid OK did not ask for the confirmation");
+                Ok(form);
+                Check(Receive(peer) == "Nouveau" && Step(form) == "Waiting", "The confirmed name was not sent as a raw line");
+                Send(peer, "AlEs\0");
+                Pump(() => Error(form) == ConnectionTexts.NicknameAlreadyUsed, "AlEs did not reopen the input with NICKNAME_ALREADY_USED");
+                Check(ReferenceEquals(Prop(prompts, "NameForm"), form) && (string)Prop(form, "Nickname") == "Nouveau" && Step(form) == "Input" && lost == 0 && account.Connexion != null,
+                    "AlEs opened a second window, lost the refused name or disconnected");
+                Type(form, "Nouvel"); Ok(form); Ok(form);
+                Check(Receive(peer) == "Nouvel", "The second name was not sent");
+                // StarLoco renvoie AlEr même quand il accepte, puis le GM|~ du personnage au nouveau nom.
+                Send(peer, "AlEr\0");
+                Pump(() => Step(form) == "Input" && Error(form) == null, "AlEr after the sent name did not reopen a blank input");
+                Check((string)Prop(form, "Nickname") == "Nouvel" && !form.IsDisposed, "AlEr after the sent name closed the window or lost the name");
+                Send(peer, "GM|~0;1;0;7;Nouvel;1;10^100;1;0,0,0,37;-1;-1;-1;;0;;;;;0;;0\0");
+                Pump(() => form.IsDisposed && Prop(prompts, "NameForm") == null, "The GM|~ with the new name did not close the name window");
+                Check(account.Game.character.Name == "Nouvel" && !change.IsPending && account.Connexion != null && lost == 0 && !dashboard.IsDisposed,
+                    "The accepted name disconnected or was not applied");
+                NoLine(peer, "The accepted name sent a line");
+
+                // « Annuler » : fermeture sans déconnexion (le client, lui, se déconnecte : écart documenté).
+                Send(peer, "AlEr\0");
+                Pump(() => Prop(prompts, "NameForm") != null && ((ChooseNickNameForm)Prop(prompts, "NameForm")).Visible, "A new AlEr did not reopen the name window");
+                var again = (ChooseNickNameForm)Prop(prompts, "NameForm");
+                Check(!ReferenceEquals(again, form) && ReferenceEquals(again.Owner, dashboard) && Step(again) == "Input" && Error(again) == null,
+                    "The reopened name window is the old one, is not owned by the game window or is not blank");
+                Call(again, "CancelStep");
+                Pump(() => again.IsDisposed && Prop(prompts, "NameForm") == null, "Cancel did not close the name window");
+                Check(account.Connexion != null && lost == 0 && !change.IsPending && !dashboard.IsDisposed, "Cancel in game disconnected");
+                NoLine(peer, "Cancel sent a line");
+
+                // TC : fin envoyée aussitôt (sans cellule connue : TV0 seul) et boîte d'information dans la fenêtre de jeu.
+                Send(peer, "TC30|7001010000\0");
+                Check(Receive(peer) == "TV0", "TC30 did not send TV0");
+                Pump(() => Dialog(miniGameName) != null, "TC did not open the mini-game box");
+                Form box = Dialog(miniGameName);
+                TutorialRequest last = account.Game.Session.Tutorial.Last;
+                Check(last != null && last.Id == 30 && box.Text == ConnectionTexts.InformationsTitle && DialogText(box) == last.Describe() && ReferenceEquals(box.Owner, dashboard),
+                    "The mini-game box is wrong: " + DialogText(box));
+                Check(DialogText(box).Contains("Roulette du Bouftou") && DialogText(box).Contains("TV0"), "The mini-game box does not name the roulette and the end packet: " + DialogText(box));
+                Send(peer, "TC31|7001010000\0");
+                Check(Receive(peer) == "TV1", "TC31 did not send TV1");
+                Pump(() => BotDialogs.OpenDialogs.Count(x => x.Name == miniGameName && !x.IsDisposed && x.Visible) == 1 && DialogText(Dialog(miniGameName)).Contains("gagné"),
+                    "A second TC did not replace the mini-game box");
+                All(Dialog(miniGameName)).OfType<Button>().First(x => x.Visible).PerformClick();
+                Pump(() => Dialog(miniGameName) == null, "OK did not close the mini-game box");
+                Check(account.Connexion != null && lost == 0 && !dashboard.IsDisposed, "The mini-game disconnected");
+                account.Disconnect();
+            }
+            Application.DoEvents();
+            Check(Dialog("connexion-perdue/compte-fictif") == null, "A requested disconnection opened the lost-connection box");
+            dashboard.Close(); Application.DoEvents();
+            account.Dispose();
         }
         finally { listener.Stop(); }
     }
