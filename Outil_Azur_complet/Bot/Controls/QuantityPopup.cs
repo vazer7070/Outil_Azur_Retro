@@ -12,18 +12,21 @@ namespace Outil_Azur_complet.Bot.Controls
     /// <summary>
     /// Boîte de quantité du client (<c>PopupQuantity</c>) au style Retro, lot X4 : champ prérempli qui n'accepte que des
     /// chiffres (<c>restrict = "0-9"</c>), boutons « min » et « max » (<c>MIN_WORD</c>, <c>MAX_WORD</c> ; « max » valide quand le
-    /// champ vaut déjà le maximum) et « OK ». Entrée valide (<c>ACCEPT_CURRENT_DIALOG</c>), un clic hors de la boîte l'abandonne
-    /// (<c>_bgHidder</c>), Échap aussi. Elle s'ouvre au pointeur, coin inférieur droit sous la souris, ramenée dans l'écran
-    /// (<c>placeWindow</c>). Non modale : la fenêtre de jeu continue de recevoir les paquets. La valeur rendue est le nombre
-    /// lu (<c>parseInt</c>), <c>null</c> pour un champ vide ou une boîte abandonnée ; l'appelant la borne comme le client
-    /// (<c>value &gt; 0</c>, puis <c>Math.min(value, quantité)</c>).
+    /// champ vaut déjà le maximum) et « OK ». Entrée valide (<c>ACCEPT_CURRENT_DIALOG</c>), un clic dans une autre fenêtre du bot
+    /// (la fenêtre de jeu) l'abandonne comme <c>_bgHidder</c>, Échap aussi ; une perte d'activation seule (boîte Oui / Non ouverte
+    /// par un paquet, passage à une autre application, focus qui suit la souris) ne l'abandonne pas, le client laissant
+    /// <c>PopupQuantity</c> ouverte sous ces questions (lot X4-CORR). Elle s'ouvre au pointeur, coin inférieur droit sous la souris,
+    /// ramenée dans l'écran (<c>placeWindow</c>). Non modale : la fenêtre de jeu continue de recevoir les paquets. La valeur rendue
+    /// est le nombre lu (<c>parseInt</c>), <c>null</c> pour un champ vide ou une boîte abandonnée ; l'appelant la borne comme le
+    /// client (<c>value &gt; 0</c>, puis <c>Math.min(value, quantité)</c>).
     /// </summary>
-    public sealed class QuantityPopup : Form
+    public sealed class QuantityPopup : Form, IMessageFilter
     {
+        private const int WM_LBUTTONDOWN = 0x0201, WM_RBUTTONDOWN = 0x0204, WM_MBUTTONDOWN = 0x0207;
         private static readonly List<QuantityPopup> open = new List<QuantityPopup>();
         private readonly TextBox input;
         private readonly TaskCompletionSource<int?> completion = new TaskCompletionSource<int?>();
-        private bool activated, answered;
+        private bool answered, filtering;
 
         /// <summary>Boîtes affichées (tests et diagnostic).</summary>
         public static IReadOnlyList<QuantityPopup> OpenPopups { get { lock (open) return open.ToArray(); } }
@@ -32,8 +35,8 @@ namespace Outil_Azur_complet.Bot.Controls
         public int Minimum { get; }
         /// <summary>Borne du bouton « max » (quantité de la pile glissée).</summary>
         public int Maximum { get; }
-        /// <summary>Texte du champ, tel que le joueur le voit.</summary>
-        public string InputText { get => input.Text; set => input.Text = Digits(value); }
+        /// <summary>Texte du champ, tel que le joueur le voit ; l'écriture passe par le filtre du champ lui-même (chiffres seuls).</summary>
+        public string InputText { get => input.Text; set => input.Text = value ?? string.Empty; }
         /// <summary>Réponse : nombre lu à la validation, <c>null</c> si la boîte est abandonnée.</summary>
         public Task<int?> Result => completion.Task;
 
@@ -60,12 +63,30 @@ namespace Outil_Azur_complet.Bot.Controls
             AcceptButton = (IButtonControl)ok;
             frame.Controls.Add(input); frame.Controls.Add(actions);
             Controls.Add(frame);
-            ClientSize = new Size(184, 74);
-            Activated += (s, e) => { activated = true; input.Focus(); input.SelectAll(); };
-            // Clic hors de la boîte (_bgHidder du client) : abandon, seulement après une première activation, car certains
-            // gestionnaires de fenêtres sous Mono désactivent une fenêtre qui n'a jamais été active.
-            Deactivate += (s, e) => { if (activated && !answered) Cancel(); };
-            FormClosed += (s, e) => { lock (open) open.Remove(this); completion.TrySetResult(null); };
+            // 2 × 2 (Padding de la boîte) + 2 × 8 (Padding du cadre) + 3 × 52 (boutons) + 2 × 6 (marges entre boutons) = 188 :
+            // le bouton « OK » (116 à 168) tient dans la barre sans être rogné.
+            ClientSize = new Size(Padding.Horizontal + frame.Padding.Horizontal + actions.Controls.Cast<Control>().Sum(c => c.Width + c.Margin.Horizontal) - ok.Margin.Right, 74);
+            Activated += (s, e) => { input.Focus(); input.SelectAll(); };
+            // Clic hors de la boîte (_bgHidder du client) : seul un clic dans une autre fenêtre du bot abandonne (filtre de messages
+            // posé tant que la boîte est affichée) ; la perte d'activation ne ferme rien, comme chez le client.
+            Shown += (s, e) => { if (!filtering && !IsDisposed) { Application.AddMessageFilter(this); filtering = true; } };
+            FormClosed += (s, e) => { if (filtering) { Application.RemoveMessageFilter(this); filtering = false; } lock (open) open.Remove(this); completion.TrySetResult(null); };
+        }
+
+        /// <summary>
+        /// <c>_bgHidder</c> du client : un clic (bouton gauche, droit ou du milieu) dans une autre fenêtre du bot abandonne la boîte et
+        /// est absorbé. Un clic dans la boîte, dans une autre boîte de quantité, dans une boîte <see cref="BotDialogs"/> posée par-dessus
+        /// (comme la question arrivée par un paquet chez le client) ou hors du bot ne fait rien. L'abandon est différé : sous Mono,
+        /// retirer le filtre pendant son propre appel lèverait une exception.
+        /// </summary>
+        bool IMessageFilter.PreFilterMessage(ref Message m)
+        {
+            if (answered || IsDisposed || (m.Msg != WM_LBUTTONDOWN && m.Msg != WM_RBUTTONDOWN && m.Msg != WM_MBUTTONDOWN)) return false;
+            Form form = Control.FromChildHandle(m.HWnd)?.FindForm();
+            if (form == null || ReferenceEquals(form, this) || form is QuantityPopup || BotDialogs.OpenDialogs.Contains(form)) return false;
+            try { BeginInvoke((Action)Cancel); }
+            catch (InvalidOperationException) { return false; }
+            return true;
         }
 
         private static Control Small(string text, EventHandler action, bool primary, string name)
@@ -130,7 +151,7 @@ namespace Outil_Azur_complet.Bot.Controls
             Close();
         }
 
-        /// <summary>Clic hors de la boîte ou Échap : abandon sans réponse.</summary>
+        /// <summary>Clic dans une autre fenêtre du bot ou Échap : abandon sans réponse.</summary>
         public void Cancel()
         {
             if (answered) return;

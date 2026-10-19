@@ -50,8 +50,10 @@ namespace Outil_Azur_complet.Bot.Panels
         // Dernier refus du serveur (OAE, ODE, OdE, Im1…) : gardé sous l'objet jusqu'au prochain changement de sélection ou
         // d'inventaire, car la fenêtre de jeu rafraîchit les volets visibles à chaque mise à jour d'état.
         private string serverNotice;
-        // Message Im (refus, repas du familier ou de la monture) : StarLoco envoie OCO, OQ ou OR autour de lui, il survit donc
-        // aux mises à jour d'inventaire et ne s'efface qu'au changement de sélection ou au dépôt suivant (lot X4).
+        // Message Im du repas du familier ou de la monture seulement (INFOS_25 à 32, INFOS_105, ERROR_53, ERROR_54, ERROR_90) :
+        // StarLoco envoie OQ, OR, OM ou OCO autour de lui, il survit donc aux mises à jour d'inventaire et ne s'efface qu'au
+        // changement de sélection ou au dépôt suivant (lot X4). Les autres refus Im (Im119|44…) s'effacent au prochain changement
+        // d'inventaire, comme avant X4 (lot X4-CORR).
         private bool noticeFromIm;
         private InventoryClass bag;
         private CharacterClass character;
@@ -59,6 +61,8 @@ namespace Outil_Azur_complet.Bot.Panels
         private MountActions mount;
         /// <summary>Messages d'information du repas d'un familier (<c>PetEntry.eat</c> de StarLoco) et de la monture (<c>Im0105</c>).</summary>
         private static readonly int[] FeedingInfos = { 25, 26, 27, 28, 29, 30, 31, 32, 105 };
+        /// <summary>Refus ou fin du repas : ERROR_53 (le familier ne mange pas cela), ERROR_54 (familier mort, suivi d'un OM et d'un OCO), ERROR_90 (la monture ne mange pas cela).</summary>
+        private static readonly int[] FeedingErrors = { 53, 54, 90 };
 
         public override string Title => "Inventaire";
         public override Image Icon => ClientAssets.Icon("icone-inventaire", 24);
@@ -186,9 +190,13 @@ namespace Outil_Azur_complet.Bot.Panels
         private void OnServerMessage(ServerMessage message)
         {
             if (message == null) return;
-            bool feeding = message.Kind == ServerMessageKind.Info && message.NumericId.HasValue && Array.IndexOf(FeedingInfos, message.NumericId.Value) >= 0;
+            bool feeding = message.NumericId.HasValue
+                && ((message.Kind == ServerMessageKind.Info && Array.IndexOf(FeedingInfos, message.NumericId.Value) >= 0)
+                    || (message.Kind == ServerMessageKind.Error && Array.IndexOf(FeedingErrors, message.NumericId.Value) >= 0));
             if (message.Kind != ServerMessageKind.Error && !feeding) return;
-            OnUi(() => { if (Host != null && Host.IsOpen(this)) ShowHelp(message.Text, true); });
+            // Seuls les messages du repas survivent aux OQ, OR, OM et OCO qui les entourent ; tout autre refus (Im119|44…) s'efface,
+            // comme avant X4, au prochain changement d'inventaire (lot X4-CORR).
+            OnUi(() => { if (Host != null && Host.IsOpen(this)) ShowHelp(message.Text, feeding); });
         }
 
         private void ShowHelp(string message, bool fromIm = false)

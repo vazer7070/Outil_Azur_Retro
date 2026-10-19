@@ -192,7 +192,8 @@ namespace Outil_Azur_complet.Bot.Controls
     /// Un emplacement d'équipement de la fenêtre <c>Inventory</c> du client (<c>_ctr0.._ctr16</c>) : accepte par glisser-déposer
     /// un objet dont le type convient (<see cref="ItemSlots.Accepts"/>) et se laisse glisser vers le sac. La croix
     /// <c>inventaire-croix</c> couvre le bouclier quand l'arme portée se tient à deux mains ; l'emplacement de la monture
-    /// vide montre <c>UI_InventoryMountIcon</c>. Le serveur reste seul juge : l'objet ne bouge qu'à son paquet <c>OM</c>.
+    /// vide montre <c>UI_InventoryMountIcon</c> quand une monture est annoncée, sinon la même croix (<c>_mcMountCross</c> de
+    /// <c>mountChanged</c>, même symbole). Le serveur reste seul juge : l'objet ne bouge qu'à son paquet <c>OM</c>.
     /// </summary>
     public sealed class ItemSlot : Control
     {
@@ -229,7 +230,8 @@ namespace Outil_Azur_complet.Bot.Controls
         public bool Selected { get { return selected; } set { if (selected == value) return; selected = value; Invalidate(); } }
         /// <summary>
         /// Case de la monture (16) : vrai quand le serveur a annoncé une monture (<c>Re+</c>). Comme <c>mountChanged</c> du client,
-        /// l'icône <c>UI_InventoryMountIcon</c> n'apparaît qu'alors, et la case accepte une ressource pour nourrir la monture.
+        /// l'icône <c>UI_InventoryMountIcon</c> n'apparaît qu'alors, et la case accepte une ressource pour nourrir la monture ;
+        /// sans monture (aucun <c>Re+</c>, ou après <c>Re-</c>), la case vide est barrée de la croix <c>_mcMountCross</c> (lot X4-CORR).
         /// </summary>
         public bool HasMount { get { return hasMount; } set { if (hasMount == value) return; hasMount = value; Invalidate(); } }
         /// <summary>Vrai pour le bouclier quand l'arme portée est à deux mains (<c>_mcTwoHandedCrossLeft</c>).</summary>
@@ -277,7 +279,10 @@ namespace Outil_Azur_complet.Bot.Controls
                 Image mount = ItemAssets.Cached("UI_InventoryMountIcon");
                 if (mount != null) ClientAssets.DrawFit(graphics, mount, Rectangle.Inflate(bounds, -Math.Max(3, Width / 6), -Math.Max(3, Height / 6)));
             }
-            if (crossed)
+            // Comme mountChanged du client : sans monture (pas de Re+, ou après Re-), _mcMountCross (même symbole cid 649 que
+            // _mcTwoHandedCrossLeft, donc inventaire-croix) barre la case 16 vide.
+            bool mountCross = item == null && Position == ItemSlots.MountPosition && !hasMount;
+            if (crossed || mountCross)
             {
                 Image cross = ItemAssets.Cached("inventaire-croix");
                 Rectangle area = Rectangle.Inflate(bounds, -Width / 6, -Height / 6);
