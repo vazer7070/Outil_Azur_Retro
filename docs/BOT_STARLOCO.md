@@ -903,6 +903,8 @@ Les gardiens et ressusciteurs sont cherchés dans la table `npcs` du jeu parmi l
 
 Le même jour, la suite réelle complète (dix-neuf scénarios, `AZUR_TEST_TIMEOUT=600`) a été jouée deux fois : x4a à x4c réussissent les deux fois (environ 60 s pour les trois) ; les échecs des scénarios f et h observés à ces passages sont expliqués et traités au paragraphe « Lot CORR-LIVE » de `tests/README.md`.
 
+Lot X4-CORR, le 19 octobre 2026 : x4a à x4c, joués juste après le scénario a, passent de nouveau (`AZUR_STARLOCO_SCENARIOS=x4a,x4b,x4c`, 103 s avec a) ; x4c lit bien `ECK9` puis `EREO` après `ER17|<pnj>` et l'échange reste ouvert ; à la fin de chaque scénario, le journal nomme ce qui a été détruit en jeu (x4a : Chacha, poisson, poudre ; x4b : le Chacha rendu par le gardien, le premier et le certificat ayant déjà été retirés par StarLoco ; x4c : le Chacha ressuscité et le poisson, la poudre consommée étant supprimée de la base) et la relecture de la base ne trouve plus aucun objet, familier ni monture du scénario ; la suite complète lancée à 5 h 03 réussit ses 19 scénarios (3 min 56 s de scénarios), x4a à x4c en deuxième, troisième et quatrième position (le Game de StarLoco s'arrête de lui-même chaque jour à 4 h 59, `Reboot.check` : `start.sh` doit le relancer ensuite). Les passages du lot X4 antérieurs à ces corrections ont laissé dans `world.entity.objects` du serveur de test vingt-cinq objets des modèles 1728 et 7537 sans propriétaire (identifiants 16 à 74), écrits par la sauvegarde du monde après un `DELETE` qui ne les atteignait pas.
+
 Limites :
 
 - les PNJ d'action 4 placés ailleurs que sur la carte 1140 et le PNJ 753 (action 7, carte 9716, sans chemin à pied connu depuis un zaap) n'ont pas été joints ; seul le Chacha a été gardé et ressuscité ;

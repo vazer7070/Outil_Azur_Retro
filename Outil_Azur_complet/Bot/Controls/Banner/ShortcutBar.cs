@@ -334,7 +334,8 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
         /// <summary>« Retirer de la barre » : <c>OM&lt;id&gt;|-1|&lt;quantité&gt;</c>, refusé pendant un échange ouvert comme <c>canMoveItem</c> du client (lot X4-CORR).</summary>
         private Task<bool> RemoveItemAsync(uint inventoryId, InventoryObjects held)
         {
-            if (account?.Game?.character?.Inventory?.MoveForbiddenByExchange(out string exchange) == true) { Report(exchange); return Task.FromResult(false); }
+            InventoryClass bag = account?.Game?.character?.Inventory;
+            if (bag != null && bag.MoveForbiddenByExchange(out string exchange)) { Report(exchange); return Task.FromResult(false); }
             return Send("OM" + inventoryId.ToString(CultureInfo.InvariantCulture) + "|" + ((int)InventorySlots.NOT_EQUIPPED).ToString(CultureInfo.InvariantCulture) + "|" + Math.Max(1, held.Qua).ToString(CultureInfo.InvariantCulture),
                 held.Name + " rangé dans l'inventaire (le serveur confirme par OM).");
         }
