@@ -27,8 +27,10 @@ using Tool_BotProtocol.Game.Perso.Inventory;
 // du client synthétiques (métiers, compétences, recettes, objets) : JS avec deux métiers → niveaux et compétences (récolte, atelier),
 // JX, JN, JO (envoi par position, réponse JO0 de StarLoco attribuée au métier demandé, refus locaux), EW± (mode public et compétences
 // d'un artisan), Ej±, puis l'atelier : ECK3|8;44, EMO+/EMKO+, EMO-/EMKO-, recette reconnue, EK, EmKO+ et EcK;<modèle>, série EK + EMR,
-// EA, EMr, Ea, EcEF, EcEI, EL, forgemagie, livre des artisans ECK14/EJF/EJ±, paquets mal formés sans exception, EV, Clear ; enfin les
-// volets Métiers, Atelier et Livre des artisans dans une fenêtre de jeu invisible.
+// EA, EMr, Ea, EcEF, EcEI, EL, forgemagie, livre des artisans ECK14/EJF/EJ±, paquets mal formés sans exception, EV, Clear ; l'artisanat
+// sécurisé (lot X5) : ERK 12/13 posés au joueur, ECK12 (artisan) et ECK13 (client), EmKO±, Ep (paiement et prime), EP, EK des deux côtés,
+// EcK;…;T / B, EcEF, EcEI, paquets mal formés ; enfin les volets Métiers, Atelier, Livre des artisans et Artisanat sécurisé dans une fenêtre
+// de jeu invisible.
 internal static class BotCraftSmoke
 {
     private const int MapId = 900098;
@@ -51,7 +53,7 @@ internal static class BotCraftSmoke
             Application.EnableVisualStyles();
             Run();
             Check(uiErrors.Count == 0, "Interface errors: " + string.Join(" / ", uiErrors.Select(e => e.GetType().Name + " " + e.Message)));
-            Console.WriteLine("OK: métiers JS/JX/JN/JR/JO, EW±, Ej±, atelier ECK3/EMO±/EMKO±/EK/EMR/EA/Ea/EMr/EcK/EcEI/EcEF/EL, livre ECK14/EJF/EJ±, volets Métiers, Atelier et Livre des artisans");
+            Console.WriteLine("OK: métiers JS/JX/JN/JR/JO, EW±, Ej±, atelier ECK3/EMO±/EMKO±/EK/EMR/EA/Ea/EMr/EcK/EcEI/EcEF/EL, livre ECK14/EJF/EJ±, artisanat sécurisé ERK 12/13, ECK12/ECK13, Ep, EP, EK, EcK T/B, EcEF, EcEI, volets Métiers, Atelier, Livre des artisans et Artisanat sécurisé");
         }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
         finally { LangData.Clear(); }
@@ -132,7 +134,12 @@ internal static class BotCraftSmoke
             + "<texte cle=\"CRAFT\" valeur=\"Artisanat\" />\n<texte cle=\"CRAFT_LOOP_END_INTERRUPT\" valeur=\"Série interrompue (texte de test).\" />\n"
             + "<texte cle=\"CRAFT_LOOP_PROCESS\" valeur=\"Objet %1 sur %2 (texte de test).\" />\n<texte cle=\"CRAFTER_REFERENCE_ADD\" valeur=\"Référencé comme %1 (texte de test).\" />\n"
             + "<texte cle=\"CRAFTER_REFERENCE_REMOVE\" valeur=\"Plus référencé comme %1 (texte de test).\" />\n<texte cle=\"IN_WORKSHOP\" valeur=\"En atelier\" />\n"
-            + "<texte cle=\"OUTSIDE_WORKSHOP\" valeur=\"Hors atelier\" />");
+            + "<texte cle=\"OUTSIDE_WORKSHOP\" valeur=\"Hors atelier\" />\n"
+            // Lot X5 : artisanat sécurisé.
+            + "<texte cle=\"CRAFT_SUCCESS_TARGET\" valeur=\"Objet °0 créé pour %1 (texte de test).\" />\n<texte cle=\"CRAFT_SUCCESS_OTHER\" valeur=\"%1 t'a créé °0 (texte de test).\" />\n"
+            + "<texte cle=\"A_WANT_CRAFT_ARTISAN\" valeur=\"%1 t'invite à son atelier (texte de test).\" />\n<texte cle=\"A_WANT_CRAFT_CLIENT\" valeur=\"%1 sollicite tes talents d'artisan (texte de test).\" />\n"
+            + "<texte cle=\"COMBINE\" valeur=\"Combiner\" />\n<texte cle=\"PAY\" valeur=\"Paiement\" />\n<texte cle=\"GRANT_IF_SUCCESS\" valeur=\"Prime si réussite\" />\n"
+            + "<texte cle=\"CRAFTED_ITEM\" valeur=\"Objet obtenu\" />\n<texte cle=\"NOT_ENOUGHT_CRAFT_SLOT\" valeur=\"Recettes à %1 cases seulement (texte de test).\" />");
         LangData.Clear();
         Check(LangData.Load(lang) == 5 && new[] { "jobs", "skills", "crafts", "items", "lang" }.All(LangData.IsLoaded), "Synthetic lang files not loaded: " + string.Join(" / ", LangData.LoadWarnings));
         Check(JobCatalog.JobName(25) == "Boulanger fictif" && JobCatalog.SpecializationOf(62) == 2 && JobCatalog.IsCraftSkill(44) == true && JobCatalog.IsCraftSkill(6) == false
@@ -168,6 +175,7 @@ internal static class BotCraftSmoke
                     Jobs(account, peer, logs);
                     Workshop(account, peer, logs);
                     Book(account, peer, logs);
+                    SecureCraft(account, peer, logs);
                     Windows(account, peer, logs);
                     NoPacket(peer, "Unexpected packet at the end of the test");
                 }
@@ -387,6 +395,306 @@ internal static class BotCraftSmoke
         Check(!book.IsOpen && book.Jobs.Count == 0 && book.Crafters.Count == 0 && book.SelectedJob == 0 && account.AccountStates == AccountStates.CONNECTED_INACTIVE, "EV did not close the book");
     }
 
+    /// <summary>
+    /// Artisanat sécurisé (lot X5) : ERK 12 / 13 posés au joueur, ECK12 (artisan) et ECK13 (client), EMO± / EMKO± / EmKO±, Ep (paiement et
+    /// prime annoncés), EP (kamas et objets du client), EK des deux côtés, EcK;…;T / B, EcEF, EcEI, paquets mal formés, EV, Clear.
+    /// </summary>
+    private static void SecureCraft(Accounts account, Socket peer, ConcurrentQueue<string> logs)
+    {
+        ExchangeRegistry registry = account.Game.Interactions.Exchanges;
+        PlayerExchange players = registry.Get<PlayerExchange>();
+        CraftSecureExchange secure = registry.Get<CraftSecureExchange>();
+        Check(ExchangeTypes.SecureCraftArtisan == 12 && ExchangeTypes.SecureCraftClient == 13 && secure != null && players != null
+            && registry.For(12) == secure && registry.For(13) == secure && ExchangeTypes.Describe(12).Contains("artisan") && ExchangeTypes.Describe(13).Contains("client"),
+            "Secure craft types 12 and 13 are not registered");
+        Check(!secure.IsOpen && !secure.IsClient && !secure.IsArtisan && secure.Slots == 0 && secure.SkillId == 0 && secure.IngredientCount == 0 && secure.PayKamas == 0
+            && secure.LastOutcome == CraftOutcome.None && secure.CanValidate == false, "Initial secure craft state differs");
+        Check(!Sent(secure.AddIngredientAsync(1000, 1)) && !Sent(secure.RemoveIngredientAsync(1000, 1)) && !Sent(secure.SetPayKamasAsync(1, CraftPayment.Pay))
+            && !Sent(secure.AddPayItemAsync(1000, 1, CraftPayment.Pay)) && !Sent(secure.RemovePayItemAsync(1000, 1, CraftPayment.Pay)) && !Sent(secure.CombineAsync())
+            && !Sent(secure.LeaveAsync()), "Secure craft actions accepted without an open window");
+        Feed(account, "Ep1;G100"); Feed(account, "EK142"); Feed(account, "EcK;2201;TJoueur 43;");
+        Check(secure.PayKamas == 0 && !secure.LocalReady && secure.LastOutcome == CraftOutcome.None && account.Game.Interactions.Jobs.Craft.LastOutcome == CraftOutcome.None,
+            "Secure craft packets without a window were applied");
+        NoPacket(peer, "Refused secure craft actions reached the server");
+
+        // Côté artisan : ERK<client>|<soi>|12 posé (texte A_WANT_CRAFT_CLIENT), EA, ECK12|8;44.
+        EventHandler<ExchangeRequestEventArgs> keep = (s, e) => e.Handled = true;
+        players.RequestReceived += keep;
+        try
+        {
+            Feed(account, "ERK43|42|12");
+            ExchangeRequest request = players.PendingRequest;
+            Check(request != null && request.Type == 12 && request.IsSecureCraft && !request.Outgoing && request.PartnerId == 43 && request.PartnerName == "Joueur 43"
+                && request.Text == "Joueur 43 sollicite tes talents d'artisan (texte de test).", "Secure craft request (type 12) differs: " + request?.Text);
+            NoPacket(peer, "Secure craft request was answered automatically");
+            Check(Sent(players.AcceptAsync())); Expect(peer, "EA", "Accepting the secure craft request does not send EA");
+            Feed(account, "ECK12|8;44");
+            Check(secure.IsOpen && secure.IsArtisan && !secure.IsClient && secure.ExchangeType == 12 && secure.Slots == 8 && secure.SkillId == 44 && secure.SkillName == "Cuire fictif"
+                && secure.Job?.ID == 25 && secure.PartnerId == 43 && secure.PartnerName == "Joueur 43" && players.PendingRequest == null && registry.Current == secure
+                && account.AccountStates == AccountStates.EXCHANGE && secure.Recipes.Select(recipe => recipe.ResultTemplateId).SequenceEqual(new[] { 2202, 2201 }),
+                "ECK12 did not open the secure craft on the artisan side");
+            Check(!Sent(secure.SetPayKamasAsync(10, CraftPayment.Pay)) && !Sent(secure.AddPayItemAsync(1000, 1, CraftPayment.Pay)) && !Sent(secure.CombineAsync()),
+                "The artisan may pay or combine an empty window");
+            Check(!Sent(secure.AddIngredientAsync(1003, 1)) && !Sent(secure.AddIngredientAsync(9999, 1)) && !Sent(secure.AddIngredientAsync(1000, 11)) && !Sent(secure.AddIngredientAsync(1000, 0))
+                && !Sent(secure.RemoveIngredientAsync(1000, 1)), "Invalid secure craft ingredients were accepted");
+            NoPacket(peer, "Refused artisan actions reached the server");
+
+            // Ingrédients de l'autre (EmKO+ avec modèle), les siens (EMO+ → EMKO+), recette reconnue sur l'ensemble.
+            Feed(account, "EmKO+9001|2|2301|");
+            Check(secure.DistantIngredients.Count == 1 && secure.DistantIngredients[0].Id == 9001 && secure.DistantIngredients[0].TemplateId == 2301
+                && secure.DistantIngredients[0].Quantity == 2 && secure.DistantIngredients[0].Name == "Blé fictif" && secure.IngredientCount == 1 && secure.ExpectedRecipe == null,
+                "EmKO+ was not read on the artisan side");
+            Check(Sent(secure.AddIngredientAsync(1001, 1))); Expect(peer, "EMO+1001|1", "AddIngredient does not send EMO+<objet>|<quantité>");
+            Check(secure.LocalIngredients.Count == 0, "Ingredient placed before the server answer");
+            Feed(account, "EMKO+1001|1");
+            Check(secure.LocalIngredients.Count == 1 && secure.LocalIngredients[0].TemplateId == 2302 && secure.PlacedQuantity(1001) == 1 && secure.IngredientCount == 2
+                && secure.ExpectedRecipe?.ResultTemplateId == 2201 && secure.PlacedByTemplate()[2301] == 2 && secure.PlacedByTemplate()[2302] == 1, "EMKO+ or the recipe differs");
+
+            // Paiement annoncé à l'artisan : kamas, objet avec modèle et effets (remplacé, puis retiré), objet du paiement.
+            Feed(account, "Ep1;G150");
+            Check(secure.PayKamas == 150 && secure.PayIfSuccessKamas == 0, "Ep1;G was not read");
+            Feed(account, "Ep2;O+9002|1|2401|7d#1#0#0#");
+            Check(secure.PayIfSuccessItems.Count == 1 && secure.PayIfSuccessItems[0].Id == 9002 && secure.PayIfSuccessItems[0].TemplateId == 2401 && secure.PayIfSuccessItems[0].Name == "Épée fictive"
+                && secure.PayIfSuccessItems[0].Effects == "7d#1#0#0#" && secure.PayItems.Count == 0, "Ep2;O+ was not read");
+            Feed(account, "Ep2;O+9002|2|2401|7d#1#0#0#");
+            Check(secure.PayIfSuccessItems.Count == 1 && secure.PayIfSuccessItems[0].Quantity == 2, "Ep2;O+ did not replace the quantity");
+            Feed(account, "Ep2;O-9002");
+            Check(secure.PayIfSuccessItems.Count == 0, "Ep2;O- was not applied");
+            Feed(account, "Ep1;O+9003|3|2303|");
+            Check(secure.PayItems.Count == 1 && secure.PayItems[0].Name == "Sucre fictif" && secure.PayItems[0].Quantity == 3 && secure.PayIfSuccessItems.Count == 0, "Ep1;O+ was not read");
+
+            // Combiner : délai après le dernier changement, EK, EK1<soi>, EK1<autre> → fabrication, EcK;<modèle>;T<client>;<effets>.
+            Check(!secure.CanValidate && !Sent(secure.CombineAsync()), "Combine accepted right after a change");
+            PumpUntil(() => secure.CanValidate, 6);
+            Check(Sent(secure.CombineAsync())); Expect(peer, "EK", "Combine does not send EK");
+            Check(secure.IsValidatePending && !Sent(secure.CombineAsync()), "Second EK accepted while the server confirms");
+            Feed(account, "EK142");
+            Check(secure.LocalReady && !secure.DistantReady && !secure.IsValidatePending && !secure.IsCombinePending, "EK1<soi> was not read");
+            Feed(account, "EK143");
+            Check(secure.LocalReady && secure.DistantReady && secure.IsCombinePending && !Sent(secure.AddIngredientAsync(1000, 1)) && !Sent(secure.CombineAsync()),
+                "EK1<autre> did not start the craft");
+            Feed(account, "EcK;2201;TJoueur 43;");
+            Check(secure.IsOpen && secure.LastOutcome == CraftOutcome.Success && secure.LastResultTemplateId == 2201 && secure.LastResultEffects == "" && secure.IngredientCount == 0
+                && secure.PayKamas == 0 && secure.PayItems.Count == 0 && !secure.LocalReady && !secure.DistantReady && !secure.IsCombinePending
+                && secure.LastMessage == "Objet Pain fictif créé pour Joueur 43 (texte de test)." && account.Game.Chat.Messages.Any(message => message.Text == secure.LastMessage),
+                "EcK on the artisan side differs: " + secure.LastMessage);
+            Feed(account, "EK042"); Feed(account, "EK043");
+            Check(!secure.LocalReady && !secure.DistantReady, "EK0 differs");
+            Check(Sent(secure.LeaveAsync())); Expect(peer, "EV", "Leave does not send EV");
+            Check(secure.IsOpen, "Secure craft closed before the server");
+            Feed(account, "EV");
+            Check(!secure.IsOpen && secure.Slots == 0 && secure.SkillId == 0 && secure.PartnerId == 0 && secure.LastOutcome == CraftOutcome.None && registry.Current == null
+                && account.AccountStates == AccountStates.CONNECTED_INACTIVE, "EV did not close the secure craft");
+            NoPacket(peer, "Artisan side sent an unexpected packet");
+
+            // Côté client : demande envoyée (ERK<soi>|<artisan>|12, texte WAIT_FOR_CRAFT_CLIENT), ECK13|4;44, paiement EP.
+            Feed(account, "ERK42|43|12");
+            request = players.PendingRequest;
+            Check(request != null && request.Outgoing && request.PartnerId == 43 && request.Text.Contains("client") && request.Text.Contains("Joueur 43"), "Outgoing secure craft request differs");
+            Feed(account, "ECK13|4;44");
+            Check(secure.IsOpen && secure.IsClient && !secure.IsArtisan && secure.Slots == 4 && secure.SkillId == 44 && secure.PartnerId == 43 && players.PendingRequest == null
+                && secure.Recipes.Count == 2, "ECK13 did not open the secure craft on the client side");
+            account.Game.character.Kamas = 500;
+            Check(Sent(secure.SetPayKamasAsync(800, CraftPayment.Pay))); Expect(peer, "EP1G500", "Pay kamas are not clamped to the owned kamas (EP1G<kamas>)");
+            Feed(account, "Ep1;G500");
+            Check(Sent(secure.SetPayKamasAsync(20, CraftPayment.PayIfSuccess))); Expect(peer, "EP2G20", "Pay-if-success kamas do not send EP2G<kamas>");
+            Feed(account, "Ep2;G20");
+            Check(secure.PayKamas == 500 && secure.PayIfSuccessKamas == 20 && !Sent(secure.SetPayKamasAsync(-1, CraftPayment.Pay)), "Ep;G on the client side differs");
+            Check(!Sent(secure.AddPayItemAsync(1003, 1, CraftPayment.Pay)) && !Sent(secure.AddPayItemAsync(9999, 1, CraftPayment.Pay)) && !Sent(secure.AddPayItemAsync(1002, 2, CraftPayment.Pay))
+                && !Sent(secure.RemovePayItemAsync(1002, 1, CraftPayment.Pay)), "Invalid pay items were accepted");
+            NoPacket(peer, "Refused pay items reached the server");
+            Check(Sent(secure.AddPayItemAsync(1002, 1, CraftPayment.PayIfSuccess))); Expect(peer, "EP2O+1002|1", "AddPayItem does not send EP<type>O+<objet>|<quantité>");
+            Feed(account, "Ep2;O+1002|1");
+            Check(secure.PayIfSuccessItems.Count == 1 && secure.PayIfSuccessItems[0].TemplateId == 2303 && secure.PayIfSuccessItems[0].Name == "Sucre fictif" && secure.OfferedQuantity(1002) == 1
+                && !Sent(secure.AddIngredientAsync(1002, 1)) && !Sent(secure.AddPayItemAsync(1002, 1, CraftPayment.Pay)), "Ep2;O+ on the client side differs");
+            Check(Sent(secure.RemovePayItemAsync(1002, 1, CraftPayment.PayIfSuccess))); Expect(peer, "EP2O-1002|1", "RemovePayItem does not send EP<type>O-<objet>|<quantité>");
+            Feed(account, "Ep2;O-1002");
+            Check(secure.PayIfSuccessItems.Count == 0 && secure.OfferedQuantity(1002) == 0, "Ep2;O- on the client side differs");
+
+            // Ingrédients du client, trop de piles pour 4 cases (NOT_ENOUGHT_CRAFT_SLOT), retrait partiel (EMKO+ avec le nouveau total).
+            Check(Sent(secure.AddIngredientAsync(1000, 2))); Expect(peer, "EMO+1000|2", "Client EMO+ differs"); Feed(account, "EMKO+1000|2");
+            Check(Sent(secure.AddIngredientAsync(1001, 1))); Expect(peer, "EMO+1001|1", "Client second EMO+ differs"); Feed(account, "EMKO+1001|1");
+            Check(secure.ExpectedRecipe?.ResultTemplateId == 2201 && secure.IngredientCount == 2, "Client recipe not recognised");
+            Feed(account, "EmKO+9001|1|2303|"); Feed(account, "EmKO+9002|1|303|"); Feed(account, "EmKO+9003|1|2301|");
+            InteractionResult full = Result(secure.AddIngredientAsync(1004, 1));
+            InteractionResult combineFull = Result(secure.CombineAsync());
+            Check(secure.IngredientCount == 5 && secure.ExpectedRecipe == null && !full.Sent && full.Message.Contains("4") && !combineFull.Sent && combineFull.Message.Contains("4"),
+                "NOT_ENOUGHT_CRAFT_SLOT differs: " + full.Message + " / " + combineFull.Message);
+            Feed(account, "EmKO-9001"); Feed(account, "EmKO-9002"); Feed(account, "EmKO-9003");
+            Check(secure.IngredientCount == 2 && secure.DistantIngredients.Count == 0, "EmKO- differs");
+            Check(Sent(secure.RemoveIngredientAsync(1000, 1))); Expect(peer, "EMO-1000|1", "RemoveIngredient does not send EMO-<objet>|<quantité>");
+            Feed(account, "EMKO+1000|1");
+            Check(secure.PlacedQuantity(1000) == 1 && secure.ExpectedRecipe == null && secure.LocalIngredients.Count == 2, "Partial removal differs");
+            Check(Sent(secure.AddIngredientAsync(1000, 1))); Expect(peer, "EMO+1000|1", "EMO+ after a partial removal differs");
+            Feed(account, "EMKO+1000|2");
+            Check(secure.ExpectedRecipe?.ResultTemplateId == 2201, "Recipe not recognised again");
+
+            // EK : validation, retrait de la validation, l'autre seul ne fabrique pas, les deux → EcEF, EcEI, EcK;…;B<artisan>;<effets>.
+            PumpUntil(() => secure.CanValidate, 6);
+            Check(Sent(secure.CombineAsync())); Expect(peer, "EK", "Client combine does not send EK");
+            Feed(account, "EK142");
+            Check(secure.LocalReady && Sent(secure.CombineAsync())); Expect(peer, "EK", "Withdrawing the validation does not send EK");
+            Feed(account, "EK042");
+            Check(!secure.LocalReady && !secure.IsValidatePending, "EK0<soi> was not read");
+            Feed(account, "EK143");
+            Check(secure.DistantReady && !secure.IsCombinePending, "The other side alone started the craft");
+            Check(Sent(secure.CombineAsync())); Expect(peer, "EK", "Client second combine does not send EK");
+            Feed(account, "EK142");
+            Check(secure.IsCombinePending && !Sent(secure.AddIngredientAsync(1001, 1)) && !Sent(secure.SetPayKamasAsync(1, CraftPayment.Pay)), "Both ready did not start the craft");
+            Feed(account, "EcEF");
+            Check(secure.LastOutcome == CraftOutcome.Failed && secure.LastResultTemplateId == 0 && secure.IngredientCount == 0 && secure.PayKamas == 0 && secure.PayIfSuccessKamas == 0
+                && !secure.LocalReady && !secure.DistantReady && !secure.IsCombinePending && secure.LastMessage == "Recette ratée (texte de test).", "EcEF differs: " + secure.LastMessage);
+            Feed(account, "EcEI");
+            Check(secure.LastOutcome == CraftOutcome.NoResult && secure.LastMessage == "Recette vide (texte de test).", "EcEI differs");
+            Feed(account, "EcK;2201;BJoueur 43;7d#1#0#0#");
+            Check(secure.LastOutcome == CraftOutcome.Success && secure.LastResultTemplateId == 2201 && secure.LastResultEffects == "7d#1#0#0#"
+                && secure.LastMessage == "Joueur 43 t'a créé Pain fictif (texte de test)." && account.Game.Chat.Messages.Any(message => message.Text == secure.LastMessage),
+                "EcK on the client side differs: " + secure.LastMessage);
+            NoPacket(peer, "Client side sent an unexpected packet");
+
+            // Paquets mal formés : journalisés, jamais fatals, état inchangé.
+            Feed(account, "EMKO+1000|1"); Feed(account, "Ep1;G5"); Feed(account, "Ep2;O+1002|1");
+            int before = logs.Count;
+            foreach (string packet in new[] { "Ep", "Epx;G1", "Ep3;G1", "Ep1;G-1", "Ep1;Gx", "Ep1;O+abc|1", "Ep1;O+1000|0", "Ep1;O+1000", "Ep1;O+1000|1|x", "Ep1;Ox1000", "Ep1;", "Ep1;Q",
+                "EMKO", "EMKOx", "EMKO+abc|1", "EMKO+1000|0", "EMKO+1000", "EmKO+1|1", "EmKO+1|1|x", "EmKG5", "EK", "EKx", "EK1", "EK1x", "EK2 42", "EcK;abc", "EcK", "EcEZ", "EcE", "Ew" })
+                Feed(account, packet);
+            Check(secure.IsOpen && secure.IngredientCount == 1 && secure.PlacedQuantity(1000) == 1 && secure.PayKamas == 5 && secure.PayIfSuccessItems.Count == 1 && !secure.LocalReady
+                && !secure.DistantReady && secure.LastOutcome == CraftOutcome.Success && logs.Skip(before).Count(entry => entry.Contains("illisible")) >= 20,
+                "Malformed secure craft packets changed the state or were not logged (" + logs.Skip(before).Count(entry => entry.Contains("illisible")) + " logged)");
+            NoPacket(peer, "Malformed secure craft packets sent a packet");
+
+            // Clear : tout est oublié sans rien envoyer.
+            account.Game.Interactions.Clear();
+            Check(!secure.IsOpen && secure.IngredientCount == 0 && secure.PayKamas == 0 && secure.PayIfSuccessItems.Count == 0 && secure.LastOutcome == CraftOutcome.None
+                && registry.Current == null && account.AccountStates == AccountStates.CONNECTED_INACTIVE, "Clear kept the secure craft");
+            NoPacket(peer, "Clear sent a packet");
+        }
+        finally { players.RequestReceived -= keep; }
+    }
+
+    /// <summary>
+    /// Volet Artisanat sécurisé dans la fenêtre de jeu de <see cref="Windows"/> (la fermer libère le compte) : boîte de demande (type 13), côté client
+    /// (ingrédients, paiement, prime, Combiner, résultat), côté artisan.
+    /// </summary>
+    private static void SecureWindows(Accounts account, Socket peer, GameClientFullform form)
+    {
+        CraftSecureExchange secure = account.Game.Interactions.Exchanges.Get<CraftSecureExchange>();
+        account.Game.character.Kamas = 1000;
+        {
+            PanelHost drawer = form.Panels;
+            var panel = drawer.Get<CraftSecurePanel>(); var exchangePanel = drawer.Get<ExchangePanel>();
+            Check(panel != null && exchangePanel != null && drawer.Current != panel && !drawer.IsOpen(panel), "Secure craft panel is not registered in the drawer");
+            NoPacket(peer, "The game window sent a packet before the secure craft");
+
+            // ERK<artisan>|<soi>|13 depuis le fil réseau : boîte Oui / Non / Ignorer avec A_WANT_CRAFT_ARTISAN ; Oui → EA ; ECK13|4;44 → volet.
+            FeedFromNetwork(account, "ERK43|42|13");
+            PumpUntil(() => exchangePanel.RequestDialog != null);
+            Form box = exchangePanel.RequestDialog;
+            Check(DialogMessage(box) == "Joueur 43 t'invite à son atelier (texte de test).", "Secure craft request dialog differs: " + DialogMessage(box));
+            NoPacket(peer, "The request dialog answered by itself");
+            Answer(box, "Oui"); Expect(peer, "EA", "« Oui » does not send EA");
+            PumpUntil(() => exchangePanel.RequestDialog == null);
+            Check(!drawer.IsOpen(panel), "The secure craft panel opened before ECK13");
+            FeedFromNetwork(account, "ECK13|4;44");
+            PumpUntil(() => drawer.Current == panel);
+            PumpUntil(() => panel.RecipesReady);
+            var heading = (Label)Get(panel, "heading"); var subheading = (Label)Get(panel, "subheading"); var expectedText = (Label)Get(panel, "expectedText");
+            var payKamasText = (Label)Get(panel, "payKamasText"); var craftStatus = (Label)Get(panel, "craftStatus");
+            var localGrid = (ExchangeItemGrid)Get(panel, "localGrid"); var distantGrid = (ExchangeItemGrid)Get(panel, "distantGrid");
+            var payList = (ListView)Get(panel, "payList"); var bagList = (ListView)Get(panel, "bagList");
+            var placeQuantity = (NumericUpDown)Get(panel, "placeQuantity"); var payKamas = (NumericUpDown)Get(panel, "payKamas");
+            var place = (Control)Get(panel, "placeButton"); var remove = (Control)Get(panel, "removeButton"); var payItem = (Control)Get(panel, "payItemButton");
+            var primeItem = (Control)Get(panel, "payIfSuccessItemButton"); var takeBack = (Control)Get(panel, "payRemoveButton"); var payKamasButton = (Control)Get(panel, "payKamasButton");
+            var combine = (Control)Get(panel, "combineButton"); var leave = (Control)Get(panel, "leaveButton"); var payBar = (Control)Get(panel, "payBar");
+            Check(heading.Text.Contains("Cuire fictif") && heading.Text.Contains("4") && subheading.Text.Contains("client") && subheading.Text.Contains("Joueur 43")
+                && payBar.Visible && payItem.Visible && primeItem.Visible && takeBack.Visible && !combine.Enabled && leave.Enabled && !place.Enabled && payKamas.Maximum == 1000
+                && panel.KnownRecipes.Count == 2 && expectedText.Text.Contains("2 recette") && bagList.Items.Count == 4 && RowWithTag(bagList, 1003u) == null
+                && localGrid.Items.Count == 0 && distantGrid.Items.Count == 0 && payList.Items.Count == 0, "Client panel content differs: " + heading.Text + " / " + expectedText.Text);
+
+            // Poser 2 blés → EMO+ ; EMKO+ → grille, sac décompté ; l'eau de l'artisan (EmKO+) complète la recette.
+            RowWithTag(bagList, 1000u).Selected = true; Application.DoEvents();
+            Check(place.Enabled && payItem.Enabled && primeItem.Enabled && placeQuantity.Maximum == 10, "Bag selection did not enable the buttons");
+            placeQuantity.Value = 2; Click(place); Expect(peer, "EMO+1000|2", "Place button does not send EMO+<objet>|<quantité>");
+            FeedFromNetwork(account, "EMKO+1000|2");
+            PumpUntil(() => localGrid.Items.Count == 1);
+            Check(RowWithTag(bagList, 1000u).SubItems[1].Text == "8" && expectedText.Text.Contains("Aucune recette connue") && combine.Text.StartsWith("Combiner (") && !combine.Enabled,
+                "Single ingredient state differs: " + expectedText.Text + " / " + combine.Text);
+            FeedFromNetwork(account, "EmKO+9001|1|2302|");
+            PumpUntil(() => panel.ExpectedRecipe?.ResultTemplateId == 2201);
+            Check(distantGrid.Items.Count == 1 && expectedText.Text.Contains("Pain fictif"), "Recognised recipe not shown: " + expectedText.Text);
+
+            // Paiement : 300 kamas → EP1G300 ; Ep1;G300 affiché ; prime avec le sucre → EP2O+ ; Ep2;O+ listé ; Reprendre → EP2O-.
+            payKamas.Value = 300; Click(payKamasButton); Expect(peer, "EP1G300", "Pay button does not send EP1G<kamas>");
+            FeedFromNetwork(account, "Ep1;G300");
+            PumpUntil(() => payKamasText.Text.Contains("300"));
+            RowWithTag(bagList, 1002u).Selected = true; Application.DoEvents();
+            placeQuantity.Value = 1; Click(primeItem); Expect(peer, "EP2O+1002|1", "Prime button does not send EP2O+<objet>|<quantité>");
+            FeedFromNetwork(account, "Ep2;O+1002|1");
+            PumpUntil(() => payList.Items.Count == 1);
+            Check(payList.Items[0].Text == "Sucre fictif" && payList.Items[0].SubItems[2].Text == "Prime si réussite" && RowWithTag(bagList, 1002u) == null, "Pay list differs");
+            payList.Items[0].Selected = true; Application.DoEvents();
+            Check(takeBack.Enabled, "Reprendre disabled for an offered item");
+            Click(takeBack); Expect(peer, "EP2O-1002|1", "Reprendre does not send EP2O-<objet>|<quantité>");
+            FeedFromNetwork(account, "Ep2;O-1002");
+            PumpUntil(() => payList.Items.Count == 0 && RowWithTag(bagList, 1002u) != null);
+
+            // Combiner : compte à rebours, EK sans confirmation (recette reconnue), EK1<soi> → « Annuler la validation », EK1<autre>, EcK → objet obtenu.
+            Check(!combine.Enabled && combine.Text.StartsWith("Combiner ("), "Combine button not delayed after a change: " + combine.Text);
+            PumpUntil(() => combine.Enabled, 6);
+            Check(combine.Text == "Combiner", "Countdown text was not cleared: " + combine.Text);
+            Click(combine); Expect(peer, "EK", "Combine button does not send EK");
+            Check(panel.CombineDialog == null, "Confirmation asked for a recognised recipe");
+            FeedFromNetwork(account, "EK142");
+            PumpUntil(() => localGrid.Ready);
+            Check(combine.Text.Contains("Annuler") && craftStatus.Text.Contains("Vous avez validé"), "EK1<soi> not shown: " + combine.Text);
+            FeedFromNetwork(account, "EK143");
+            PumpUntil(() => distantGrid.Ready);
+            Check(craftStatus.Text.Contains("Joueur 43 a validé") && craftStatus.Text.Contains("Fabrication en cours") && !combine.Enabled && !place.Enabled, "Both ready state differs: " + craftStatus.Text);
+            FeedFromNetwork(account, "EcK;2201;BJoueur 43;"); FeedFromNetwork(account, "EK042"); FeedFromNetwork(account, "EK043");
+            PumpUntil(() => localGrid.Items.Count == 0 && distantGrid.Items.Count == 0 && !localGrid.Ready);
+            Check(expectedText.Text.Contains("Objet obtenu") && expectedText.Text.Contains("Pain fictif") && craftStatus.Text.Contains("t'a créé") && !combine.Enabled
+                && RowWithTag(bagList, 1000u).SubItems[1].Text == "10", "Craft result not shown: " + expectedText.Text + " / " + craftStatus.Text);
+
+            // Sucre seul : Combiner demande confirmation (WRONG_CRAFT_CONFIRM), « Non » n'envoie rien ; Retirer → EMO-.
+            RowWithTag(bagList, 1002u).Selected = true; Application.DoEvents();
+            placeQuantity.Value = 1; Click(place); Expect(peer, "EMO+1002|1", "Place (sucre) does not send EMO+");
+            FeedFromNetwork(account, "EMKO+1002|1");
+            PumpUntil(() => localGrid.Items.Count == 1);
+            PumpUntil(() => combine.Enabled, 6);
+            Click(combine); PumpUntil(() => panel.CombineDialog != null);
+            Form ask = panel.CombineDialog;
+            Check(ask.Text == "Artisanat" && DialogMessage(ask) == "Recette inconnue, combiner ? (texte de test)", "WRONG_CRAFT_CONFIRM differs: " + DialogMessage(ask));
+            Answer(ask, "Non"); PumpUntil(() => panel.CombineDialog == null);
+            NoPacket(peer, "« Non » sent EK");
+            Check(localGrid.SelectItem(1002)); Application.DoEvents();
+            Check(remove.Enabled, "Retirer disabled for a placed ingredient");
+            Click(remove); Expect(peer, "EMO-1002|1", "Remove button does not send EMO-<objet>|<quantité>");
+            FeedFromNetwork(account, "EMKO-1002");
+            PumpUntil(() => localGrid.Items.Count == 0);
+
+            // Fermeture : × → EV, le volet attend le serveur.
+            drawer.RequestClose(panel); Expect(peer, "EV", "User close does not send EV");
+            Check(drawer.Current == panel, "Secure craft panel closed before the server");
+            Feed(account, "EV"); Application.DoEvents();
+            PumpUntil(() => !drawer.IsOpen(panel));
+            Check(!secure.IsOpen, "Secure craft stayed open after EV");
+
+            // Côté artisan : ECK12|8;44 sans demande → volet sans barre de paiement ; Ep affichés ; Fermer → EV.
+            FeedFromNetwork(account, "ECK12|8;44");
+            PumpUntil(() => drawer.Current == panel);
+            PumpUntil(() => panel.RecipesReady);
+            Check(heading.Text.Contains("8") && subheading.Text.Contains("artisan") && subheading.Text.Contains("Boulanger fictif") && !payBar.Visible && !payItem.Visible
+                && !primeItem.Visible && !takeBack.Visible && leave.Enabled, "Artisan panel content differs: " + subheading.Text);
+            FeedFromNetwork(account, "Ep1;G75"); FeedFromNetwork(account, "Ep2;O+9002|1|2401|");
+            PumpUntil(() => payList.Items.Count == 1);
+            Check(payKamasText.Text.Contains("75") && payList.Items[0].Text == "Épée fictive" && payList.Items[0].SubItems[2].Text == "Prime si réussite", "Artisan payment view differs: " + payKamasText.Text);
+            Click(leave); Expect(peer, "EV", "Fermer does not send EV");
+            Feed(account, "EV"); Application.DoEvents();
+            PumpUntil(() => !drawer.IsOpen(panel));
+            NoPacket(peer, "Secure craft panel sent an unexpected packet");
+        }
+    }
+
     /// <summary>Volets Métiers, Atelier et Livre des artisans dans une fenêtre de jeu invisible.</summary>
     private static void Windows(Accounts account, Socket peer, ConcurrentQueue<string> logs)
     {
@@ -538,6 +846,7 @@ internal static class BotCraftSmoke
             Check(account.Game.character.GetJobsSnapshot().Length == 2 && strip.Slots[3]?.ID == 62 && account.Game.Interactions.Jobs.LastMessage == "Métier Bûcheron fictif oublié (texte de test).",
                 "JR differs");
             NoPacket(peer, "Job panel refreshes sent a packet");
+            SecureWindows(account, peer, form);
             form.Close(); Application.DoEvents();
         }
     }

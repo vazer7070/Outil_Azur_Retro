@@ -262,7 +262,15 @@ internal static class BotExchangeSmoke
                     Feed(account, "ERK44|42|1"); NoPacket(peer, "Handled request answered automatically");
                     Check(Sent(exchange.IgnoreAsync()) && Read(peer) == "EV" && exchange.IgnoredPlayers.Contains("Importun fictif"), "Ignore does not refuse and remember the player");
                     Feed(account, "ERK44|42|1"); Check(Read(peer) == "EV" && asked.Count == 2 && exchange.PendingRequest == null, "Ignored player was asked again");
-                    Feed(account, "ERK43|42|12"); Check(Read(peer) == "EV" && asked.Count == 2, "Unsupported request type was not refused");
+                    Feed(account, "ERK43|42|8"); Check(Read(peer) == "EV" && asked.Count == 2, "Unsupported request type was not refused");
+                    // Lot X5 : les demandes d'artisanat sécurisé (12 : un client sollicite l'artisan, 13 : un artisan invite) sont posées, jamais acceptées seules.
+                    Feed(account, "ERK43|42|12"); NoPacket(peer, "Secure craft request (type 12) was answered automatically");
+                    Check(asked.Count == 3 && asked[2].Type == 12 && asked[2].IsSecureCraft && !asked[2].Outgoing && asked[2].Text.Contains("Partenaire fictif")
+                        && asked[2].Text.Contains("artisan") && ReferenceEquals(exchange.PendingRequest, asked[2]), "Secure craft request (type 12) differs: " + asked[2]?.Text);
+                    Check(Sent(exchange.RefuseAsync()) && Read(peer) == "EV" && exchange.PendingRequest == null, "Refusing the secure craft request does not send EV");
+                    Feed(account, "ERK43|42|13"); NoPacket(peer, "Secure craft request (type 13) was answered automatically");
+                    Check(asked.Count == 4 && asked[3].Type == 13 && asked[3].IsSecureCraft && asked[3].Text.Contains("atelier"), "Secure craft request (type 13) differs: " + asked[3]?.Text);
+                    Check(Sent(exchange.RefuseAsync()) && Read(peer) == "EV" && exchange.PendingRequest == null, "Refusing the secure craft invitation does not send EV");
                     Feed(account, "ERK43|44|1"); NoPacket(peer, "Request between two other players was answered");
                     Check(exchange.PendingRequest == null, "Request between two other players was stored");
                     Feed(account, "ERK43|42|1"); Check(Sent(exchange.RefuseAsync()) && Read(peer) == "EV" && exchange.PendingRequest == null, "Refuse does not send EV");
