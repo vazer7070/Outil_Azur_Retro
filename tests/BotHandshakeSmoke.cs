@@ -314,7 +314,10 @@ internal static class BotHandshakeSmoke
         }
         finally { login.Stop(); }
     }
-    /// <summary>« Annuler » déconnecte sans boîte de perte ; en jeu, <c>AlEr</c>/<c>AlEs</c> (potion de nom, lot X32) ne déconnectent pas.</summary>
+    /// <summary>
+    /// « Annuler » déconnecte sans boîte de perte ; en jeu, <c>AlEr</c>/<c>AlEs</c> (potion de nom, lot X32) ne déconnectent jamais : sans
+    /// interface abonnée ils sont journalisés, sinon ils ouvrent la demande de nom du personnage, pas celle du pseudo du compte.
+    /// </summary>
     private static async Task NicknameCancelAndInGame()
     {
         var login = new TcpListener(IPAddress.Loopback, 0);
@@ -351,7 +354,17 @@ internal static class BotHandshakeSmoke
             await MessagesReception.ReceptionAsync(account.Connexion, "AlEs");
             Check(account.Connexion != null && account.AccountStates == AccountStates.CONNECTED_INACTIVE && requests == 0 && !account.Nickname.IsPending,
                 "AlEr/AlEs in game disconnected the session or opened the nickname choice");
-            Check(messages.Count(message => message.Contains("X32")) == 2, "AlEr/AlEs in game were not logged");
+            Check(messages.Count(message => message.Contains("X32")) == 2, "AlEr/AlEs in game without a subscriber were not logged");
+            var names = new List<NicknameRequest>();
+            account.Game.Session.NameChange.Requested += names.Add;
+            await MessagesReception.ReceptionAsync(account.Connexion, "AlEr");
+            Check(names.Count == 1 && names[0].Attempt == 1 && names[0].Refused == null && account.Game.Session.NameChange.IsPending && requests == 0 && !account.Nickname.IsPending
+                && account.Connexion != null, "AlEr in game with a subscriber did not open the in-game name request");
+            await MessagesReception.ReceptionAsync(account.Connexion, "AlEs");
+            Check(names.Count == 2 && names[1].Refused == null && names[1].Error == null && account.Connexion != null, "AlEs in game without a sent name disconnected or carried an error");
+            account.Game.Session.NameChange.Cancel();
+            Check(!account.Game.Session.NameChange.IsPending && account.Connexion != null && account.AccountStates == AccountStates.CONNECTED_INACTIVE,
+                "Cancelling the in-game name request disconnected");
         }
     }
     private static async Task EncodedRedirect()

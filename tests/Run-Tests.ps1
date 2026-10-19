@@ -117,6 +117,9 @@ try {
     # Lot X4-CORR (OM et OD refusés pendant un échange, EREO après ER17 ignoré, seuls les messages du repas gardés sous l'objet, boîte de
     # quantité abandonnée au clic seulement et « OK » entier, croix de la case 16 sans monture, x4a à x4c joués juste après le scénario a,
     # objets des scénarios x4 détruits en jeu) : couvert par les mêmes tests.
+    # Lot X32 (changement de nom en jeu par la potion 10860, roulette du Bouftou TC/TV) : couvert par BotSessionSmoke, BotConnectionUiSmoke,
+    # BotHandshakeSmoke et les scénarios x32a et x32b de BotStarLocoLiveSmoke (potion, kamas et personnages écrits dans la base par le test) ;
+    # AZUR_STARLOCO_SCENARIOS=x32a,x32b ne joue que ceux-là après le scénario a.
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'

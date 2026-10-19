@@ -23,7 +23,7 @@ using BotClient = Tool_BotProtocol.Network.TcpClient;
 
 // Session layer of the bot against a local fake server (no real server, no UI): handler registry, unknown packets,
 // one packet per send, GC1 alone, GCK/AR/Ac/BT/BN/AN, generic Im, invitations without auto-accept, split frames,
-// M0 system messages and disconnect causes (lot X3).
+// M0 system messages and disconnect causes (lot X3), in-game name change and TC/TV mini-game (lot X32).
 internal static class BotSessionSmoke
 {
     [STAThread]
@@ -35,7 +35,7 @@ internal static class BotSessionSmoke
             if (!File.Exists(path)) path = Path.ChangeExtension(path, "exe");
             return File.Exists(path) ? Assembly.LoadFrom(path) : null;
         };
-        try { Run(); Console.WriteLine("OK: registre strict, paquets inconnus journalisés, un paquet par envoi, GC1 seul, GCK/AR/Ac/BT/BN/AN, Im générique, PIK/gJr sans acceptation, frames éclatées, tombe/fantôme du sprite GM, GF et /release, ALK héroïque, GO sans boîte de perte ; X3 : ligne de chat du nouveau niveau, M04/M018 gardés jusqu’à la coupure, perte de connexion en jeu (DISCONNECT + SRV_MSG), déconnexion demandée sans boîte"); }
+        try { Run(); Console.WriteLine("OK: registre strict, paquets inconnus journalisés, un paquet par envoi, GC1 seul, GCK/AR/Ac/BT/BN/AN, Im générique, PIK/gJr sans acceptation, frames éclatées, tombe/fantôme du sprite GM, GF et /release, ALK héroïque, GO sans boîte de perte ; X3 : ligne de chat du nouveau niveau, M04/M018 gardés jusqu’à la coupure, perte de connexion en jeu (DISCONNECT + SRV_MSG), déconnexion demandée sans boîte ; X32 : AlEr/AlEs en jeu → nom en ligne brute, GM|~ au nouveau nom clôt la demande, Annuler sans déconnexion, TC → TV<rang>|<cellule>|<orientation>"); }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
 
@@ -246,8 +246,145 @@ internal static class BotSessionSmoke
             }
             TombAndGameOver(listener);
             SystemMessagesAndLoss(listener);
+            NameChangeAndMiniGame(listener);
         }
         finally { listener.Stop(); Environment.CurrentDirectory = previous; }
+    }
+
+    // Lot X32 : potion de changement de nom en jeu (AlEr → saisie → ligne brute ; AlEs → nouvel essai ; AlEr puis GM|~ au nouveau
+    // nom → demande close ; jamais de déconnexion) et mini-jeu : TC<id>|<clé> → TV<rang>|<cellule>|<orientation> envoyé aussitôt.
+    private static void NameChangeAndMiniGame(TcpListener listener)
+    {
+        const int mapId = 900096;
+        Map.AllBotMaps[mapId] = new Map { MapID = mapId, MapWidth = 3, MapHeight = 4, X = 3, Y = -4, MapData = string.Concat(Enumerable.Repeat("HhGaeaaaaa", 18)) };
+        Check(MessagesReception.messagesDatas.Any(d => d.MessageName == "TC"), "TC has no handler");
+        foreach (string name in new[] { "Nouveau", "zed", "nom-compose", "Xa-b", "pin", "Nin-pong" }) Check(NameChange.IsReadByStarLoco(name), "Name refused as unreadable: " + name);
+        foreach (string name in new[] { "Gaston", "Albert", "ping", "PINGUIN", "Ping-pong", "cedric", "Walter", "Bob", "Kim", "", null })
+            Check(!NameChange.IsReadByStarLoco(name), "Name accepted although StarLoco would read it as a packet: " + name);
+        Socket peer;
+        using (var account = Connected(listener, "synthetic-rename", out peer))
+        using (peer)
+        {
+            var infos = new ConcurrentQueue<string>();
+            account.Logger.log_event += (entry, color) => infos.Enqueue(entry.message);
+            int lost = 0; account.ConnectionLost += loss => lost++;
+            GameSession session = account.Game.Session;
+            NameChange change = session.NameChange;
+            account.Game.character.SetPerso_Data(7, "Ancien", 30, 1, 1);
+            account.AccountStates = AccountStates.CONNECTED_INACTIVE;
+            Feed(account, "GDM|" + mapId + "|date|key"); Check(Read(peer) == "GI", "GDM did not request GI");
+            Feed(account, "GM|+5;3;0;7;Ancien;1;10^100;1;0,0,0,37;-1;-1;-1;;0;;;;;0;;0");
+            Check(account.Game.character.Cell != null && account.Game.character.Cell.CellID == 5 && account.Game.character.Orientation == 3, "The self GM did not place the character");
+
+            // Sans abonné : AlEr en jeu est journalisé, la session continue, rien ne part ; le pseudo de connexion n'est pas concerné.
+            int loginRequests = 0; account.Nickname.Requested += request => loginRequests++;
+            Feed(account, "AlEr");
+            Check(!change.IsPending && !account.Nickname.IsPending && loginRequests == 0 && account.Connexion != null && account.Connexion.IsConnected(),
+                "AlEr in game without a subscriber opened a request or disconnected");
+            Check(infos.Any(m => m.Contains("AlEr") && m.Contains("X32")), "AlEr in game without a subscriber was not logged");
+            NoPacket(peer, "AlEr in game sent a packet");
+
+            // Avec abonné : AlEr ouvre la demande ; contrôles locaux ; la ligne brute part ; une seule proposition à la fois.
+            var requests = new List<NicknameRequest>(); var accepted = new List<string>(); var renamed = new List<string>();
+            change.Requested += requests.Add; change.Accepted += accepted.Add; session.CharacterRenamed += renamed.Add;
+            Feed(account, "AlEr");
+            Check(requests.Count == 1 && requests[0].Attempt == 1 && requests[0].Refused == null && requests[0].Error == null && change.IsPending
+                && ReferenceEquals(change.Pending, requests[0]), "AlEr in game did not open the first name request");
+            Check(!account.Nickname.IsPending && loginRequests == 0, "AlEr in game reached the login nickname choice");
+            NoPacket(peer, "The name request sent a packet by itself");
+            InteractionResult tooShort = Await(change.ChooseAsync("ab"));
+            Check(!tooShort.Sent && tooShort.Message == ConnectionTexts.NicknameTooShort, "A two-character name was not refused locally: " + tooShort.Message);
+            InteractionResult login = Await(change.ChooseAsync("SYNTHETIC-RENAME"));
+            Check(!login.Sent && login.Message == ConnectionTexts.NicknameEqualsLogin, "The account name was not refused locally: " + login.Message);
+            InteractionResult unreadable = Await(change.ChooseAsync("Gaston"));
+            Check(!unreadable.Sent && unreadable.Message == NameChange.UnreadableByServer("Gaston") && unreadable.Message.Contains("« G »"),
+                "A name starting with a packet letter was not refused locally: " + unreadable.Message);
+            InteractionResult twoLines = Await(change.ChooseAsync("Nou\nveau"));
+            Check(!twoLines.Sent, "A two-line name was not refused locally");
+            NoPacket(peer, "A locally refused name reached the server");
+            InteractionResult first = Await(change.ChooseAsync("Nouveau"));
+            Check(first.Sent && Read(peer) == "Nouveau" && change.LastSent == "Nouveau", "The name was not sent as a raw line");
+            InteractionResult second = Await(change.ChooseAsync("Nouvel"));
+            Check(!second.Sent, "A second name left before the server answered"); NoPacket(peer, "A second name reached the server before the answer");
+
+            // AlEs : nom pris ou interdit, nouvel essai avec NICKNAME_ALREADY_USED et le nom refusé.
+            Feed(account, "AlEs");
+            Check(requests.Count == 2 && requests[1].Attempt == 2 && requests[1].Refused == "Nouveau" && requests[1].Error == ConnectionTexts.NicknameAlreadyUsed
+                && change.IsPending && change.LastSent == null, "AlEs did not reopen the request with NICKNAME_ALREADY_USED");
+            Check(account.Connexion != null && account.Connexion.IsConnected() && lost == 0, "AlEs disconnected the session");
+            InteractionResult retry = Await(change.ChooseAsync("Nouvel"));
+            Check(retry.Sent && Read(peer) == "Nouvel", "The second name was not sent as a raw line");
+
+            // AlEr après un envoi : StarLoco le renvoie même quand il accepte (le GM|~ suit) ; saisie vierge, sans raison.
+            Feed(account, "AlEr");
+            Check(requests.Count == 3 && requests[2].Attempt == 3 && requests[2].Refused == "Nouvel" && requests[2].Error == null && change.IsPending,
+                "AlEr after a sent name did not reopen a blank request");
+            Feed(account, "GM|~5;3;0;7;Nouvel;1;10^100;1;0,0,0,37;-1;-1;-1;;0;;;;;0;;0");
+            Check(accepted.SequenceEqual(new[] { "Nouvel" }) && renamed.SequenceEqual(new[] { "Nouvel" }) && !change.IsPending && change.LastSent == null,
+                "The self GM|~ with the new name did not close the request");
+            Check(account.Game.character.Name == "Nouvel" && account.Game.Map.Self != null && account.Game.Map.Self.Name == "Nouvel", "The character name was not updated from its sprite");
+            Check(account.Connexion != null && account.Connexion.IsConnected() && lost == 0 && account.AccountStates == AccountStates.CONNECTED_INACTIVE, "The name change disconnected the session");
+            NoPacket(peer, "The accepted name sent a packet");
+            Check(infos.Any(m => m.Contains("« Ancien » en « Nouvel »")), "The rename was not logged");
+            InteractionResult late = Await(change.ChooseAsync("Tard"));
+            Check(!late.Sent, "A name was sent without a pending request"); NoPacket(peer, "A name reached the server without a request");
+            // Un GM|~ du personnage au même nom ne lève rien ; un GM|~ d'un autre joueur non plus.
+            Feed(account, "GM|~6;1;0;7;Nouvel;1;10^100;1;0,0,0,37;-1;-1;-1;;0;;;;;0;;0");
+            Feed(account, "GM|~7;1;0;8;Voisin;1;10^100;1;0,0,0,37;-1;-1;-1;;0;;;;;0;;0");
+            Check(renamed.Count == 1 && account.Game.character.Name == "Nouvel" && account.Game.character.Cell.CellID == 6, "An unchanged or foreign name raised CharacterRenamed, or the cell was not updated");
+
+            // Annuler : la demande se ferme, la session continue, rien ne part (le client, lui, se déconnecte : écart documenté).
+            Feed(account, "AlEr");
+            Check(requests.Count == 4 && requests[3].Refused == null && requests[3].Error == null && change.IsPending, "A new AlEr did not open a new request");
+            change.Cancel();
+            Check(!change.IsPending && change.LastSent == null && account.Connexion != null && account.Connexion.IsConnected() && lost == 0 && account.LastDisconnect == null,
+                "Cancel disconnected or kept the request");
+            NoPacket(peer, "Cancel sent a packet");
+            change.Cancel();
+            Check(!change.IsPending, "A second Cancel changed something");
+            // AlEs sans envoi (potion sans demande en cours) : nouvelle demande, sans nom refusé.
+            Feed(account, "AlEs");
+            Check(requests.Count == 5 && requests[4].Refused == null && requests[4].Error == null && change.IsPending, "AlEs without a sent name did not open a blank request");
+            change.Cancel();
+
+            // Mini-jeu : TC<id>|<clé> → TV<rang>|<cellule>|<orientation> aussitôt, Started pour l'interface, Last gardé.
+            var started = new List<TutorialRequest>(); session.Tutorial.Started += started.Add;
+            Feed(account, "TC30|7001010000");
+            Check(Read(peer) == "TV0|6|1", "TC30 did not send TV0 with the cell and orientation");
+            Check(started.Count == 1 && started[0].Id == 30 && started[0].Key == "7001010000" && started[0].Name == "Roulette du Bouftou" && started[0].Outcome == TutorialOutcome.Lost
+                && started[0].Rank == 0 && started[0].EndPacket == "TV0|6|1" && ReferenceEquals(session.Tutorial.Last, started[0]), "TC30 did not describe the lost roulette");
+            string box = started[0].Describe();
+            Check(box.Contains("Roulette du Bouftou") && box.Contains("perdu") && box.Contains("TV0|6|1"), "The mini-game box text is wrong: " + box);
+            Feed(account, "TC31|7001010000");
+            Check(Read(peer) == "TV1|6|1" && started.Count == 2 && started[1].Outcome == TutorialOutcome.Won && started[1].Rank == 1 && started[1].Describe().Contains("gagné"),
+                "TC31 did not send TV1 (won roulette)");
+            Feed(account, "TC99|abc");
+            Check(Read(peer) == "TV0|6|1" && started.Count == 3 && started[2].Outcome == TutorialOutcome.Unsupported && started[2].Name == null && started[2].Describe().Contains("inconnu"),
+                "An unknown tutorial was not ended with TV0");
+            foreach (string bad in new[] { "TC", "TCxx", "TC|", "TC-1|x", "TC30|a|b|c" }) Feed(account, bad);
+            Check(Read(peer) == "TV0|6|1" && started.Count == 4 && started[3].Id == 30 && started[3].Key == "a|b|c", "A key with separators was not kept whole");
+            Check(infos.Count(m => m.StartsWith("Mini-jeu illisible", StringComparison.Ordinal)) == 4, "Malformed TC were not all ignored with a log line");
+            NoPacket(peer, "Malformed TC sent a packet");
+            // EndAsync : renvoi manuel ; sans cellule connue, TV<rang> seul (forme du client quand cellule ou orientation manquent).
+            InteractionResult manual = Await(session.Tutorial.EndAsync(2));
+            Check(manual.Sent && Read(peer) == "TV2|6|1", "EndAsync did not send TV2 with the cell");
+            account.Game.character.Cell = null;
+            Feed(account, "TC30|7001010000");
+            Check(Read(peer) == "TV0" && started[4].EndPacket == "TV0", "Without a cell the end was not TV<rank> alone");
+            Check(account.Connexion != null && account.Connexion.IsConnected() && lost == 0, "The mini-game disconnected the session");
+        }
+        // Déconnexion pendant une demande de nom : Clear remet tout à zéro (plus rien en attente).
+        using (var account = Connected(listener, "synthetic-rename-quit", out peer))
+        using (peer)
+        {
+            account.Game.Session.NameChange.Requested += request => { };
+            account.Game.character.SetPerso_Data(7, "Quitte", 30, 1, 1);
+            Feed(account, "AlEr");
+            Check(account.Game.Session.NameChange.IsPending, "AlEr did not open the request before the disconnection");
+            account.Disconnect();
+            Disconnected(peer, "Disconnect() did not close the socket");
+            Check(!account.Game.Session.NameChange.IsPending && account.Game.Session.Tutorial.Last == null, "The pending name request survived the disconnection");
+        }
     }
 
     private static void Disconnected(Socket socket, string message)
