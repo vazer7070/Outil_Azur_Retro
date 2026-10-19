@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Frames.Messages;
+using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Network;
 
 namespace Tool_BotProtocol.Frames.Auth
@@ -42,11 +43,36 @@ namespace Tool_BotProtocol.Frames.Auth
             }
             Refuse(client, reason, () => client.account?.Game.Server.DisplayIsBanned(reason));
         }
+        /// <summary>
+        /// <c>AlEr</c> : pendant la connexion, le compte n'a pas encore de pseudo (première demande) ou le pseudo envoyé est le nom
+        /// du compte. Le Login attend alors le pseudo en ligne brute (<see cref="NicknameChoice"/>, interface <c>ChooseNickName</c>
+        /// du client). En jeu, le même paquet accompagne la potion de changement de nom (manque B-07, lot X32).
+        /// </summary>
         [MessageAttribution("AlEr")]
-        public void MissingNickname(TcpClient client, string message) => Refuse(client,
-            "Un pseudonyme doit être défini pour ce compte dans le client de jeu avant de connecter le bot.");
+        public void NicknameRequired(TcpClient client, string message) => RequestNickname(client, false);
+        /// <summary><c>AlEs</c> : pseudo envoyé déjà pris ou fait d'un caractère interdit ; le Login attend un autre pseudo.</summary>
         [MessageAttribution("AlEs")]
-        public void InvalidNickname(TcpClient client, string message) => Refuse(client, "Le pseudonyme du compte a été refusé.");
+        public void NicknameUnavailable(TcpClient client, string message) => RequestNickname(client, true);
+
+        /// <summary>
+        /// Seule la phase de connexion (avant <c>ASK</c>) est traitée ; une session en jeu n'est jamais déconnectée par ces paquets.
+        /// Sans interface abonnée à <see cref="NicknameChoice.Requested"/>, personne ne peut répondre : la connexion est refusée
+        /// plutôt que de laisser le Login attendre un pseudo qui ne viendra pas.
+        /// </summary>
+        private static void RequestNickname(TcpClient client, bool alreadyUsed)
+        {
+            Accounts account = client.account;
+            if (account == null) return;
+            if (account.Game?.character != null && account.Game.character.id > 0)
+            {
+                account.Logger?.LogDanger("SESSION", (alreadyUsed ? "AlEs" : "AlEr")
+                    + " reçu en jeu (choix d'un nouveau nom, lot X32) : ignoré, la session continue.");
+                return;
+            }
+            if (!account.Nickname.OnRequested(alreadyUsed))
+                Refuse(client, "Le compte n'a pas encore de pseudo et rien ne permet d'en saisir un ici : "
+                    + "choisissez-le depuis l'écran de connexion du bot ou dans le client de jeu.");
+        }
         [MessageAttribution("AXEr")]
         public void ServerUnauthorized(TcpClient client, string message) => Refuse(client, "Vous n’êtes pas autorisé à rejoindre ce serveur.");
         [MessageAttribution("AXEd")]

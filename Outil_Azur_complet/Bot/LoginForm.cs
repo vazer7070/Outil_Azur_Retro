@@ -12,7 +12,17 @@ namespace Outil_Azur_complet.Bot
         private CheckBox remember;
         private Label status;
         private bool unsupportedProfile, updatingFields;
-        public LoginForm() { string error=null;try { GlobalConfig.InitializeConfig(); }catch(Exception ex) { error="Configuration à corriger : "+ex.Message; }try { AccountConfig.LoadAccount();if(AccountConfig.LoadWarnings.Length>0)error=AccountConfig.LoadWarnings.Length+" compte(s) illisible(s) ou protégé(s) ignoré(s). Renseignez de nouveau leurs identifiants pour les enregistrer ici."; }catch(Exception ex) { error="Lecture des comptes : "+ex.Message; }BuildLayout();UpdateListViews();if(error!=null)status.Text=error; }
+        public LoginForm() : this(null,null) { }
+        /// <summary>
+        /// Écran de connexion rempli avec les identifiants de <paramref name="prefill"/> (retour après une perte de connexion,
+        /// lot X3) ; <paramref name="message"/> remplace la ligne d'état, suivi d'une éventuelle erreur de configuration.
+        /// </summary>
+        public LoginForm(AccountConfig prefill,string message)
+        {
+            string error=null;try { GlobalConfig.InitializeConfig(); }catch(Exception ex) { error="Configuration à corriger : "+ex.Message; }try { AccountConfig.LoadAccount();if(AccountConfig.LoadWarnings.Length>0)error=AccountConfig.LoadWarnings.Length+" compte(s) illisible(s) ou protégé(s) ignoré(s). Renseignez de nouveau leurs identifiants pour les enregistrer ici."; }catch(Exception ex) { error="Lecture des comptes : "+ex.Message; }BuildLayout();UpdateListViews();
+            if(prefill!=null&&prefill.Lieu!="Officiel") { updatingFields=true;login.Text=prefill.Account??"";password.Text=prefill.Password??"";remember.Checked=prefill.Account!=null&&AccountConfig.AccountsDico.ContainsKey(prefill.Account);updatingFields=false; }
+            if(!string.IsNullOrEmpty(message))status.Text=error==null?message:message+" "+error;else if(error!=null)status.Text=error;
+        }
         private void BuildLayout()
         {
             var root = BotUi.Window(this,"Bot · Connexion","Connectez un compte à votre serveur, puis choisissez le serveur de jeu et le personnage.");

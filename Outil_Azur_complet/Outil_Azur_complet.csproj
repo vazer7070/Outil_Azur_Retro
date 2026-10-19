@@ -311,6 +311,10 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Bot\MapActionPrompts.cs" />
+    <Compile Include="Bot\ConnectionPrompts.cs" />
+    <Compile Include="Bot\ChooseNickNameForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Bot\Panels\IGamePanel.cs" />
     <Compile Include="Bot\Panels\GamePanel.cs" />
     <Compile Include="Bot\Panels\PanelHost.cs">

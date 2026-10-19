@@ -40,6 +40,19 @@ namespace Tool_BotProtocol.Game.Accounts
         public static int TicketRetryDelayMs = 400;
         public event Action AccountStateEvent;
         public event Action AccountDisconnectEvent;
+        /// <summary>
+        /// Lot X3 : connexion fermée par le serveur ou coupée par le réseau (<see cref="DisconnectCause.Lost"/>), levé après
+        /// <see cref="AccountDisconnectEvent"/> sur le fil qui a constaté la coupure. Ni une déconnexion demandée, ni un refus de
+        /// connexion, ni la fin de partie <c>GO</c> ne le lèvent : chacun a déjà son message.
+        /// </summary>
+        public event Action<ConnectionLoss> ConnectionLost;
+        /// <summary>Dernière déconnexion (cause, message <c>M0</c>, texte de la boîte), ou <c>null</c> avant la première.</summary>
+        public ConnectionLoss LastDisconnect { get; private set; }
+        /// <summary>Message système <c>M0</c> reçu depuis la connexion et pas encore présenté, ou <c>null</c>.</summary>
+        public SystemMessage PendingSystemMessage { get { lock (_connectionSync) return _systemMessage; } }
+        /// <summary>Pseudo d'un compte neuf demandé par le serveur Login (<c>AlEr</c>, <c>AlEs</c>), lot X3.</summary>
+        public NicknameChoice Nickname { get; }
+        private SystemMessage _systemMessage;
         /// <summary>Vrai si le compte appartient à une équipe de comptes du bot (<see cref="Regroupement"/>), pas au groupe du jeu.</summary>
         public bool HasGroup => Regroupement != null;
         public bool IsGroupLeader => !HasGroup || Regroupement.IsLeader(this);
@@ -61,6 +74,7 @@ namespace Tool_BotProtocol.Game.Accounts
             Logger = new Logger();
             Game = new GameClass(this);
             AccountCharactersInfo = new ConcurrentDictionary<int, string>();
+            Nickname = new NicknameChoice(this);
             Connexion = new TcpClient(this);
 
         }
@@ -91,6 +105,7 @@ namespace Tool_BotProtocol.Game.Accounts
                     if (pending == null)
                     {
                         connection = Connexion ?? (Connexion = new TcpClient(this));
+                        _systemMessage = null;
                         break;
                     }
                 }
@@ -125,25 +140,36 @@ namespace Tool_BotProtocol.Game.Accounts
             {
                 Logger?.LogException("Connexion", error);
                 SetConnectionStatus("Connexion impossible : " + error.Message);
-                Disconnect(connection);
+                Disconnect(connection, DisconnectCause.Refused);
             }
         }
-        public void Disconnect()
+        /// <summary>Déconnexion demandée par le bot ou l'utilisateur (<see cref="DisconnectCause.Requested"/>) : aucune boîte de perte de connexion.</summary>
+        public void Disconnect() => Disconnect(DisconnectCause.Requested);
+        /// <summary>Ferme la connexion courante pour la cause donnée (refus de connexion, fin de partie…).</summary>
+        internal void Disconnect(DisconnectCause cause)
         {
             TcpClient current;
             lock (_connectionSync) { current = Connexion; _ticketHost = null; }
-            Disconnect(current);
+            Disconnect(current, cause);
         }
-        internal void Disconnect(TcpClient expectedConnection)
+        /// <summary>Le transport a constaté la fermeture de <paramref name="expectedConnection"/> : perte de connexion.</summary>
+        internal void Disconnect(TcpClient expectedConnection) => Disconnect(expectedConnection, DisconnectCause.Lost);
+        internal void Disconnect(TcpClient expectedConnection, DisconnectCause cause)
         {
             if (expectedConnection == null) return;
             TaskCompletionSource<bool> completion;
+            ConnectionLoss loss;
             lock (_connectionSync)
             {
                 if (isdisposed || !ReferenceEquals(Connexion, expectedConnection)) return;
+                // Comme Aks.onClose : le M0 reçu avant la coupure est présenté avec elle, puis oublié (datacenter.clear).
+                loss = new ConnectionLoss(cause, Game?.character != null && Game.character.id > 0, _systemMessage, ConnectionStatus);
+                _systemMessage = null;
+                LastDisconnect = loss;
                 Connexion = null;
                 _accountState = AccountStates.DISCONNECTED;
-                if (!ConnectionStatus.StartsWith("Connexion impossible", StringComparison.Ordinal))
+                if (cause == DisconnectCause.Lost) ConnectionStatus = "Connexion perdue";
+                else if (!ConnectionStatus.StartsWith("Connexion impossible", StringComparison.Ordinal))
                     ConnectionStatus = "Déconnecté";
                 completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 _disconnectCompletion = completion;
@@ -151,14 +177,19 @@ namespace Tool_BotProtocol.Game.Accounts
             try
             {
                 expectedConnection.Dispose();
+                Nickname.Reset();
                 Game?.Clear();
                 WelcomeKey = string.Empty;
                 GameTicket = string.Empty;
                 SecretQuestion = string.Empty;
                 AccountCharactersInfo.Clear();
                 if (accountConfig != null) lock (accountConfig.Servers) accountConfig.Servers.Clear();
+                if (cause == DisconnectCause.Lost)
+                    Logger?.LogError("Connexion", "Connexion perdue" + (loss.WasInGame ? " en jeu" : string.Empty)
+                        + (loss.Message == null ? "." : " : " + loss.Message.Text));
                 AccountDisconnectEvent?.Invoke();
                 AccountStateEvent?.Invoke();
+                if (cause == DisconnectCause.Lost) RaiseConnectionLost(loss);
             }
             finally
             {
@@ -166,6 +197,23 @@ namespace Tool_BotProtocol.Game.Accounts
                     if (ReferenceEquals(_disconnectCompletion, completion)) _disconnectCompletion = null;
                 completion.TrySetResult(true);
             }
+        }
+
+        private void RaiseConnectionLost(ConnectionLoss loss)
+        {
+            Action<ConnectionLoss> handlers = ConnectionLost;
+            if (handlers == null) return;
+            foreach (Action<ConnectionLoss> handler in handlers.GetInvocationList())
+            {
+                try { handler(loss); }
+                catch (Exception error) { Logger?.LogException("Connexion", error); }
+            }
+        }
+
+        /// <summary><c>M0&lt;id&gt;|…</c> (<see cref="Frames.Jeu.SystemMessageFrame"/>) : gardé jusqu'à la prochaine coupure.</summary>
+        internal void OnSystemMessage(SystemMessage message)
+        {
+            lock (_connectionSync) { if (!isdisposed) _systemMessage = message; }
         }
         public async void SwitchToGameServer(string coordinate)
         {
@@ -179,7 +227,7 @@ namespace Tool_BotProtocol.Game.Accounts
             catch (Exception error)
             {
                 Logger?.LogException("Redirection", error);
-                Disconnect();
+                Disconnect(DisconnectCause.Refused);
             }
         }
 
@@ -247,14 +295,14 @@ namespace Tool_BotProtocol.Game.Accounts
                 if (await ConnectEndpointAsync(connection, host, port)) return;
                 SetConnectionStatus("Connexion impossible : serveur de jeu inaccessible");
                 Logger?.LogError("Connexion", "Impossible de joindre le serveur de jeu. Vérifiez l’adresse annoncée par le Login.");
-                Disconnect(connection);
+                Disconnect(connection, DisconnectCause.Refused);
             }
             catch (ObjectDisposedException) { }
             catch (Exception error)
             {
                 Logger?.LogException("Redirection", error);
                 SetConnectionStatus("Connexion impossible : " + error.Message);
-                Disconnect(connection);
+                Disconnect(connection, DisconnectCause.Refused);
             }
         }
 

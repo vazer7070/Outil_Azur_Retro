@@ -133,6 +133,7 @@
     <Compile Include="Frames\Auth\AuthFrame.cs" />
     <Compile Include="Frames\Frame.cs" />
     <Compile Include="Frames\Jeu\AuthInGame.cs" />
+    <Compile Include="Frames\Jeu\SystemMessageFrame.cs" />
     <Compile Include="Frames\Jeu\CharacterFrame.cs" />
     <Compile Include="Frames\Jeu\CombatFrame.cs" />
     <Compile Include="Frames\Jeu\ChatFrame.cs" />
@@ -163,6 +164,8 @@
     <Compile Include="Frames\Messages\MessagesReception.cs" />
     <Compile Include="Game\Accounts\Accounts.cs" />
     <Compile Include="Game\Accounts\AccountStates.cs" />
+    <Compile Include="Game\Accounts\ConnectionLoss.cs" />
+    <Compile Include="Game\Accounts\NicknameChoice.cs" />
     <Compile Include="Game\Actions\GameActionRouter.cs" />
     <Compile Include="Game\Actions\MapActions.cs" />
     <Compile Include="Game\Actions\MapActions.Self.cs" />

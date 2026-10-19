@@ -109,6 +109,9 @@ try {
     $azurTests += 'BotExtraClipsSmoke'
     # Lot X2 (tombe, fantôme, menu de son personnage, mariage) : couvert par BotSessionSmoke, BotMapActionsSmoke et les scénarios
     # x2a à x2c de BotStarLocoLiveSmoke ; AZUR_STARLOCO_SCENARIOS=x2a,x2b,x2c ne joue que ceux-là après la connexion (scénario a).
+    # Lot X3 (pseudo d'un compte neuf, M0, nouveau niveau, perte de connexion) : BotHandshakeSmoke, BotSessionSmoke, BotConnectionUiSmoke
+    # et les scénarios x3a à x3c ; x3c arrête puis relance le serveur de jeu par AZUR_STARLOCO_GAME_STOP et AZUR_STARLOCO_GAME_START.
+    $azurTests += 'BotConnectionUiSmoke'
     # Lot X4 (repas du familier et de la monture, garde et résurrection) : couvert par BotInventoryGridSmoke, BotExchangeSmoke et les
     # scénarios x4a à x4c de BotStarLocoLiveSmoke (environ 60 s) ; AZUR_STARLOCO_SCENARIOS=x4a,x4b,x4c ne joue que ceux-là.
     # Lot X4-CORR (OM et OD refusés pendant un échange, EREO après ER17 ignoré, seuls les messages du repas gardés sous l'objet, boîte de
