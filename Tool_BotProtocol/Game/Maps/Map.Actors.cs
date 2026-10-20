@@ -243,7 +243,7 @@ namespace Tool_BotProtocol.Game.Maps
             var merged = new char[10];
             for (int i = 0; i < 10; i++)
             {
-                int before = Hash.get_Hash(current[i]), after = Hash.get_Hash(incoming[i]);
+                int before = Array.IndexOf(Hash.caracteres_array, current[i]), after = Array.IndexOf(Hash.caracteres_array, incoming[i]);
                 if (before < 0 || after < 0) throw new ArgumentException("Caractère inconnu dans les données de cellule.");
                 merged[i] = Hash.caracteres_array[(before & ~bits[i]) | (after & bits[i])];
             }

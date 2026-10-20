@@ -452,7 +452,7 @@ namespace Outil_Azur_complet.Bot.Controls
         public bool UpdateCell(int cellId, string data)
         {
             ArtworkCell[] cells = Cells;
-            if (disposed || cellId < 0 || cellId >= cells.Length || data == null || data.Length != 10 || data.Any(character => Hash.get_Hash(character) < 0)) return false;
+            if (disposed || cellId < 0 || cellId >= cells.Length || data == null || data.Length != 10 || data.Any(character => Array.IndexOf(Hash.caracteres_array, character) < 0)) return false;
             ArtworkCell previous = cells[cellId];
             ArtworkCell cell = DecodeCell(data, cellId, mapWidth);
             if (SameVisual(previous, cell)) return false;
