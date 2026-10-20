@@ -149,6 +149,7 @@ Après la relecture, le bot a été joué sur une copie locale du StarLoco du ki
 **X4 — Familiers et montures : nourrir, confier, ressusciter.** Ressource déposée sur le familier porté (`OM<objet>|8`) ou sur la monture annoncée par `Re+` (boîte de quantité du client, `OM<objet>|16|<quantité>`), comme `enabledFromSuperType` ; échange de familiers de type 9 (`ER9` garde, `ER17` résurrection, `ECK9` dans les deux cas) et volet **Familiers**. Tests : `BotInventoryGridSmoke`, `BotExchangeSmoke` ; scénarios x4a à x4c de `BotStarLocoLiveSmoke` (repas, garde chez un gardien d’action 4, résurrection chez un PNJ d’action 7).
 
 **X32 — Session : changement de nom en jeu et roulette du Bouftou.** `AlEr`/`AlEs` reçus en jeu (potion 10860) aiguillés vers le nom du personnage (`NameChange`, socle `NicknamePrompt` partagé avec le pseudo du lot X3) : fenêtre `ChooseNickName` au-dessus de la fenêtre de jeu, ligne brute, `AlEs` = nouvel essai, fermeture par le `GM|~` du personnage au nouveau nom, jamais de déconnexion ; mini-jeu `TC<id>|<clé>` → `TV<rang>|<cellule>|<orientation>` envoyé aussitôt (0 pour le tutoriel 30, 1 pour le 31, 0 pour un inconnu) et boîte « mini-jeu ». Tests : `BotSessionSmoke`, `BotConnectionUiSmoke`, `BotHandshakeSmoke` ; scénarios x32a et x32b de `BotStarLocoLiveSmoke`.
+
 **X5 — Artisanat sécurisé (a) : protocole et fenêtre.** Fenêtre `CraftSecureExchange` des types 12 (artisan) et 13 (client) : `ECK12` / `ECK13|<cases>;<compétence>`, ingrédients des deux côtés (`EMO±`, `EMKO±`, `EmKO±`), paiement et prime du client (`EP<1|2>G`, `EP<1|2>O±` → `Ep<type>;…`), `EK` avec le délai du client, `EcK;<modèle>;T / B<nom>;<effets>`, `EcEF`, `EcEI`, `EV` ; demandes `ERK` de types 12 et 13 posées dans la boîte de l'échange avec les textes du client ; volet **Artisanat sécurisé**. Les entrées de menu `ER12` / `ER13` et `ERET` restent au lot X6. Tests : `BotCraftSmoke`, `BotExchangeSmoke`, scénario x5 de `BotStarLocoLiveSmoke`.
 
 ## Couverture des fonctions
@@ -251,7 +252,7 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | # | Fonction | Client 1.34 | StarLoco | Bot | Test |
 |---|---|---|---|---|---|
 | F1 | Échanger avec un joueur | `ER1`, `EA`, `EMO`, `EK` | traité | fait | `BotExchangeSmoke` |
-| F2 | Artisanat | `ECK3`, `EMO`, `EK`, `Ec` | traité ; artisanat sécurisé non retenu | partiel : ni artisanat sécurisé, ni aide à la forgemagie | `BotCraftSmoke` |
+| F2 | Artisanat | `ECK3`, `EMO`, `EK`, `Ec` | traité ; artisanat sécurisé au lot X5 | partiel : artisanat sécurisé depuis X5 (menu `ER12` / `ER13` au lot X6), pas d'aide à la forgemagie | `BotCraftSmoke` |
 | F3 | Banque, coffre | `ECK5`, `KK` | traité | fait | `BotExchangeSmoke`, `BotInteractivesSmoke` |
 | F4 | Hôtel de vente | `ER10`, `ER11`, `EH…` | traité | fait (ni tri ni filtre par niveau) | `BotAuctionSmoke` |
 | F5 | Mode marchand | `ER4`, `ER6|`, `Eq` | traité ; expulse sur `ER6` seul | fait | `BotHouseMerchantSmoke` |
