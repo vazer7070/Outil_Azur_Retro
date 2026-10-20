@@ -252,7 +252,7 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | # | Fonction | Client 1.34 | StarLoco | Bot | Test |
 |---|---|---|---|---|---|
 | F1 | Échanger avec un joueur | `ER1`, `EA`, `EMO`, `EK` | traité | fait | `BotExchangeSmoke` |
-| F2 | Artisanat | `ECK3`, `EMO`, `EK`, `Ec` | traité ; artisanat sécurisé non retenu | partiel : ni artisanat sécurisé, ni aide à la forgemagie | `BotCraftSmoke` |
+| F2 | Artisanat | `ECK3`, `EMO`, `EK`, `Ec` | traité ; artisanat sécurisé au lot X5 | partiel : artisanat sécurisé depuis X5 (menu `ER12` / `ER13` au lot X6), pas d'aide à la forgemagie | `BotCraftSmoke` |
 | F3 | Banque, coffre | `ECK5`, `KK` | traité | fait | `BotExchangeSmoke`, `BotInteractivesSmoke` |
 | F4 | Hôtel de vente | `ER10`, `ER11`, `EH…` | traité | fait (ni tri ni filtre par niveau) | `BotAuctionSmoke` |
 | F5 | Mode marchand | `ER4`, `ER6|`, `Eq` | traité ; expulse sur `ER6` seul | fait | `BotHouseMerchantSmoke` |
