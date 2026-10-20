@@ -12,7 +12,8 @@ using Tool_BotProtocol.Game.Maps.Interfaces;
 namespace Outil_Azur_complet.Bot.Menus
 {
     /// <summary>
-    /// Menu d'un percepteur, comme <c>GameManager.getTaxCollectorPopupMenu</c> du client 1.34 : « Parler » (<c>DC&lt;id&gt;</c>, StarLoco
+    /// Menu d'un percepteur, comme <c>GameManager.getTaxCollectorPopupMenu</c> du client 1.34 : « Parler » (<c>DC&lt;id&gt;</c>, lancé
+    /// directement par Maj + clic comme <c>onSpriteRelease</c> ; le clic simple ouvre ce menu, lot X6 ; StarLoco
     /// répond <c>DCK</c> et <c>DQ1;&lt;guilde&gt;,&lt;pods&gt;,&lt;prospection&gt;,&lt;sagesse&gt;,&lt;percepteurs&gt;</c>), puis pour un percepteur de sa
     /// propre guilde « Relever la collecte et retirer le percepteur » (<c>ER8|&lt;id&gt;</c>, droit 512) et « Retirer » (<c>gF&lt;id&gt;</c>
     /// après <c>DO_U_REMOVE_TAXCOLLECTOR</c>, droit 128), et « Attaquer » (<c>GA909&lt;id&gt;</c>, lot M4), grisé pour un percepteur de
@@ -35,7 +36,7 @@ namespace Outil_Azur_complet.Bot.Menus
             bool blocked = g.Interactions.Npc?.CannotSpeakToNpc == true;
             yield return new MenuEntry(GuildTexts.Get("SPEAK", "Parler"), context => Run(context, game => game.Interactions.Npc.OpenAsync(unchecked((int)id))))
             {
-                ParDéfaut = true, Activé = !blocked,
+                ParDéfaut = true, Activé = !blocked, Raccourci = blocked ? null : "Maj + clic",
                 Infobulle = blocked ? "Votre personnage ne peut pas parler aux PNJ pour le moment." : "Guilde, pods, prospection, sagesse et nombre de percepteurs (DC" + id + ")"
             };
             if (own)

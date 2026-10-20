@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Outil_Azur_complet.Bot.Controls;
@@ -35,8 +36,10 @@ namespace Outil_Azur_complet.Bot.Interfaces
     /// Routeur des clics de la carte. Clic gauche sur une cellule → <see cref="MoveRequested"/> (le traitement par défaut
     /// de la vue lance le sort sélectionné, se place ou se déplace en combat, utilise le zaap ou se déplace) ; clic gauche
     /// sur un acteur → <see cref="ActorClicked"/>, puis les fournisseurs qui implémentent <see cref="IActorClickHandler"/>,
-    /// puis l'entrée « par défaut » du menu, sinon déplacement ; clic droit sur un acteur → <see cref="ActorMenuRequested"/>
-    /// puis le menu contextuel (Ctrl + clic droit : un sous-menu par acteur de la cellule). Maj et Ctrl sont transmis.
+    /// puis, comme <c>onSpriteRelease</c> du client (marchand, percepteur, prisme), l'entrée « par défaut » du menu au
+    /// Maj + clic seulement et le menu contextuel au clic simple, sinon déplacement ; clic droit sur un acteur →
+    /// <see cref="ActorMenuRequested"/> puis le menu contextuel (Ctrl + clic : un sous-menu par acteur de la cellule).
+    /// Maj et Ctrl sont transmis.
     /// Hors du thread de l'interface, n'appeler que <see cref="Report"/>.
     /// </summary>
     public sealed class InteractionRouter : IDisposable
@@ -198,8 +201,17 @@ namespace Outil_Azur_complet.Bot.Interfaces
             ActorMenuContext context = CreateContext(actor, actors, cellId, modifiers);
             foreach (IActorClickHandler handler in Registry.ClickHandlersFor(actor, ReportProviderError))
                 if (await handler.OnActorClickAsync(context)) return;
-            MenuEntry entry = Registry.DefaultEntryFor(actor, context.Game, ReportProviderError);
-            if (entry != null) { await ExecuteAsync(entry, context); return; }
+            // Lot X6 : Maj + clic lance l'entrée « par défaut » (Acheter, Parler, Utiliser) ; le clic simple ouvre le menu.
+            if (context.Shift)
+            {
+                MenuEntry entry = Registry.DefaultEntryFor(actor, context.Game, ReportProviderError);
+                if (entry != null) { await ExecuteAsync(entry, context); return; }
+            }
+            if (Registry.EntriesFor(actor, context.Game, ReportProviderError).Any(entry => !entry.EstSéparateur))
+            {
+                ShowActorMenu(actors, cellId, modifiers, context.Ctrl);
+                return;
+            }
             await RequestMoveAsync(cellId, modifiers);
         }
 

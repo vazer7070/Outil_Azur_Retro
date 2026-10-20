@@ -4,7 +4,10 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Outil_Azur_complet.Bot.Controls.Chat;
 using Tool_BotProtocol.Game;
+using Tool_BotProtocol.Game.Actions;
+using Tool_BotProtocol.Game.Data;
 using Tool_BotProtocol.Game.Exchanges;
 using Tool_BotProtocol.Game.Jobs;
 
@@ -13,6 +16,9 @@ namespace Outil_Azur_complet.Bot.Panels
     /// <summary>
     /// Livre des artisans (interface <c>CrafterList</c> du client 1.34) : s'ouvre sur <c>ECK14|&lt;métier&gt;;…</c> (livre posé sur la carte),
     /// se ferme sur <c>EV</c>. Choisir un métier envoie <c>EJF&lt;métier&gt;</c> ; la liste suit les <c>EJ+</c> / <c>EJ-</c> du serveur.
+    /// Carte de l'artisan choisi (<c>CrafterCard</c>, lot X6) : « Message privé » prépare <c>/w &lt;nom&gt; </c> dans la console
+    /// (<c>askPrivateMessage</c>), « Localiser » pointe la boussole du bandeau vers sa carte (<c>updateCompass</c>), actif
+    /// seulement quand les textes du client en donnent les coordonnées.
     /// </summary>
     public sealed class CrafterListPanel : GamePanel
     {
@@ -20,13 +26,17 @@ namespace Outil_Azur_complet.Bot.Panels
         private ComboBox jobChoice;
         private ListView crafterList;
         private Label bookStatus, crafterDetail;
-        private Control searchButton, leaveButton;
+        private Control searchButton, leaveButton, messageButton, locateButton;
         private CrafterBook bound;
         private bool wasOpen, filling;
 
         public override string Title => Text("CRAFTERS_LIST", "Livre des artisans");
         public override bool IsModal => true;
         public override bool IsServerWindowOpen => Game?.Interactions?.Jobs?.Book?.IsOpen == true;
+        /// <summary>Artisan sélectionné dans la liste (sa carte), ou <c>null</c>.</summary>
+        public Crafter SelectedCrafter => crafterList != null && crafterList.SelectedItems.Count == 1 ? crafterList.SelectedItems[0].Tag as Crafter : null;
+        /// <summary>Dernière cible de boussole posée par « Localiser » (tests).</summary>
+        public Point? LastCompass { get; private set; }
 
         /// <summary>Choisit un métier dans la liste du livre et demande ses artisans (<c>EJF</c>) ; faux s'il n'est pas proposé.</summary>
         public bool ChooseJob(int jobId)
@@ -59,7 +69,11 @@ namespace Outil_Azur_complet.Bot.Panels
 
             bookStatus = MakeStatus(IdleText); bookStatus.Name = "crafters-status";
             leaveButton = MakeButton("Fermer", async (s, e) => await Leave(), false, 100); leaveButton.Name = "crafters-leave";
-            page.Controls.Add(crafterList); page.Controls.Add(crafterDetail); page.Controls.Add(bookStatus); page.Controls.Add(BotUi.Actions(leaveButton));
+            messageButton = MakeButton(MapActionTexts.PrivateMessage, (s, e) => PrivateMessage(), false, 180); messageButton.Name = "crafters-whisper";
+            locateButton = MakeButton(MapActionTexts.Locate, (s, e) => Locate(), false, 100); locateButton.Name = "crafters-locate";
+            messageButton.Enabled = false; locateButton.Enabled = false;
+            page.Controls.Add(crafterList); page.Controls.Add(crafterDetail); page.Controls.Add(bookStatus);
+            page.Controls.Add(BotUi.Actions(messageButton, locateButton, leaveButton));
             page.Controls.Add(top);
             return page;
         }
@@ -133,13 +147,45 @@ namespace Outil_Azur_complet.Bot.Panels
 
         private void ShowDetail()
         {
-            Crafter crafter = crafterList.SelectedItems.Count == 1 ? crafterList.SelectedItems[0].Tag as Crafter : null;
+            Crafter crafter = SelectedCrafter;
+            messageButton.Enabled = crafter != null;
+            locateButton.Enabled = CoordsOf(crafter) != null;
             if (crafter == null) { crafterDetail.Text = string.Empty; return; }
             JobOptions options = crafter.Options;
             string price = options.IsNotFree ? Text("NOT_FREE", "Payant") + (options.IsFreeIfFailed ? ", " + Text("FREE_IF_FAILED", "gratuit en cas d'échec") : string.Empty)
                 : "Gratuit";
             crafterDetail.Text = crafter.Name + " : " + price + (options.ResourcesNeeded ? " · " + Text("CRAFT_RESSOURCES_NEEDED", "ressources à fournir") : string.Empty)
                 + " · " + Text("MIN_ITEM_IN_RECEIPT", "ingrédients minimum") + " " + options.MinSlots.ToString(CultureInfo.CurrentCulture) + ".";
+        }
+
+        /// <summary>Coordonnées de la carte d'un artisan d'après les textes du client (<c>maps.xml</c>), sinon <c>null</c>.</summary>
+        private static Point? CoordsOf(Crafter crafter)
+        {
+            if (crafter == null || crafter.MapId <= 0) return null;
+            try { return LangData.Map.Coords(crafter.MapId); }
+            catch (Exception error) when (!(error is OutOfMemoryException)) { return null; }
+        }
+
+        /// <summary>« Message privé » (<c>CrafterCard._btnPrivateMessage</c> → <c>askPrivateMessage</c>) : « /w &lt;nom&gt; » dans la console, sans paquet.</summary>
+        private void PrivateMessage()
+        {
+            Crafter crafter = SelectedCrafter;
+            MapActions actions = Game?.Interactions?.MapActions;
+            if (crafter == null) { Feedback("Choisissez un artisan dans la liste."); return; }
+            if (actions == null) { Feedback("La session n’est plus disponible."); return; }
+            Feedback(actions.RequestPrivateMessage(crafter.Name)?.Message);
+        }
+
+        /// <summary>« Localiser » (<c>CrafterCard._btnLocate</c> → <c>updateCompass</c>) : boussole du bandeau vers la carte de l'artisan.</summary>
+        private void Locate()
+        {
+            Crafter crafter = SelectedCrafter;
+            if (crafter == null) { Feedback("Choisissez un artisan dans la liste."); return; }
+            Point? where = CoordsOf(crafter);
+            if (where == null) { Feedback("Position de " + crafter.Name + " inconnue : la carte " + crafter.MapId.ToString(CultureInfo.InvariantCulture) + " n'est pas dans les textes du client."); return; }
+            LastCompass = where;
+            (Host?.FindForm() as GameClientFullform)?.Banner?.SetCompassTarget(where);
+            Feedback(ChatLinks.DescribeCompass(where.Value.X, where.Value.Y, Game?.Map));
         }
 
         protected internal override bool OnUserClose()

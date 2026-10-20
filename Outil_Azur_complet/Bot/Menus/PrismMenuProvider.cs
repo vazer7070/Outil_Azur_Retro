@@ -13,7 +13,8 @@ namespace Outil_Azur_complet.Bot.Menus
 {
     /// <summary>
     /// Menu d'un prisme (acteur <c>-10</c>), comme le menu des prismes du client 1.34 : « Utiliser » (<c>GA512&lt;id&gt;</c>, actif
-    /// pour un prisme de son camp, action par défaut du clic gauche comme <c>usePrism</c>) et « Attaquer » (<c>GA912&lt;id&gt;</c>, lot M4,
+    /// pour un prisme de son camp, lancé directement par Maj + clic comme <c>usePrism</c> dans <c>onSpriteRelease</c> ; le clic
+    /// simple ouvre ce menu, lot X6) et « Attaquer » (<c>GA912&lt;id&gt;</c>, lot M4,
     /// actif pour un personnage aligné face à un prisme d'un autre camp, grisé quand <c>AR</c> interdit les prismes). Un personnage neutre
     /// n'a aucune entrée active : StarLoco ignore ses demandes.
     /// </summary>
@@ -33,7 +34,7 @@ namespace Outil_Azur_complet.Bot.Menus
             bool neutral = !alignment.Alignment.IsAligned;
             yield return new MenuEntry(AlignmentTexts.Get("USE_WORD", "Utiliser"), context => Run(context, game => game.Interactions.Alignment.UsePrismAsync(id)))
             {
-                ParDéfaut = canUse, Activé = canUse,
+                ParDéfaut = canUse, Activé = canUse, Raccourci = canUse ? "Maj + clic" : null,
                 Infobulle = canUse ? "Liste des prismes de votre camp (GA512" + id + ")" : neutral ? "Un personnage neutre ne peut pas utiliser un prisme." : "Ce prisme appartient à un autre camp."
             };
             bool canAttack = actions.CanAttackPrism(prism);

@@ -14,7 +14,8 @@ namespace Outil_Azur_complet.Bot.Menus
 {
     /// <summary>
     /// Marchands hors ligne et magasin du personnage (<c>GameManager</c> du client 1.34) : sur un marchand de la carte,
-    /// « Acheter » envoie <c>ER4|&lt;marchand&gt;|&lt;cellule&gt;</c> ; sur soi-même, si <c>Player.canBeMerchant</c> (bit 32 de <c>AR</c>
+    /// « Acheter » envoie <c>ER4|&lt;marchand&gt;|&lt;cellule&gt;</c> (clic simple : le menu, Maj + clic : l'achat directement,
+    /// comme <c>onSpriteRelease</c>, lot X6) ; sur soi-même, si <c>Player.canBeMerchant</c> (bit 32 de <c>AR</c>
     /// absent), « Organiser mon magasin » (<c>ORGANIZE_SHOP</c>, <c>ER6|</c>) et « Passer en mode 'marchand' » (<c>MERCHANT_MODE</c>,
     /// <c>Eq</c> puis la boîte <c>DO_U_OFFLINEEXCHANGE</c> posée par <see cref="MerchantPanel"/> à la réception de <c>Eq1</c>) ; ces deux entrées
     /// sont grisées tant qu'un magasin est ouvert (StarLoco ignore <c>Eq</c> pendant un échange, <c>ER6|</c> y est refusé).
@@ -33,7 +34,7 @@ namespace Outil_Azur_complet.Bot.Menus
                 long id = merchant.Id;
                 short cell = (short)merchant.CellId;
                 yield return new MenuEntry(HouseTexts.Text("BUY", "Acheter"), context => Run(context, m => m.OpenAsync(id, cell)))
-                { Icône = ClientAssets.Icon("kamas", 16), ParDéfaut = true, Raccourci = "Clic gauche", Infobulle = "Ouvrir le magasin de ce marchand (ER4|" + id + "|" + cell + ")" };
+                { Icône = ClientAssets.Icon("kamas", 16), ParDéfaut = true, Raccourci = "Maj + clic", Infobulle = "Ouvrir le magasin de ce marchand (ER4|" + id + "|" + cell + ")" };
                 yield break;
             }
             if (!ActorClassifier.IsSelf(a, g) || !shop.CanBeMerchant) yield break;
