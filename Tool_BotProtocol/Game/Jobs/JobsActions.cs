@@ -32,6 +32,7 @@ namespace Tool_BotProtocol.Game.Jobs
         private bool publicMode;
         private string lastMessage = string.Empty;
         private PendingOptions pendingOptions;
+        private Maps.Map watchedMap;
 
         private sealed class PendingOptions
         {
@@ -57,11 +58,18 @@ namespace Tool_BotProtocol.Game.Jobs
         /// <summary>Dernier message (annonce traduite, refus local, confirmation d'envoi).</summary>
         public string LastMessage { get { lock (sync) return lastMessage; } }
 
-        /// <summary>Compétences d'atelier annoncées pour un artisan en mode public (<c>multiCraftSkillsID</c>, <c>EW+&lt;id&gt;|…</c>) ; vide sinon.</summary>
+        /// <summary>
+        /// Compétences d'atelier annoncées pour un artisan en mode public (<c>multiCraftSkillsID</c>, <c>EW+&lt;id&gt;|…</c>) ; vide sinon. StarLoco les
+        /// envoie à l'arrivée sur une carte pour chaque joueur présent (personnage compris) et à toute la carte quand un joueur change d'outil
+        /// (<c>GameClient</c>, boucles <c>EW+</c>) ; comme les sprites du client, elles sont oubliées à chaque nouvelle carte (<c>GDM</c>).
+        /// </summary>
         public IReadOnlyList<short> PublicSkillsOf(long actorId)
         {
             lock (sync) return publicSkills.TryGetValue(actorId, out short[] skills) ? skills.ToArray() : new short[0];
         }
+
+        /// <summary>Acteurs dont des compétences publiques sont connues (diagnostic et tests).</summary>
+        public IReadOnlyCollection<long> PublicCrafters { get { lock (sync) return publicSkills.Keys.OrderBy(id => id).ToArray(); } }
 
         /// <summary>État changé (fil réseau ou appelant).</summary>
         public event Action Changed;
@@ -265,8 +273,26 @@ namespace Tool_BotProtocol.Game.Jobs
             short[] skills = enabled && fields.Length > 1 && fields[1].Length > 0
                 ? fields[1].Split(';').Select(part => short.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out short id) ? id : (short)0).Where(id => id > 0).ToArray()
                 : new short[0];
+            WatchMap();
             lock (sync) { if (skills.Length > 0) publicSkills[actor] = skills; else publicSkills.Remove(actor); }
             RaiseChanged();
+        }
+
+        /// <summary>Nouvelle carte (<c>GDM</c>, <c>Map.RefreshMap</c>) : les compétences publiques annoncées sont oubliées, StarLoco les renvoyant à l'arrivée.</summary>
+        private void WatchMap()
+        {
+            Maps.Map map = account?.Game?.Map;
+            if (map == null || ReferenceEquals(map, watchedMap)) return;
+            if (watchedMap != null) watchedMap.RefreshMap -= OnMapRefreshed;
+            watchedMap = map;
+            map.RefreshMap += OnMapRefreshed;
+        }
+
+        private void OnMapRefreshed()
+        {
+            bool had;
+            lock (sync) { had = publicSkills.Count > 0; publicSkills.Clear(); }
+            if (had) RaiseChanged();
         }
 
         /// <summary><c>Ej+&lt;métier&gt;</c> / <c>Ej-&lt;métier&gt;</c> : référencement dans le livre des artisans (<c>CRAFTER_REFERENCE_ADD/REMOVE</c>).</summary>

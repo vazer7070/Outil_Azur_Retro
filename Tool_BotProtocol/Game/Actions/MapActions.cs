@@ -140,6 +140,45 @@ namespace Tool_BotProtocol.Game.Actions
         public bool CanAssaultPlayer(PlayerActor target) =>
             target != null && !HasOwnRestriction(CantAssault) && CanAttackAlignment(OwnAlignment, target.Alignment?.Side ?? 0);
 
+        /// <summary>
+        /// « Demander à &lt;compétence&gt; » (lot X6) : <c>ER13|&lt;artisan&gt;|&lt;compétence&gt;</c> par <see cref="Exchanges.PlayerExchange.RequestSecureCraftAsync"/>,
+        /// pour un autre joueur de la carte dont le serveur a annoncé la compétence (<c>EW+&lt;id&gt;|…</c>, <see cref="Jobs.JobsActions.PublicSkillsOf"/>).
+        /// </summary>
+        public Task<InteractionResult> RequestSecureCraftAsync(long playerId, short skillId)
+        {
+            PlayerActor target = null;
+            InteractionResult refused = CheckReady() ?? CheckPlayer(playerId, out target) ?? CheckSecureCraftSkill(playerId, skillId, true);
+            if (refused != null) return Task.FromResult(refused);
+            Exchanges.PlayerExchange exchange = Account.Game.Interactions?.Exchange;
+            if (exchange == null) return Task.FromResult(Refuse("L'artisanat sécurisé n'est pas disponible."));
+            return exchange.RequestSecureCraftAsync((int)playerId, skillId);
+        }
+
+        /// <summary>
+        /// « Inviter à &lt;compétence&gt; » (lot X6) : <c>ER12|&lt;client&gt;|&lt;compétence&gt;</c> par <see cref="Exchanges.PlayerExchange.InviteToSecureCraftAsync"/>,
+        /// pour une compétence que le serveur a annoncée au personnage lui-même (<c>EW+&lt;soi&gt;|…</c>).
+        /// </summary>
+        public Task<InteractionResult> InviteToSecureCraftAsync(long playerId, short skillId)
+        {
+            PlayerActor target = null;
+            InteractionResult refused = CheckReady() ?? CheckPlayer(playerId, out target) ?? CheckSecureCraftSkill(Account.Game.character.id, skillId, false);
+            if (refused != null) return Task.FromResult(refused);
+            Exchanges.PlayerExchange exchange = Account.Game.Interactions?.Exchange;
+            if (exchange == null) return Task.FromResult(Refuse("L'artisanat sécurisé n'est pas disponible."));
+            return exchange.InviteToSecureCraftAsync((int)playerId, skillId);
+        }
+
+        /// <summary>Compétences d'atelier annoncées par <c>EW+</c> pour un acteur (vide sans annonce) ; les entrées du menu en dépendent.</summary>
+        public IReadOnlyList<short> PublicSkillsOf(long actorId) => Account?.Game?.Interactions?.Jobs?.PublicSkillsOf(actorId) ?? new short[0];
+
+        private InteractionResult CheckSecureCraftSkill(long actorId, short skillId, bool artisan)
+        {
+            if (actorId > int.MaxValue) return Refuse("Identifiant de joueur invalide.");
+            if (skillId <= 0 || !PublicSkillsOf(actorId).Contains(skillId))
+                return Refuse(artisan ? "Ce joueur n'a pas annoncé cette compétence d'atelier (EW+)." : "Le serveur n'a pas annoncé cette compétence d'atelier pour votre personnage (EW+).");
+            return null;
+        }
+
         /// <summary>« Échanger » visible : <c>Player.canExchange &amp;&amp; p1.canExchange</c>.</summary>
         public bool CanExchangeWith(PlayerActor target) =>
             target != null && !HasOwnRestriction(CantExchange) && (target.Restrictions & PlayerRestrictions.CannotExchange) == 0;

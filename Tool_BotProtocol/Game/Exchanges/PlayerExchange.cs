@@ -140,6 +140,36 @@ namespace Tool_BotProtocol.Game.Exchanges
                 "Échange demandé à " + ResolveName(npcId, true) + ".");
         }
 
+        /// <summary>
+        /// « Demander à &lt;compétence&gt; » du menu d'un artisan public (<c>ASK_TO</c>, <c>Exchange.request(13, id, compétence)</c>, lot X6) :
+        /// envoie <c>ER13|&lt;artisan&gt;|&lt;compétence&gt;</c>. StarLoco répond <c>ERK&lt;soi&gt;|&lt;artisan&gt;|12</c> aux deux joueurs, <c>ERET</c>
+        /// si l'artisan est à 4 cases ou plus d'un atelier de la compétence (<c>NOT_NEAR_CRAFT_TABLE</c>), <c>BN</c> s'il n'a pas d'outil équipé.
+        /// </summary>
+        public Task<InteractionResult> RequestSecureCraftAsync(int artisanId, short skillId) =>
+            RequestSecureCraftAsync(ExchangeTypes.SecureCraftClient, artisanId, skillId,
+                "Demande d'artisanat sécurisé (" + JobCatalogSkillName(skillId) + ") envoyée à " + ResolveName(artisanId, false) + " ; en attente de sa réponse.");
+
+        /// <summary>
+        /// « Inviter à &lt;compétence&gt; » du menu d'un joueur quand le personnage est lui-même artisan public (<c>INVITE_TO</c>,
+        /// <c>Exchange.request(12, id, compétence)</c>, lot X6) : envoie <c>ER12|&lt;client&gt;|&lt;compétence&gt;</c>. StarLoco répond
+        /// <c>ERK&lt;soi&gt;|&lt;client&gt;|12</c> au personnage et <c>ERK…|13</c> au client ; trop loin de l'atelier, il n'envoie qu'un message texte.
+        /// </summary>
+        public Task<InteractionResult> InviteToSecureCraftAsync(int clientId, short skillId) =>
+            RequestSecureCraftAsync(ExchangeTypes.SecureCraftArtisan, clientId, skillId,
+                "Invitation à l'atelier (" + JobCatalogSkillName(skillId) + ") envoyée à " + ResolveName(clientId, false) + " ; en attente de sa réponse.");
+
+        private Task<InteractionResult> RequestSecureCraftAsync(int type, int playerId, short skillId, string message)
+        {
+            InteractionResult refused = CheckCanRequest();
+            if (refused != null) return Task.FromResult(refused);
+            int self = Account?.Game?.character?.id ?? 0;
+            if (playerId <= 0 || playerId == self) return Task.FromResult(Refuse("Choisissez un autre joueur de la carte."));
+            if (skillId <= 0) return Task.FromResult(Refuse("Compétence d'atelier inconnue."));
+            return SendAsync("ER" + type.ToString(CultureInfo.InvariantCulture) + "|" + playerId.ToString(CultureInfo.InvariantCulture) + "|" + skillId.ToString(CultureInfo.InvariantCulture), message);
+        }
+
+        private static string JobCatalogSkillName(short skillId) => Jobs.JobCatalog.SkillName(skillId);
+
         /// <summary>Envoie <c>EA</c> pour accepter la demande reçue ; l'échange s'ouvre sur <c>ECK1</c>.</summary>
         public Task<InteractionResult> AcceptAsync()
         {
