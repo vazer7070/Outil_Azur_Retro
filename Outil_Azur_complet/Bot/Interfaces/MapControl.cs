@@ -88,6 +88,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
                 Account.Game.Map.ActorUpdated += ActorChanged;
                 Account.Game.Map.ActorRemoved += ActorRemoved;
                 Account.Game.Map.ActorsCleared += ActorsCleared;
+                Account.Game.Map.CellUpdated += OnCellUpdated;
                 Account.Game.Chat.MessageReceived += OnChatMessage;
                 Account.Game.Chat.SmileyReceived += OnSmiley;
                 Account.Game.Chat.EmoteReceived += OnEmote;
@@ -122,6 +123,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
                 game.Map.RefreshMap -= MapChange; game.Map.RefreshEntities -= RefreshEntities; game.Map.EntityMovement -= EntityMovement;
                 game.Map.ActorAdded -= ActorChanged; game.Map.ActorUpdated -= ActorChanged;
                 game.Map.ActorRemoved -= ActorRemoved; game.Map.ActorsCleared -= ActorsCleared;
+                game.Map.CellUpdated -= OnCellUpdated;
             }
             if (game.Chat != null) { game.Chat.MessageReceived -= OnChatMessage; game.Chat.SmileyReceived -= OnSmiley; game.Chat.EmoteReceived -= OnEmote; }
             if (game.character != null) game.character.MoveMinimapPathfinding -= GetPathfinding;
@@ -215,6 +217,8 @@ namespace Outil_Azur_complet.Bot.Interfaces
             OnUi(() => UserMap.ForgetActor(id));
         }
         private void ActorsCleared() => OnUi(UserMap.ClearActorOverlays);
+        /// <summary><c>GDC</c> (lot X7) : la cellule est redécodée dans le décor (fil de l'interface, PNG lus en tâche de fond).</summary>
+        private void OnCellUpdated(int cellId) => OnUi(() => UserMap.RefreshCell(cellId));
 
         /// <summary>Bulle d'un message du canal par défaut, hors combat lancé (le client n'en montre pas pendant un combat).</summary>
         private void OnChatMessage(ChatMessage message)

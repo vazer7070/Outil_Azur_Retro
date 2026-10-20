@@ -226,6 +226,9 @@ namespace Outil_Azur_complet.Bot.Controls
         public const string AuraFamily = "auras";
         public const string CircleFamily = "cercle";
         public const string ExtraFamily = "extra";
+        /// <summary>Clip <c>ready.swf</c> (<c>READY_FILE</c>) posé au-dessus d'un combattant prêt pendant le placement (lot X7).</summary>
+        public const string ReadyFamily = "pret";
+        public const int ReadyClip = 1;
         public const string SceneAnimation = "scene";
         /// <summary><c>Effets/cercle/1_scene.png</c> : <c>circle.swf</c> exporté sous le numéro 1.</summary>
         public const int CircleClip = 1;
@@ -264,7 +267,12 @@ namespace Outil_Azur_complet.Bot.Controls
         /// <paramref name="auraOption"/> = option <c>Aura</c>, <paramref name="teamOf"/> = équipe connue du combat quand l'acteur
         /// n'en annonce pas.
         /// </summary>
-        public static IEnumerable<Wanted> WantedFor(MapActor actor, bool fightRunning, bool auraOption, Func<long, int?> teamOf)
+        /// <summary>
+        /// Clips voulus pour un acteur : marchand et PNJ, cercle d'équipe en combat lancé, sinon le clip « prêt » si
+        /// <paramref name="isReady"/> le dit (placement, <c>GR1</c> : le client charge <c>ready.swf</c> dans le clip du dessus, à la
+        /// place de l'aura), sinon l'aura selon l'option.
+        /// </summary>
+        public static IEnumerable<Wanted> WantedFor(MapActor actor, bool fightRunning, bool auraOption, Func<long, int?> teamOf, Func<long, bool> isReady = null)
         {
             if (actor == null) yield break;
             switch (actor)
@@ -281,6 +289,11 @@ namespace Outil_Azur_complet.Bot.Controls
                 int? team = (actor as PlayerActor)?.Team ?? (actor as FightMonsterActor)?.Team ?? (actor as CollectorActor)?.Team;
                 if (!team.HasValue || team.Value < 0) team = teamOf?.Invoke(actor.Id);
                 yield return new Wanted(actor.Id, CircleFamily, CircleClip, false, TeamColor(team));
+                yield break;
+            }
+            if (isReady != null && isReady(actor.Id))
+            {
+                yield return new Wanted(actor.Id, ReadyFamily, ReadyClip, true);
                 yield break;
             }
             if (actor is PlayerActor player && auraOption && player.Aura > 0)

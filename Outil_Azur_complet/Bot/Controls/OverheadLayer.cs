@@ -820,6 +820,24 @@ namespace Outil_Azur_complet.Bot.Controls
         /// Matrice de <c>selectSprite</c> : chaque canal à 60 % plus 102 (0,4), qui éclaircit le sprite survolé.
         /// L'appelant libère l'objet rendu.
         /// </summary>
+        /// <summary>
+        /// Attributs d'un sprite : teinte de sélection (<see cref="SelectionTint"/>) si <paramref name="selected"/>, alpha
+        /// multiplié par <paramref name="alpha"/> (0 à 1 ; <c>setAlpha</c> du client, lot X7).
+        /// </summary>
+        public static System.Drawing.Imaging.ImageAttributes SpriteAttributes(bool selected, float alpha)
+        {
+            float scale = selected ? .6f : 1f, offset = selected ? .4f : 0f;
+            float opacity = float.IsNaN(alpha) ? 1f : Math.Max(0f, Math.Min(1f, alpha));
+            var matrix = new System.Drawing.Imaging.ColorMatrix(new[]
+            {
+                new[] { scale, 0, 0, 0, 0 }, new[] { 0, scale, 0, 0, 0 }, new[] { 0, 0, scale, 0, 0 },
+                new[] { 0, 0, 0, opacity, 0 }, new[] { offset, offset, offset, 0, 1f }
+            });
+            var attributes = new System.Drawing.Imaging.ImageAttributes();
+            attributes.SetColorMatrix(matrix);
+            return attributes;
+        }
+
         public static System.Drawing.Imaging.ImageAttributes SelectionTint()
         {
             var matrix = new System.Drawing.Imaging.ColorMatrix(new[]

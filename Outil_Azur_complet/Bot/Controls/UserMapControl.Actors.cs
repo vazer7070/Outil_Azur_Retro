@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Linq;
 using System.Windows.Forms;
 using Tool_BotProtocol.Game.Chat;
+using Tool_BotProtocol.Game.Combats;
 using Tool_BotProtocol.Game.Data;
 using Tool_BotProtocol.Game.Maps;
 using Tool_BotProtocol.Game.Maps.Entities;
@@ -39,6 +40,14 @@ namespace Outil_Azur_complet.Bot.Controls
         private string hoveredKey;
         private bool viewAllMonsters = true, showMonstersTooltip;
         private int repaintQueued;
+        // Combattants invisibles (GA;150) de l'image en cours de calcul ; null quand il n'y en a aucun.
+        private HashSet<int> invisibleFighters;
+        /// <summary><c>setAlpha(40)</c> du client sur son propre sprite invisible.</summary>
+        public const float InvisibleSelfAlpha = .4f;
+        /// <summary><c>ICON_WIDTH</c> du clip <c>FightOptions</c> du client : largeur d'une case d'icône d'option d'équipe.</summary>
+        public const int FightOptionIconWidth = 20;
+        /// <summary>Hauteur de la rangée des icônes d'options (plus haute icône du client, <c>NeedHelp</c>, 22 px).</summary>
+        public const int FightOptionIconHeight = 22;
 
         public sealed class ActorVisualState
         {
@@ -53,6 +62,8 @@ namespace Outil_Azur_complet.Bot.Controls
             public bool IsMirrored;
             /// <summary>Survolé (teinte de sélection et surtête).</summary>
             public bool IsHovered;
+            /// <summary>Opacité du sprite (1 = opaque) : 0,4 pour son propre combattant invisible (<c>GA;150</c>, <c>setAlpha(40)</c> du client).</summary>
+            public float Alpha = 1f;
             /// <summary>Animation affichée : <c>static</c>, <c>walk</c>, <c>run</c>, <c>scene</c>, <c>emote&lt;n&gt;</c>, <c>hit</c>…</summary>
             public string Animation = "static";
             /// <summary>
@@ -280,6 +291,9 @@ namespace Outil_Azur_complet.Bot.Controls
             if (mapCells == null || worldPolygons == null) return new ActorVisualState[0];
             var states = new List<ActorVisualState>();
             var live = new HashSet<int>();
+            Fights fightNow = Account.Game.Fight;
+            int[] invisible = fightNow != null && fightNow.IsInFight ? fightNow.InvisibleFighterIds : null;
+            invisibleFighters = invisible != null && invisible.Length > 0 ? new HashSet<int>(invisible) : null;
             CharacterClass self = Account.Game.character;
             if (self?.Cell != null)
             {
@@ -403,6 +417,12 @@ namespace Outil_Azur_complet.Bot.Controls
             state.IsMoving = moving;
             SpritePose requested = Resolve(state, animation, elapsed, loop);
             if (overriding) animationQueue.Observe(actorId, animation, requested.State, requested.Sheet, now);
+            if (invisibleFighters != null && invisibleFighters.Contains(unchecked((int)actorId)))
+            {
+                // GA;150 : le client passe son propre sprite à l'alpha 40 et cache les autres (setVisible(false)) ; lot X7.
+                if (self) state.Alpha = InvisibleSelfAlpha;
+                else { state.IsVisible = false; state.SpriteReason = "Combattant invisible (GA;150)."; }
+            }
             if (emote > 0 && !moving && !(state.HasSprite && state.Animation.StartsWith("emote", StringComparison.Ordinal))) state.EmoteIcon = emote;
             states.Add(state);
             return state;
@@ -694,7 +714,7 @@ namespace Outil_Azur_complet.Bot.Controls
             {
                 // Image posée en pixels du PNG dans un repère translaté et mis à l'échelle (retourné pour le miroir), case de
                 // la bande (ligne par ligne pour une grille), bords répétés en miroir : pas de liseré pris sur l'image voisine.
-                using (ImageAttributes attributes = actor.IsHovered ? OverheadLayer.SelectionTint() : new ImageAttributes())
+                using (ImageAttributes attributes = OverheadLayer.SpriteAttributes(actor.IsHovered, actor.Alpha))
                 {
                     attributes.SetWrapMode(WrapMode.TileFlipXY);
                     DrawAccessories(graphics, actor, false, attributes);
@@ -705,14 +725,15 @@ namespace Outil_Azur_complet.Bot.Controls
             }
             if (actor.Pose?.State == SpriteLoadState.Loading) return; // l'image arrive : rien plutôt qu'un repère éphémère
             float sx = actor.ScaleX / 100f, sy = actor.ScaleY / 100f;
-            using (var shadow = new SolidBrush(Color.FromArgb(70, 35, 32, 23))) graphics.FillEllipse(shadow, foot.X - 12 * sx, foot.Y - 4 * sy, 24 * sx, 8 * sy);
+            int alpha = Math.Max(0, Math.Min(255, (int)Math.Round(actor.Alpha * 255)));
+            using (var shadow = new SolidBrush(Color.FromArgb(70 * alpha / 255, 35, 32, 23))) graphics.FillEllipse(shadow, foot.X - 12 * sx, foot.Y - 4 * sy, 24 * sx, 8 * sy);
             Color body = actor.IsHovered ? ControlPaint.Light(actor.Color) : actor.Color;
-            using (var brush = new SolidBrush(body))
+            using (var brush = new SolidBrush(Color.FromArgb(alpha, body)))
             {
                 graphics.FillEllipse(brush, foot.X - 6 * sx, foot.Y - 28 * sy, 12 * sx, 12 * sy);
                 graphics.FillPolygon(brush, new[] { new PointF(foot.X, foot.Y - 18 * sy), new PointF(foot.X - 9 * sx, foot.Y - 3 * sy), new PointF(foot.X + 9 * sx, foot.Y - 3 * sy) });
             }
-            using (var pen = new Pen(Color.FromArgb(222, 153, 49), 2))
+            using (var pen = new Pen(Color.FromArgb(alpha, 222, 153, 49), 2))
             {
                 graphics.DrawLine(pen, foot.X - 4 * sx, foot.Y - 18 * sy, foot.X + 4 * sx, foot.Y - 10 * sy);
                 graphics.DrawLine(pen, foot.X + 4 * sx, foot.Y - 18 * sy, foot.X - 4 * sx, foot.Y - 10 * sy);
@@ -741,11 +762,35 @@ namespace Outil_Azur_complet.Bot.Controls
                 }
         }
 
-        /// <summary>Surtêtes (survol, raccourci des groupes), smileys et icônes d'émote, puis bulles, dans le repère de l'écran.</summary>
+        /// <summary>
+        /// Fichiers des icônes d'options d'équipe (<c>UI/Client/UI_FightOption&lt;Nom&gt;Up.png</c>, clip <c>FightOptions</c> du client :
+        /// une icône par option vraie, dans l'ordre des lettres A, S, P, H), vide sans option.
+        /// </summary>
+        public static string[] FightOptionIconFiles(FightOptions options)
+        {
+            var files = new List<string>();
+            if ((options & FightOptions.BlockJoiner) != 0) files.Add("UI/Client/UI_FightOptionBlockJoinerUp.png");
+            if ((options & FightOptions.BlockSpectators) != 0) files.Add("UI/Client/UI_FightOptionBlockSpectatorUp.png");
+            if ((options & FightOptions.PartyOnly) != 0) files.Add("UI/Client/UI_FightOptionBlockJoinerExceptPartyMemberUp.png");
+            if ((options & FightOptions.NeedHelp) != 0) files.Add("UI/Client/UI_FightOptionNeedHelpUp.png");
+            return files.ToArray();
+        }
+
+        /// <summary>Icônes d'options dessinées au-dessus de l'acteur <paramref name="actorId"/> (chef d'équipe d'un combat, <c>Go</c>) ; vide sinon.</summary>
+        public string[] OptionIconsOf(long actorId)
+        {
+            Fights fight = Account?.Game?.Fight;
+            if (fight == null || !fight.IsInFight) return new string[0];
+            return FightOptionIconFiles(fight.GetTeamOptions(actorId));
+        }
+
+        /// <summary>Surtêtes (survol, raccourci des groupes), smileys, icônes d'émote et d'options d'équipe, puis bulles, dans le repère de l'écran.</summary>
         private void DrawOverheads(Graphics graphics, ActorVisualState[] actors)
         {
             bool inFight = Account?.Game?.Fight?.IsInFight == true;
             bool running = inFight && Account.Game.Fight.IsPlacement == false;
+            // Options d'équipe (Go, lot X7) : une rangée d'icônes au-dessus du chef de chaque équipe, comme addSpriteOverHeadItem("FightOptions").
+            IReadOnlyDictionary<long, FightOptions> teamOptions = inFight ? Account.Game.Fight.TeamOptions : null;
             Rectangle view = ClientRectangle;
             foreach (ActorVisualState actor in actors)
             {
@@ -753,7 +798,9 @@ namespace Outil_Azur_complet.Bot.Controls
                 bool showText = actor.IsHovered || (showMonstersTooltip && actor.Kind == ActorKind.MonsterGroup);
                 int? smiley = bubbles.SmileyOf(actor.ActorId);
                 int emote = actor.EmoteIcon;
-                if (!showText && !smiley.HasValue && emote <= 0) continue;
+                string[] optionIcons = teamOptions != null && teamOptions.TryGetValue(actor.ActorId, out FightOptions teamOption)
+                    ? FightOptionIconFiles(teamOption) : new string[0];
+                if (!showText && !smiley.HasValue && emote <= 0 && optionIcons.Length == 0) continue;
                 OverheadContent content = null;
                 if (showText)
                 {
@@ -762,7 +809,8 @@ namespace Outil_Azur_complet.Bot.Controls
                 }
                 Size text = content == null ? Size.Empty : OverheadLayer.Measure(graphics, content);
                 int icons = (smiley.HasValue ? 1 : 0) + (emote > 0 ? 1 : 0);
-                var stack = new Size(Math.Max(text.Width, icons > 0 ? BubbleLayer.IconSize : 0), text.Height + icons * BubbleLayer.IconSize);
+                int optionsWidth = optionIcons.Length * FightOptionIconWidth, optionsHeight = optionIcons.Length > 0 ? FightOptionIconHeight : 0;
+                var stack = new Size(Math.Max(Math.Max(text.Width, icons > 0 ? BubbleLayer.IconSize : 0), optionsWidth), text.Height + icons * BubbleLayer.IconSize + optionsHeight);
                 float height = actor.HasSprite ? actor.Pose.Sheet.FrameHeight * actor.ScaleY / 100f : 30;
                 Point corner = OverheadLayer.Place(actor.ScreenPosition, height, stack, viewScale, view);
                 int bottom = corner.Y + stack.Height;
@@ -779,7 +827,22 @@ namespace Outil_Azur_complet.Bot.Controls
                     bottom -= BubbleLayer.IconSize;
                 }
                 if (emote > 0)
+                {
                     DrawIcon(graphics, "Emotes/" + emote.ToString(CultureInfo.InvariantCulture) + ".png", new Rectangle(centerX - BubbleLayer.IconSize / 2, bottom - BubbleLayer.IconSize, BubbleLayer.IconSize, BubbleLayer.IconSize));
+                    bottom -= BubbleLayer.IconSize;
+                }
+                if (optionIcons.Length > 0)
+                {
+                    // Conteneur centré (_x = -(n × ICON_WIDTH) / 2), une case de 20 px par icône, chacune à sa taille du client
+                    // (les PNG sont exportés à l'échelle 2), posée au bas de la rangée.
+                    int left = centerX - optionsWidth / 2;
+                    for (int i = 0; i < optionIcons.Length; i++)
+                    {
+                        Bitmap image = overheadImages.File(optionIcons[i]);
+                        int iconWidth = image == null ? FightOptionIconWidth : Math.Max(1, image.Width / 2), iconHeight = image == null ? FightOptionIconWidth : Math.Max(1, image.Height / 2);
+                        DrawIcon(graphics, optionIcons[i], new Rectangle(left + i * FightOptionIconWidth + (FightOptionIconWidth - iconWidth) / 2, bottom - iconHeight, iconWidth, iconHeight));
+                    }
+                }
             }
             foreach (SpeechBubble bubble in bubbles.Bubbles)
                 BubbleLayer.Draw(graphics, bubble, ToScreen(bubble.WorldFoot), viewScale, view);
