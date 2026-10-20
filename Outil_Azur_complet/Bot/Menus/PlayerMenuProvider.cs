@@ -66,7 +66,7 @@ namespace Outil_Azur_complet.Bot.Menus
         /// <c>EW+</c> pour ce joueur (« Demander à … », <c>ER13</c>), sinon celles de son propre personnage (« Inviter à … »,
         /// <c>ER12</c>). Aucune en combat ni sans personnage.
         /// </summary>
-        internal static IEnumerable<MenuEntry> SecureCraftEntries(PlayerActor player, GameClass g, MapActions actions)
+        public static IEnumerable<MenuEntry> SecureCraftEntries(PlayerActor player, GameClass g, MapActions actions)
         {
             if (player == null || actions == null || g?.character == null || g.Fight?.IsInFight == true) yield break;
             long id = player.Id;
