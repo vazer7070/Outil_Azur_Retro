@@ -40,8 +40,15 @@ namespace Outil_Azur_complet.Bot.Controls
         }
 
         /// <summary>Formes du dossier du décor <paramref name="resourceDirectory"/> (celui de <see cref="BotMapArtwork.ResourceDirectory"/>).</summary>
-        public static SelectionShapes For(string resourceDirectory) =>
-            string.IsNullOrEmpty(resourceDirectory) ? null : shared.GetOrAdd(Path.GetFullPath(resourceDirectory), path => new SelectionShapes(path));
+        public static SelectionShapes For(string resourceDirectory)
+        {
+            if (string.IsNullOrEmpty(resourceDirectory)) return null;
+            // Un même dossier écrit avec ou sans séparateur final partage ses formes.
+            string full = Path.GetFullPath(resourceDirectory);
+            string trimmed = full.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (trimmed.Length == 0 || trimmed.EndsWith(":", StringComparison.Ordinal)) trimmed = full;
+            return shared.GetOrAdd(trimmed, path => new SelectionShapes(path));
+        }
 
         /// <summary>Levé (sur le pool de threads) quand une forme demandée est prête ou se révèle absente.</summary>
         public event Action Loaded;

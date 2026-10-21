@@ -276,11 +276,16 @@ namespace Outil_Azur_complet.Bot.Controls
             if (string.IsNullOrEmpty(family) || string.IsNullOrEmpty(name)) return null;
             if (ClientAssets.TryCached(family, name, out Bitmap cached)) return cached;
             string key = family + "/" + name;
-            if (!cursorRequests.Add(key)) return null;
+            lock (cursorRequests) if (!cursorRequests.Add(key)) return null;
             Task<Bitmap> load;
             try { load = ClientAssets.GetAsync(family, name); }
-            catch (Exception error) when (!(error is OutOfMemoryException)) { cursorRequests.Remove(key); return null; }
-            load.ContinueWith(task => { if (task.Status == TaskStatus.RanToCompletion && task.Result != null) RequestRepaint(); }, TaskScheduler.Default);
+            catch (Exception error) when (!(error is OutOfMemoryException)) { lock (cursorRequests) cursorRequests.Remove(key); return null; }
+            load.ContinueWith(task =>
+            {
+                // Une seule lecture à la fois par curseur ; une image chassée du cache plus tard est redemandée au dessin suivant.
+                lock (cursorRequests) cursorRequests.Remove(key);
+                if (task.Status == TaskStatus.RanToCompletion && task.Result != null) RequestRepaint();
+            }, TaskScheduler.Default);
             return null;
         }
     }
