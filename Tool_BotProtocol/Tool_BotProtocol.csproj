@@ -267,6 +267,7 @@
     <Compile Include="Game\Perso\Inventory\InventoryUtilities.cs" />
     <Compile Include="Game\Perso\Inventory\ItemEffects.cs" />
     <Compile Include="Game\Perso\Inventory\ItemSets.cs" />
+    <Compile Include="Game\Perso\Inventory\LivingItem.cs" />
     <Compile Include="Game\Perso\Inventory\SpecialItems.cs" />
     <Compile Include="Game\Perso\Personnages.cs" />
     <Compile Include="Game\Perso\PlayerRestrictions.cs" />

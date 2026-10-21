@@ -64,5 +64,23 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
             if (IsDocument(item)) return new ItemUseResult(true, "Lecture demandée (OU) ; StarLoco ne répond pas pour les livres du sac.");
             return new ItemUseResult(true, "Utilisation demandée ; le serveur confirme.");
         }
+
+        /// <summary>
+        /// « Cibler avec cet objet » (lot X13) : <c>OU&lt;objet&gt;|&lt;sprite&gt;|&lt;cellule&gt;</c>, ou <c>OU&lt;objet&gt;||&lt;cellule&gt;</c>
+        /// pour une case sans sprite, après un clic de la visée d'objet de la carte. Comme <c>switchToItemTarget</c> du client,
+        /// refusé en combat ; seul un objet ciblable (<c>ciblable</c> des textes du client) est proposé par l'inventaire.
+        /// StarLoco applique l'effet à la cible si c'est un joueur et envoie <c>eUK&lt;cible&gt;|17</c> (pain, viande) ou
+        /// <c>|18</c> (bière) aux joueurs de sa carte.
+        /// </summary>
+        public static async Task<ItemUseResult> UseOnAsync(GameClass game, InventoryObjects item, long? target, int cell)
+        {
+            if (game?.character?.Inventory == null || item == null) return new ItemUseResult(false, "Aucun objet sélectionné.");
+            if (game.Fight?.IsInFight == true) return new ItemUseResult(false, "Un objet ne se cible pas pendant un combat.");
+            if (cell < 0) return new ItemUseResult(false, "Aucune cellule visée.");
+            bool sent = await game.character.Inventory.Use_Item(item, target, cell).ConfigureAwait(false);
+            if (!sent) return new ItemUseResult(false, "Demande refusée : voir le journal.");
+            return new ItemUseResult(true, item.Name + " utilisé sur " + (target.HasValue ? "l'acteur " + target.Value.ToString(CultureInfo.InvariantCulture) + ", " : string.Empty)
+                + "cellule " + cell.ToString(CultureInfo.InvariantCulture) + " (" + InventoryClass.UsePacket(item.Inventory_ID, target, cell) + ") ; le serveur confirme.");
+        }
     }
 }

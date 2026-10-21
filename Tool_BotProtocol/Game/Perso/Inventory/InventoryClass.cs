@@ -310,13 +310,95 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
             Account.Logger.LogInfo("INVENTAIRE", $"Demande de retrait de {O.Name} envoyée ; le serveur confirme par OM.");
             return true;
         }
-        /// <summary>Utilise un objet : <c>OU&lt;id&gt;|</c> comme <c>Items.use</c> sans cible. La quantité est mise à jour par OQ/OR.</summary>
-        public async Task<bool> Use_Item(InventoryObjects G)
+        /// <summary>
+        /// Utilise un objet comme <c>Items.use(id, sprite, cellule)</c> du client : <c>OU&lt;id&gt;|</c> sans cible,
+        /// <c>OU&lt;id&gt;|&lt;sprite&gt;|&lt;cellule&gt;</c> sur un acteur et <c>OU&lt;id&gt;||&lt;cellule&gt;</c> sur une case sans
+        /// sprite (lot X13, visée d'objet de la carte). StarLoco (<c>useObject</c>) n'applique l'effet à la cible que si c'est un
+        /// joueur ; sinon il s'applique au lanceur. La quantité est mise à jour par OQ/OR.
+        /// </summary>
+        public async Task<bool> Use_Item(InventoryObjects G, long? target = null, int? cell = null)
         {
             if (!CanAct(G, out string reason)) { Account?.Logger?.LogError("INVENTAIRE", reason); return false; }
-            await Account.Connexion.SendPacket($"OU{G.Inventory_ID}|", true);
-            Account.Logger.LogInfo("INVENTAIRE", $"Utilisation de {G.Name} demandée ; le serveur confirme.");
+            if (cell.HasValue && cell.Value < 0)
+            {
+                Account.Logger.LogError("INVENTAIRE", $"Cellule {cell.Value} invalide pour utiliser {G.Name}.");
+                return false;
+            }
+            await Account.Connexion.SendPacket(UsePacket(G.Inventory_ID, target, cell), true);
+            Account.Logger.LogInfo("INVENTAIRE", target.HasValue || cell.HasValue
+                ? $"Utilisation de {G.Name} sur {(target.HasValue ? "l'acteur " + target.Value.ToString(CultureInfo.InvariantCulture) : "la case")}"
+                    + (cell.HasValue ? $" (cellule {cell.Value.ToString(CultureInfo.InvariantCulture)})" : string.Empty) + " demandée ; le serveur confirme."
+                : $"Utilisation de {G.Name} demandée ; le serveur confirme.");
             return true;
+        }
+
+        /// <summary>Paquet <c>OU</c> exact du client 1.34 (voir <see cref="Use_Item"/>).</summary>
+        public static string UsePacket(uint inventoryId, long? target, int? cell) =>
+            "OU" + inventoryId.ToString(CultureInfo.InvariantCulture)
+            + (target.HasValue ? "|" + target.Value.ToString(CultureInfo.InvariantCulture) : "|")
+            + (cell.HasValue ? "|" + cell.Value.ToString(CultureInfo.InvariantCulture) : string.Empty);
+
+        /// <summary>
+        /// Nourrit un objet vivant associé : <c>Of&lt;objet&gt;|&lt;position&gt;|&lt;aliment&gt;</c> (<c>Items.feed</c>, fenêtre
+        /// <c>ChooseFeed</c> après la confirmation <c>CONFIRM_FOOD_LIVING_ITEM</c>, à demander par l'interface). La position est
+        /// celle de l'objet, -1 dans le sac. L'aliment doit passer le filtre du client (<see cref="LivingItem.FoodsFor"/>) : StarLoco
+        /// (<c>feedObvi</c>) ne vérifie ni le type ni le propriétaire de l'aliment. Le serveur retire l'aliment (<c>OR</c> ou
+        /// <c>OQ</c>) et renvoie l'objet (<c>OCO</c>) avec l'expérience augmentée du tiers du niveau de l'aliment.
+        /// </summary>
+        public async Task<ItemUseResult> FeedAsync(InventoryObjects item, InventoryObjects food)
+        {
+            if (!CanAct(item, out string reason) || (food != null && !CanAct(food, out reason))) return Refuse(reason);
+            if (food != null && GetByInventoryId(food.Inventory_ID) == null) return Refuse($"{food.Name} n'est plus dans l'inventaire.");
+            if (!LivingItem.IsFoodFor(item, food, out reason)) return Refuse(reason);
+            int position = (int)item.position;
+            await Account.Connexion.SendPacket("Of" + Invariant(item.Inventory_ID) + "|" + Invariant(position) + "|" + Invariant(food.Inventory_ID), true);
+            string message = $"{item.Name} nourri avec {food.Name} ; le serveur retire l'aliment (OR/OQ) et renvoie l'objet (OCO).";
+            Account.Logger.LogInfo("INVENTAIRE", message);
+            return new ItemUseResult(true, message);
+        }
+
+        /// <summary>
+        /// Change l'apparence d'un objet vivant : <c>Os&lt;objet&gt;|&lt;position&gt;|&lt;apparence&gt;</c>, l'apparence allant de 1
+        /// au niveau de l'objet (<c>ChooseItemSkin</c> envoie l'indice choisi plus un). StarLoco (<c>setSkinObvi</c>) accepte 1 à 20
+        /// et répond <c>OCO</c>, plus l'apparence portée aux joueurs de la carte si l'objet est équipé.
+        /// </summary>
+        public async Task<ItemUseResult> SetSkinAsync(InventoryObjects item, int skin)
+        {
+            if (!CanAct(item, out string reason)) return Refuse(reason);
+            LivingItem living = LivingItem.From(item);
+            if (living == null || !living.Skineable) return Refuse($"{item.Name} n'a pas d'apparence à choisir.");
+            if (skin < 1 || skin > living.Level)
+                return Refuse($"Apparence {skin} indisponible pour {item.Name} : 1 à {living.Level} au niveau {living.Level}.");
+            await Account.Connexion.SendPacket("Os" + Invariant(item.Inventory_ID) + "|" + Invariant((int)item.position) + "|" + Invariant(skin), true);
+            string message = $"Apparence {skin} demandée pour {item.Name} ; le serveur renvoie l'objet (OCO).";
+            Account.Logger.LogInfo("INVENTAIRE", message);
+            return new ItemUseResult(true, message);
+        }
+
+        /// <summary>
+        /// Dissocie l'objet vivant de son objet : <c>Ox&lt;objet&gt;|&lt;position&gt;</c> (<c>Items.dissociate</c>, bouton
+        /// <c>DISSOCIATE</c> du client, sans confirmation). StarLoco recrée l'objet vivant dans le sac (<c>OAKO</c>) et renvoie
+        /// l'objet sans les effets 970 à 974 (<c>OCO</c>).
+        /// </summary>
+        public async Task<ItemUseResult> DissociateAsync(InventoryObjects item)
+        {
+            if (!CanAct(item, out string reason)) return Refuse(reason);
+            LivingItem living = LivingItem.From(item);
+            if (living == null || !living.IsAssociated) return Refuse($"{item.Name} ne porte pas d'objet vivant à dissocier.");
+            await Account.Connexion.SendPacket("Ox" + Invariant(item.Inventory_ID) + "|" + Invariant((int)item.position), true);
+            string message = $"Dissociation de {item.Name} demandée ; l'objet vivant revient dans le sac (OAKO) et l'objet est renvoyé (OCO).";
+            Account.Logger.LogInfo("INVENTAIRE", message);
+            return new ItemUseResult(true, message);
+        }
+
+        // Chiffres ASCII et signe « - » quelle que soit la culture (une culture peut écrire le moins en U+2212).
+        private static string Invariant(long value) => value.ToString(CultureInfo.InvariantCulture);
+
+        private ItemUseResult Refuse(string reason)
+        {
+            reason = string.IsNullOrEmpty(reason) ? "Action refusée." : reason;
+            Account?.Logger?.LogError("INVENTAIRE", reason);
+            return new ItemUseResult(false, reason);
         }
         /// <summary>
         /// Jette un objet au sol : <c>OD&lt;id&gt;|&lt;quantité&gt;</c> comme <c>Items.drop</c>. Le serveur répond par OR/OQ ou ODE.
