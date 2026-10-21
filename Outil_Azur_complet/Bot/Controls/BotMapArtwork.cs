@@ -74,6 +74,8 @@ namespace Outil_Azur_complet.Bot.Controls
 
         public ArtworkCell[] Cells { get; private set; } = new ArtworkCell[0];
         public RectangleF WorldBounds { get; private set; }
+        /// <summary>Dossier du décor (<c>ressources/maps</c> par défaut) ; les formes de sélection du lot X8 y sont lues.</summary>
+        public string ResourceDirectory { get; }
         /// <summary>True once the PNG of this map have been read and published (or could not be).</summary>
         public bool AssetsReady => ready;
         /// <summary>Managed thread that read the PNG files (never the thread that built the artwork).</summary>
@@ -377,6 +379,7 @@ namespace Outil_Azur_complet.Bot.Controls
             stateSource = map;
             if (map.MapWidth >= 2 && !string.IsNullOrEmpty(map.MapData) && map.MapData.Length % 10 == 0)
                 DecodeCells(map);
+            ResourceDirectory = ResourcePath(resourceDirectory);
             Lazy<AssetLibrary> library = libraryEntry = LibraryEntry(resourceDirectory);
             // An index already built (normal case: LoadingBotForm warms it) resolves paths and anchors right now,
             // so the fitted bounds are known before any PNG is read. Otherwise the loader builds the index too.

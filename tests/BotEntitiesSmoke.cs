@@ -209,8 +209,9 @@ internal static class BotEntitiesSmoke
                         var missing = view.GetActorVisualState(44);
                         Check(!missing.HasSprite && missing.SpriteReason.Contains("999999") && view.ArtworkStatus.Contains("999999"),
                             "Missing actor graphic has no explicit diagnostic reason");
-                        view.SetSpellTargets(new short[] { 3, 6 }); Check(view.Cursor == Cursors.Cross, "Spell target mode has no aim cursor");
-                        view.SetSpellTargets(null); Check(view.Cursor == Cursors.Default, "Spell cancellation kept the aim cursor");
+                        // Lot X8 : comme le client, la flèche reste et le curseur du sort est posé à côté (IsAiming).
+                        view.SetSpellTargets(new short[] { 3, 6 }); Check(view.Cursor == Cursors.Default && view.IsAiming, "Spell target mode has no aim cursor");
+                        view.SetSpellTargets(null); Check(view.Cursor == Cursors.Default && !view.IsAiming, "Spell cancellation kept the aim cursor");
                         Send(peer, "GM|--8"); Until(() => !account.Game.Map.Entites.ContainsKey(-8), "NPC removal");
                         Check(view.GetActorVisualState(-8) == null, "Removed NPC remains visible");
                     }
