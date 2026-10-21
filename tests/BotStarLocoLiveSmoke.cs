@@ -2487,6 +2487,28 @@ internal static partial class Live
         catch (Exception error) { Journal("!! [test] SIGQUIT impossible : " + error.Message); }
     }
 
+    /// <summary>
+    /// Files du noyau (/proc/net/tcp) du socket courant d'un transport du bot et de son vis-à-vis : des octets en attente côté bot
+    /// disent que le bot ne lit plus ; des files vides, que les paquets ont été lus sans être traités.
+    /// </summary>
+    private static string SocketQueues(Tool_BotProtocol.Network.TcpClient client)
+    {
+        try
+        {
+            object session = client == null ? null : Field(client, "_session");
+            var socket = session?.GetType().GetField("Socket", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(session) as System.Net.Sockets.Socket;
+            var local = socket?.LocalEndPoint as System.Net.IPEndPoint;
+            if (local == null) return "aucun socket";
+            string port = local.Port.ToString("X4", CultureInfo.InvariantCulture);
+            // Champs : sl, adresse locale, adresse distante, état, tx_queue:rx_queue, …
+            var rows = File.ReadAllLines("/proc/net/tcp").Skip(1).Select(line => line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries))
+                .Where(f => f.Length > 4 && (f[1].EndsWith(":" + port, StringComparison.Ordinal) || f[2].EndsWith(":" + port, StringComparison.Ordinal)))
+                .Select(f => (f[1].EndsWith(":" + port, StringComparison.Ordinal) ? "bot" : "serveur") + " état " + f[3] + " tx:rx " + f[4]);
+            return "port local " + local.Port + " (descripteur " + socket.Handle + ") : " + string.Join(" ; ", rows);
+        }
+        catch (Exception error) { return "illisibles : " + error.Message; }
+    }
+
     private static async Task<int> RunCommandAsync(string label, string command, int seconds)
     {
         bool windows = Environment.OSVersion.Platform == PlatformID.Win32NT;
@@ -2583,6 +2605,7 @@ internal static partial class Live
                 // Af traité, rien après, Ax jamais envoyé ; sous Mono, les piles de tous les fils vont dans la sortie du test (SIGQUIT).
                 string read = "Name « " + again.Name + " », serveurs " + string.Join(",", again.Game.Server.Servers.Select(x => x.Key + " " + x.Value))
                     + ", question « " + again.SecretQuestion + " », connecté " + (again.Connexion != null && again.Connexion.IsConnected());
+                Journal("!! [test] files TCP du socket du Login de A : " + SocketQueues(again.Connexion));
                 DumpThreads("x3c : reconnexion bloquée après « Oui »");
                 throw new Exception("Après « Oui », la liste des serveurs n'a pas de serveur en ligne : " + again.ConnectionStatus + " ; " + read + " ; journal de l'écran : "
                     + (shownLog.Length > 800 ? "…" + shownLog.Substring(shownLog.Length - 800) : shownLog));
@@ -4934,9 +4957,9 @@ internal static partial class Live
                 await ReadyAsync(a, markA).ConfigureAwait(false);
                 await a.Expect("GS", "GS (début du combat)", 30, markA).ConfigureAwait(false);
 
-                bool otherTurnChecked = false, played = false;
+                bool otherTurnChecked = false, played = false, pathDone = false;
                 DateTime until = DateTime.UtcNow.AddSeconds(90);
-                while ((!played || !otherTurnChecked) && DateTime.UtcNow < until && fi.IsInFight)
+                while ((!played || !pathDone || !otherTurnChecked) && DateTime.UtcNow < until && fi.IsInFight)
                 {
                     int actor = await WaitForTurnOf(new[] { a, si }, 40).ConfigureAwait(false);
                     if (actor == a.Id)
@@ -4950,7 +4973,9 @@ internal static partial class Live
                     }
                     else if (actor == si.Id)
                     {
-                        if (!played) { evidence.AddRange(await AimTurnAsync(si, screen).ConfigureAwait(false)); played = true; }
+                        if (!played) { pathDone = await AimTurnAsync(si, screen, evidence).ConfigureAwait(false); played = true; }
+                        else if (!pathDone) { evidence.AddRange(await PathTurnAsync(si, screen).ConfigureAwait(false)); pathDone = true; }
+                        if (!fi.IsMyTurn) continue;
                         int mark = si.ReceivedCount;
                         var passed = await fi.PassTurnAsync().ConfigureAwait(false);
                         Check(passed.Sent, "Fin de tour de l'Iop refusée par le bot : " + passed.Message);
@@ -4959,7 +4984,8 @@ internal static partial class Live
                     }
                     else break;
                 }
-                Check(played && otherTurnChecked, "Tours incomplets : tour de l'Iop " + (played ? "joué" : "absent") + ", survol pendant le tour de A " + (otherTurnChecked ? "vérifié" : "absent"));
+                Check(played && pathDone && otherTurnChecked, "Tours incomplets : tour de l'Iop " + (played ? "joué" : "absent") + ", chemin de combat "
+                    + (pathDone ? "suivi" : "absent") + ", survol pendant le tour de A " + (otherTurnChecked ? "vérifié" : "absent"));
 
                 int endA = a.ReceivedCount, endI = si.ReceivedCount;
                 var giveUp = await fi.GiveUpAsync().ConfigureAwait(false);
@@ -5007,11 +5033,11 @@ internal static partial class Live
 
     /// <summary>
     /// Tour de l'Iop : portée en cercle puis en croix, pointeur en croix et en ligne, croix d'interdiction, Flèche Enflammée lancée par un
-    /// clic sur la cible, puis chemin de combat survolé et suivi par un clic.
+    /// clic sur la cible, puis chemin de combat survolé et suivi par un clic (<see cref="PathTurnAsync"/>). Faux si un échec critique a
+    /// fini le tour avant le chemin de combat, à jouer alors au tour suivant de l'Iop.
     /// </summary>
-    private static async Task<List<string>> AimTurnAsync(LiveSession si, GameClientFullform screen)
+    private static async Task<bool> AimTurnAsync(LiveSession si, GameClientFullform screen, List<string> evidence)
     {
-        var evidence = new List<string>();
         Fights fi = si.Account.Game.Fight;
         Cell[] cells = si.Map.MapCells;
         Cell own = si.Map.GetCellFromId((short)Self(si).CellId);
@@ -5094,17 +5120,33 @@ internal static partial class Live
         Check(await si.Until(() => si.SentSince(sentMark).Contains(cast), 5).ConfigureAwait(false), "Le clic sur la cible n'a pas envoyé " + cast + " : " + string.Join(" | ", si.SentSince(sentMark)));
         string launched = await si.Expect(p => p.StartsWith("GA;300;" + si.Id + ";", StringComparison.Ordinal) || p.StartsWith("GA;302;" + si.Id + ";", StringComparison.Ordinal)
             || p.StartsWith("GA;0", StringComparison.Ordinal) || p.StartsWith("GAE", StringComparison.Ordinal), "GA;300 de la Flèche Enflammée", 10, markI).ConfigureAwait(false);
-        Check(launched.StartsWith("GA;300;", StringComparison.Ordinal), "StarLoco ne lance pas la Flèche Enflammée en " + line.CellID + " : " + launched);
+        // Échec critique : StarLoco répond GA;302;<id>;<sort> (vu le 21 octobre 2026), retire les PA puis finit le tour de l'Iop.
+        bool critical = launched.StartsWith("GA;302;", StringComparison.Ordinal);
+        Check(launched.StartsWith("GA;300;", StringComparison.Ordinal) || critical, "StarLoco ne lance pas la Flèche Enflammée en " + line.CellID + " : " + launched);
         Check(await si.Until(() => !fi.IsActionPending && fi.ActionPoints < paBefore, 10).ConfigureAwait(false), "L'Iop attend encore la fin de la Flèche Enflammée");
         Check(await WaitOnUi(() => !UserMapOf(screen).IsAiming && UserMapOf(screen).PointerCells.Count == 0 ? "terminée" : null, 10).ConfigureAwait(false) != null,
             "La visée reste armée après le lancer");
-        evidence.Add("Flèche Enflammée sur " + line.CellID + " : ligne Le de " + lineCells.Length + " cellules, clic → " + cast + " → " + Short(launched, 40));
+        evidence.Add("Flèche Enflammée sur " + line.CellID + " : ligne Le de " + lineCells.Length + " cellules, clic → " + cast + " → " + Short(launched, 40)
+            + (critical ? " (échec critique)" : ""));
+        if (critical && await si.Until(() => si.ReceivedSince(markI).Any(p => p.StartsWith("GTF" + si.Id, StringComparison.Ordinal)) && !fi.IsMyTurn, 10).ConfigureAwait(false))
+        {
+            evidence.Add("tour de l'Iop fini par l'échec critique : chemin de combat au tour suivant");
+            return false;
+        }
+        evidence.AddRange(await PathTurnAsync(si, screen).ConfigureAwait(false));
+        return true;
+    }
 
-        // Sans sort : chemin de combat vers une cellule à deux pas, dessiné avec les formes de sélection, puis suivi par un clic.
+    /// <summary>Tour de l'Iop sans sort : chemin de combat vers une cellule à deux pas, dessiné avec les formes de sélection, puis suivi par un clic.</summary>
+    private static async Task<List<string>> PathTurnAsync(LiveSession si, GameClientFullform screen)
+    {
+        var evidence = new List<string>();
+        Fights fi = si.Account.Game.Fight;
+        Cell[] cells = si.Map.MapCells;
         Check(await si.Until(() => fi.MovementPoints >= 2, 5).ConfigureAwait(false), "L'Iop n'a plus deux PM : " + fi.MovementPoints);
-        occupied = new HashSet<int>(fi.Fighters.Values.Where(f => !f.IsDead).Select(f => (int)f.CellId));
+        var occupied = new HashSet<int>(fi.Fighters.Values.Where(f => !f.IsDead).Select(f => (int)f.CellId));
         Func<Cell, bool> nearEnemy = c => Enemies(si).Any(e => si.Map.GetCellFromId((short)e.CellId)?.GetDistanceBetweenCells(c) <= 1);
-        own = si.Map.GetCellFromId((short)Self(si).CellId);
+        Cell own = si.Map.GetCellFromId((short)Self(si).CellId);
         Check(!nearEnemy(own), "L'Iop finit son lancer au contact de A : un pas serait taclé");
         List<Cell> path = null;
         Cell step = null;
@@ -5121,7 +5163,7 @@ internal static partial class Live
         Check(previewed != null && previewed.SequenceEqual(Sorted(expectedPath)), "Chemin de combat survolé : " + (previewed == null ? "aucun" : CellList(previewed))
             + " au lieu de " + CellList(expectedPath));
         await Capture("23-reel-x8-chemin", screen).ConfigureAwait(false);
-        sentMark = si.SentCount; markI = si.ReceivedCount; int pmBefore = fi.MovementPoints;
+        int sentMark = si.SentCount, markI = si.ReceivedCount, pmBefore = fi.MovementPoints;
         await (await OnUi(() => screen.Map.HandleCellActionAsync(step.CellID)).ConfigureAwait(false)).ConfigureAwait(false);
         string road = Tool_BotProtocol.Game.Maps.Mouvements.PathfinderUtils.GetCleanRoad(path), move = "GA001" + road;
         Check(await si.Until(() => si.SentSince(sentMark).Contains(move), 5).ConfigureAwait(false), "Le clic n'a pas envoyé le chemin survolé " + move + " : "
