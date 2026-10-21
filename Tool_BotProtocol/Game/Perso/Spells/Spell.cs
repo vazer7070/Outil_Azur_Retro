@@ -83,7 +83,8 @@ namespace Tool_BotProtocol.Game.Perso.Spells
                     PA = source.PA, Min_portee = source.Min_portee, Max_portee = source.Max_portee,
                     IsInLine = source.IsInLine, AvecLigneDeVue = source.AvecLigneDeVue,
                     EmptyCell = source.EmptyCell, portee_modifiable = source.portee_modifiable,
-                    PerTurn = source.PerTurn, PerObjective = source.PerObjective, Interval = source.Interval
+                    PerTurn = source.PerTurn, PerObjective = source.PerObjective, Interval = source.Interval,
+                    RequiredStates = (source.RequiredStates ?? new int[0]).ToArray(), ForbiddenStates = (source.ForbiddenStates ?? new int[0]).ToArray()
                 };
                 foreach (var effect in source.NormalEffect) statistics.NormalEffect.Add(CopyEffect(effect));
                 foreach (var effect in source.CriticalEffect) statistics.CriticalEffect.Add(CopyEffect(effect));

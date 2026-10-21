@@ -15,7 +15,8 @@ namespace Tool_BotProtocol.Game.Combats
     /// <item>une cellule traversée bloque si elle est hors du terrain, inactive, sans ligne de vue (<c>Cell.LineofSight</c>,
     /// tenu à jour par <c>GDC</c>), plus haute que le segment à cet endroit, ou occupée par un combattant (sauf la cellule
     /// du lanceur et la cible) ;</item>
-    /// <item>la cible elle-même ne bloque jamais.</item>
+    /// <item>la cible passe par le même contrôle, sauf pour le combattant qui s'y tient : une cellule cible inactive ou
+    /// sans ligne de vue (mur, pilier) ne peut donc pas être visée.</item>
     /// </list>
     /// Les arrondis sont ceux de Flash (<c>Math.round(v)</c> = <c>floor(v + 0,5)</c>) et les comparaisons gardent le sens
     /// du client pour les valeurs non numériques (<c>!(hauteur &gt; z)</c>).
@@ -34,7 +35,9 @@ namespace Tool_BotProtocol.Game.Combats
         /// </summary>
         public static bool Check(Map map, int from, int to, Func<int, int> occupants)
         {
+            // Le client n'appelle checkView que sur des cellules de la carte ; une extrémité inconnue n'est jamais vue.
             if (map == null || map.MapCells == null || map.MapWidth < 2) return false;
+            if (from < 0 || to < 0 || from >= map.MapCells.Length || to >= map.MapCells.Length) return false;
             int width = map.MapWidth;
             Func<int, int> occupied = occupants ?? (cell => 0);
             Point source = Coordinates(width, from), target = Coordinates(width, to);
