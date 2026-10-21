@@ -195,8 +195,9 @@ internal static class BotFightUiSmoke
                         // Lot X7 : GR1 de chaque combattant → clip « prêt » (ready.swf) au-dessus du sprite, à la place de l'aura ; GR0 le retire.
                         Feed(account, "GR143"); Feed(account, "GRx"); Feed(account, "GR199");
                         PumpUntil(() => fight.IsFighterReady(42) && fight.IsFighterReady(43) && !fight.IsFighterReady(99), "GR1 per fighter");
-                        PumpUntil(() => form.Map.ExtraClips.Active.Count(clip => clip.Family == ActorExtraClips.ReadyFamily && clip.Above && (clip.ActorId == 42 || clip.ActorId == 43)) == 2,
-                            "ready clips of both fighters");
+                        // Sprites en staticR (direction 1) : le clip « prêt » ignore xtraClipTopAnimations, comme addExtraClip du client.
+                        PumpUntil(() => form.Map.ExtraClips.Active.Count(clip => clip.Family == ActorExtraClips.ReadyFamily && clip.Above && !clip.TopClipRule
+                            && (clip.ActorId == 42 || clip.ActorId == 43)) == 2, "ready clips of both fighters");
                         menu.ReadyButton.PerformClick(); Expect(peer, "GR0", "Second click does not send GR0");
                         Feed(account, "GR042"); PumpUntil(() => menu.ReadyButton.Text == "Prêt", "ready reset");
                         PumpUntil(() => !fight.IsFighterReady(42) && fight.IsFighterReady(43)

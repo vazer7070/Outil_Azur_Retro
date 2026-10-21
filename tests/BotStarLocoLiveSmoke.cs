@@ -3855,8 +3855,9 @@ internal static partial class Live
     private static string OriginalCell(LiveSession s, int cellId) =>
         s.Map.MapData != null && (cellId + 1) * 10 <= s.Map.MapData.Length ? s.Map.MapData.Substring(cellId * 10, 10) : null;
 
+    /// <summary>Clip « prêt » au-dessus de l'acteur et dessiné au dernier passage de la vue (bande lue, acteur visible).</summary>
     private static bool HasReadyClip(GameClientFullform form, long actorId) =>
-        form.Map.ExtraClips.Active.Any(clip => clip.Family == ActorExtraClips.ReadyFamily && clip.ActorId == actorId && clip.Above);
+        form.Map.ExtraClips.Active.Any(clip => clip.Family == ActorExtraClips.ReadyFamily && clip.ActorId == actorId && clip.Above && clip.Visible);
 
     /// <summary>
     /// Un Sram inventé (classe 4 et ses sorts de départ écrits dans la base) entre sur la carte de A avec sa propre fenêtre de jeu ; A le

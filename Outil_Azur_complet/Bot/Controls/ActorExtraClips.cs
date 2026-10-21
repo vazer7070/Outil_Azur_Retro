@@ -241,15 +241,21 @@ namespace Outil_Azur_complet.Bot.Controls
         /// <summary>Un clip voulu pour un acteur.</summary>
         public struct Wanted
         {
-            public Wanted(long actorId, string family, int id, bool above, int? rgb = null)
+            public Wanted(long actorId, string family, int id, bool above, int? rgb = null, bool topClipRule = true)
             {
-                ActorId = actorId; Family = family; Id = id; Above = above; Rgb = rgb;
+                ActorId = actorId; Family = family; Id = id; Above = above; Rgb = rgb; TopClipRule = topClipRule;
             }
             public long ActorId { get; }
             public string Family { get; }
             public int Id { get; }
             public bool Above { get; }
             public int? Rgb { get; }
+            /// <summary>
+            /// Clip du dessus soumis à <c>xtraClipTopAnimations</c> (<see cref="ActorAttachedEffect.TopClipVisible"/>). Faux pour le clip
+            /// « prêt » : <c>addExtraClip</c> du client le charge sans regarder l'animation en cours, et rien ne la change avant le
+            /// premier tour (le placement est figé une fois prêt).
+            /// </summary>
+            public bool TopClipRule { get; }
             public string Key => ActorId.ToString(CultureInfo.InvariantCulture) + "|" + Family + "/" + Id.ToString(CultureInfo.InvariantCulture)
                 + (Above ? "|dessus" : "|dessous") + (Rgb.HasValue ? "|" + Rgb.Value.ToString("X6", CultureInfo.InvariantCulture) : string.Empty);
             public override string ToString() => Key;
@@ -293,7 +299,7 @@ namespace Outil_Azur_complet.Bot.Controls
             }
             if (isReady != null && isReady(actor.Id))
             {
-                yield return new Wanted(actor.Id, ReadyFamily, ReadyClip, true);
+                yield return new Wanted(actor.Id, ReadyFamily, ReadyClip, true, null, false);
                 yield break;
             }
             if (actor is PlayerActor player && auraOption && player.Aura > 0)
@@ -320,7 +326,7 @@ namespace Outil_Azur_complet.Bot.Controls
                     clips.Remove(key);
                     if (existing.Skipped) { missing.Add(key); continue; }
                 }
-                var effect = new ExtraClipEffect(clip.ActorId, sprites.ResolveFixed(clip.Family, clip.Id, SceneAnimation), clip.Above, now, clip.Rgb);
+                var effect = new ExtraClipEffect(clip.ActorId, sprites.ResolveFixed(clip.Family, clip.Id, SceneAnimation), clip.Above, now, clip.Rgb, clip.TopClipRule);
                 if (!tryAdd(effect)) { Forget(effects); return; }
                 clips[key] = effect;
             }
