@@ -776,12 +776,28 @@ namespace Outil_Azur_complet.Bot.Controls
             return files.ToArray();
         }
 
-        /// <summary>Icônes d'options dessinées au-dessus de l'acteur <paramref name="actorId"/> (chef d'équipe d'un combat, <c>Go</c>) ; vide sinon.</summary>
-        public string[] OptionIconsOf(long actorId)
+        /// <summary>
+        /// Icônes d'options de l'équipe <paramref name="teamId"/> (<c>Go</c>) telles qu'elles sont dessinées : <c>onFightOption</c> du client les
+        /// accroche au sprite qui porte l'identifiant de l'équipe, l'épée de l'équipe (<c>Gc+</c>) hors combat, le combattant chef d'équipe en
+        /// combat. StarLoco n'envoie <c>Go</c> qu'aux joueurs de la carte d'origine, donc seul le premier cas s'y voit. Vide sans option ou
+        /// sans épée ni combat.
+        /// </summary>
+        public string[] OptionIconsOf(long teamId)
         {
             Fights fight = Account?.Game?.Fight;
-            if (fight == null || !fight.IsInFight) return new string[0];
-            return FightOptionIconFiles(fight.GetTeamOptions(actorId));
+            Map map = Account?.Game?.Map;
+            if (fight == null) return new string[0];
+            bool anchored = fight.IsInFight || (map != null && map.FightSwords.Values.Any(swords => swords.Teams.Any(team => team != null && team.TeamId == teamId)));
+            return anchored ? FightOptionIconFiles(fight.GetTeamOptions(teamId)) : new string[0];
+        }
+
+        /// <summary>Équipe dont les options se dessinent au-dessus de cet état (voir <see cref="OptionIconsOf"/>) ; null sinon.</summary>
+        private static long? OptionTeamOf(ActorVisualState actor, bool inFight)
+        {
+            if (actor.Entity is FightSwordsActor swords)
+                return actor.MemberIndex >= 0 && actor.MemberIndex < swords.Teams.Count && swords.Teams[actor.MemberIndex] != null
+                    ? swords.Teams[actor.MemberIndex].TeamId : (long?)null;
+            return inFight && actor.MemberIndex < 0 ? actor.ActorId : (long?)null;
         }
 
         /// <summary>Surtêtes (survol, raccourci des groupes), smileys, icônes d'émote et d'options d'équipe, puis bulles, dans le repère de l'écran.</summary>
@@ -789,16 +805,19 @@ namespace Outil_Azur_complet.Bot.Controls
         {
             bool inFight = Account?.Game?.Fight?.IsInFight == true;
             bool running = inFight && Account.Game.Fight.IsPlacement == false;
-            // Options d'équipe (Go, lot X7) : une rangée d'icônes au-dessus du chef de chaque équipe, comme addSpriteOverHeadItem("FightOptions").
-            IReadOnlyDictionary<long, FightOptions> teamOptions = inFight ? Account.Game.Fight.TeamOptions : null;
+            // Options d'équipe (Go, lot X7) : une rangée d'icônes au-dessus de l'épée de l'équipe ou, en combat, de son chef, comme
+            // addSpriteOverHeadItem("FightOptions") sur le sprite qui porte l'identifiant de l'équipe.
+            IReadOnlyDictionary<long, FightOptions> teamOptions = Account?.Game?.Fight?.TeamOptions;
             Rectangle view = ClientRectangle;
             foreach (ActorVisualState actor in actors)
             {
-                if (actor.MemberIndex >= 0 || !actor.IsVisible || actor.IsGhost) continue;
-                bool showText = actor.IsHovered || (showMonstersTooltip && actor.Kind == ActorKind.MonsterGroup);
-                int? smiley = bubbles.SmileyOf(actor.ActorId);
-                int emote = actor.EmoteIcon;
-                string[] optionIcons = teamOptions != null && teamOptions.TryGetValue(actor.ActorId, out FightOptions teamOption)
+                long? optionTeam = OptionTeamOf(actor, inFight);
+                if ((actor.MemberIndex >= 0 && !optionTeam.HasValue) || !actor.IsVisible || actor.IsGhost) continue;
+                bool sword = actor.Entity is FightSwordsActor;
+                bool showText = !sword && (actor.IsHovered || (showMonstersTooltip && actor.Kind == ActorKind.MonsterGroup));
+                int? smiley = sword ? null : bubbles.SmileyOf(actor.ActorId);
+                int emote = sword ? 0 : actor.EmoteIcon;
+                string[] optionIcons = optionTeam.HasValue && teamOptions != null && teamOptions.TryGetValue(optionTeam.Value, out FightOptions teamOption)
                     ? FightOptionIconFiles(teamOption) : new string[0];
                 if (!showText && !smiley.HasValue && emote <= 0 && optionIcons.Length == 0) continue;
                 OverheadContent content = null;

@@ -657,6 +657,22 @@ namespace Tool_BotProtocol.Game.Combats
             FightOptionChanged?.Invoke(team, current); Changed();
         }
 
+        /// <summary>
+        /// Oublie les options des équipes d'un combat de la carte qui apparaît (<c>Gc+</c>) ou disparaît (<c>Gc-</c>) : le client recrée ou
+        /// retire alors les sprites de ces équipes, et leurs options avec eux.
+        /// </summary>
+        internal void ForgetTeamOptions(IEnumerable<long> teams)
+        {
+            if (teams == null) return;
+            bool changed = false;
+            lock (sync)
+            {
+                if (disposed) return;
+                foreach (long team in teams) changed |= teamOptions.Remove(team);
+            }
+            if (changed) Changed();
+        }
+
         /// <summary><c>Gf&lt;combattant&gt;|&lt;cellule&gt;</c> : cellule signalée (message <c>PLAYER_SET_FLAG</c> du client).</summary>
         internal void ShowFlag(string payload)
         {

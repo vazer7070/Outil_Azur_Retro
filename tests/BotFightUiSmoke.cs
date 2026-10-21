@@ -144,6 +144,20 @@ internal static class BotFightUiSmoke
                             "Fight controls are shown outside a fight");
                         Check(form.Panels.Get<FightResultPanel>() != null && !form.Panels.Visible, "Result panel is not registered or the drawer is open");
 
+                        // Lot X7 : hors combat, Go accroche ses icônes à l'épée de l'équipe (onFightOption : sprite qui porte l'identifiant de
+                        // l'équipe) ; StarLoco ne l'envoie qu'à la carte d'origine. Gc- retire l'épée et ses options, Gc+ recrée l'épée sans option.
+                        Feed(account, "Gc+77;0|77;5;0;-1|78;6;0;-1"); Feed(account, "Go+H77");
+                        PumpUntil(() => map.OptionIconsOf(77).Length > 0, "Go+H77 icon above the team sword");
+                        Check(map.OptionIconsOf(77).SequenceEqual(new[] { "UI/Client/UI_FightOptionNeedHelpUp.png" }) && map.OptionIconsOf(78).Length == 0 && map.OptionIconsOf(79).Length == 0,
+                            "Go+H77 outside a fight: " + string.Join(",", map.OptionIconsOf(77)) + " / " + string.Join(",", map.OptionIconsOf(78)));
+                        PixelOfCell(map, 5); // DrawCells → DrawOverheads dessine les icônes au-dessus de l'épée
+                        Feed(account, "Gc-77"); PumpUntil(() => map.OptionIconsOf(77).Length == 0, "Gc-77 removes the sword icons");
+                        Check(fight.GetTeamOptions(77) == FightOptions.None, "Gc- kept the options of the ended fight");
+                        Feed(account, "Go+A77"); Feed(account, "Gc+77;0|77;5;0;-1|78;6;0;-1");
+                        PumpUntil(() => account.Game.Map.FightSwords.ContainsKey(77), "Gc+77 again");
+                        Check(map.OptionIconsOf(77).Length == 0 && fight.GetTeamOptions(77) == FightOptions.None, "Gc+ kept options sent before the swords");
+                        Feed(account, "Gc-77"); PumpUntil(() => !account.Game.Map.FightSwords.ContainsKey(77), "Gc-77 again");
+
                         // ---------------------------------------------------------------- placement : menu, options, drapeau
                         FeedFromNetwork(account, "GJK2|1|1|0|30000|0");
                         PumpUntil(() => menu.Visible && options.Visible, "placement menu and options after GJK received on the network thread");

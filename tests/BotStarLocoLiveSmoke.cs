@@ -355,9 +355,10 @@ internal static partial class Live
         Form target = form ?? window;
         if (target == null) { Say("capture impossible : fenêtre de jeu absente"); return; }
         Directory.CreateDirectory(captures);
+        // Lot X7 : plusieurs fenêtres de jeu se chevauchent ; celle qui est photographiée passe au premier plan puis a le temps de se redessiner.
+        await OnUi(() => { target.BringToFront(); target.Refresh(); return true; }).ConfigureAwait(false);
         await Task.Delay(1200).ConfigureAwait(false);
-        // Lot X7 : une seconde fenêtre (compte inventé) est d'abord ramenée au premier plan.
-        Rectangle area = await OnUi(() => { if (form != null) form.BringToFront(); return target.RectangleToScreen(target.ClientRectangle); }).ConfigureAwait(false);
+        Rectangle area = await OnUi(() => target.RectangleToScreen(target.ClientRectangle)).ConfigureAwait(false);
         Journal("capture " + name + " : acteurs dessinés " + await OnUi(DrawnActors).ConfigureAwait(false));
         string file = Path.Combine(captures, name + ".png");
         var start = new ProcessStartInfo("import", "-window root -crop " + area.Width + "x" + area.Height + "+" + area.X + "+" + area.Y + " +repage \"" + file + "\"")
@@ -3859,7 +3860,8 @@ internal static partial class Live
 
     /// <summary>
     /// Un Sram inventé (classe 4 et ses sorts de départ écrits dans la base) entre sur la carte de A avec sa propre fenêtre de jeu ; A le
-    /// défie. Placement : A coche « aide » (<c>fH</c> → <c>Go+H&lt;A&gt;</c> à la carte : icône au-dessus de A dans la fenêtre du Sram) ;
+    /// défie. Placement : A coche « aide » (<c>fH</c> → <c>Go+H&lt;A&gt;</c> aux joueurs de la carte d'origine seulement : icône au-dessus
+    /// de l'épée de l'équipe de A dans la fenêtre de B, rien chez le Sram) ;
     /// le Sram se dit prêt (<c>GR1&lt;Sram&gt;</c> aux deux équipes : clip « prêt » au-dessus de lui dans les deux fenêtres), puis A
     /// (<c>GS</c>) ; le premier <c>GTS</c> retire les clips. Au tour du Sram : deux Pièges Sournois (<c>GA;999;…;GDZ+…;0;7</c> et
     /// <c>GA;999;…;GDC…;Haaaaaaaaz3005;</c> à sa seule équipe : zone gardée, objet 25 redessiné dans sa fenêtre, rien chez A) ;
@@ -3877,7 +3879,7 @@ internal static partial class Live
             var created = new List<InventedCharacter>();
             var evidence = new List<string>();
             LiveSession s = null;
-            GameClientFullform screen = null;
+            GameClientFullform screen = null, viewer = null;
             try
             {
                 Cell place = FreeCellNear(a, 2, 6);
@@ -3897,6 +3899,10 @@ internal static partial class Live
                 Check(await a.Until(() => a.Map.GetActor(sr.Id) != null, 10).ConfigureAwait(false) && await sr.Until(() => sr.Map.GetActor(a.Id) != null, 10).ConfigureAwait(false),
                     "A et le Sram ne se voient pas sur la carte " + a.MapId);
 
+                // Fenêtre de B, qui reste hors du combat sur la carte : il voit les épées et les options d'équipe.
+                viewer = await OnUi(() => { GameClientFullform opened = OpenScreen(b); opened.Location = new Point(120, 120); opened.Show(); return opened; }).ConfigureAwait(false);
+                Check(await WaitOnUi(() => viewer.IsHandleCreated && viewer.Visible && UserMapOf(viewer) != null ? viewer : null, 20).ConfigureAwait(false) != null, "La fenêtre de B ne s'est pas ouverte");
+
                 // Défi de A accepté par le Sram (GA;900 → GA901) : deux équipes, placement.
                 int markA = a.ReceivedCount, markS = sr.ReceivedCount;
                 var challenge = await a.Account.Game.Interactions.MapActions.ChallengeAsync(sr.Id).ConfigureAwait(false);
@@ -3911,15 +3917,20 @@ internal static partial class Live
                 Check(await a.Until(() => fa.IsPlacement && fs.IsPlacement && Self(a) != null && Self(sr) != null && Enemies(a).Any(e => e.Id == sr.Id), 10).ConfigureAwait(false),
                     "Placement incomplet : " + string.Join(", ", fa.Fighters.Values.Select(f => f.Name + " équipe " + f.Team)));
 
-                // Option « aide » de l'équipe de A : fH → Go+H<A> à toute la carte ; icône NeedHelp au-dessus de A dans la fenêtre du Sram.
-                markS = sr.ReceivedCount;
+                // Option « aide » de l'équipe de A : fH → Go+H<A> aux seuls joueurs de la carte d'origine (getCurMap de l'initiateur) ;
+                // B, resté sur la carte, voit l'icône NeedHelp au-dessus de l'épée de l'équipe de A (sprite qui porte l'identifiant de l'équipe).
+                Check(await b.Until(() => b.Map.FightSwords.Values.Any(swords => swords.Teams.Any(team => team.TeamId == a.Id)), 10).ConfigureAwait(false),
+                    "B ne voit pas l'épée de l'équipe de A (Gc+)");
+                int markB = b.ReceivedCount; markS = sr.ReceivedCount;
                 var help = await fa.ToggleOptionAsync(FightOptions.NeedHelp).ConfigureAwait(false);
                 Check(help.Sent, "« Aide » refusée par le bot : " + help.Message);
-                string go = await sr.Expect(p => p == "Go+H" + a.Id, "Go+H<A> chez le Sram", 10, markS).ConfigureAwait(false);
-                string[] icons = await WaitOnUi(() => { string[] files = UserMapOf(screen)?.OptionIconsOf(a.Id); return files != null && files.Length > 0 ? files : null; }, 10).ConfigureAwait(false);
+                string go = await b.Expect(p => p == "Go+H" + a.Id, "Go+H<A> chez B", 10, markB).ConfigureAwait(false);
+                string[] icons = await WaitOnUi(() => { string[] files = UserMapOf(viewer)?.OptionIconsOf(a.Id); return files != null && files.Length > 0 ? files : null; }, 10).ConfigureAwait(false);
                 Check(icons != null && icons.SequenceEqual(new[] { "UI/Client/UI_FightOptionNeedHelpUp.png" }),
-                    "Icônes d'options au-dessus de A dans la fenêtre du Sram : " + (icons == null ? "aucune" : string.Join(",", icons)));
-                evidence.Add("fH → " + go + " : icône « aide » au-dessus de A chez le Sram");
+                    "Icônes d'options au-dessus de l'épée de A dans la fenêtre de B : " + (icons == null ? "aucune" : string.Join(",", icons)));
+                Check(!sr.ReceivedSince(markS).Any(p => p.StartsWith("Go", StringComparison.Ordinal)), "Le Sram, en combat, a reçu Go");
+                await Capture("22-reel-x7-options", viewer).ConfigureAwait(false);
+                evidence.Add("fH → " + go + " à B seul : icône « aide » au-dessus de l'épée de l'équipe de A dans sa fenêtre");
 
                 // Prêt du Sram : GR1<Sram> aux deux équipes → clip « prêt » au-dessus de lui dans les deux fenêtres.
                 markA = a.ReceivedCount; markS = sr.ReceivedCount;
@@ -3988,6 +3999,7 @@ internal static partial class Live
             finally
             {
                 if (screen != null) await OnUi(() => { if (!screen.IsDisposed) { screen.Close(); screen.Dispose(); } }).ConfigureAwait(false);
+                if (viewer != null) await OnUi(() => { if (!viewer.IsDisposed) { viewer.Close(); viewer.Dispose(); } }).ConfigureAwait(false);
                 await ForgetAsync(db, schema, s == null ? new LiveSession[0] : new[] { s }, created).ConfigureAwait(false);
             }
         }
