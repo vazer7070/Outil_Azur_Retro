@@ -22,7 +22,7 @@ namespace Outil_Azur_complet.Bot
             { "Transparency", "SpriteInfos", "SpriteMove" };
 
         private static readonly string[] GeneralOptions = { "BannerShortcuts", "ChatEffects", "TimestampInChat", "CensorshipFilter", "ViewAllMonsterInGroup", "ConfirmDropItem" };
-        private static readonly string[] DisplayOptions = { "Grid", "MapInfos", "Transparency", "SpriteInfos", "SpriteMove", "PointsOverHead", "Aura" };
+        private static readonly string[] DisplayOptions = { "Grid", "MapInfos", "Transparency", "SpriteInfos", "SpriteMove", "PointsOverHead", "Aura", "AdvancedLineOfSight" };
 
         private readonly BotOptions options;
         private readonly Dictionary<string, CheckBox> checks = new Dictionary<string, CheckBox>(StringComparer.Ordinal);
@@ -307,6 +307,7 @@ namespace Outil_Azur_complet.Bot
                 case "BannerShortcuts": return Lang("OPTION_BANNERSHORTCUTS", "Activer les raccourcis (caractéristiques, inventaire, ...)");
                 case "CensorshipFilter": return Lang("OPTION_CENSORSHIP_FILTER", "Filtrer les mots insultants dans le chat");
                 case "ConfirmDropItem": return Lang("OPTION_CONFIRM_DROPITEM", "Popup de confirmation lorsqu'on pose un objet au sol");
+                case "AdvancedLineOfSight": return Lang("OPTION_LINEOFSIGHT", "Mettre en valeur les cases ciblables");
                 case "DefaultQuality": return Lang("OPTION_DEFAULTQUALITY", "Qualité Flash");
                 default: return name;
             }

@@ -78,6 +78,9 @@ namespace Tool_BotProtocol.Game.Combats
         private readonly Dictionary<int, CombatFighter> fighters = new Dictionary<int, CombatFighter>();
         private readonly Dictionary<short, int> lastSpellTurn = new Dictionary<short, int>();
         private readonly Dictionary<short, int> castsThisTurn = new Dictionary<short, int>();
+        // Lancers confirmés de ce tour par sort et par combattant visé (clé sort << 32 | combattant), comme le compteur
+        // « spriteOnID|sort » de SpellsManager.addLaunchedSpell ; vidé avec castsThisTurn (nextTurn du client).
+        private readonly Dictionary<long, int> castsOnTarget = new Dictionary<long, int>();
         private readonly List<int> turnOrder = new List<int>();
         private readonly List<FightEffect> effects = new List<FightEffect>();
         private readonly Dictionary<int, HashSet<int>> states = new Dictionary<int, HashSet<int>>();
@@ -86,6 +89,7 @@ namespace Tool_BotProtocol.Game.Combats
         private readonly List<FightLogEntry> journal = new List<FightLogEntry>();
         private CancellationTokenSource cancellation = new CancellationTokenSource();
         private bool disposed;
+        private bool tacticMode;
         private int generation;
         private string pendingKind;
         private bool pendingConfirmed;
@@ -167,6 +171,34 @@ namespace Tool_BotProtocol.Game.Combats
         public event Action<long, FightOptions> FightOptionChanged;
         /// <summary>Nouvelle ligne du journal de combat.</summary>
         public event Action<FightLogEntry> JournalEntryAdded;
+        /// <summary>Mode tactique activé ou coupé (<see cref="TacticMode"/>) ; levé sur le fil de l'appelant, hors du verrou.</summary>
+        public event Action<bool> TacticModeChanged;
+
+        /// <summary>
+        /// Mode tactique du client (<c>Game._bTacticMode</c>, bouton <c>TACTIC_MODE</c> du combat) : purement local, aucun
+        /// paquet n'est envoyé. Comme le client, le choix survit à la fin du combat et vaut pour les combats suivants ; la
+        /// carte ne le dessine que pendant un combat (placement compris, spectateur aussi).
+        /// </summary>
+        public bool TacticMode
+        {
+            get { lock (sync) return tacticMode; }
+            set
+            {
+                lock (sync) { if (tacticMode == value) return; tacticMode = value; }
+                TacticModeChanged?.Invoke(value);
+            }
+        }
+        /// <summary>
+        /// Inverse <see cref="TacticMode"/> (bouton du combat) et rend la nouvelle valeur. La commande <c>/tactic</c> du client reste
+        /// dans <c>ChatCommands.ClientOnly</c> : le bot la signale comme commande de l'interface du client.
+        /// </summary>
+        public bool ToggleTacticMode()
+        {
+            bool value;
+            lock (sync) value = tacticMode = !tacticMode;
+            TacticModeChanged?.Invoke(value);
+            return value;
+        }
         private bool InFight => phase == CombatPhase.Placement || phase == CombatPhase.Active;
         private bool MyTurn => phase == CombatPhase.Active && !spectator && actor == account.Game.character.id;
         private void Changed() { CombatChanged?.Invoke(); }
@@ -257,6 +289,15 @@ namespace Tool_BotProtocol.Game.Combats
             Spell spell;
             if (!account.Game.character.Spells.TryGetValue(spellId, out spell)) return "Ce sort n’est pas appris.";
             SpellStats stats = spell.GetStats();
+            // États du lanceur (requiredStates / forbiddenStates du niveau, checkCanLaunchSpellReturnObject du client).
+            if (stats != null)
+            {
+                int self = account.Game.character.id;
+                foreach (int state in stats.ForbiddenStates ?? new int[0])
+                    if (HasStateLocked(self, state)) return "Ce sort ne se lance pas dans l’état « " + StateName(state) + " ».";
+                foreach (int state in stats.RequiredStates ?? new int[0])
+                    if (!HasStateLocked(self, state)) return "Ce sort demande l’état « " + StateName(state) + " ».";
+            }
             if (stats != null && pa >= 0 && stats.PA > pa) return "PA insuffisants (" + stats.PA + " requis).";
             int count, previous;
             if (stats != null && stats.PerTurn > 0 && castsThisTurn.TryGetValue(spellId, out count) && count >= stats.PerTurn)
@@ -273,9 +314,73 @@ namespace Tool_BotProtocol.Game.Combats
             int distance = origin.GetDistanceBetweenCells(target);
             if (distance < aim.MinRange || distance > aim.MaxRange) return "Cible hors portée (" + aim.MinRange + "–" + aim.MaxRange + ").";
             if (aim.LineOnly && !origin.AreCellsOnline(target)) return "Ce sort se lance en ligne.";
-            if (stats.EmptyCell && fighters.Values.Any(f => !f.IsDead && f.CellId == target.CellID)) return "Ce sort nécessite une cellule vide.";
-            // LoS, equipment modifiers, states and per-target limits remain authoritative on the server.
+            CombatFighter occupant = OccupantLocked(target.CellID);
+            // freeCell du client : ni combattant, ni case où l'on ne marche pas (mouvement ≤ 1).
+            if (stats.EmptyCell && (occupant != null || (int)target.C_Types <= 1)) return "Ce sort nécessite une cellule vide.";
+            // Bonus d'objets de classe (SB, SpellsBoostsManager du client) : 289 retire la ligne de vue, 291 ajoute des lancers par cible.
+            if (stats.AvecLigneDeVue && SpellBoost(spellId, NoLineOfSightBoost) <= 0
+                && !LineOfSight.Check(account.Game.Map, origin.CellID, target.CellID, OccupantsLocked))
+                return "Cible hors de la ligne de vue.";
+            int perTarget = stats.PerObjective + Math.Max(0, SpellBoost(spellId, PerTargetBoost)), launched;
+            if (perTarget > 0 && occupant != null && castsOnTarget.TryGetValue(TargetKey(spellId, occupant.Id), out launched) && launched >= perTarget)
+                return "Nombre de lancers de ce sort sur cette cible atteint pour ce tour.";
+            // Les autres bonus d'objets de classe et la limite d'invocations restent décidés par le serveur.
             return null;
+        }
+
+        // Effets SB du client (ACTION_BOOST_SPELL_NOLINEOFSIGHT, ACTION_BOOST_SPELL_MAXPERTARGET).
+        private const int NoLineOfSightBoost = 289, PerTargetBoost = 291;
+
+        /// <summary>Bonus <c>SB</c> d'un objet de classe sur le sort (<c>getSpellModificator</c>) ; -1 sans bonus, comme le client.</summary>
+        private int SpellBoost(short spellId, int effect)
+        {
+            SpellBook book = account.Game?.character?.SpellBook;
+            if (book == null) return -1;
+            foreach (KeyValuePair<int, int> boost in book.ModificatorsOf(spellId))
+                if (boost.Key == effect) return boost.Value;
+            return -1;
+        }
+
+        /// <summary>
+        /// Cible visible depuis la cellule du personnage (<see cref="LineOfSight"/>, <c>checkView</c> du client) ; faux hors de
+        /// la carte ou si la position du personnage est inconnue. Ne tient pas compte de la portée.
+        /// </summary>
+        public bool IsInLineOfSight(short targetCell)
+        {
+            Cell origin = account.Game?.character?.Cell;
+            Map map = account.Game?.Map;
+            if (origin == null || map == null) return false;
+            lock (sync) return LineOfSight.Check(map, origin.CellID, targetCell, OccupantsLocked);
+        }
+
+        /// <summary>Lancers confirmés de ce tour du sort sur ce combattant (compteur par cible du client).</summary>
+        public int GetSpellCastsOnTarget(short spellId, int fighterId)
+        { lock (sync) { int count; return castsOnTarget.TryGetValue(TargetKey(spellId, fighterId), out count) ? count : 0; } }
+
+        private static long TargetKey(short spellId, int fighterId) => ((long)spellId << 32) | (uint)fighterId;
+        /// <summary>Compte un lancer confirmé sur ce combattant (sous le verrou, <c>GA;300</c> du personnage).</summary>
+        private void CountCastOnTarget(short spellId, int fighterId)
+        { long key = TargetKey(spellId, fighterId); int count; castsOnTarget.TryGetValue(key, out count); castsOnTarget[key] = count + 1; }
+
+        /// <summary>Combattant vivant posé sur la cellule (le porteur plutôt que le porté, <c>spriteOnID</c> du client) ; null sinon.</summary>
+        private CombatFighter OccupantLocked(int cellId)
+        {
+            CombatFighter found = null;
+            foreach (CombatFighter fighter in fighters.Values)
+            {
+                if (fighter.IsDead || fighter.CellId < 0 || fighter.CellId != cellId) continue;
+                if (fighter.CarriedById == 0) return fighter;
+                if (found == null) found = fighter;
+            }
+            return found;
+        }
+
+        /// <summary>0 : cellule libre ; 1 : un combattant ; 2 : un porteur avec son porté (hauteurs de <c>checkView</c>).</summary>
+        private int OccupantsLocked(int cellId)
+        {
+            CombatFighter fighter = OccupantLocked(cellId);
+            if (fighter == null) return 0;
+            return fighter.CarryingId != 0 ? 2 : 1;
         }
         public Task<CombatActionResult> CastSpellAsync(short spellId, short targetCell)
         {
@@ -661,7 +766,7 @@ namespace Tool_BotProtocol.Game.Combats
                 if (lastActor != 0 && lastActor != id) ExpireEffects(lastActor);
                 if (id == account.Game.character.id && !spectator)
                 {
-                    turn++; castsThisTurn.Clear(); CombatFighter self = GetFighter(id);
+                    turn++; castsThisTurn.Clear(); castsOnTarget.Clear(); CombatFighter self = GetFighter(id);
                     pa = self.ActionPoints = self.BaseActionPoints; pm = self.MovementPoints = self.BaseMovementPoints;
                     lastMessage = "Votre tour : choisissez un sort ou déplacez votre personnage.";
                 }
@@ -1019,7 +1124,7 @@ namespace Tool_BotProtocol.Game.Combats
                 generation++; previous = cancellation; cancellation = disposed ? null : new CancellationTokenSource();
                 phase = CombatPhase.None; spectator = ready = canCancel = challengeMenu = firstTurnPending = false; fightType = -1; actor = turn = turnDuration = 0; pa = pm = -1;
                 lastActor = readyActor = 0; tableTurn = null; turnStartedUtc = DateTime.MinValue;
-                places = new short[0]; teamPlaces = new[] { new short[0], new short[0] }; fighters.Clear(); lastSpellTurn.Clear(); castsThisTurn.Clear();
+                places = new short[0]; teamPlaces = new[] { new short[0], new short[0] }; fighters.Clear(); lastSpellTurn.Clear(); castsThisTurn.Clear(); castsOnTarget.Clear();
                 turnOrder.Clear(); effects.Clear(); states.Clear(); zones.Clear(); teamOptions.Clear(); journal.Clear();
                 lastFlag = null; lastResult = null;
                 pendingKind = null; pendingConfirmed = false; lastMessage = "Aucun combat en cours.";
