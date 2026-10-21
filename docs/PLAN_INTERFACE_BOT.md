@@ -154,6 +154,7 @@ Après la relecture, le bot a été joué sur une copie locale du StarLoco du ki
 
 **X6 — Artisanat sécurisé (b) : demandes et menus.** Compétences annoncées par `EW+<id>|<compétences>` (à l'arrivée sur la carte et à chaque changement d'outil, oubliées à chaque `GDM`) ; entrées « Demander à <compétence> » (`ER13|<artisan>|<compétence>`) et « Inviter à <compétence> » (`ER12|<client>|<compétence>`) à la fin du menu d'un joueur ; chaque `ERE` (dont `ERET`, `NOT_NEAR_CRAFT_TABLE`) écrit dans le chat ; clic gauche sur un joueur → son menu (Ctrl : un sous-menu par joueur de la cellule), sur un marchand, un percepteur ou un prisme → menu au clic simple et action par défaut au Maj + clic ; carte de l'artisan du livre (« Message privé » → « /w <nom> », « Localiser » → boussole du bandeau). Tests : `BotCraftSmoke`, `BotMapActionsSmoke` ; scénarios x6 et x6b de `BotStarLocoLiveSmoke`.
 **X7 — Combat : événements visibles (chat, zones, cellules, prêt, invisibilité).** Journal de combat dans le filtre Infos du chat selon l'option `ChatEffects` ; zones `GDZ` dessinées au sol (`ZONE_COLOR`, 30 %) ; cellules `GDC` redécodées et redessinées d'après les bits du masque (`Map.CellDataOf`), restaurées par `GDC<cellule>` ; clip `ready.swf` au-dessus de chaque combattant prêt (`GR1<id>`), retiré au premier tour ; icônes `Go` au-dessus de l'épée de l'équipe ou de son chef ; combattant invisible (`GA;150`) caché chez les autres et à 40 % pour soi. Tests : `BotFightUiSmoke`, `BotMapViewSmoke`, `BotChatUiSmoke`, scénario x7 de `BotStarLocoLiveSmoke` (Sram, pièges, invisibilité).
+**X12 — Inventaire : boîte de quantité, glisser-déposer, tris.** Boîte de quantité du client (`PopupQuantity`) pour jeter, détruire, déplacer entre le sac et un coffre ou des sacoches, proposer et les kamas, à la place des champs fixes ; option `ConfirmDropItem` (`CONFIRM_DROP_ITEM`) ; objets glissés du sac vers les volets Échange, Coffre, Sacoches et Atelier et de leurs cases vers le sac (`EMO+` / `EMO-` avec la quantité choisie, retrait borné aux pods libres, `SRV_MSG_6`) ; six tris du bouton « plus de choix » ; cases de sort voilées selon la règle du client (V-26 réfuté : `NOT_IN_FIGHT` hors combat, délai, lancers et PA en combat). Tests : `BotInventoryGridSmoke`, `BotShopSmoke`, `BotExchangeSmoke`, `BotCraftSmoke`, `BotMountSmoke`, `BotBannerSmoke`, `BotFightUiSmoke` ; scénario x12 de `BotStarLocoLiveSmoke`.
 
 ## Couverture des fonctions
 
@@ -308,6 +309,7 @@ Lot X32 : le changement de nom en jeu (potion 10860 écrite dans la base, fenêt
 
 Lot X6 : les demandes « Demander à » / « Inviter à » depuis les menus (`EW+`, `ER13` → `ERET` puis `ERK` 12, `ER12` → `ERK` 12 / 13), le clic gauche sur un joueur, le livre des artisans avec la carte de l'artisan (scénario x6) et le clic sur un marchand hors ligne avec le mode marchand et l'achat (scénario x6b) sont rejoués. Restent le percepteur (StarLoco exige une guilde de dix membres) et le prisme (aucun sur les cartes de test).
 Lot X7 : l'option « aide » vue au-dessus de l'épée par un joueur resté sur la carte, le clip « prêt » d'un Sram inventé dans les deux fenêtres, deux Pièges Sournois (`GDZ` et `GDC` à la seule équipe du lanceur), l'Invisibilité (masqué chez l'adversaire, 40 % chez lui, ligne du chat) et le déclenchement d'un piège sont rejoués (scénario x7). Restent les icônes d'options au-dessus du chef d'équipe en combat (StarLoco n'envoie pas `Go` aux combattants), les `GDC` des portes de labyrinthe, les glyphes et les zones de taille supérieure à 0, et la comparaison des captures avec le client en jeu.
+Lot X12 : l'échange entre deux comptes par glisser-déposer et la boîte de quantité (`EMO+`, `EMO-`, `EMG`, `EK` des deux) et la banque (`.banque` → `ECK5`, dépôt et retrait glissés, kamas déposés puis retirés) sont rejoués (scénario x12). Le coffre d'une maison ouvre la même fenêtre mais n'est pas rejoué (aucun personnage de test n'a de maison) ; la mise en vente glissée à l'hôtel de vente n'existe pas chez le client (`BigStoreSell`) et n'est pas jouée.
 
 ### Carte et acteurs
 
@@ -343,6 +345,7 @@ Lot X7 : l'option « aide » vue au-dessus de l'épée par un joueur resté sur 
 - Inventaire : bordure des objets de panoplie non portés, boîte de quantité du client pour jeter et détruire (le lot X4 l’emploie pour la monture et le retour au sac), objets de la barre non signalés dans la grille.
 - Les volets prennent la largeur du tiroir au lieu des fenêtres fixes du client.
 - Son : le bot ne joue ni bruitage ni musique. L’évaluation chiffrée et la recommandation (pas de lot son avant les animations) sont dans [la note sur le son](SON_BOT.md) (lot AN9).
+- Lot X12 : la boîte de quantité sert à jeter et détruire ; restent les cases d'objets de la barre non voilées en combat et les états requis ou interdits des sorts, inconnus du bot.
 
 ### Chat
 
@@ -360,6 +363,7 @@ Lot X7 : l'option « aide » vue au-dessus de l'épée par un joueur resté sur 
 - Hôtel de vente : tri et filtre des modèles par niveau, effets complets dans la liste.
 - Maison : emblème de guilde dans le volet, fenêtres de vente et d’intérieur flottantes.
 - Montures : ancêtres, recoloration et animation, certificat consulté depuis l’inventaire.
+- Lot X12 : l'artisanat sécurisé, le marchand, le percepteur et les familiers gardent leurs champs de quantité au lieu de la boîte et du glisser-déposer des autres volets d'échange.
 
 ### Monde
 
