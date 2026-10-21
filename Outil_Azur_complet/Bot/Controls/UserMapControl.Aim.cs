@@ -223,18 +223,59 @@ namespace Outil_Azur_complet.Bot.Controls
                 if (shapes != null && shapes.TryGet(decor.Slope, rgb, out Bitmap image, out RectangleF anchor))
                 {
                     var target = new RectangleF(decor.Center.X + anchor.X, decor.Center.Y + anchor.Y, anchor.Width, anchor.Height);
-                    if (alpha >= 255) { lock (image) graphics.DrawImage(image, target); return; }
-                    // Opacité du clip (_alpha du client) : la forme teinte est multipliée par alpha / 255.
-                    using (var attributes = new ImageAttributes())
-                    {
-                        attributes.SetColorMatrix(new ColorMatrix { Matrix33 = alpha / 255f });
-                        var points = new[] { target.Location, new PointF(target.Right, target.Top), new PointF(target.Left, target.Bottom) };
-                        lock (image) graphics.DrawImage(image, points, new RectangleF(0, 0, image.Width, image.Height), GraphicsUnit.Pixel, attributes);
-                    }
-                    return;
+                    Bitmap drawn = alpha >= 255 ? image : Faded(image, alpha);
+                    if (drawn != null) { lock (drawn) graphics.DrawImage(drawn, target); return; }
                 }
             }
             using (var brush = new SolidBrush(Color.FromArgb(alpha, Color.FromArgb(rgb)))) graphics.FillPolygon(brush, worldPolygons[cellId]);
+        }
+
+        // Formes teintes à l'opacité d'un clip (_alpha du client), par forme partagée puis par alpha. Le calcul est fait une fois
+        // (une forme fait 52 × 26 pixels) : sous Mono, DrawImage avec une ColorMatrix d'ImageAttributes ne dessinait rien ici.
+        private static readonly Dictionary<Bitmap, Dictionary<int, Bitmap>> fadedShapes = new Dictionary<Bitmap, Dictionary<int, Bitmap>>();
+
+        /// <summary>Copie de <paramref name="shape"/> dont l'alpha de chaque pixel est multiplié par <paramref name="alpha"/> / 255.</summary>
+        private static Bitmap Faded(Bitmap shape, int alpha)
+        {
+            lock (fadedShapes)
+                if (fadedShapes.TryGetValue(shape, out Dictionary<int, Bitmap> byAlpha) && byAlpha.TryGetValue(alpha, out Bitmap done)) return done;
+            Bitmap copy = null;
+            try
+            {
+                lock (shape) copy = new Bitmap(Math.Max(1, shape.Width), Math.Max(1, shape.Height), PixelFormat.Format32bppArgb);
+                using (Graphics graphics = Graphics.FromImage(copy))
+                {
+                    graphics.CompositingMode = CompositingMode.SourceCopy;
+                    lock (shape) graphics.DrawImage(shape, 0, 0, copy.Width, copy.Height);
+                }
+                BitmapData data = copy.LockBits(new Rectangle(0, 0, copy.Width, copy.Height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+                try
+                {
+                    var row = new int[copy.Width];
+                    for (int y = 0; y < copy.Height; y++)
+                    {
+                        IntPtr line = IntPtr.Add(data.Scan0, y * data.Stride);
+                        System.Runtime.InteropServices.Marshal.Copy(line, row, 0, row.Length);
+                        for (int x = 0; x < row.Length; x++)
+                            row[x] = (((int)((uint)row[x] >> 24) * alpha / 255) << 24) | (row[x] & 0xFFFFFF);
+                        System.Runtime.InteropServices.Marshal.Copy(row, 0, line, row.Length);
+                    }
+                }
+                finally { copy.UnlockBits(data); }
+            }
+            catch (Exception error) when (error is ArgumentException || error is System.Runtime.InteropServices.ExternalException
+                || error is InvalidOperationException || error is OutOfMemoryException)
+            {
+                copy?.Dispose();
+                return null;
+            }
+            lock (fadedShapes)
+            {
+                if (!fadedShapes.TryGetValue(shape, out Dictionary<int, Bitmap> byAlpha)) fadedShapes[shape] = byAlpha = new Dictionary<int, Bitmap>();
+                if (byAlpha.TryGetValue(alpha, out Bitmap other)) { copy.Dispose(); return other; }
+                byAlpha[alpha] = copy;
+                return copy;
+            }
         }
 
         // ---------------------------------------------------------------- lot X33 : cases ciblables et mode tactique
