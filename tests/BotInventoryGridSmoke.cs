@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -14,6 +15,7 @@ using System.Windows.Forms;
 using Outil_Azur_complet.Bot;
 using Outil_Azur_complet.Bot.Controls;
 using Outil_Azur_complet.Bot.Controls.Banner;
+using Outil_Azur_complet.Bot.Interfaces;
 using Outil_Azur_complet.Bot.Panels;
 using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Frames.Messages;
@@ -41,6 +43,11 @@ using Tool_BotProtocol.Game.Session;
 // Lot X12 : six tris du bouton « plus de choix » (date, nom, type, niveau, poids, quantité), Détruire par la boîte de quantité
 // (pile : Od sans question, borné à la pile ; un exemplaire : DO_U_DESTROY), Jeter avec ConfirmDropItem (CONFIRM_DROP_ITEM,
 // case de la fenêtre d'options) ou sans, CANT_MOVE_ITEM pendant un échange ; plus de champ « Quantité » fixe dans le volet.
+// Lot X13 : objet vivant associé (effets 970 à 974 lus au quatrième champ) et libre (type 113) : niveau, bornes d'expérience,
+// humeur, aliments du même type (ChooseFeed), fiche « objet vivant », rangée Nourrir / Choix de l'apparence / Dissocier et menu,
+// boîtes ERROR_NO_FOOD_LIVING_ITEM, FEED_ITEM puis CONFIRM_FOOD_LIVING_ITEM, grille des apparences ; Of<id>|<pos>|<aliment>,
+// Os<id>|<pos>|<apparence>, Ox<id>|<pos> exacts (moins ASCII), OCO relu, refus locaux ; « Cibler avec cet objet » puis visée de
+// la carte : OU<id>||<cellule>, OU<id>|<sprite>|<cellule> (sprite cliqué ou posé sur la cellule), Échap, changement de carte, combat.
 // Aucune capture de fenêtre : passe sous Mono avec xvfb-run.
 internal static class BotInventoryGridSmoke
 {
@@ -63,7 +70,7 @@ internal static class BotInventoryGridSmoke
         {
             Application.EnableVisualStyles(); Run();
             Check(uiErrors.Count == 0, "Interface errors: " + string.Join(" / ", uiErrors.Select(e => e.GetType().Name + " " + e.Message)));
-            Console.WriteLine("OK: grille du sac et plateau, filtres, fiche d'objet (effets, conditions, arme, panoplie OS+), OM sans quantité, glisser-déposer, Od après DO_U_DESTROY, OdE/OAE/Im, icône et repli, infobulle boutique, repas du familier et de la monture (OM|8, boîte de quantité, OM|16|n), six tris, Jeter/Détruire par la boîte (ConfirmDropItem, DO_U_DESTROY)");
+            Console.WriteLine("OK: grille du sac et plateau, filtres, fiche d'objet (effets, conditions, arme, panoplie OS+), OM sans quantité, glisser-déposer, Od après DO_U_DESTROY, OdE/OAE/Im, icône et repli, infobulle boutique, repas du familier et de la monture (OM|8, boîte de quantité, OM|16|n), six tris, Jeter/Détruire par la boîte (ConfirmDropItem, DO_U_DESTROY), objets vivants (Of, Os, Ox, OCO), visée d'objet (OU avec sprite et cellule)");
         }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
@@ -147,6 +154,227 @@ internal static class BotInventoryGridSmoke
     private static string Initials(string name) => (string)App.GetType("Outil_Azur_complet.Bot.Controls.ItemCellPainter").GetMethod("Initials", Any).Invoke(null, new object[] { name });
     private static ShortcutPayload Payload(uint inventoryId, int quantity, int fromPosition) => new ShortcutPayload(ShortcutSlotKind.Item, inventoryId, quantity, fromPosition);
 
+    private static Form Dialog(string name)
+    {
+        PumpUntil(() => BotDialogs.OpenDialogs.Any(dialog => dialog.Name == name), "dialog " + name);
+        return BotDialogs.OpenDialogs.First(dialog => dialog.Name == name);
+    }
+    private static T Named<T>(Control root, string name) where T : Control => All(root).OfType<T>().First(control => control.Name == name);
+    private static ContextMenuStrip ItemMenu(InventoryPanel panel, InventoryObjects item)
+    {
+        typeof(InventoryPanel).GetMethod("ShowMenu", Any).Invoke(panel, new object[] { item, (Control)Get(panel, "inventory"), new Point(4, 4) });
+        Application.DoEvents();
+        return (ContextMenuStrip)Get(panel, "itemMenu");
+    }
+    private static ToolStripItem Entry(ContextMenuStrip menu, string name) => menu.Items.Cast<ToolStripItem>().FirstOrDefault(entry => entry.Name == name);
+
+    /// <summary>Lot X13 : objets vivants et objet à cible, du modèle (paquets exacts, OCO relu) à la visée de la carte.</summary>
+    private static void LivingItems(Accounts account, Socket peer, GameClientFullform form, InventoryPanel panel, InventoryObjects potion)
+    {
+        PanelHost drawer = form.Panels;
+        InventoryClass bag = account.Game.character.Inventory;
+        var grid = (ItemGrid)Get(panel, "inventory"); var plateau = (EquipmentPlateau)Get(panel, "plateau"); var sheet = (ItemTooltip)Get(panel, "sheet");
+        var row = (Control)Get(panel, "livingActions");
+        var feed = (Control)Get(panel, "feedItem"); var skin = (Control)Get(panel, "skinItem"); var dissociate = (Control)Get(panel, "dissociateItem");
+        var reports = new List<string>(); drawer.Feedback += reports.Add;
+        try
+        {
+            // Chapeau porté (case 6) avec un objet vivant, effets au quatrième champ comme parseStatsString de StarLoco : 970 = 0x7d9,
+            // humeur 1, apparence 1, type 0x10 = 16, 0x15 = 21 points (niveau 3). Aliments : chapeau ×2 (gardé), chapeau 983
+            // (non échangeable, refusé). Pain ciblable. Objet vivant libre (type 113) maigrichon, sans expérience.
+            Feed(account, "OAKO3f2~7da~1~6~7d#5#0#0#,3ca#0#0#7d9,3cb#0#0#1,3cc#0#0#1,3cd#0#0#10,3ce#0#0#15;3f3~7db~2~~;3f4~7db~1~~3d7#0#0#0;3f5~7dc~3~~;3f6~7d9~1~~3cb#0#0#0,3cc#0#0#1,3ce#0#0#0");
+            InventoryObjects hat = bag.GetByInventoryId(1010), food = bag.GetByInventoryId(1011), bound = bag.GetByInventoryId(1012);
+            InventoryObjects bread = bag.GetByInventoryId(1013), free = bag.GetByInventoryId(1014);
+            PumpUntil(() => plateau[6].Item == hat && grid.IndexOf(1013u) >= 0 && grid.IndexOf(1014u) >= 0, "living hat, foods and bread");
+            LivingItem living = LivingItem.From(hat);
+            Check(living != null && living.IsAssociated && living.IsLiving && living.AssociatedTemplate == 2009 && living.Mood == 1 && living.MoodKey == "SATISFIED_WORD"
+                && living.MoodText == "Rassasié (test)" && living.Skineable && living.Skin == 0 && living.RealType == 16 && living.ItemType == 16 && living.Xp == 21
+                && living.Level == 3 && living.LevelXpMin == 21 && living.LevelXpMax == 33 && living.SkinTemplate(hat.ID) == 2009 && living.CanBeExchanged,
+                "Associated living item misread (970-974 in the fourth field, LEVEL_STEP)");
+            LivingItem loose = LivingItem.From(free);
+            Check(loose != null && !loose.IsAssociated && loose.IsLiving && loose.Skineable && loose.MoodKey == "LEAN" && loose.MoodText == "Maigrichon (test)"
+                && loose.Level == 1 && loose.LevelXpMax == 10 && loose.SkinTemplate(free.ID) == 2009, "Free living item (type 113) misread");
+            Check(LivingItem.From(potion) == null && LivingItem.From(food) == null && LivingItem.Parse(null, 16) == null && LivingItem.Parse("", 113) != null,
+                "An ordinary item was read as a living item");
+            Check(LivingItem.LevelOf(0) == 1 && LivingItem.LevelOf(9) == 1 && LivingItem.LevelOf(10) == 2 && LivingItem.LevelOf(360) == 19
+                && LivingItem.LevelOf(361) == 20 && LivingItem.LevelOf(99999) == 20 && LivingItem.LevelOf(-4) == 1, "LevelOf does not follow LEVEL_STEP (maxSkin)");
+            LivingItem top = LivingItem.Parse("3cc#0#0#14,3ce#0#0#169", 16);
+            Check(top.Level == 20 && top.LevelXpMin == -1 && top.LevelXpMax == -1 && top.Skin == 19, "Level 20 must have no experience bounds");
+            LivingItem garbled = LivingItem.Parse("3cc#zz#,,#,3ce#0#0#-a,3cb", 16);
+            Check(garbled != null && garbled.Skineable && garbled.Xp == 0 && garbled.Level == 1, "Unreadable living effects must not throw");
+
+            // Aliments du ChooseFeed : même type que l'objet vivant, dans le sac, sans apparence, échangeables, autres que lui.
+            Check(LivingItem.FoodsFor(bag.Objets, hat).Select(item => item.Inventory_ID).SequenceEqual(new uint[] { 1011 })
+                && LivingItem.FoodsFor(bag.Objets, free).Count == 0 && LivingItem.FoodsFor(bag.Objets, potion).Count == 0, "Living item foods are wrong");
+            Check(!LivingItem.IsFoodFor(hat, bread, out string why) && why == "Pain fictif n'est pas du type de Chapeau vivant fictif (Chapeau).", "Bread refusal reason: " + why);
+            Check(!LivingItem.IsFoodFor(hat, bound, out why) && why == "Chapeau fictif ne peut pas servir de nourriture (objet vivant ou non échangeable).", "983 refusal reason: " + why);
+            Check(!LivingItem.IsFoodFor(hat, hat, out why) && why == "Un objet vivant ne se nourrit pas de lui-même.", "Self refusal reason: " + why);
+            Check(!LivingItem.IsFoodFor(free, food, out why) && why == "Obvijevan fictif n'est pas un objet vivant associé : il ne se nourrit pas.", "Free refusal reason: " + why);
+
+            // Paquets du client 1.34 : Of, Os, Ox avec la position de l'objet (-1 dans le sac) ; refus locaux sans envoi.
+            CultureInfo culture = Thread.CurrentThread.CurrentCulture;
+            try
+            {
+                // Une culture au moins typographique (U+2212) ne doit jamais changer le signe envoyé.
+                var typographic = (CultureInfo)CultureInfo.InvariantCulture.Clone(); typographic.NumberFormat.NegativeSign = "−";
+                Thread.CurrentThread.CurrentCulture = typographic;
+                Check(Result(bag.FeedAsync(hat, food)).Sent && Read(peer) == "Of1010|6|1011", "Feed does not send Of<id>|<position>|<food>");
+                Check(Result(bag.SetSkinAsync(hat, 3)).Sent && Read(peer) == "Os1010|6|3", "Skin does not send Os<id>|<position>|<skin>");
+                Check(Result(bag.SetSkinAsync(free, 1)).Sent && Read(peer) == "Os1014|-1|1", "Skin of a bag item does not send Os<id>|-1|<skin> with an ASCII minus");
+                Check(Result(bag.DissociateAsync(hat)).Sent && Read(peer) == "Ox1010|6", "Dissociate does not send Ox<id>|<position>");
+                Check(Result(bag.Use_Item(bread, 42, 5)) && Read(peer) == "OU1013|42|5", "Use on a sprite does not send OU<id>|<sprite>|<cell>");
+                Check(Result(bag.Use_Item(bread, null, 7)) && Read(peer) == "OU1013||7", "Use on a cell does not send OU<id>||<cell>");
+                Check(Result(bag.Use_Item(bread)) && Read(peer) == "OU1013|", "Plain use no longer sends OU<id>|");
+                Check(Result(bag.Use_Item(bread, -8, 5)) && Read(peer) == "OU1013|-8|5", "A negative sprite is not sent with an ASCII minus");
+            }
+            finally { Thread.CurrentThread.CurrentCulture = culture; }
+            Check(InventoryClass.UsePacket(1013, 42, 120) == "OU1013|42|120" && InventoryClass.UsePacket(1013, null, 120) == "OU1013||120"
+                && InventoryClass.UsePacket(1013, null, null) == "OU1013|", "UsePacket differs from Items.use");
+            ItemUseResult aimed = Result(SpecialItems.UseOnAsync(account.Game, bread, -8, 5));
+            Check(aimed.Sent && aimed.Message.Contains("(OU1013|-8|5)") && Read(peer) == "OU1013|-8|5", "UseOnAsync does not send or report OU<id>|<sprite>|<cell>: " + aimed.Message);
+            Check(!Result(bag.FeedAsync(hat, bread)).Sent && !Result(bag.FeedAsync(hat, bound)).Sent && !Result(bag.FeedAsync(free, food)).Sent
+                && !Result(bag.FeedAsync(hat, null)).Sent && !Result(bag.FeedAsync(null, food)).Sent, "An invalid meal was accepted");
+            Check(!Result(bag.SetSkinAsync(hat, 4)).Sent && !Result(bag.SetSkinAsync(hat, 0)).Sent && !Result(bag.SetSkinAsync(potion, 1)).Sent,
+                "A skin above the level, zero or on an ordinary item was accepted");
+            Check(!Result(bag.DissociateAsync(free)).Sent && !Result(bag.DissociateAsync(potion)).Sent, "A free living item or an ordinary item was dissociated");
+            Check(!Result(bag.Use_Item(bread, null, -1)) && !Result(SpecialItems.UseOnAsync(account.Game, bread, null, -1)).Sent, "A negative cell was accepted");
+            account.AccountStates = AccountStates.FIGHTING;
+            Check(!Result(bag.FeedAsync(hat, food)).Sent && !Result(bag.SetSkinAsync(hat, 1)).Sent && !Result(bag.DissociateAsync(hat)).Sent
+                && !Result(bag.Use_Item(bread, null, 3)), "Living item actions or a targeted use were allowed during a fight");
+            account.AccountStates = AccountStates.CONNECTED_INACTIVE;
+            NoPacket(peer, "A refused living item action reached the server");
+
+            // OCO relu (InventoryFrame) : humeur obèse, apparence 3, 0x16 = 22 points ; la fiche suit.
+            Feed(account, "OCO3f2~7da~1~6~7d#5#0#0#,3ca#0#0#7d9,3cb#0#0#2,3cc#0#0#3,3cd#0#0#10,3ce#0#0#16");
+            LivingItem fed = LivingItem.From(bag.GetByInventoryId(1010));
+            Check(fed != null && fed.Mood == 2 && fed.MoodKey == "FAT" && fed.Skin == 2 && fed.Xp == 22 && plateau[6].Item != null && plateau[6].Item.Inventory_ID == 1010u,
+                "OCO of the living item was not read back");
+
+            // Fiche et rangée de LivingItemsViewer : le chapeau porté, puis une potion (rien), puis l'objet vivant libre.
+            plateau[6].Activate(); Application.DoEvents();
+            IReadOnlyList<string> lines = sheet.Lines;
+            Check(panel.CurrentItem != null && panel.CurrentItem.Inventory_ID == 1010u && lines.Contains("Objet vivant (test) · Obvijevan fictif")
+                && lines.Contains("Niveau (test) : 3") && lines.Contains("Expérience (test) : 22 / 33") && lines.Contains("Apparence 3 sur 3")
+                && lines.Any(line => line.StartsWith("État (test) : ")) && lines.Contains("+5 en vitalité") && !lines.Any(line => line.StartsWith("Effet 97")),
+                "Living item section is wrong: " + string.Join(" / ", lines));
+            Check(row.Visible && feed.Enabled && skin.Enabled && dissociate.Enabled && feed.Text == "Nourrir (test)" && skin.Text == "Choix de l'apparence (test)"
+                && dissociate.Text == "Dissocier (test)", "Living item buttons are wrong for the worn hat");
+            Check(grid.SelectItem(1000u), "Potion cell cannot be selected"); Application.DoEvents();
+            Check(!row.Visible && !sheet.Lines.Contains("Objet vivant (test)"), "The living row or section is shown for a potion");
+            Check(grid.SelectItem(1014u), "Free living item cannot be selected"); Application.DoEvents();
+            lines = sheet.Lines;
+            Check(row.Visible && !feed.Enabled && skin.Enabled && !dissociate.Enabled && lines.Contains("Objet vivant (test)") && lines.Contains("État (test) : Maigrichon (test)")
+                && lines.Contains("Expérience (test) : 0 / 10") && lines.Any(line => line.StartsWith("Objet vivant libre")),
+                "Free living item: only the skin must be offered (isAssociate): " + string.Join(" / ", lines));
+            ContextMenuStrip menu = ItemMenu(panel, free);
+            Check(Entry(menu, "inventory-menu-feed") != null && !Entry(menu, "inventory-menu-feed").Enabled && Entry(menu, "inventory-menu-skin").Enabled
+                && !Entry(menu, "inventory-menu-dissociate").Enabled && Entry(menu, "inventory-menu-target") == null, "Free living item menu is wrong");
+            menu.Close();
+            menu = ItemMenu(panel, potion);
+            Check(Entry(menu, "inventory-menu-feed") == null && Entry(menu, "inventory-menu-target") == null, "A potion offers living or target entries");
+            menu.Close();
+
+            // Nourrir : grille FEED_ITEM, « Valider » sans choix ne ferme rien, « Non » à CONFIRM_FOOD_LIVING_ITEM n'envoie rien.
+            plateau[6].Activate(); Application.DoEvents();
+            Click(feed); Form choice = Dialog(BotDialogs.FeedDialogName);
+            var foods = Named<ItemGrid>(choice, "living-feed-grid");
+            Check(choice.Text == "Nourrir un objet (test)" && Named<Label>(choice, "dialog-message").Text == "Sélectionne un objet (test)"
+                && foods.Items.Select(item => item.Inventory_ID).SequenceEqual(new uint[] { 1011 }) && !feed.Enabled && !skin.Enabled,
+                "Food choice is wrong or the living buttons stay enabled while it is open");
+            Click(Named<Button>(choice, "dialog-validate")); Application.DoEvents();
+            Check(BotDialogs.OpenDialogs.Contains(choice) && Named<Label>(choice, "dialog-message").Font.Bold, "Validate without a food closed the choice");
+            Check(foods.SelectItem(1011u), "Food cannot be selected"); Click(Named<Button>(choice, "dialog-validate"));
+            Form caution = Dialog(BotDialogs.FeedDialogName + "-confirm");
+            Check(caution.Text == "Attention (test)" && All(caution).Any(control => control.Name == "dialog-message" && control.Text == "Nourrir ? (test)"), "CONFIRM_FOOD_LIVING_ITEM is wrong");
+            NoPacket(peer, "Of was sent before the confirmation");
+            Answer(caution, "Non");
+            PumpUntil(() => BotDialogs.OpenDialogs.Count == 0 && reports.LastOrDefault() == "Repas annulé : rien n'a été envoyé." && feed.Enabled, "meal refused");
+            NoPacket(peer, "Of was sent after Non");
+            // Entrée sur l'aliment valide, « Oui » envoie Of ; le serveur retire l'aliment (OQ) et renvoie l'objet (OCO).
+            Click(feed); choice = Dialog(BotDialogs.FeedDialogName); foods = Named<ItemGrid>(choice, "living-feed-grid");
+            Check(foods.SelectItem(1011u), "Food cannot be selected again");
+            typeof(ItemGrid).GetMethod("OnKeyDown", Any).Invoke(foods, new object[] { new KeyEventArgs(Keys.Enter) });
+            Answer(Dialog(BotDialogs.FeedDialogName + "-confirm"), "Oui");
+            Check(Read(peer) == "Of1010|6|1011", "The confirmed meal does not send Of<id>|<position>|<food>");
+            PumpUntil(() => BotDialogs.OpenDialogs.Count == 0 && reports.LastOrDefault() == "Chapeau vivant fictif nourri avec Chapeau fictif ; le serveur retire l'aliment (OR/OQ) et renvoie l'objet (OCO).",
+                "meal feedback");
+            Feed(account, "OQ1011|1"); Feed(account, "OCO3f2~7da~1~6~7d#5#0#0#,3ca#0#0#7d9,3cb#0#0#1,3cc#0#0#3,3cd#0#0#10,3ce#0#0#18");
+            PumpUntil(() => sheet.Lines.Contains("Expérience (test) : 24 / 33") && sheet.Lines.Contains("État (test) : Rassasié (test)"), "sheet after OCO");
+            // Sans aliment (OR) : ERROR_NO_FOOD_LIVING_ITEM et rien d'autre.
+            Feed(account, "OR1011"); PumpUntil(() => bag.GetByInventoryId(1011) == null, "food removed");
+            Click(feed); Form none = Dialog(BotDialogs.FeedDialogName + "-none");
+            Check(none.Text == "Erreur (test)" && All(none).Any(control => control.Name == "dialog-message" && control.Text == "Rien pour nourrir Chapeau vivant fictif (test)"),
+                "ERROR_NO_FOOD_LIVING_ITEM is wrong");
+            Answer(none, "OK"); PumpUntil(() => BotDialogs.OpenDialogs.Count == 0 && feed.Enabled, "no-food box closed"); NoPacket(peer, "A meal without food reached the server");
+
+            // Choix de l'apparence : une case par niveau, l'apparence portée cochée ; Échap n'envoie rien, Valider envoie Os.
+            Click(skin); choice = Dialog(BotDialogs.SkinDialogName);
+            var skins = Named<LivingSkinGrid>(choice, "living-skin-grid");
+            Check(choice.Text == "Choix de l'apparence (test)" && Named<Label>(choice, "dialog-message").Text == "Chapeau vivant fictif" && skins.SkinCount == 3
+                && skins.CurrentSkin == 3 && skins.SelectedSkin == 3, "Skin choice is wrong");
+            choice.GetType().GetMethod("OnKeyDown", Any).Invoke(choice, new object[] { new KeyEventArgs(Keys.Escape) });
+            PumpUntil(() => BotDialogs.OpenDialogs.Count == 0 && reports.LastOrDefault() == "Apparence inchangée : rien n'a été envoyé.", "skin choice escaped");
+            NoPacket(peer, "Escape in the skin choice sent a packet");
+            Click(skin); choice = Dialog(BotDialogs.SkinDialogName); skins = Named<LivingSkinGrid>(choice, "living-skin-grid");
+            typeof(LivingSkinGrid).GetMethod("OnKeyDown", Any).Invoke(skins, new object[] { new KeyEventArgs(Keys.Left) });
+            Check(skins.SelectedSkin == 2 && !skins.SelectSkin(4) && !skins.SelectSkin(0) && skins.SelectedSkin == 2, "Skin grid keys or bounds are wrong");
+            Click(Named<Button>(choice, "dialog-validate"));
+            Check(Read(peer) == "Os1010|6|2", "The chosen skin does not send Os<id>|<position>|<skin>");
+            PumpUntil(() => BotDialogs.OpenDialogs.Count == 0 && skin.Enabled, "skin choice closed");
+
+            // Dissocier : Ox sans question ; StarLoco recrée l'objet vivant dans le sac (OAKO) et renvoie le chapeau sans 970-974 (OCO).
+            Click(dissociate); Check(Read(peer) == "Ox1010|6" && BotDialogs.OpenDialogs.Count == 0, "Dissociate must send Ox<id>|<position> without a question");
+            Feed(account, "OCO3f2~7da~1~6~7d#5#0#0#"); Feed(account, "OAKO3f7~7d9~1~~3cb#0#0#1,3cc#0#0#3,3ce#0#0#18");
+            PumpUntil(() => !row.Visible && grid.IndexOf(1015u) >= 0, "dissociated hat and free living item back in the bag");
+            Check(LivingItem.From(bag.GetByInventoryId(1010)) == null && LivingItem.From(bag.GetByInventoryId(1015))?.Xp == 24, "Dissociation answers were not read");
+
+            // « Cibler avec cet objet » (CLICK_TO_TARGET, objet ciblable) : le volet se ferme, la carte passe en visée d'objet.
+            MapControl map = form.Map;
+            Check(map != null, "The game window has no map");
+            var view = (UserMapControl)Get(map, "UserMap");
+            var mapReports = new List<string>(); map.ActionFeedback += mapReports.Add;
+            try
+            {
+                Check(grid.SelectItem(1013u), "Bread cannot be selected"); Application.DoEvents();
+                menu = ItemMenu(panel, bread);
+                ToolStripItem target = Entry(menu, "inventory-menu-target");
+                Check(target != null && target.Enabled && target.Text == "Cibler avec cet objet (test)" && Entry(menu, "inventory-menu-feed") == null, "Bread has no CLICK_TO_TARGET entry");
+                target.PerformClick(); menu.Close();
+                PumpUntil(() => drawer.Current != panel && map.ItemTargetMode, "item aiming armed");
+                Check(map.TargetedItem.Inventory_ID == 1013u && view.IsAiming && view.AimIcon == "Items/33/14" && view.SpellTargetReason(3) == "clic : utiliser Pain fictif ici · Échap : annuler"
+                    && view.PointerShapes(3).Single().SequenceEqual(new short[] { 3 }) && mapReports.LastOrDefault() == "Cliquez sur un joueur ou une cellule pour utiliser Pain fictif · Échap : annuler",
+                    "Item aiming is not shown like switchToItemTarget");
+                // Case vide : OU<id>||<cellule>, puis la carte repasse en déplacement.
+                Complete(map.Router.RequestMoveAsync(3));
+                Check(Read(peer) == "OU1013||3" && !map.ItemTargetMode && !view.IsAiming && view.PointerShapes == null, "A click on an empty cell does not send OU<id>||<cell>");
+                PumpUntil(() => mapReports.LastOrDefault() == "Pain fictif utilisé sur cellule 3 (OU1013||3) ; le serveur confirme.", "cell use feedback");
+                // Case d'un PNJ (spriteOnID) et clic sur le personnage (onSpriteRelease).
+                Check(map.BeginItemTarget(bread), "Item aiming cannot be armed again");
+                Complete(map.Router.RequestMoveAsync(5)); Check(Read(peer) == "OU1013|-8|5" && !map.ItemTargetMode, "A click on a sprite cell does not send OU<id>|<sprite>|<cell>");
+                Check(map.BeginItemTarget(bread), "Item aiming cannot be armed a third time");
+                Complete(map.Router.RouteActorAsync(account.Game.character, 0, MouseButtons.Left));
+                Check(Read(peer) == "OU1013|42|0" && !map.ItemTargetMode, "A click on the player does not send OU<id>|<player>|<cell>");
+                // Échap, changement de carte et entrée en combat abandonnent la visée sans rien envoyer.
+                Check(map.BeginItemTarget(bread), "Item aiming cannot be armed before Escape");
+                typeof(GameClientFullform).GetMethod("Escape", Any).Invoke(form, null);
+                Check(!map.ItemTargetMode && !view.IsAiming && mapReports.LastOrDefault() == "Visée de l'objet annulée.", "Escape did not cancel the item aiming");
+                Check(map.BeginItemTarget(bread), "Item aiming cannot be armed before a map change");
+                typeof(MapControl).GetMethod("MapChange", Any).Invoke(map, null); Application.DoEvents();
+                Check(!map.ItemTargetMode && !view.IsAiming, "A map change kept the item aiming");
+                Check(map.BeginItemTarget(bread), "Item aiming cannot be armed before a fight");
+                Feed(account, "GJK2|0|1|0|30000|4"); PumpUntil(() => !map.ItemTargetMode && account.Game.Fight.IsInFight, "fight start cancels the item aiming");
+                Check(!map.BeginItemTarget(bread) && mapReports.LastOrDefault() == "Un objet ne se cible pas pendant un combat."
+                    && !Result(SpecialItems.UseOnAsync(account.Game, bread, null, 3)).Sent, "An item can be aimed during a fight");
+                NoPacket(peer, "The item aiming sent a packet during the fight");
+                Feed(account, "GV"); Check(Read(peer) == "GC1", "GV is not answered by GC1");
+                PumpUntil(() => !account.Game.Fight.IsInFight, "fight left");
+                account.AccountStates = AccountStates.CONNECTED_INACTIVE;
+            }
+            finally { map.ActionFeedback -= mapReports.Add; }
+        }
+        finally { drawer.Feedback -= reports.Add; }
+    }
+
     private static void Run()
     {
         string previous = Environment.CurrentDirectory;
@@ -170,6 +398,11 @@ internal static class BotInventoryGridSmoke
                 + "<objet id=\"2006\" nom=\"Clé fictive\" type=\"18\" gfx=\"4\" niveau=\"1\" pods=\"0\" />\n"
                 + "<objet id=\"2007\" nom=\"Familier fictif\" type=\"80\" gfx=\"2\" niveau=\"1\" pods=\"1\" />\n"
                 + "<objet id=\"2008\" nom=\"Poisson fictif\" type=\"41\" gfx=\"6\" niveau=\"1\" pods=\"1\" />\n"
+                + "<objet id=\"2009\" nom=\"Obvijevan fictif\" type=\"113\" gfx=\"11\" niveau=\"1\" pods=\"1\" />\n"
+                + "<objet id=\"2010\" nom=\"Chapeau vivant fictif\" type=\"16\" gfx=\"12\" niveau=\"20\" pods=\"5\" />\n"
+                + "<objet id=\"2011\" nom=\"Chapeau fictif\" type=\"16\" gfx=\"13\" niveau=\"3\" pods=\"5\" />\n"
+                + "<objet id=\"2012\" nom=\"Pain fictif\" type=\"33\" gfx=\"14\" niveau=\"1\" pods=\"1\" utilisable=\"true\" ciblable=\"true\" />\n"
+                + "<type id=\"16\" nom=\"Chapeau\" superType=\"10\" />\n<type id=\"113\" nom=\"Objet vivant (test)\" superType=\"6\" />\n<type id=\"33\" nom=\"Pain\" superType=\"6\" />\n"
                 + "<type id=\"12\" nom=\"Potion\" superType=\"6\" />\n<type id=\"6\" nom=\"Épée\" superType=\"2\" />\n<type id=\"9\" nom=\"Anneau\" superType=\"3\" />\n"
                 + "<type id=\"2\" nom=\"Arc\" superType=\"2\" />\n<type id=\"35\" nom=\"Bois\" superType=\"9\" />\n<type id=\"18\" nom=\"Objet de quête\" superType=\"14\" />\n"
                 + "<type id=\"80\" nom=\"Familier\" superType=\"12\" />\n<type id=\"41\" nom=\"Poisson\" superType=\"9\" />\n<emplacements id=\"12\" emplacements=\"8\" />\n"
@@ -177,7 +410,9 @@ internal static class BotInventoryGridSmoke
             Write(lang, "effects.xml", "effects",
                 "<entree table=\"E\" id=\"125\" c=\"11\" d=\"+#1{~1~2 à }#2 en vitalité\" j=\"true\" o=\"+\" />\n"
                 + "<entree table=\"E\" id=\"111\" c=\"1\" d=\"+#1{~1~2 à }#2 PA\" j=\"true\" o=\"+\" />\n"
-                + "<entree table=\"E\" id=\"100\" c=\"-1\" d=\"NOTHING\" o=\"\" />");
+                + "<entree table=\"E\" id=\"100\" c=\"-1\" d=\"NOTHING\" o=\"\" />\n"
+                // Effets des objets vivants : « null » dans les textes du client, rien n'est affiché parmi les effets.
+                + string.Concat(Enumerable.Range(970, 5).Select(id => "<entree table=\"E\" id=\"" + id + "\" c=\"0\" d=\"null\" o=\"\" />\n")));
             Write(lang, "itemsets.xml", "itemsets", "<entree table=\"IS\" id=\"12\" i=\"2002,2003\" n=\"Panoplie fictive\" />");
             Write(lang, "lang.xml", "lang",
                 "<texte cle=\"DO_U_DESTROY\" valeur=\"Voulez-vous vraiment détruire %1 %2 ?\" />\n<texte cle=\"QUESTION\" valeur=\"Question\" />\n"
@@ -197,7 +432,13 @@ internal static class BotInventoryGridSmoke
                 + "<texte cle=\"SEARCH_AND_SORT\" valeur=\"Tri et recherche (test)\" />\n<texte cle=\"INVENTORY_DATE_SORT\" valeur=\"Date (test)\" />\n<texte cle=\"INVENTORY_NAME_SORT\" valeur=\"Nom (test)\" />\n"
                 + "<texte cle=\"INVENTORY_TYPE_SORT\" valeur=\"Type (test)\" />\n<texte cle=\"INVENTORY_LEVEL_SORT\" valeur=\"Niveau (test)\" />\n<texte cle=\"INVENTORY_POD_SORT\" valeur=\"Poids (test)\" />\n"
                 + "<texte cle=\"INVENTORY_QTY_SORT\" valeur=\"Quantité (test) \" />\n<texte cle=\"OPTION_CONFIRM_DROPITEM\" valeur=\"Popup de confirmation (test)\" />\n<texte cle=\"CAUTION\" valeur=\"Attention (test)\" />\n"
-                + "<texte cle=\"CONFIRM_DROP_ITEM\" valeur=\"Poser à terre ? (test)\" />\n<texte cle=\"INFORMATIONS\" valeur=\"Informations (test)\" />");
+                + "<texte cle=\"CONFIRM_DROP_ITEM\" valeur=\"Poser à terre ? (test)\" />\n<texte cle=\"INFORMATIONS\" valeur=\"Informations (test)\" />\n"
+                + "<texte cle=\"FEED_WORD\" valeur=\"Nourrir (test)\" />\n<texte cle=\"CHOOSE_SKIN\" valeur=\"Choix de l'apparence (test)\" />\n<texte cle=\"DISSOCIATE\" valeur=\"Dissocier (test)\" />\n"
+                + "<texte cle=\"CLICK_TO_TARGET\" valeur=\"Cibler avec cet objet (test)\" />\n<texte cle=\"FEED_ITEM\" valeur=\"Nourrir un objet (test)\" />\n"
+                + "<texte cle=\"SELECT_ITEM\" valeur=\"Sélectionne un objet (test)\" />\n<texte cle=\"CONFIRM_FOOD_LIVING_ITEM\" valeur=\"Nourrir ? (test)\" />\n"
+                + "<texte cle=\"ERROR_NO_FOOD_LIVING_ITEM\" valeur=\"Rien pour nourrir %1 (test)\" />\n<texte cle=\"ERROR_WORD\" valeur=\"Erreur (test)\" />\n"
+                + "<texte cle=\"STATE\" valeur=\"État (test)\" />\n<texte cle=\"LEVEL\" valeur=\"Niveau (test)\" />\n<texte cle=\"EXPERIMENT\" valeur=\"Expérience (test)\" />\n"
+                + "<texte cle=\"SATISFIED_WORD\" valeur=\"Rassasié (test) \" />\n<texte cle=\"LEAN\" valeur=\"Maigrichon (test)\" />\n<texte cle=\"VALIDATE\" valeur=\"Valider (test)\" />");
             LangData.Clear();
             Check(LangData.Load(lang) == 4 && LangData.IsLoaded("items") && LangData.IsLoaded("effects") && LangData.IsLoaded("itemsets") && LangData.IsLoaded("lang"), "Synthetic lang XML not loaded");
             ServerMessages.Resolver = (type, id, args) => { string text = LangData.Text.Im(type, id, args); return string.IsNullOrEmpty(text) || (text.StartsWith("!") && text.EndsWith("!")) ? null : text; };
@@ -566,6 +807,10 @@ internal static class BotInventoryGridSmoke
                         Check(!bag.MoveForbiddenByExchange(out blocked) && Result(bag.Desequip_Item(ring)) && Read(peer) == "OM1002|-1", "OM must still be sent while a shop (ECK0) is open");
                         Feed(account, "OM1002|"); Feed(account, "EV"); PumpUntil(() => plateau[2].Item == null && account.Game.Interactions.Exchanges.Current == null, "ring back, shop closed");
                         drawer.Feedback -= reports.Add;
+
+                        // Lot X13 : objets vivants (Of, Os, Ox) et objet à cible (visée de la carte, OU<objet>|<sprite>|<cellule>).
+                        LivingItems(account, peer, form, panel, potion);
+                        drawer.Show(panel); PumpUntil(() => drawer.Current == panel, "inventory panel after the item aiming");
 
                         // Icônes : sans PNG, initiales ; avec un PNG synthétique Items/<type>/<gfx>.png lu hors du fil de l'interface, pixel témoin.
                         Check(Initials("Potion fictive") == "PF" && Initials("Bois") == "BO" && Initials("") == "?", "Initials fallback is wrong");

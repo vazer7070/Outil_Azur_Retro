@@ -58,10 +58,6 @@ namespace Outil_Azur_complet.Bot.Panels
         private ToolTip sortTips;
         private InventorySortKey sort;
         private bool refreshing, dropPending, destroyPending;
-        /// <summary>Boutons de l'objet vivant (lot X13), visibles seulement pour un objet vivant.</summary>
-        internal Control FeedButton => feedItem;
-        internal Control SkinButton => skinItem;
-        internal Control DissociateButton => dissociateItem;
         private uint? selectedId;
         // Dernier refus du serveur (OAE, ODE, OdE, Im1…) : gardé sous l'objet jusqu'au prochain changement de sélection ou
         // d'inventaire, car la fenêtre de jeu rafraîchit les volets visibles à chaque mise à jour d'état.
@@ -356,7 +352,8 @@ namespace Outil_Azur_complet.Bot.Panels
             // Objet vivant (lot X13) : nourrir et dissocier comme isAssociate, l'apparence pour tout objet à apparence.
             LivingItem living = LivingItem.From(item);
             bool showLiving = living != null && living.IsLiving;
-            if (livingActions.Visible != showLiving) livingActions.Visible = showLiving;
+            // Affectation directe : Visible rend faux tant que le volet est fermé, une comparaison laisserait la rangée affichée.
+            livingActions.Visible = showLiving;
             feedItem.Enabled = dissociateItem.Enabled = ready && !livingPending && living?.IsAssociated == true;
             skinItem.Enabled = ready && !livingPending && living?.Skineable == true;
             // Pierres d'âme et documents (lot F14) : règle du serveur rappelée sous l'objet ; dernier refus du serveur en dessous.
@@ -617,7 +614,7 @@ namespace Outil_Azur_complet.Bot.Panels
                 itemMenu.Items.Add(new ToolStripMenuItem("Jeter…", null, async (s, e) => await DropSelected()) { Enabled = dropItem.Enabled });
                 itemMenu.Items.Add(new ToolStripMenuItem("Détruire…", null, async (s, e) => await DestroySelected()) { Enabled = destroyItem.Enabled });
             }
-            if (livingActions.Visible)
+            if (LivingItem.From(item)?.IsLiving == true)
             {
                 itemMenu.Items.Add(new ToolStripSeparator());
                 itemMenu.Items.Add(new ToolStripMenuItem(Lang("FEED_WORD", "Nourrir") + "…", null, async (s, e) => await FeedSelected()) { Enabled = feedItem.Enabled, Name = "inventory-menu-feed" });
