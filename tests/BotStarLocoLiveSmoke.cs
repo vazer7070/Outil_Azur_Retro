@@ -4003,6 +4003,9 @@ internal static partial class Live
                 Check(await cli.Until(() => !secureCli.IsOpen && cli.Account.AccountStates == AccountStates.CONNECTED_INACTIVE, 5).ConfigureAwait(false)
                     && await art.Until(() => !secureArt.IsOpen && art.Account.AccountStates == AccountStates.CONNECTED_INACTIVE, 5).ConfigureAwait(false), "Fenêtres encore ouvertes après le second EV");
                 evidence.Add("EV du client, fenêtres fermées");
+
+                // Livre des artisans de la carte dans la fenêtre du client : la carte de l'artisan (Message privé, Localiser), puis Fermer → EV.
+                evidence.Add(await CrafterBookAsync(cli, screen, art.Id, artName, forgeMap.MapID).ConfigureAwait(false));
                 artisan.Remember(); client.Remember();
                 return string.Join(" ; ", evidence);
             }
@@ -4016,6 +4019,84 @@ internal static partial class Live
                 await ClosePetOwnerAsync(db, schema, artisan).ConfigureAwait(false);
             }
         }
+    }
+
+    /// <summary>Livre des artisans (gfx 7035 de la carte 1064 de StarLoco) et sa compétence « Consulter » (170, <c>ECK14</c>).</summary>
+    private const int CrafterBookGfx = 7035;
+    private const short CrafterBookSkill = 170;
+
+    /// <summary>
+    /// Livre des artisans de la carte, utilisé par le client dans sa fenêtre de jeu (lot X6, <c>CrafterCard</c> du client) : <c>GA500&lt;cellule&gt;;170</c>
+    /// → <c>ECK14|&lt;métiers&gt;</c> et volet « Livre des artisans » ; le choix du métier 11 envoie <c>EJF11</c> et StarLoco répond
+    /// <c>EJ+11;&lt;artisan&gt;;&lt;nom&gt;;…</c> (tous les joueurs connectés qui exercent le métier). La ligne de l'artisan sélectionnée,
+    /// « Message privé » prépare « /w &lt;nom&gt; » dans la console du chat et « Localiser » pose la boussole du bandeau sur les coordonnées de
+    /// sa carte (<c>maps.xml</c>), sans paquet ; « Fermer » envoie <c>EV</c>. Sans livre sur la carte, rien n'est rejoué et la preuve le dit.
+    /// </summary>
+    private static async Task<string> CrafterBookAsync(LiveSession cli, GameClientFullform screen, long artisanId, string artisanName, int mapId)
+    {
+        var book = cli.Map.Interactives.FirstOrDefault(p => p.Value != null && p.Value.gfx == CrafterBookGfx && p.Value.HasSkill(CrafterBookSkill));
+        if (book.Value == null) return "pas de livre des artisans (gfx " + CrafterBookGfx + ") sur la carte " + mapId + " : carte de l'artisan non rejouée";
+        Point? expectedCompass = null;
+        try { expectedCompass = LangData.Map.Coords(mapId); }
+        catch (Exception error) when (!(error is OutOfMemoryException)) { Journal("[test] coordonnées de la carte " + mapId + " illisibles : " + error.Message); }
+        Outil_Azur_complet.Bot.Panels.CrafterListPanel panel = await OnUi(() => screen.Panels.Get<Outil_Azur_complet.Bot.Panels.CrafterListPanel>()).ConfigureAwait(false);
+        Check(panel != null, "Volet « Livre des artisans » absent de la fenêtre de jeu");
+        int mark = cli.ReceivedCount, sent = cli.SentCount;
+        var used = await cli.Account.Game.Interactions.Interactive.UseAsync((short)book.Key, CrafterBookSkill).ConfigureAwait(false);
+        Check(used.Sent, "Livre des artisans en " + book.Key + " refusé par le bot : " + used.Message);
+        string use = "GA500" + book.Key.ToString(CultureInfo.InvariantCulture) + ";" + CrafterBookSkill.ToString(CultureInfo.InvariantCulture);
+        Check(await cli.Until(() => cli.SentSince(sent).Contains(use), 25).ConfigureAwait(false), "Livre utilisé sans " + use + " : " + string.Join(" ", cli.SentSince(sent)));
+        string eck = await cli.Expect(p => p.StartsWith("ECK14", StringComparison.Ordinal), "ECK14 du livre des artisans", 20, mark).ConfigureAwait(false);
+        Check(eck.Substring(eck.IndexOf('|') + 1).Split(';').Contains(SwordSmithJob.ToString(CultureInfo.InvariantCulture)), "ECK14 sans le métier " + SwordSmithJob + " : " + eck);
+        Check(await WaitOnUi(() => screen.Panels.Current == panel ? panel : null, 10).ConfigureAwait(false) != null, "Le volet « Livre des artisans » ne s'est pas ouvert sur " + eck);
+
+        // Choix du métier : EJF11, puis EJ+11;<artisan>;… ; la ligne de l'artisan apparaît dans la liste.
+        mark = cli.ReceivedCount; sent = cli.SentCount;
+        Check(await OnUi(() => panel.ChooseJob(SwordSmithJob)).ConfigureAwait(false), "Métier " + SwordSmithJob + " absent du choix du livre");
+        string ejf = "EJF" + SwordSmithJob.ToString(CultureInfo.InvariantCulture);
+        Check(await cli.Until(() => cli.SentSince(sent).Contains(ejf), 5).ConfigureAwait(false), "Choix du métier sans " + ejf + " : " + string.Join(" ", cli.SentSince(sent)));
+        string prefix = "EJ+" + SwordSmithJob.ToString(CultureInfo.InvariantCulture) + ";" + artisanId.ToString(CultureInfo.InvariantCulture) + ";";
+        string listed = await cli.Expect(p => p.StartsWith(prefix, StringComparison.Ordinal), "EJ+ de l'artisan", 10, mark).ConfigureAwait(false);
+        string id = artisanId.ToString(CultureInfo.InvariantCulture);
+        ListView rows = await WaitOnUi(() => AllControls(panel.View).OfType<ListView>().FirstOrDefault(x => x.Name == "crafters-list"
+            && x.Items.Cast<ListViewItem>().Any(row => (row.Tag as Crafter)?.Id == id)), 10).ConfigureAwait(false);
+        Check(rows != null, "Ligne de l'artisan absente du livre après " + listed);
+
+        // Carte de l'artisan : « Message privé » → « /w <nom> » ; « Localiser » → boussole ; aucun paquet.
+        sent = cli.SentCount;
+        string card = await OnUi(() =>
+        {
+            ListViewItem row = rows.Items.Cast<ListViewItem>().First(item => (item.Tag as Crafter)?.Id == id);
+            foreach (ListViewItem other in rows.Items) other.Selected = false;
+            row.Selected = true;
+            Check(panel.SelectedCrafter?.Id == id, "Artisan non sélectionné dans le livre");
+            Button whisper = AllControls(panel.View).OfType<Button>().First(x => x.Name == "crafters-whisper");
+            Button locate = AllControls(panel.View).OfType<Button>().First(x => x.Name == "crafters-locate");
+            Check(whisper.Enabled && locate.Enabled == (expectedCompass != null), "Boutons de la carte de l'artisan : Message privé " + whisper.Enabled + ", Localiser " + locate.Enabled);
+            screen.Chat.Input.Clear();
+            whisper.PerformClick();
+            if (locate.Enabled) locate.PerformClick();
+            return row.SubItems.Count > 2 ? row.Text + " " + row.SubItems[1].Text + " " + row.SubItems[2].Text : row.Text;
+        }).ConfigureAwait(false);
+        string whisperText = "/w " + artisanName + " ";
+        Check(await WaitOnUi(() => screen.Chat.Input.Text == whisperText ? screen.Chat.Input.Text : null, 5).ConfigureAwait(false) != null,
+            "« Message privé » n'a pas préparé « " + whisperText + " » : « " + await OnUi(() => screen.Chat.Input.Text).ConfigureAwait(false) + " »");
+        Point? compass = await OnUi(() => panel.LastCompass).ConfigureAwait(false), banner = await OnUi(() => screen.Banner.Xtra.CompassTarget).ConfigureAwait(false);
+        Check(expectedCompass == null || (compass == expectedCompass && banner == expectedCompass), "« Localiser » : boussole " + compass + " / bandeau " + banner + " (attendu " + expectedCompass + ")");
+        await Task.Delay(300).ConfigureAwait(false);
+        string[] unexpected = cli.SentSince(sent).Where(p => !p.StartsWith("BD", StringComparison.Ordinal) && p != "qping" && !p.StartsWith("ping", StringComparison.Ordinal)).ToArray();
+        Check(unexpected.Length == 0, "La carte de l'artisan a envoyé des paquets : " + string.Join(" ", unexpected));
+        await OnUi(() => screen.Chat.Input.Clear()).ConfigureAwait(false);
+
+        // Fermer → EV ; le volet attend l'EV du serveur.
+        mark = cli.ReceivedCount; sent = cli.SentCount;
+        await OnUi(() => AllControls(panel.View).OfType<Button>().First(x => x.Name == "crafters-leave").PerformClick()).ConfigureAwait(false);
+        Check(await cli.Until(() => cli.SentSince(sent).Contains("EV"), 5).ConfigureAwait(false), "« Fermer » du livre sans EV : " + string.Join(" ", cli.SentSince(sent)));
+        await cli.Expect(p => p == "EV" || p == "EVa", "EV du livre", 10, mark).ConfigureAwait(false);
+        Check(await WaitOnUi(() => !screen.Panels.IsOpen(panel) ? panel : null, 10).ConfigureAwait(false) != null && await cli.Until(() => cli.Account.AccountStates == AccountStates.CONNECTED_INACTIVE, 5).ConfigureAwait(false),
+            "Livre encore ouvert après EV");
+        return "livre en " + book.Key + " : " + use + " → " + eck + ", " + ejf + " → " + listed.Split(';').Take(5).Aggregate((x, y) => x + ";" + y) + "…, ligne « " + card + " », Message privé → « " + whisperText.TrimEnd()
+            + " », Localiser → boussole " + (expectedCompass == null ? "(carte absente de maps.xml)" : expectedCompass.Value.X + "," + expectedCompass.Value.Y) + ", Fermer → EV";
     }
 
     /// <summary>
