@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -11,15 +12,21 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Outil_Azur_complet.Bot;
+using Outil_Azur_complet.Bot.Controls;
+using Outil_Azur_complet.Bot.Menus;
 using Outil_Azur_complet.Bot.Panels;
 using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
+using Tool_BotProtocol.Game.Actions;
+using Tool_BotProtocol.Game.Chat;
 using Tool_BotProtocol.Game.Data;
 using Tool_BotProtocol.Game.Exchanges;
 using Tool_BotProtocol.Game.Interactions;
 using Tool_BotProtocol.Game.Jobs;
 using Tool_BotProtocol.Game.Maps;
+using Tool_BotProtocol.Game.Maps.Entities;
+using Tool_BotProtocol.Game.Maps.Interfaces;
 using Tool_BotProtocol.Game.Perso.Inventory;
 
 // Métiers et artisanat (lot F6) selon dofus.aks.Job / Exchange et les interfaces StatsJob, JobOptionsViewer, Craft et CrafterList du
@@ -29,8 +36,10 @@ using Tool_BotProtocol.Game.Perso.Inventory;
 // d'un artisan), Ej±, puis l'atelier : ECK3|8;44, EMO+/EMKO+, EMO-/EMKO-, recette reconnue, EK, EmKO+ et EcK;<modèle>, série EK + EMR,
 // EA, EMr, Ea, EcEF, EcEI, EL, forgemagie, livre des artisans ECK14/EJF/EJ±, paquets mal formés sans exception, EV, Clear ; l'artisanat
 // sécurisé (lot X5) : ERK 12/13 posés au joueur, ECK12 (artisan) et ECK13 (client), EmKO±, Ep (paiement et prime), EP, EK des deux côtés,
-// EcK;…;T / B, EcEF, EcEI, paquets mal formés ; enfin les volets Métiers, Atelier, Livre des artisans et Artisanat sécurisé dans une fenêtre
-// de jeu invisible.
+// EcK;…;T / B, EcEF, EcEI, paquets mal formés ; les demandes d'artisanat sécurisé (lot X6) : EW+<id>|… d'un autre joueur → entrées « Demander à … »
+// du menu et ER13|<id>|<compétence>, EW+<soi>|… → « Inviter à … » et ER12, refus locaux sans annonce, ERET relu dans le chat (NOT_NEAR_CRAFT_TABLE),
+// BN ignoré, EW mal formés, annonces oubliées au GDM ; enfin les volets Métiers, Atelier, Livre des artisans et Artisanat sécurisé dans une fenêtre
+// de jeu invisible, avec la carte de l'artisan du livre (Message privé → /w <nom>, Localiser → boussole).
 internal static class BotCraftSmoke
 {
     private const int MapId = 900098;
@@ -53,7 +62,7 @@ internal static class BotCraftSmoke
             Application.EnableVisualStyles();
             Run();
             Check(uiErrors.Count == 0, "Interface errors: " + string.Join(" / ", uiErrors.Select(e => e.GetType().Name + " " + e.Message)));
-            Console.WriteLine("OK: métiers JS/JX/JN/JR/JO, EW±, Ej±, atelier ECK3/EMO±/EMKO±/EK/EMR/EA/Ea/EMr/EcK/EcEI/EcEF/EL, livre ECK14/EJF/EJ±, artisanat sécurisé ERK 12/13, ECK12/ECK13, Ep, EP, EK, EcK T/B, EcEF, EcEI, volets Métiers, Atelier, Livre des artisans et Artisanat sécurisé");
+            Console.WriteLine("OK: métiers JS/JX/JN/JR/JO, EW±, Ej±, atelier ECK3/EMO±/EMKO±/EK/EMR/EA/Ea/EMr/EcK/EcEI/EcEF/EL, livre ECK14/EJF/EJ±, artisanat sécurisé ERK 12/13, ECK12/ECK13, Ep, EP, EK, EcK T/B, EcEF, EcEI, demandes ER13/ER12 et menu Demander à / Inviter à, ERET, volets Métiers, Atelier, Livre des artisans (Message privé, Localiser) et Artisanat sécurisé");
         }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
         finally { LangData.Clear(); }
@@ -139,9 +148,16 @@ internal static class BotCraftSmoke
             + "<texte cle=\"CRAFT_SUCCESS_TARGET\" valeur=\"Objet °0 créé pour %1 (texte de test).\" />\n<texte cle=\"CRAFT_SUCCESS_OTHER\" valeur=\"%1 t'a créé °0 (texte de test).\" />\n"
             + "<texte cle=\"A_WANT_CRAFT_ARTISAN\" valeur=\"%1 t'invite à son atelier (texte de test).\" />\n<texte cle=\"A_WANT_CRAFT_CLIENT\" valeur=\"%1 sollicite tes talents d'artisan (texte de test).\" />\n"
             + "<texte cle=\"COMBINE\" valeur=\"Combiner\" />\n<texte cle=\"PAY\" valeur=\"Paiement\" />\n<texte cle=\"GRANT_IF_SUCCESS\" valeur=\"Prime si réussite\" />\n"
-            + "<texte cle=\"CRAFTED_ITEM\" valeur=\"Objet obtenu\" />\n<texte cle=\"NOT_ENOUGHT_CRAFT_SLOT\" valeur=\"Recettes à %1 cases seulement (texte de test).\" />");
+            + "<texte cle=\"CRAFTED_ITEM\" valeur=\"Objet obtenu\" />\n<texte cle=\"NOT_ENOUGHT_CRAFT_SLOT\" valeur=\"Recettes à %1 cases seulement (texte de test).\" />\n"
+            // Lot X6 : demandes d'artisanat sécurisé et carte de l'artisan.
+            + "<texte cle=\"ASK_TO\" valeur=\"Demander à\" />\n<texte cle=\"INVITE_TO\" valeur=\"Inviter à\" />\n<texte cle=\"LOCATE\" valeur=\"Localiser\" />\n"
+            + "<texte cle=\"NOT_NEAR_CRAFT_TABLE\" valeur=\"L'artisan est trop loin de l'atelier (texte de test).\" />");
+        // Carte de l'atelier 8731 connue des textes (coordonnées pour « Localiser ») ; la carte 1000 ne l'est pas.
+        WriteLang(lang, "maps.xml", "maps",
+            "<carte id=\"8731\" x=\"5\" y=\"-18\" sousZone=\"1\" />\n<sousZone id=\"1\" nom=\"Atelier fictif\" zone=\"1\" voisines=\"\" />\n<zone id=\"1\" nom=\"Zone fictive\" superZone=\"0\" />");
         LangData.Clear();
-        Check(LangData.Load(lang) == 5 && new[] { "jobs", "skills", "crafts", "items", "lang" }.All(LangData.IsLoaded), "Synthetic lang files not loaded: " + string.Join(" / ", LangData.LoadWarnings));
+        Check(LangData.Load(lang) == 6 && new[] { "jobs", "skills", "crafts", "items", "lang", "maps" }.All(LangData.IsLoaded), "Synthetic lang files not loaded: " + string.Join(" / ", LangData.LoadWarnings));
+        Check(LangData.Map.Coords(8731) == new Point(5, -18) && LangData.Map.Coords(1000) == null, "Synthetic maps.xml is not read");
         Check(JobCatalog.JobName(25) == "Boulanger fictif" && JobCatalog.SpecializationOf(62) == 2 && JobCatalog.IsCraftSkill(44) == true && JobCatalog.IsCraftSkill(6) == false
             && JobCatalog.IsForgemagusSkill(1) && !JobCatalog.IsForgemagusSkill(44) && JobCatalog.HarvestedItem(6) == 303, "JobCatalog does not read the client texts");
         Check(Join(JobCatalog.Recipes(44, 8).Select(recipe => recipe.ResultTemplateId)) == "2202,2201" && JobCatalog.Recipes(44, 2).Count == 1 && JobCatalog.Ingredients(2203).Count == 9,
@@ -176,6 +192,7 @@ internal static class BotCraftSmoke
                     Workshop(account, peer, logs);
                     Book(account, peer, logs);
                     SecureCraft(account, peer, logs);
+                    SecureCraftRequests(account, peer, logs);
                     Windows(account, peer, logs);
                     NoPacket(peer, "Unexpected packet at the end of the test");
                 }
@@ -382,7 +399,8 @@ internal static class BotCraftSmoke
         Feed(account, "EJ+25;78;Autre fictif;12;1000;0;8;1;-1,-1,-1;;0,2");
         Crafter first = book.Crafters.FirstOrDefault(crafter => crafter.Id == "77");
         Check(book.Crafters.Count == 2 && first != null && first.Name == "Artisan fictif" && first.JobLevel == 30 && first.MapId == 8731 && first.InWorkshop && first.Breed == 1
-            && first.Options.Flags == 3 && first.Options.MinSlots == 5 && first.Colors.Length == 3 && first.Location == "carte 8731", "EJ+ differs");
+            && first.Options.Flags == 3 && first.Options.MinSlots == 5 && first.Colors.Length == 3 && first.Location == "5,-18"
+            && book.Crafters.First(crafter => crafter.Id == "78").Location == "carte 1000", "EJ+ differs");
         Feed(account, "EJ+25;77;Artisan fictif;31;8731;1;1;0;ff,0,0;;3,5");
         Check(book.Crafters.Count == 2 && book.Crafters.First(crafter => crafter.Id == "77").JobLevel == 31, "EJ+ did not replace the crafter");
         Feed(account, "EJ-25;78");
@@ -570,6 +588,91 @@ internal static class BotCraftSmoke
             NoPacket(peer, "Clear sent a packet");
         }
         finally { players.RequestReceived -= keep; }
+    }
+
+    /// <summary>
+    /// Demandes d'artisanat sécurisé (lot X6, <c>getPlayerPopupMenu</c> et <c>Exchange.request</c> du client, <c>GameClient.request</c> de StarLoco) :
+    /// <c>EW+&lt;id&gt;|&lt;compétences&gt;</c> d'un autre joueur → entrées « Demander à … » et <c>ER13|&lt;id&gt;|&lt;compétence&gt;</c> ; refus locaux sans
+    /// annonce ; <c>ERET</c> → <c>NOT_NEAR_CRAFT_TABLE</c> dans le chat ; <c>BN</c> ignoré ; <c>EW-</c> ; <c>EW+&lt;soi&gt;|…</c> → « Inviter à … » et
+    /// <c>ER12</c> ; « Demander à » prime sur « Inviter à » ; <c>EW</c> mal formés ; <c>GDM</c> oublie les annonces.
+    /// </summary>
+    private static void SecureCraftRequests(Accounts account, Socket peer, ConcurrentQueue<string> logs)
+    {
+        MapActions actions = account.Game.Interactions.MapActions;
+        JobsActions jobs = account.Game.Interactions.Jobs;
+        ExchangeRegistry registry = account.Game.Interactions.Exchanges;
+        PlayerExchange players = registry.Get<PlayerExchange>();
+        Feed(account, "GM|+1;1;0;45;Artisan voisin;1;100^100;0;0,0,0,45;-1;-1;-1;;0;;;;;0");
+        var artisan = account.Game.Map.GetActor(45) as PlayerActor;
+        Check(artisan != null && !artisan.IsSelf && artisan.Name == "Artisan voisin", "Synthetic artisan is missing");
+        Check(jobs.PublicSkillsOf(45).Count == 0 && actions.PublicSkillsOf(45).Count == 0 && jobs.PublicCrafters.Count == 0, "Public skills known before any EW+");
+        Check(!PlayerMenuProvider.SecureCraftEntries(artisan, account.Game, actions).Any(), "Craft entries offered before any EW+");
+        Check(!Sent(actions.RequestSecureCraftAsync(45, 44)) && !Sent(actions.InviteToSecureCraftAsync(45, 44)), "A secure craft request was sent without EW+");
+        NoPacket(peer, "Refused secure craft requests reached the server");
+
+        // EW+<id>|<compétences> : une entrée « Demander à <compétence> » par compétence annoncée, ER13|<artisan>|<compétence>.
+        Feed(account, "EW+45|44;101");
+        Check(jobs.PublicSkillsOf(45).SequenceEqual(new short[] { 44, 101 }) && actions.PublicSkillsOf(45).SequenceEqual(new short[] { 44, 101 })
+            && jobs.PublicCrafters.SequenceEqual(new long[] { 45 }), "EW+<id>|… was not stored: " + Join(jobs.PublicSkillsOf(45)));
+        MenuEntry[] entries = PlayerMenuProvider.SecureCraftEntries(artisan, account.Game, actions).ToArray();
+        Check(entries.Select(entry => entry.Texte).SequenceEqual(new[] { "Demander à Cuire fictif", "Demander à Scier fictif" })
+            && entries.All(entry => entry.Activé && entry.Infobulle.Contains("ER13|45|")), "ASK_TO entries differ: " + Join(entries.Select(entry => entry.Texte)));
+        var context = new ActorMenuContext(artisan, new Entites[] { artisan }, 1, account, null, null, Keys.None);
+        string message = Result(entries[0].Action(context));
+        Expect(peer, "ER13|45|44", "« Demander à » does not send ER13|<artisan>|<compétence>");
+        Check(message != null && message.Contains("Artisan voisin") && message.Contains("Cuire fictif"), "ASK_TO feedback differs: " + message);
+        Check(Sent(actions.RequestSecureCraftAsync(45, 101))); Expect(peer, "ER13|45|101", "RequestSecureCraft does not send ER13|<artisan>|<compétence>");
+        Check(!Sent(actions.RequestSecureCraftAsync(45, 6)) && !Sent(actions.RequestSecureCraftAsync(42, 44)) && !Sent(actions.RequestSecureCraftAsync(999, 44))
+            && !Sent(actions.RequestSecureCraftAsync(45, 0)), "A request with an unannounced skill, to oneself or to a missing player was sent");
+        Check(!Sent(actions.InviteToSecureCraftAsync(45, 44)), "An invitation was sent although the character announced no skill");
+        NoPacket(peer, "Refused secure craft requests reached the server");
+
+        // ERET (artisan trop loin de l'atelier, GameClient.request de StarLoco) : NOT_NEAR_CRAFT_TABLE dans le chat, aucune demande en attente ; BN ignoré.
+        int chatBefore = account.Game.Chat.Messages.Count;
+        Feed(account, "ERET");
+        Check(registry.LastMessage == "L'artisan est trop loin de l'atelier (texte de test)."
+            && account.Game.Chat.Messages.Skip(chatBefore).Any(line => line.Kind == ChatMessageKind.Error && line.Text == registry.LastMessage),
+            "ERET is not shown as NOT_NEAR_CRAFT_TABLE in the chat: " + registry.LastMessage);
+        Check(players.PendingRequest == null && account.AccountStates == AccountStates.CONNECTED_INACTIVE, "ERET left a pending request");
+        Feed(account, "BN"); // Réponse de StarLoco quand l'artisan n'a pas d'outil en main : rien à afficher.
+        NoPacket(peer, "ERET or BN sent a packet");
+
+        // EW-<id> : l'artisan n'est plus public ; EW+<soi>|… : « Inviter à <compétence> » → ER12|<client>|<compétence>.
+        Feed(account, "EW-45");
+        Check(jobs.PublicSkillsOf(45).Count == 0 && jobs.PublicCrafters.Count == 0 && !PlayerMenuProvider.SecureCraftEntries(artisan, account.Game, actions).Any(),
+            "EW-<id> did not forget the skills");
+        Feed(account, "EW+42|44");
+        Check(jobs.PublicSkillsOf(42).SequenceEqual(new short[] { 44 }) && jobs.PublicCrafters.SequenceEqual(new long[] { 42 }), "EW+<soi>|… was not stored");
+        entries = PlayerMenuProvider.SecureCraftEntries(artisan, account.Game, actions).ToArray();
+        Check(entries.Length == 1 && entries[0].Texte == "Inviter à Cuire fictif" && entries[0].Infobulle.Contains("ER12|45|44"),
+            "INVITE_TO entries differ: " + Join(entries.Select(entry => entry.Texte)));
+        message = Result(entries[0].Action(context));
+        Expect(peer, "ER12|45|44", "« Inviter à » does not send ER12|<client>|<compétence>");
+        Check(message != null && message.Contains("Artisan voisin"), "INVITE_TO feedback differs: " + message);
+        Check(!Sent(actions.InviteToSecureCraftAsync(45, 101)) && !Sent(actions.RequestSecureCraftAsync(45, 44)), "An invitation with an unannounced skill was sent");
+        // Les deux annoncés : le client ne propose que « Demander à » (branche multiCraftSkillsID du joueur visé).
+        Feed(account, "EW+45|101");
+        entries = PlayerMenuProvider.SecureCraftEntries(artisan, account.Game, actions).ToArray();
+        Check(entries.Length == 1 && entries[0].Texte == "Demander à Scier fictif", "ASK_TO does not take precedence over INVITE_TO");
+        NoPacket(peer, "Refused invitations reached the server");
+
+        // Mal formés : journalisés, état inchangé ; une liste sans compétence lisible retire l'artisan (comme EW-).
+        int before = logs.Count;
+        foreach (string packet in new[] { "EW", "EWx", "EW+abc|44", "EW+|44", "EW*45|44" }) Feed(account, packet);
+        Check(jobs.PublicSkillsOf(45).SequenceEqual(new short[] { 101 }) && jobs.PublicSkillsOf(42).SequenceEqual(new short[] { 44 })
+            && logs.Skip(before).Count(entry => entry.Contains("illisible")) >= 5, "Malformed EW changed the state or were not logged");
+        Feed(account, "EW+45|x;0;-1");
+        Check(jobs.PublicSkillsOf(45).Count == 0 && jobs.PublicSkillsOf(42).SequenceEqual(new short[] { 44 }), "EW+ without a readable skill kept the artisan");
+        NoPacket(peer, "Malformed EW sent a packet");
+
+        // GDM : les annonces sont oubliées (StarLoco les renvoie à l'arrivée) ; la carte et le personnage sont reposés pour la suite.
+        Feed(account, "GM|-45");
+        Feed(account, "GDM|" + MapId + "|date|key"); Expect(peer, "GI", "Second GDM did not request GI");
+        Check(jobs.PublicCrafters.Count == 0 && jobs.PublicSkillsOf(42).Count == 0, "GDM kept the public skills");
+        Feed(account, "GM|" + SelfGm);
+        account.AccountStates = AccountStates.CONNECTED_INACTIVE;
+        Check(account.Game.Map.Self != null && account.Game.Map.GetActor(45) == null, "Map was not restored after the second GDM");
+        NoPacket(peer, "Secure craft request checks sent extra packets");
     }
 
     /// <summary>
@@ -832,9 +935,23 @@ internal static class BotCraftSmoke
             FeedFromNetwork(account, "EJ+25;78;Autre fictif;12;1000;0;8;1;-1,-1,-1;;0,2"); FeedFromNetwork(account, "EJ+25;77;Artisan fictif;30;8731;1;1;0;ff,0,0;;3,5");
             PumpUntil(() => crafters.Items.Count == 2);
             Check(crafters.Items[0].Text == "Artisan fictif" && crafters.Items[0].SubItems[3].Text == "En atelier" && crafters.Items[1].SubItems[3].Text == "Hors atelier"
-                && crafters.Items[0].SubItems[2].Text == "carte 8731", "Crafter rows differ");
+                && crafters.Items[0].SubItems[2].Text == "5,-18" && crafters.Items[1].SubItems[2].Text == "carte 1000", "Crafter rows differ");
+            var whisper = (Control)Get(bookPanel, "messageButton"); var locate = (Control)Get(bookPanel, "locateButton");
+            Check(!whisper.Enabled && !locate.Enabled && bookPanel.SelectedCrafter == null, "Crafter card buttons enabled without a selection");
             crafters.Items[0].Selected = true; Application.DoEvents();
             Check(((Label)Get(bookPanel, "crafterDetail")).Text.Contains("5"), "Crafter detail differs");
+            // Carte de l'artisan (lot X6, CrafterCard) : « Message privé » → /w <nom> dans la console ; « Localiser » → boussole du bandeau (maps.xml connaît 8731, pas 1000).
+            Check(whisper.Text == MapActionTexts.PrivateMessage && locate.Text == "Localiser" && whisper.Enabled && locate.Enabled && bookPanel.SelectedCrafter?.Id == "77",
+                "Crafter card buttons differ");
+            Click(whisper); Application.DoEvents();
+            Check(form.Chat.Input.Text == "/w Artisan fictif ", "« Message privé » did not prepare /w <nom> in the chat console: " + form.Chat.Input.Text);
+            form.Chat.Input.Clear();
+            Click(locate); Application.DoEvents();
+            Check(bookPanel.LastCompass == new Point(5, -18) && form.Banner.Xtra.CompassTarget == new Point(5, -18), "« Localiser » did not point the compass to the crafter's map");
+            crafters.Items[0].Selected = false; crafters.Items[1].Selected = true; Application.DoEvents();
+            Check(bookPanel.SelectedCrafter?.Id == "78" && whisper.Enabled && !locate.Enabled, "« Localiser » stays enabled for a map unknown to maps.xml");
+            NoPacket(peer, "Crafter card buttons sent a packet");
+            crafters.Items[1].Selected = false; crafters.Items[0].Selected = true; Application.DoEvents();
             Click(bookLeave); Expect(peer, "EV", "Book close button does not send EV");
             Feed(account, "EV"); Application.DoEvents();
             Check(!drawer.IsOpen(bookPanel) && crafters.Items.Count == 0, "Book panel stayed open after EV");

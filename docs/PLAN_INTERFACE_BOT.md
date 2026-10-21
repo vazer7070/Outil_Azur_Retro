@@ -152,6 +152,8 @@ Après la relecture, le bot a été joué sur une copie locale du StarLoco du ki
 
 **X5 — Artisanat sécurisé (a) : protocole et fenêtre.** Fenêtre `CraftSecureExchange` des types 12 (artisan) et 13 (client) : `ECK12` / `ECK13|<cases>;<compétence>`, ingrédients des deux côtés (`EMO±`, `EMKO±`, `EmKO±`), paiement et prime du client (`EP<1|2>G`, `EP<1|2>O±` → `Ep<type>;…`), `EK` avec le délai du client, `EcK;<modèle>;T / B<nom>;<effets>`, `EcEF`, `EcEI`, `EV` ; demandes `ERK` de types 12 et 13 posées dans la boîte de l'échange avec les textes du client ; volet **Artisanat sécurisé**. Les entrées de menu `ER12` / `ER13` et `ERET` restent au lot X6. Tests : `BotCraftSmoke`, `BotExchangeSmoke`, scénario x5 de `BotStarLocoLiveSmoke`.
 
+**X6 — Artisanat sécurisé (b) : demandes et menus.** Compétences annoncées par `EW+<id>|<compétences>` (à l'arrivée sur la carte et à chaque changement d'outil, oubliées à chaque `GDM`) ; entrées « Demander à <compétence> » (`ER13|<artisan>|<compétence>`) et « Inviter à <compétence> » (`ER12|<client>|<compétence>`) à la fin du menu d'un joueur ; chaque `ERE` (dont `ERET`, `NOT_NEAR_CRAFT_TABLE`) écrit dans le chat ; clic gauche sur un joueur → son menu (Ctrl : un sous-menu par joueur de la cellule), sur un marchand, un percepteur ou un prisme → menu au clic simple et action par défaut au Maj + clic ; carte de l'artisan du livre (« Message privé » → « /w <nom> », « Localiser » → boussole du bandeau). Tests : `BotCraftSmoke`, `BotMapActionsSmoke` ; scénarios x6 et x6b de `BotStarLocoLiveSmoke`.
+
 ## Couverture des fonctions
 
 Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par le test cité contre un serveur fictif local), **partiel** (une partie seulement), **absent**. Les fonctions rejouées par `BotStarLocoLiveSmoke` sont aussi vérifiées sur un vrai StarLoco local ; les autres lignes ne le sont pas encore. La colonne « Client 1.34 » nomme la fenêtre ou les paquets du client ; la colonne « StarLoco » dit ce que le serveur du kit en fait.
@@ -198,7 +200,7 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | B4 | Défier un joueur | `GA900`, `GA901`, `GA902` | traité | fait (droits de la carte inconnus, le serveur tranche) | `BotMapActionsSmoke` |
 | B5 | Agresser un joueur | `GA906` | traité | fait (droits de la carte inconnus) | `BotMapActionsSmoke` |
 | B6 | Rejoindre un combat, spectateur, liste des combats | `GA903`, `fL`, `fD` | traité | fait | `BotMapActionsSmoke`, `BotBannerSmoke` |
-| B7 | Menu d’un autre joueur | `BW`, `PI`, `ER1`, `FA`, `iA`, `gJR` | traité | fait | `BotMapActionsSmoke`, `BotFriendsSmoke`, `BotGuildSmoke` |
+| B7 | Menu d’un autre joueur | `BW`, `PI`, `ER1`, `FA`, `iA`, `gJR`, `ER12`, `ER13` | traité | fait (ouvert aussi au clic gauche, lot X6) | `BotMapActionsSmoke`, `BotFriendsSmoke`, `BotGuildSmoke`, `BotCraftSmoke`, `BotStarLocoLiveSmoke` |
 | B8 | Récolter | `GA500`, `GKK` | traité | fait (manuel ; pas de récolte automatique) | `BotInteractivesSmoke` |
 | B9 | Zaap | `GA500;114`, `WU` | traité | fait | `BotDialogsSmoke`, `BotInteractivesSmoke` |
 | B10 | Zaapi | `GA500;157`, `Wu` | traité | fait | `BotInteractivesSmoke` |
@@ -252,14 +254,14 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | # | Fonction | Client 1.34 | StarLoco | Bot | Test |
 |---|---|---|---|---|---|
 | F1 | Échanger avec un joueur | `ER1`, `EA`, `EMO`, `EK` | traité | fait | `BotExchangeSmoke` |
-| F2 | Artisanat | `ECK3`, `EMO`, `EK`, `Ec` | traité ; artisanat sécurisé au lot X5 | partiel : artisanat sécurisé depuis X5 (menu `ER12` / `ER13` au lot X6), pas d'aide à la forgemagie | `BotCraftSmoke` |
+| F2 | Artisanat | `ECK3`, `EMO`, `EK`, `Ec` | traité ; artisanat sécurisé aux lots X5 et X6 | partiel : pas d'aide à la forgemagie | `BotCraftSmoke`, `BotStarLocoLiveSmoke` |
 | F3 | Banque, coffre | `ECK5`, `KK` | traité | fait | `BotExchangeSmoke`, `BotInteractivesSmoke` |
 | F4 | Hôtel de vente | `ER10`, `ER11`, `EH…` | traité | fait (ni tri ni filtre par niveau) | `BotAuctionSmoke` |
-| F5 | Mode marchand | `ER4`, `ER6|`, `Eq` | traité ; expulse sur `ER6` seul | fait | `BotHouseMerchantSmoke` |
+| F5 | Mode marchand | `ER4`, `ER6|`, `Eq` | traité ; expulse sur `ER6` seul | fait (clic simple : menu, Maj + clic : achat, lot X6) | `BotHouseMerchantSmoke`, `BotMapActionsSmoke`, `BotStarLocoLiveSmoke` |
 | F6 | Maison | `hB`, `hS`, `GA507` | traité | fait | `BotHouseMerchantSmoke` |
 | F7 | Monture et enclos | `Rr`, `Rn`, `Rx`, `ER15`, `ER16` | ignore `Rr` sous le niveau 60 | partiel : ni ancêtres, ni recoloration, certificat hors inventaire | `BotMountSmoke` |
 | — | Garde et résurrection de familiers (type 9, lot X4) | `ER9`, `ER17`, `EMO`, `EK` | `ECK9` aux deux demandes, sans `EL` | fait | `BotExchangeSmoke`, `BotStarLocoLiveSmoke` |
-| — | Artisanat sécurisé (types 12 et 13, lot X5) | `ER12`, `ER13`, `EP`, `EK` | `ECK12` / `ECK13`, `Ep`, `EcK` | fait (fenêtre et volet ; entrées de menu `ER12` / `ER13` : lot X6) | `BotCraftSmoke`, `BotExchangeSmoke`, `BotStarLocoLiveSmoke` |
+| — | Artisanat sécurisé (types 12 et 13, lots X5 et X6) | `ER12`, `ER13`, `EP`, `EK` | `ECK12` / `ECK13`, `Ep`, `EcK`, `ERET` | fait (fenêtre et volet ; entrées « Demander à » / « Inviter à » du menu d'un joueur, `ERET` dans le chat, carte de l'artisan du livre : lot X6) | `BotCraftSmoke`, `BotExchangeSmoke`, `BotMapActionsSmoke`, `BotStarLocoLiveSmoke` |
 
 ### G. Progression, monde, combat
 
@@ -301,6 +303,8 @@ Lot X3 : le pseudo d’un compte neuf (par le bot seul et par la fenêtre du pse
 Lot X4 : le repas du familier et de la monture, la garde chez un gardien (PNJ 297, carte 1140) et la résurrection (PNJ 1076, carte 741) sont rejoués (scénarios x4a à x4c). Restent les autres gardiens, le ressusciteur 753 (carte 9716, sans chemin connu depuis un zaap), l’objet d’énergie et la potion de vie du familier, et le refus `ERES` d’un compte non abonné (`SUBSCRIBER`).
 
 Lot X32 : le changement de nom en jeu (potion 10860 écrite dans la base, fenêtre du nom, refus sur place, `AlEs`, `AlEr` puis `GM|~` au nouveau nom) et la roulette du Bouftou (`TC30` → `TV0|<cellule>|<orientation>`, boîte « mini-jeu », joueur libéré) sont rejoués (scénarios x32a et x32b). Restent `TC31` (une fois sur 200), le cas sans potion dans le sac, et l’animation du tutoriel, que le bot ne joue pas.
+
+Lot X6 : les demandes « Demander à » / « Inviter à » depuis les menus (`EW+`, `ER13` → `ERET` puis `ERK` 12, `ER12` → `ERK` 12 / 13), le clic gauche sur un joueur, le livre des artisans avec la carte de l'artisan (scénario x6) et le clic sur un marchand hors ligne avec le mode marchand et l'achat (scénario x6b) sont rejoués. Restent le percepteur (StarLoco exige une guilde de dix membres) et le prisme (aucun sur les cartes de test).
 
 ### Carte et acteurs
 
@@ -347,8 +351,8 @@ Lot X32 : le changement de nom en jeu (potion 10860 écrite dans la base, fenêt
 - Onglet Ignorés des amis ; couleurs du conjoint.
 - Défense des percepteurs (`gTJ`/`gTV`, inopérants chez StarLoco), noms des percepteurs (famille de langue non exportée), actions sur les montures de l’onglet Enclos, aperçu de l’emblème à la création.
 - Menu du personnage lui-même : se frapper, libérer son âme, changer de direction.
-- Artisanat sécurisé (`ER12`/`ER13`), aide à la forgemagie, compétences des artisans publics sur la carte.
-- Lot X5 : l'artisanat sécurisé a sa fenêtre et son volet ; restent les entrées de menu `ER12` / `ER13` et la lecture de `ERET` (lot X6).
+- Aide à la forgemagie.
+- Lot X5 : l'artisanat sécurisé a sa fenêtre et son volet ; les entrées de menu `ER12` / `ER13` et la lecture de `ERET` sont faites au lot X6.
 - Hôtel de vente : tri et filtre des modèles par niveau, effets complets dans la liste.
 - Maison : emblème de guilde dans le volet, fenêtres de vente et d’intérieur flottantes.
 - Montures : ancêtres, recoloration et animation, certificat consulté depuis l’inventaire.

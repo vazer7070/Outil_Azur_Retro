@@ -108,6 +108,14 @@ namespace Tool_BotProtocol.Game.Actions
         public static string AskMarriage(string asked, string partner) => Get("A_ASK_MARRIAGE_B", "Mariage de %1 avec %2 : acceptez-vous ?", asked, partner);
         public static string Married(string a, string b) => Get("A_MARRIED_B", "%1 et %2 sont désormais mariés.", a, b);
         public static string NotMarried(string a, string b) => Get("A_NOT_MARRIED_B", "Le mariage de %1 et %2 n'a pas lieu.", a, b);
+
+        // Artisanat sécurisé (lot X6) : entrées du menu d'un joueur et carte d'un artisan du livre.
+        /// <summary>« Demander à &lt;compétence&gt; » (<c>ASK_TO</c> + nom de la compétence, comme <c>getPlayerPopupMenu</c>).</summary>
+        public static string AskTo(string skillName) => Get("ASK_TO", "Demander à") + " " + (skillName ?? string.Empty);
+        /// <summary>« Inviter à &lt;compétence&gt; » (<c>INVITE_TO</c> + nom de la compétence).</summary>
+        public static string InviteTo(string skillName) => Get("INVITE_TO", "Inviter à") + " " + (skillName ?? string.Empty);
+        /// <summary>Bouton « Localiser » de la carte d'un artisan (<c>LOCATE</c>).</summary>
+        public static string Locate => Get("LOCATE", "Localiser");
         public static string Replay => Get("REPLAY_WORD", "Rejouer");
         /// <summary>Bouton du choix du personnage pour un mort du mode héroïque (<c>AR&lt;id&gt;</c>).</summary>
         public static string ResetCharacter => Get("RESET_SHORTCUT", "Réinitialiser");

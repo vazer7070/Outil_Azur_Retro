@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Outil_Azur_complet.Bot.Controls;
 using Tool_BotProtocol.Game;
 using Tool_BotProtocol.Game.Actions;
 using Tool_BotProtocol.Game.Interactions;
+using Tool_BotProtocol.Game.Jobs;
 using Tool_BotProtocol.Game.Maps.Entities;
 using Tool_BotProtocol.Game.Maps.Interfaces;
 
@@ -16,9 +18,14 @@ namespace Outil_Azur_complet.Bot.Menus
     /// « Échanger » (<c>ER1|&lt;id&gt;</c>, si les deux joueurs peuvent échanger), « Défier » (<c>GA900&lt;id&gt;</c>, si le joueur
     /// peut être défié ; grisé si la carte l'interdit) et « Agresser » (confirmation puis <c>GA906&lt;id&gt;</c>, si l'alignement
     /// le permet ; grisé si la carte l'interdit). Amis, ennemis et guilde sont ajoutés par leurs propres fournisseurs.
+    /// Artisanat sécurisé (lot X6) : si ce joueur a annoncé des compétences d'atelier (<c>EW+&lt;id&gt;|&lt;compétences&gt;</c>),
+    /// une entrée « Demander à &lt;compétence&gt; » par compétence (<c>ER13|&lt;id&gt;|&lt;compétence&gt;</c>) ; sinon, si son propre
+    /// personnage en a annoncé, une entrée « Inviter à &lt;compétence&gt; » par compétence (<c>ER12|&lt;id&gt;|&lt;compétence&gt;</c>).
+    /// Comme <c>onSpriteRelease</c>, un clic gauche sur un autre joueur hors combat ouvre ce menu (Ctrl : un sous-menu par
+    /// joueur de la cellule) ; en combat, le clic va à la cellule.
     /// </summary>
     [ActorMenuOrder(200)]
-    public sealed class PlayerMenuProvider : IActorMenuProvider
+    public sealed class PlayerMenuProvider : IActorMenuProvider, IActorClickHandler
     {
         public bool Handles(Entites a) => a is PlayerActor player && !player.IsSelf;
 
@@ -51,6 +58,55 @@ namespace Outil_Azur_complet.Bot.Menus
                     Icône = ClientAssets.Icon("alerte", 16), Activé = g.Map.CanAttack,
                     Infobulle = g.Map.CanAttack ? "Agresser ce joueur après confirmation (GA906)" : "Les agressions sont interdites sur cette carte"
                 };
+            foreach (MenuEntry entry in SecureCraftEntries(player, g, actions)) yield return entry;
+        }
+
+        /// <summary>
+        /// Entrées de l'artisanat sécurisé, après « Agresser » comme dans le client : les compétences annoncées par
+        /// <c>EW+</c> pour ce joueur (« Demander à … », <c>ER13</c>), sinon celles de son propre personnage (« Inviter à … »,
+        /// <c>ER12</c>). Aucune en combat ni sans personnage.
+        /// </summary>
+        public static IEnumerable<MenuEntry> SecureCraftEntries(PlayerActor player, GameClass g, MapActions actions)
+        {
+            if (player == null || actions == null || g?.character == null || g.Fight?.IsInFight == true) yield break;
+            long id = player.Id;
+            IReadOnlyList<short> theirs = actions.PublicSkillsOf(id);
+            if (theirs.Count > 0)
+            {
+                foreach (short skill in theirs)
+                {
+                    short chosen = skill;
+                    yield return new MenuEntry(MapActionTexts.AskTo(JobCatalog.SkillName(skill)), context => Run(context, map => map.RequestSecureCraftAsync(id, chosen)))
+                    { Infobulle = "Demander à cet artisan de fabriquer pour vous (ER13|" + id + "|" + skill + ")" };
+                }
+                yield break;
+            }
+            foreach (short skill in actions.PublicSkillsOf(g.character.id))
+            {
+                short chosen = skill;
+                yield return new MenuEntry(MapActionTexts.InviteTo(JobCatalog.SkillName(skill)), context => Run(context, map => map.InviteToSecureCraftAsync(id, chosen)))
+                { Infobulle = "Inviter ce joueur à votre atelier (ER12|" + id + "|" + skill + ")" };
+            }
+        }
+
+        /// <summary>
+        /// Clic gauche sur un autre joueur (<c>onSpriteRelease</c>) : en combat, rien ici (le clic va à la cellule) ; sinon son
+        /// menu s'ouvre sous la souris, et avec Ctrl un sous-menu par joueur de la cellule (<c>showCellPlayersPopupMenu</c>).
+        /// </summary>
+        public Task<bool> OnActorClickAsync(ActorMenuContext context)
+        {
+            if (context?.Router == null || !(context.Actor is PlayerActor player) || player.IsSelf) return Task.FromResult(false);
+            if (context.Game?.Fight?.IsInFight == true) return Task.FromResult(false);
+            IReadOnlyList<Entites> actors;
+            if (context.Ctrl)
+            {
+                var players = new List<Entites> { player };
+                players.AddRange(context.ActorsOnCell.Where(actor => actor is PlayerActor && !ReferenceEquals(actor, player)));
+                actors = players;
+            }
+            else actors = context.ActorsOnCell.Count > 0 && ReferenceEquals(context.ActorsOnCell[0], player) ? context.ActorsOnCell : new Entites[] { player };
+            context.Router.ShowActorMenu(actors, context.CellId, context.Modifiers, context.Ctrl);
+            return Task.FromResult(true);
         }
 
         /// <summary><c>GameManager.askAttack</c> : avertissements puis <c>DO_U_ATTACK</c> ; « Oui » envoie <c>GA906&lt;id&gt;</c>.</summary>

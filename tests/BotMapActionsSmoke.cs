@@ -18,7 +18,10 @@ using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Game.Actions;
+using Tool_BotProtocol.Game.Alignement;
 using Tool_BotProtocol.Game.Data;
+using Tool_BotProtocol.Game.Guildes;
+using Tool_BotProtocol.Game.Habitat;
 using Tool_BotProtocol.Game.Interactions;
 using Tool_BotProtocol.Game.Maps;
 using Tool_BotProtocol.Game.Maps.Entities;
@@ -28,8 +31,10 @@ using Tool_BotProtocol.Game.Maps.Interfaces;
 // épées d'un combat, duels (GA900/901/902 et boîtes Oui/Non/Ignorer, Annuler), refus GA;903, agression GA;906,
 // percepteur et prismes (GA909, GA912, GA;909), combats de la carte (fC, fL, fD, volet), « qui est » (BW, BWK),
 // paquets malformés ; lot X2 : menu de son personnage (Se frapper, Libérer son âme, sélecteur d'orientation eD et écho),
-// mariage GA;617 → GA618 / GA619, personnage mort (AR<id>), fin de partie GO. Données synthétiques, serveur fictif local,
-// fenêtre hors de l'écran, aucune capture d'écran.
+// mariage GA;617 → GA618 / GA619, personnage mort (AR<id>), fin de partie GO ; lot X6 : clic gauche sur un joueur → son menu
+// sans GA001 (Ctrl : un sous-menu par joueur de la cellule), marchand / percepteur / prisme → menu au clic simple, action par
+// défaut (ER4, DC, GA512) au Maj + clic seulement. Données synthétiques, serveur fictif local, fenêtre hors de l'écran,
+// aucune capture d'écran.
 internal static class BotMapActionsSmoke
 {
     private const int MapId = 900094;
@@ -50,7 +55,7 @@ internal static class BotMapActionsSmoke
             Application.EnableVisualStyles();
             Run();
             Check(uiErrors.Count == 0, "Interface errors: " + string.Join(" / ", uiErrors.Select(e => e.GetType().Name + " " + e.Message)));
-            Console.WriteLine("OK: menus joueur/groupe/épées, duels GA900-902 et boîtes, GA;903, GA;906, GA909/GA912, fC/fL/fD et volet des combats, BW/BWK, textes du client, menu de soi, eD, GF, mariage, AR<id>, GO");
+            Console.WriteLine("OK: menus joueur/groupe/épées, duels GA900-902 et boîtes, GA;903, GA;906, GA909/GA912, fC/fL/fD et volet des combats, BW/BWK, textes du client, menu de soi, eD, GF, mariage, AR<id>, GO, clic gauche joueur/marchand/percepteur/prisme (X6)");
         }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
         finally { LangData.Clear(); }
@@ -150,6 +155,7 @@ internal static class BotMapActionsSmoke
                         var feedback = new List<string>(); host.Feedback += feedback.Add;
 
                         PlayerMenu(account, peer, actions, view, player, guarded);
+                        LeftClicks(account, peer, view);
                         ChallengeDialogs(account, peer, actions, feedback);
                         GroupMenu(account, peer, view, group);
                         SwordsMenu(account, peer, view, host);
@@ -391,6 +397,80 @@ internal static class BotMapActionsSmoke
         Expect(peer, "GA90642", "Confirmed ASSAULT does not send GA906<id>");
         Check(!view.Router.Registry.EntriesFor(account.Game.Map.Self, account.Game).Any(entry => entry.Texte == MapActionTexts.Challenge),
             "The character's own menu offers a challenge");
+    }
+
+    /// <summary>
+    /// Clic gauche sur les acteurs (lot X6, <c>onSpriteRelease</c> du client) : joueur → son menu sans GA001 (Ctrl : un sous-menu par joueur de la
+    /// cellule) ; marchand, percepteur et prisme → menu au clic simple, action par défaut (ER4, DC, GA512) au Maj + clic seulement ; prisme d'un autre
+    /// camp : menu même avec Maj (« Utiliser » grisé).
+    /// </summary>
+    private static void LeftClicks(Accounts account, Socket peer, MapControl view)
+    {
+        Map map = account.Game.Map;
+        var moves = new List<short>();
+        MapClickHandler move = (s, e) => { moves.Add(e.CellId); e.Handled = true; return Task.CompletedTask; };
+        view.Router.MoveRequested += move;
+        try
+        {
+            ContextMenuStrip before = view.Router.LastMenu;
+            Complete(view.Router.RouteAsync(5, MouseButtons.Left));
+            Check(moves.Count == 0 && view.Router.LastMenu != null && view.Router.LastMenu != before && Texts(view.Router.LastMenu)[0] == MapActionTexts.Whois,
+                "A left click on a player does not open its menu");
+            NoPacket(peer, "A left click on a player sent a packet");
+            // Ctrl + clic avec deux joueurs sur la cellule : un sous-menu par joueur (showCellPlayersPopupMenu).
+            Feed(account, "GM|+5;1;0;44;Second fictif;1;10^100;0;0,0,0,54;-1;-1;-1;;0;;;;;0");
+            Complete(view.Router.RouteAsync(5, MouseButtons.Left, Keys.Control));
+            ToolStripMenuItem[] subs = view.Router.LastMenu.Items.OfType<ToolStripMenuItem>().ToArray();
+            Check(subs.Length == 2 && subs.Select(item => (item.Tag as Entites)?.id ?? 0).OrderBy(id => id).SequenceEqual(new[] { 42, 44 })
+                && subs.All(item => item.DropDownItems.OfType<ToolStripMenuItem>().Any(entry => entry.Text == MapActionTexts.Whois)),
+                "Ctrl + click does not offer one submenu per player of the cell: " + string.Join("|", subs.Select(item => item.Text)));
+            Feed(account, "GM|-44");
+            Check(map.GetActor(44) == null && moves.Count == 0, "A left click on a player requested a move");
+
+            // Marchand hors ligne : clic simple → menu (Acheter, raccourci « Maj + clic »), Maj + clic → ER4|<marchand>|<cellule>.
+            Feed(account, "GM|+7;1;0;-3;Vendeur fictif;-5;30^100;ff;-1;-1;2a,,,,;Guilde fictive;1a,2b,3c,4d;0");
+            Check(map.GetActor(-3) is MerchantActor, "Synthetic merchant is missing");
+            string buy = HouseTexts.Text("BUY", "Acheter");
+            before = view.Router.LastMenu;
+            Complete(view.Router.RouteAsync(7, MouseButtons.Left));
+            Check(view.Router.LastMenu != null && view.Router.LastMenu != before && Texts(view.Router.LastMenu).Contains(buy)
+                && Item(view.Router.LastMenu, buy).ShortcutKeyDisplayString == "Maj + clic", "A plain click on a merchant does not open its menu");
+            NoPacket(peer, "A plain click on a merchant sent a packet");
+            Complete(view.Router.RouteAsync(7, MouseButtons.Left, Keys.Shift)); Expect(peer, "ER4|-3|7", "Shift + click on a merchant does not send ER4|<marchand>|<cellule>");
+            Feed(account, "GM|--3");
+            Check(map.GetActor(-3) == null, "Synthetic merchant stayed on the map");
+
+            // Percepteur : clic simple → menu (Parler…), Maj + clic → DC<id>.
+            Feed(account, "GM|+12;1;0;70;a,b;-6;6000^100;3;Guilde fictive;1a,2b,3c,4d");
+            string speak = GuildTexts.Get("SPEAK", "Parler");
+            before = view.Router.LastMenu;
+            Complete(view.Router.RouteAsync(12, MouseButtons.Left));
+            Check(view.Router.LastMenu != null && view.Router.LastMenu != before && Texts(view.Router.LastMenu).Contains(speak)
+                && Item(view.Router.LastMenu, speak).ShortcutKeyDisplayString == "Maj + clic", "A plain click on a collector does not open its menu");
+            NoPacket(peer, "A plain click on a collector sent a packet");
+            Complete(view.Router.RouteAsync(12, MouseButtons.Left, Keys.Shift)); Expect(peer, "DC70", "Shift + click on a collector does not send DC<id>");
+
+            // Prismes : le sien → menu au clic simple, GA512<id> au Maj + clic ; celui d'un autre camp → menu même avec Maj (usePrism grisé).
+            // Le camp vient des caractéristiques (As, Player.getAsPacket) : Bonta, grade 2, ailes repliées.
+            Feed(account, "As0,0,100|1000|0|0|1~1,10,2,600,1,0|50,50|10000,10000|100|100|" + string.Join("|", Enumerable.Repeat("10,0,0,0", 10)));
+            Check(account.Game.Interactions.Alignment.Alignment.IsAligned && account.Game.Interactions.Alignment.Alignment.Side == 1, "As did not set the character's side");
+            Feed(account, "GM|+13;1;0;71;1112;-10;8101^100;4;2;2|+14;1;0;72;1111;-10;8100^100;4;2;1");
+            string use = AlignmentTexts.Get("USE_WORD", "Utiliser");
+            before = view.Router.LastMenu;
+            Complete(view.Router.RouteAsync(14, MouseButtons.Left));
+            Check(view.Router.LastMenu != null && view.Router.LastMenu != before && Texts(view.Router.LastMenu).Contains(use) && Item(view.Router.LastMenu, use).Enabled
+                && Item(view.Router.LastMenu, use).ShortcutKeyDisplayString == "Maj + clic", "A plain click on a prism does not open its menu");
+            NoPacket(peer, "A plain click on a prism sent a packet");
+            Complete(view.Router.RouteAsync(14, MouseButtons.Left, Keys.Shift)); Expect(peer, "GA51272", "Shift + click on an own prism does not send GA512<id>");
+            before = view.Router.LastMenu;
+            Complete(view.Router.RouteAsync(13, MouseButtons.Left, Keys.Shift));
+            Check(view.Router.LastMenu != null && view.Router.LastMenu != before && !Item(view.Router.LastMenu, use).Enabled
+                && Item(view.Router.LastMenu, use).ShortcutKeyDisplayString == null, "Shift + click on an enemy prism does not fall back to its menu");
+            NoPacket(peer, "Shift + click on an enemy prism sent a packet");
+            Feed(account, "GM|-70|-71|-72");
+            Check(map.GetActor(70) == null && map.GetActor(71) == null && map.GetActor(72) == null && moves.Count == 0, "Actor clicks requested a move");
+        }
+        finally { view.Router.MoveRequested -= move; }
     }
 
     /// <summary>Boîtes des duels : Oui, Ignorer (puis refus d'office), Annuler, fermeture par le serveur, messages au bandeau.</summary>

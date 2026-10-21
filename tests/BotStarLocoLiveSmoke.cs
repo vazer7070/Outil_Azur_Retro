@@ -14,6 +14,7 @@ using System.Windows.Forms;
 using Outil_Azur_complet.Bot;
 using Outil_Azur_complet.Bot.Controls;
 using Outil_Azur_complet.Bot.Interfaces;
+using Outil_Azur_complet.Bot.Menus;
 using Outil_Azur_complet.Parser;
 using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Frames.Messages;
@@ -491,6 +492,8 @@ internal static partial class Live
         await Scenario("x32a. potion de changement de nom : AlEr, fenêtre du nom sur la fenêtre de jeu, refus, AlEs, nom accepté par GM|~ (lot X32)", 90, RenameAsync).ConfigureAwait(false);
         await Scenario("x32b. roulette du Bouftou : 100 kamas, TC → TV envoyé, boîte « mini-jeu », joueur libéré (lot X32)", 90, RouletteAsync).ConfigureAwait(false);
         await Scenario("x5. artisanat sécurisé : ER13 du client, ERK 12, ECK12 / ECK13, ingrédients, paiement, EK des deux, EcK, EV (lot X5)", 150, SecureCraftAsync).ConfigureAwait(false);
+        await Scenario("x6. artisanat sécurisé depuis les menus : EW+ à l'arrivée, clic gauche sur l'artisan, « Demander à » → ER13, ERET (artisan éloigné), ERK 12 → ECK, « Inviter à » → ER12 → ERK 13 → ECK, livre des artisans : Message privé, Localiser (lot X6)", 200, SecureCraftMenuAsync).ConfigureAwait(false);
+        await Scenario("x6b. marchand hors ligne : ER6|, EMO+, Eq → Eq1, EQ → marchand -5 ; clic simple → menu « Acheter » sans paquet, Maj + clic → ER4 → ECK4, EB → EBK, GM|- (lot X6)", 150, OfflineMerchantClickAsync).ConfigureAwait(false);
         // Toujours en dernier : arrête puis redémarre le serveur de jeu (A et B restent déconnectés).
         await Scenario("x3c. serveur de jeu arrêté en pleine partie : boîte de perte de connexion, « Oui » reconnecte A (lot X3)", 360, GameStopAsync).ConfigureAwait(false);
     }
@@ -2861,11 +2864,15 @@ internal static partial class Live
     /// supprime les lignes restantes (objets, entrées de familier, monture), relit la base et journalise exactement ce qui a été fait ;
     /// puis le compte et le personnage inventés.
     /// </summary>
-    private static async Task ClosePetOwnerAsync(MySql.Data.MySqlClient.MySqlConnection db, string schema, PetOwner owner)
+    private static async Task ClosePetOwnerAsync(MySql.Data.MySqlClient.MySqlConnection db, string schema, PetOwner owner, Func<Task> beforeLogout = null)
     {
         var destroyed = new List<uint>(); var gone = new List<uint>(); var failed = new List<string>();
         try { await DestroyBagAsync(owner, destroyed, gone, failed).ConfigureAwait(false); }
         catch (Exception error) { failed.Add("destruction en jeu interrompue : " + error.Message); }
+        // Fenêtre de jeu du compte (lot X6) : fermée après la destruction en jeu, sa fermeture libérant le compte.
+        if (beforeLogout != null)
+            try { await beforeLogout().ConfigureAwait(false); }
+            catch (Exception error) { failed.Add("fermeture avant la déconnexion : " + error.Message); }
         owner.Session?.Dispose();
         await Task.Delay(1500).ConfigureAwait(false);
         try
@@ -3809,5 +3816,494 @@ internal static partial class Live
                 await ClosePetOwnerAsync(db, schema, artisan).ConfigureAwait(false);
             }
         }
+    }
+}
+
+// Scénario x6 (lot X6) : artisanat sécurisé depuis les menus du bot, EW+ à l'arrivée, ERET, invitation de l'artisan, clic gauche sur un joueur.
+internal static partial class Live
+{
+    /// <summary>Distance forge → artisan éloigné : StarLoco répond <c>ERET</c> dès que <c>getDistanceBetween</c> ≥ 4 ; une case de marge.</summary>
+    private const int FarFromForge = 5;
+
+    /// <summary>
+    /// Mêmes comptes inventés que x5 (artisan au marteau 494, métier 11 au niveau 20, posé à moins de 4 cases de la forge ; client avec
+    /// les bois), mais tout passe par les menus du bot (lot X6). À l'arrivée de chaque joueur, StarLoco annonce <c>EW+&lt;artisan&gt;|20</c>
+    /// à l'arrivant et à l'artisan (<c>GameClient</c>, boucle des joueurs de la carte) : dans la fenêtre de jeu du client, un clic gauche
+    /// sur l'artisan ouvre son menu avec « Demander à &lt;compétence&gt; », sans <c>GA001</c>. L'artisan s'éloigne de la forge (≥ 5 cases) :
+    /// « Demander à » envoie <c>ER13|&lt;artisan&gt;|20</c>, StarLoco répond <c>ERET</c> (<c>NOT_NEAR_CRAFT_TABLE</c> dans le chat du client,
+    /// aucune demande en attente). L'artisan revient : <c>ER13</c> → <c>ERK&lt;client&gt;|&lt;artisan&gt;|12</c> aux deux, <c>EA</c> de l'artisan →
+    /// <c>ECK12</c> / <c>ECK13</c>, <c>EV</c>. Puis « Inviter à &lt;compétence&gt; » de l'artisan (d'après ses propres <c>EW+</c>) : <c>ER12|&lt;client&gt;|20</c>
+    /// → <c>ERK&lt;artisan&gt;|&lt;client&gt;|12</c> à l'artisan et <c>…|13</c> au client (<c>A_WANT_CRAFT_ARTISAN</c>), <c>EA</c> du client → <c>ECK13</c> /
+    /// <c>ECK12</c>, <c>EV</c> du client. Enfin le client consulte le livre des artisans de la carte (<see cref="CrafterBookAsync"/>). Le marchand
+    /// hors ligne est le scénario x6b ; un percepteur demande une guilde de dix membres, absente de ce serveur de test : ce clic reste couvert
+    /// par BotMapActionsSmoke.
+    /// </summary>
+    private static async Task<string> SecureCraftMenuAsync()
+    {
+        RequireMaps();
+        foreach (string family in new[] { "jobs", "skills", "crafts", "items", "lang" })
+            if (!LangData.IsLoaded(family)) throw new SkipScenario("textes du client « " + family + " » absents : le bot ne reconnaît ni le métier, ni la compétence, ni les textes du menu");
+        if (!FindForge(out Map forgeMap, out Cell forge, out Cell artisanCell, out Cell clientCell))
+            throw new SkipScenario("aucune carte du bot n'a de forge (objet " + ForgeGfx + ") avec une cellule praticable à moins de 4 cases");
+        IReadOnlyDictionary<int, Trigger> triggers = Triggers.ForMap(forgeMap.MapID);
+        Func<Cell, bool> free = c => c != null && c.IsWalkable() && c.C_Types != Tool_BotProtocol.Game.Maps.Enums.CellTypes.TELEPORT_CELL && !triggers.ContainsKey(c.CellID);
+        // StarLoco parcourt toutes les cases de la carte : la demande est acceptée dès qu'UNE forge est à moins de 4 cases de l'artisan.
+        List<Cell> forges = forgeMap.Interactives.Where(p => p.Value?.gfx == ForgeGfx).Select(p => forgeMap.GetCellFromId((short)p.Key)).Where(c => c != null).ToList();
+        Func<Cell, int> forgeDistance = c => forges.Min(f => f.GetDistanceBetweenCells(c));
+        List<Cell> farCells = forgeMap.MapCells.Where(c => free(c) && c.CellID != clientCell.CellID && forgeDistance(c) >= FarFromForge)
+            .OrderBy(c => artisanCell.GetDistanceBetweenCells(c)).ThenBy(c => c.CellID).Take(12).ToList();
+        if (farCells.Count == 0) throw new SkipScenario("aucune cellule praticable à " + FarFromForge + " cases ou plus de toutes les forges (" + string.Join(",", forges.Select(f => f.CellID)) + ") sur la carte " + forgeMap.MapID);
+        string askText = MapActionTexts.AskTo(Tool_BotProtocol.Game.Jobs.JobCatalog.SkillName(ForgeSwordSkill));
+        string inviteText = MapActionTexts.InviteTo(Tool_BotProtocol.Game.Jobs.JobCatalog.SkillName(ForgeSwordSkill));
+        using (MySql.Data.MySqlClient.MySqlConnection db = OpenAccountsDatabase(out string schema))
+        {
+            var artisan = new PetOwner { Label = "Art" }; var client = new PetOwner { Label = "Cli" };
+            var evidence = new List<string>();
+            EventHandler<ExchangeRequestEventArgs> keep = (s, e) => e.Handled = true;
+            PlayerExchange artisanRequests = null, clientRequests = null;
+            GameClientFullform screen = null;
+            try
+            {
+                // Base : mêmes lignes que x5 (identifiants d'objets hors de la plage de StarLoco).
+                int baseId = 610000000 + random.Next(1, 100000) * 10;
+                int hammerId = baseId, ashId = baseId + 1, chestnutId = baseId + 2;
+                artisan.Character = Invent(db, schema, a.Id, forgeMap.MapID, artisanCell.CellID, 10000, artisan.Created);
+                Sql(db, "INSERT INTO " + schema + ".`world.entity.objects` (id, template, quantity, position, stats, puit) VALUES (@id, @template, 1, 1, '', 0)",
+                    "@id", hammerId, "@template", SwordSmithHammer);
+                Sql(db, "UPDATE " + schema + ".players SET kamas = 0, objets = @objets, jobs = @jobs WHERE id = @id",
+                    "@objets", hammerId.ToString(CultureInfo.InvariantCulture) + "|", "@jobs", SwordSmithJob + "," + SwordSmithXp.ToString(CultureInfo.InvariantCulture), "@id", artisan.Character.Id);
+                client.Character = Invent(db, schema, b.Id, forgeMap.MapID, clientCell.CellID, 10000, client.Created);
+                Sql(db, "INSERT INTO " + schema + ".`world.entity.objects` (id, template, quantity, position, stats, puit) VALUES (@id, @template, 2, -1, '', 0)", "@id", ashId, "@template", AshWood);
+                Sql(db, "INSERT INTO " + schema + ".`world.entity.objects` (id, template, quantity, position, stats, puit) VALUES (@id, @template, 2, -1, '', 0)", "@id", chestnutId, "@template", ChestnutWood);
+                Sql(db, "UPDATE " + schema + ".players SET kamas = @kamas, objets = @objets WHERE id = @id",
+                    "@kamas", CraftClientKamas, "@objets", ashId.ToString(CultureInfo.InvariantCulture) + "|" + chestnutId.ToString(CultureInfo.InvariantCulture) + "|", "@id", client.Character.Id);
+                artisan.Seen.Add((uint)hammerId); client.Seen.Add((uint)ashId); client.Seen.Add((uint)chestnutId);
+                Journal("[test] carte " + forgeMap.MapID + " : forge en " + forge.CellID + ", artisan " + artisan.Character.Name + " en " + artisanCell.CellID + " (distance " + forge.GetDistanceBetweenCells(artisanCell)
+                    + "), client " + client.Character.Name + " en " + clientCell.CellID + ", forges " + string.Join(",", forges.Select(f => f.CellID)) + ", cellules éloignées " + string.Join(",", farCells.Select(c => c.CellID)));
+
+                // Artisan d'abord : EW+<artisan>|20 à lui-même à l'arrivée (marteau en main, forge à moins de 4 cases) ; son bot retient la compétence.
+                LiveSession art = artisan.Session = new LiveSession(artisan.Label, artisan.Character.Login, artisan.Character.Password);
+                evidence.Add(await EnterExistingAsync(art, artisan.Character.Id, artisan.Character.Name, forgeMap.MapID).ConfigureAwait(false));
+                Check(await art.Until(() => SwordJob(art) != null && SwordJob(art).Skills.Any(skill => skill != null && skill.Id == ForgeSwordSkill), 10).ConfigureAwait(false), "Métier 11 avec la compétence 20 non lu (JS)");
+                string ewSelf = await art.Expect(p => p.StartsWith("EW+" + art.Id + "|", StringComparison.Ordinal), "EW+<artisan>|… à l'arrivée de l'artisan", 10, 0).ConfigureAwait(false);
+                // jobs_data.crafts du forgeur d'épées : « 7012;20,145 » → deux compétences annoncées à la forge (20 et 145).
+                Check(ewSelf.Substring(ewSelf.IndexOf('|') + 1).Split(';').Contains(ForgeSwordSkill.ToString(CultureInfo.InvariantCulture)), "EW+ de l'artisan sans la compétence " + ForgeSwordSkill + " : " + ewSelf);
+                Tool_BotProtocol.Game.Jobs.JobsActions artJobs = art.Account.Game.Interactions.Jobs;
+                Check(await art.Until(() => artJobs.PublicSkillsOf(art.Id).Contains((short)ForgeSwordSkill), 5).ConfigureAwait(false), "Compétence publique de l'artisan non retenue par son bot");
+                artisan.Remember();
+
+                // Client ensuite, avec sa fenêtre de jeu : EW+<artisan>|20 à l'arrivée ; aucune compétence pour lui-même (pas d'outil).
+                LiveSession cli = client.Session = new LiveSession(client.Label, client.Character.Login, client.Character.Password);
+                evidence.Add(await EnterExistingAsync(cli, client.Character.Id, client.Character.Name, forgeMap.MapID, s =>
+                    s.Account.Game.character.Player_Selection += () => OnUi(() =>
+                    {
+                        if (screen != null) return;
+                        screen = new GameClientFullform(s.Account) { StartPosition = FormStartPosition.Manual, Location = new Point(60, 60), Size = new Size(1000, 700), ShowInTaskbar = false };
+                        screen.Show();
+                    })).ConfigureAwait(false));
+                client.Remember();
+                string ewClient = await cli.Expect(p => p.StartsWith("EW+" + art.Id + "|", StringComparison.Ordinal), "EW+<artisan>|… à l'arrivée du client", 10, 0).ConfigureAwait(false);
+                Check(ewClient == ewSelf, "EW+ reçu par le client : " + ewClient + " (l'artisan avait reçu " + ewSelf + ")");
+                Tool_BotProtocol.Game.Jobs.JobsActions cliJobs = cli.Account.Game.Interactions.Jobs;
+                Check(await cli.Until(() => cliJobs.PublicSkillsOf(art.Id).Contains((short)ForgeSwordSkill) && cliJobs.PublicSkillsOf(cli.Id).Count == 0, 5).ConfigureAwait(false),
+                    "Compétences publiques lues par le client : artisan " + string.Join(";", cliJobs.PublicSkillsOf(art.Id)) + ", soi " + string.Join(";", cliJobs.PublicSkillsOf(cli.Id)));
+                Check(await art.Until(() => art.Map.GetActor(cli.Id) != null, 10).ConfigureAwait(false) && await cli.Until(() => cli.Map.GetActor(art.Id) != null, 10).ConfigureAwait(false),
+                    "Les deux personnages ne se voient pas sur la carte " + forgeMap.MapID);
+                Check(await WaitOnUi(() => screen != null && screen.IsHandleCreated && screen.Visible && screen.Map?.Router != null ? screen : null, 20).ConfigureAwait(false) != null,
+                    "La fenêtre de jeu du client ne s'est pas ouverte");
+                string artName = art.Account.Game.character.Name;
+                evidence.Add(ewSelf + " à l'artisan, " + ewClient + " au client");
+
+                // Clic gauche sur l'artisan dans la fenêtre du client : son menu avec « Demander à <compétence> », aucun GA001.
+                artisanRequests = art.Account.Game.Interactions.Exchange; clientRequests = cli.Account.Game.Interactions.Exchange;
+                artisanRequests.RequestReceived += keep; clientRequests.RequestReceived += keep;
+                int sentMark = cli.SentCount;
+                string[] menu = await ClickActorAsync(screen, cli.Map.GetActor(art.Id), null).ConfigureAwait(false);
+                Check(menu.Contains(MapActionTexts.Whois) && menu.Contains(askText) && !menu.Contains(inviteText), "Menu de l'artisan au clic gauche : " + string.Join(" | ", menu));
+                await Task.Delay(300).ConfigureAwait(false);
+                Check(!cli.SentSince(sentMark).Any(p => p.StartsWith("GA001", StringComparison.Ordinal)), "Le clic gauche sur l'artisan a envoyé un déplacement : " + string.Join(" ", cli.SentSince(sentMark)));
+                evidence.Add("clic gauche sur l'artisan → menu « " + string.Join(" | ", menu.Take(3)) + " … | " + askText + " » sans GA001");
+
+                // L'artisan s'éloigne de la forge : « Demander à » → ER13, StarLoco répond ERET ; NOT_NEAR_CRAFT_TABLE dans le chat du client.
+                Cell far = null;
+                foreach (Cell candidate in farCells)
+                    if (await WalkAsync(art, cli, candidate.CellID).ConfigureAwait(false)) { far = candidate; break; }
+                Check(far != null, "L'artisan n'a pu rejoindre aucune cellule éloignée de la forge (" + string.Join(",", farCells.Select(c => c.CellID)) + ")");
+                int cliMark = cli.ReceivedCount, chatMark = cli.Account.Game.Chat.Messages.Count;
+                sentMark = cli.SentCount;
+                await ClickActorAsync(screen, cli.Map.GetActor(art.Id), askText).ConfigureAwait(false);
+                string er13 = "ER13|" + art.Id.ToString(CultureInfo.InvariantCulture) + "|" + ForgeSwordSkill.ToString(CultureInfo.InvariantCulture);
+                Check(await cli.Until(() => cli.SentSince(sentMark).Contains(er13), 5).ConfigureAwait(false), "« " + askText + " » n'a pas envoyé " + er13 + " : " + string.Join(" ", cli.SentSince(sentMark)));
+                string answer = await cli.Expect(p => p.StartsWith("ERE", StringComparison.Ordinal) || p.StartsWith("ERK", StringComparison.Ordinal) || p == "BN", "réponse de StarLoco à ER13 (ERET attendu)", 15, cliMark).ConfigureAwait(false);
+                Check(answer == "ERET", "Réponse de StarLoco à ER13 avec l'artisan à " + forgeDistance(far) + " cases de la forge la plus proche : " + answer + " (attendu ERET)");
+                ExchangeRegistry cliRegistry = cli.Account.Game.Interactions.Exchanges;
+                Check(await cli.Until(() => !string.IsNullOrEmpty(cliRegistry.LastMessage) && cli.Account.Game.Chat.Messages.Skip(chatMark).Any(line => line.Kind == ChatMessageKind.Error && line.Text == cliRegistry.LastMessage), 5).ConfigureAwait(false),
+                    "ERET non relu dans le chat du client : « " + cliRegistry.LastMessage + " »");
+                Check(clientRequests.PendingRequest == null && artisanRequests.PendingRequest == null && cli.Account.AccountStates == AccountStates.CONNECTED_INACTIVE, "ERET a laissé une demande en attente");
+                evidence.Add("artisan en " + far.CellID + ", à " + forgeDistance(far) + " cases de la forge la plus proche : « " + askText + " » → " + er13 + " → ERET, chat « " + cliRegistry.LastMessage + " »");
+
+                // Retour de l'artisan près de la forge : « Demander à » → ER13 → ERK<client>|<artisan>|12 aux deux ; EA de l'artisan → ECK12 / ECK13 ; EV.
+                Check(await WalkAsync(art, cli, artisanCell.CellID).ConfigureAwait(false), "Retour de l'artisan en " + artisanCell.CellID + " impossible (artisan en " + art.Map.Self.CellId + ")");
+                int artMark = art.ReceivedCount; cliMark = cli.ReceivedCount; sentMark = cli.SentCount;
+                await ClickActorAsync(screen, cli.Map.GetActor(art.Id), askText).ConfigureAwait(false);
+                Check(await cli.Until(() => cli.SentSince(sentMark).Contains(er13), 5).ConfigureAwait(false), "Second « " + askText + " » sans " + er13);
+                string expectedErk = "ERK" + cli.Id + "|" + art.Id + "|12";
+                string erkClient = await cli.Expect(p => p.StartsWith("ERK", StringComparison.Ordinal) || p.StartsWith("ERE", StringComparison.Ordinal) || p == "BN", "ERK chez le client", 15, cliMark).ConfigureAwait(false);
+                Check(erkClient == expectedErk, "Réponse de StarLoco au second ER13 : " + erkClient + " (attendu " + expectedErk + ")");
+                string erkArtisan = await art.Expect("ERK", "ERK chez l'artisan", 15, artMark).ConfigureAwait(false);
+                Check(erkArtisan == expectedErk, "ERK de l'artisan : " + erkArtisan);
+                Check(await art.Until(() => artisanRequests.PendingRequest != null && !artisanRequests.PendingRequest.Outgoing, 5).ConfigureAwait(false)
+                    && await cli.Until(() => clientRequests.PendingRequest != null && clientRequests.PendingRequest.Outgoing, 5).ConfigureAwait(false), "Demande non posée après ERK");
+                artMark = art.ReceivedCount; cliMark = cli.ReceivedCount;
+                var accepted = await artisanRequests.AcceptAsync().ConfigureAwait(false);
+                Check(accepted.Sent, "EA de l'artisan refusé par le bot : " + accepted.Message);
+                string eckArtisan = await art.Expect("ECK", "ECK12 chez l'artisan", 15, artMark).ConfigureAwait(false);
+                string eckClient = await cli.Expect("ECK", "ECK13 chez le client", 15, cliMark).ConfigureAwait(false);
+                Check(eckArtisan == "ECK12|4;20" && eckClient == "ECK13|4;20", "ECK reçus : " + eckArtisan + " / " + eckClient + " (attendu ECK12|4;20 / ECK13|4;20)");
+                CraftSecureExchange secureArt = SecureCraft(art), secureCli = SecureCraft(cli);
+                Check(await art.Until(() => secureArt.IsOpen && secureArt.IsArtisan, 5).ConfigureAwait(false) && await cli.Until(() => secureCli.IsOpen && secureCli.IsClient, 5).ConfigureAwait(false),
+                    "Fenêtres de l'artisanat sécurisé non ouvertes après l'acceptation");
+                evidence.Add("artisan revenu : « " + askText + " » → " + er13 + " → " + expectedErk + " aux deux, EA → " + eckArtisan + " / " + eckClient);
+                artMark = art.ReceivedCount; cliMark = cli.ReceivedCount;
+                var left = await secureArt.LeaveAsync().ConfigureAwait(false);
+                Check(left.Sent, "EV de l'artisan refusé : " + left.Message);
+                await art.Expect(p => p == "EV" || p == "EVa", "EV chez l'artisan", 15, artMark).ConfigureAwait(false);
+                await cli.Expect(p => p == "EV" || p == "EVa", "EV chez le client", 15, cliMark).ConfigureAwait(false);
+                Check(await art.Until(() => !secureArt.IsOpen && art.Account.AccountStates == AccountStates.CONNECTED_INACTIVE, 5).ConfigureAwait(false)
+                    && await cli.Until(() => !secureCli.IsOpen && cli.Account.AccountStates == AccountStates.CONNECTED_INACTIVE, 5).ConfigureAwait(false), "Fenêtres encore ouvertes après EV");
+
+                // « Inviter à <compétence> » de l'artisan (ses propres EW+) : ER12|<client>|20 → ERK<artisan>|<client>|12 à l'artisan, |13 au client ; EA du client → ECK13 / ECK12 ; EV du client.
+                MapActions artActions = art.Account.Game.Interactions.MapActions;
+                var cliActor = art.Map.GetActor(cli.Id) as PlayerActor;
+                Check(cliActor != null, "Client absent de la carte de l'artisan");
+                MenuEntry[] invites = PlayerMenuProvider.SecureCraftEntries(cliActor, art.Account.Game, artActions).ToArray();
+                MenuEntry invite = invites.FirstOrDefault(e => e.Texte == inviteText);
+                Check(invite != null && invite.Activé && invites.All(e => e.Texte.StartsWith(MapActionTexts.InviteTo(string.Empty).TrimEnd(), StringComparison.Ordinal)),
+                    "Entrées d'artisanat de l'artisan sur le client : " + string.Join(" | ", invites.Select(e => e.Texte)));
+                artMark = art.ReceivedCount; cliMark = cli.ReceivedCount; int artSent = art.SentCount;
+                string said = await invite.Action(new ActorMenuContext(cliActor, new Tool_BotProtocol.Game.Maps.Interfaces.Entites[] { cliActor }, (short)cliActor.CellId, art.Account, null, null, Keys.None)).ConfigureAwait(false);
+                string er12 = "ER12|" + cli.Id.ToString(CultureInfo.InvariantCulture) + "|" + ForgeSwordSkill.ToString(CultureInfo.InvariantCulture);
+                Check(await art.Until(() => art.SentSince(artSent).Contains(er12), 5).ConfigureAwait(false), "« " + inviteText + " » n'a pas envoyé " + er12 + " : " + said);
+                string erkArt2 = await art.Expect(p => p.StartsWith("ERK", StringComparison.Ordinal) || p.StartsWith("ERE", StringComparison.Ordinal), "ERK 12 chez l'artisan", 15, artMark).ConfigureAwait(false);
+                string erkCli2 = await cli.Expect(p => p.StartsWith("ERK", StringComparison.Ordinal) || p.StartsWith("ERE", StringComparison.Ordinal), "ERK 13 chez le client", 15, cliMark).ConfigureAwait(false);
+                Check(erkArt2 == "ERK" + art.Id + "|" + cli.Id + "|12" && erkCli2 == "ERK" + art.Id + "|" + cli.Id + "|13",
+                    "Réponses de StarLoco à ER12 : artisan " + erkArt2 + ", client " + erkCli2 + " (attendu ERK<artisan>|<client>|12 / |13)");
+                Check(await cli.Until(() => clientRequests.PendingRequest != null && !clientRequests.PendingRequest.Outgoing && clientRequests.PendingRequest.Type == 13, 5).ConfigureAwait(false)
+                    && await art.Until(() => artisanRequests.PendingRequest != null && artisanRequests.PendingRequest.Outgoing, 5).ConfigureAwait(false), "Invitation non posée après ERK");
+                ExchangeRequest invited = clientRequests.PendingRequest;
+                Check(invited.IsSecureCraft && invited.PartnerId == art.Id && invited.Text.Contains(artName), "Invitation reçue par le client : partenaire " + invited.PartnerName + ", texte « " + invited.Text + " »");
+                artMark = art.ReceivedCount; cliMark = cli.ReceivedCount;
+                accepted = await clientRequests.AcceptAsync().ConfigureAwait(false);
+                Check(accepted.Sent, "EA du client refusé par le bot : " + accepted.Message);
+                eckClient = await cli.Expect("ECK", "ECK13 chez le client", 15, cliMark).ConfigureAwait(false);
+                eckArtisan = await art.Expect("ECK", "ECK12 chez l'artisan", 15, artMark).ConfigureAwait(false);
+                Check(eckClient == "ECK13|4;20" && eckArtisan == "ECK12|4;20", "ECK après l'invitation : client " + eckClient + ", artisan " + eckArtisan);
+                Check(await cli.Until(() => secureCli.IsOpen && secureCli.IsClient, 5).ConfigureAwait(false) && await art.Until(() => secureArt.IsOpen && secureArt.IsArtisan, 5).ConfigureAwait(false),
+                    "Fenêtres non ouvertes après l'invitation");
+                evidence.Add("« " + inviteText + " » → " + er12 + " → " + erkArt2 + " / " + erkCli2 + ", « " + invited.Text.Replace("\n", " ") + " », EA du client → " + eckClient + " / " + eckArtisan);
+                artMark = art.ReceivedCount; cliMark = cli.ReceivedCount;
+                left = await secureCli.LeaveAsync().ConfigureAwait(false);
+                Check(left.Sent, "EV du client refusé : " + left.Message);
+                await cli.Expect(p => p == "EV" || p == "EVa", "EV chez le client", 15, cliMark).ConfigureAwait(false);
+                await art.Expect(p => p == "EV" || p == "EVa", "EV chez l'artisan", 15, artMark).ConfigureAwait(false);
+                Check(await cli.Until(() => !secureCli.IsOpen && cli.Account.AccountStates == AccountStates.CONNECTED_INACTIVE, 5).ConfigureAwait(false)
+                    && await art.Until(() => !secureArt.IsOpen && art.Account.AccountStates == AccountStates.CONNECTED_INACTIVE, 5).ConfigureAwait(false), "Fenêtres encore ouvertes après le second EV");
+                evidence.Add("EV du client, fenêtres fermées");
+
+                // Livre des artisans de la carte dans la fenêtre du client : la carte de l'artisan (Message privé, Localiser), puis Fermer → EV.
+                evidence.Add(await CrafterBookAsync(cli, screen, art.Id, artName, forgeMap.MapID).ConfigureAwait(false));
+                artisan.Remember(); client.Remember();
+                return string.Join(" ; ", evidence);
+            }
+            finally
+            {
+                if (artisanRequests != null) artisanRequests.RequestReceived -= keep;
+                if (clientRequests != null) clientRequests.RequestReceived -= keep;
+                // Nettoyage comme x4 et x5 (objets détruits en jeu, lignes de la base, comptes), un compte après l'autre ; la fenêtre de jeu du
+                // client se ferme après la destruction de son sac, sa fermeture libérant le compte.
+                await ClosePetOwnerAsync(db, schema, client, () => CloseScreenAsync(screen)).ConfigureAwait(false);
+                await ClosePetOwnerAsync(db, schema, artisan).ConfigureAwait(false);
+            }
+        }
+    }
+
+    /// <summary>Prix unitaire du lot du marchand : taxe du mode marchand = somme des prix ÷ 1 000 (<c>storeAllBuy() / 1000</c>), donc 0.</summary>
+    private const int MerchantPrice = 1, MerchantBuyerKamas = 10;
+
+    /// <summary>
+    /// Marchand hors ligne (lot X6, <c>onSpriteRelease</c> du client) sur la carte de la forge de x5/x6 (aucune interdiction de marchand dans
+    /// <c>forbidden</c> chez StarLoco). Un vendeur inventé organise son magasin (<c>ER6|</c> → <c>ECK6</c>, <c>EMO+&lt;bois&gt;|1|1</c> → <c>EL</c>,
+    /// <c>EV</c>), demande la taxe (<c>Eq</c> → <c>Eq1|1|0</c>) puis passe en mode marchand (<c>EQ</c> : StarLoco le déconnecte et le garde sur
+    /// sa cellule). L'acheteur arrive ensuite avec sa fenêtre de jeu : <c>GM|~…;-5;…</c> (<c>GAME_SEND_MERCHANT_LIST</c>) pose le marchand ;
+    /// un clic gauche simple ouvre son menu (« Acheter » par défaut, « Maj + clic ») sans rien envoyer ; Maj + clic envoie
+    /// <c>ER4|&lt;marchand&gt;|&lt;cellule&gt;</c> → <c>ECK4</c> + <c>EL</c> ; <c>EB&lt;lot&gt;|1</c> → <c>EBK</c>, magasin vide : <c>GM|-&lt;marchand&gt;</c>
+    /// et <c>EV</c>. Le vendeur se reconnecte enfin (StarLoco retire alors tout marchand restant), puis les deux comptes sont nettoyés.
+    /// </summary>
+    private static async Task<string> OfflineMerchantClickAsync()
+    {
+        RequireMaps();
+        if (!FindForge(out Map shopMap, out Cell forge, out Cell sellerCell, out Cell buyerCell))
+            throw new SkipScenario("aucune carte du bot n'a de forge (objet " + ForgeGfx + ") : pas de carte connue des deux côtés pour le marchand");
+        using (MySql.Data.MySqlClient.MySqlConnection db = OpenAccountsDatabase(out string schema))
+        {
+            var seller = new PetOwner { Label = "Mar" }; var buyer = new PetOwner { Label = "Ach" };
+            var evidence = new List<string>();
+            GameClientFullform screen = null;
+            bool merchantMode = false;
+            try
+            {
+                int woodId = 610000000 + random.Next(1, 100000) * 10 + 5;
+                seller.Character = Invent(db, schema, a.Id, shopMap.MapID, sellerCell.CellID, 10000, seller.Created);
+                Sql(db, "INSERT INTO " + schema + ".`world.entity.objects` (id, template, quantity, position, stats, puit) VALUES (@id, @template, 1, -1, '', 0)", "@id", woodId, "@template", AshWood);
+                Sql(db, "UPDATE " + schema + ".players SET kamas = 0, objets = @objets WHERE id = @id", "@objets", woodId.ToString(CultureInfo.InvariantCulture) + "|", "@id", seller.Character.Id);
+                seller.Seen.Add((uint)woodId);
+                buyer.Character = Invent(db, schema, b.Id, shopMap.MapID, buyerCell.CellID, 10000, buyer.Created);
+                Sql(db, "UPDATE " + schema + ".players SET kamas = @kamas WHERE id = @id", "@kamas", MerchantBuyerKamas, "@id", buyer.Character.Id);
+                Journal("[test] carte " + shopMap.MapID + " : vendeur " + seller.Character.Name + " en " + sellerCell.CellID + " avec le bois " + woodId + ", acheteur " + buyer.Character.Name + " en " + buyerCell.CellID);
+
+                // Vendeur : magasin organisé (ER6| → ECK6, EMO+ → EL, EV), taxe (Eq → Eq1|1|0), mode marchand (EQ → déconnexion).
+                LiveSession sel = seller.Session = new LiveSession(seller.Label, seller.Character.Login, seller.Character.Password);
+                evidence.Add(await EnterExistingAsync(sel, seller.Character.Id, seller.Character.Name, shopMap.MapID).ConfigureAwait(false));
+                MerchantExchange shop = sel.Account.Game.Interactions.Merchant;
+                Check(await sel.Until(() => seller.Bag.GetByInventoryId((uint)woodId) != null, 10).ConfigureAwait(false), "Bois " + woodId + " absent du sac du vendeur");
+                int mark = sel.ReceivedCount;
+                var sent = await shop.OrganizeAsync().ConfigureAwait(false);
+                Check(sent.Sent, "ER6| refusé par le bot : " + sent.Message);
+                string eck6 = await sel.Expect("ECK6", "ECK6 (son magasin)", 10, mark).ConfigureAwait(false);
+                Check(await sel.Until(() => shop.IsOrganizing && shop.ContentReceived, 5).ConfigureAwait(false), "Magasin du vendeur non ouvert après " + eck6);
+                mark = sel.ReceivedCount;
+                sent = await shop.AddToShopAsync((uint)woodId, 1, MerchantPrice).ConfigureAwait(false);
+                Check(sent.Sent, "EMO+ refusé par le bot : " + sent.Message);
+                string listed = await sel.Expect(p => p.StartsWith("EL" + woodId.ToString(CultureInfo.InvariantCulture) + ";", StringComparison.Ordinal), "EL avec le bois mis en vente", 10, mark).ConfigureAwait(false);
+                mark = sel.ReceivedCount;
+                sent = await shop.LeaveAsync().ConfigureAwait(false);
+                Check(sent.Sent, "EV du magasin refusé : " + sent.Message);
+                await sel.Expect(p => p == "EV" || p == "EVa", "EV du magasin", 10, mark).ConfigureAwait(false);
+                Check(await sel.Until(() => !shop.IsOpen && sel.Account.AccountStates == AccountStates.CONNECTED_INACTIVE, 5).ConfigureAwait(false), "Magasin encore ouvert après EV");
+                seller.Remember();
+                mark = sel.ReceivedCount;
+                sent = await shop.AskMerchantModeAsync().ConfigureAwait(false);
+                Check(sent.Sent, "Eq refusé par le bot : " + sent.Message);
+                string tax = await sel.Expect(p => p.StartsWith("Eq", StringComparison.Ordinal) || p == "Im113" || p == "Im123" || p == "Im176" || p.StartsWith("Im125", StringComparison.Ordinal),
+                    "Eq1 (taxe) ou refus Im", 10, mark).ConfigureAwait(false);
+                if (tax == "Im113") throw new SkipScenario("StarLoco interdit les marchands sur la carte " + shopMap.MapID + " (Im113)");
+                if (tax.StartsWith("Im125", StringComparison.Ordinal)) throw new SkipScenario("trop de marchands sur la carte " + shopMap.MapID + " (" + tax + ")");
+                Check(tax == "Eq1|1|0", "Taxe du mode marchand : " + tax + " (attendu Eq1|1|0, prix " + MerchantPrice + " ÷ 1 000)");
+                Check(await sel.Until(() => shop.PendingTax != null, 5).ConfigureAwait(false), "Eq1 non retenu par le bot");
+                int sentMark = sel.SentCount;
+                sent = await shop.ConfirmMerchantModeAsync().ConfigureAwait(false);
+                Check(sent.Sent, "EQ refusé par le bot : " + sent.Message);
+                merchantMode = true;
+                Check(sel.SentSince(sentMark).Contains("EQ"), "EQ non envoyé");
+                Check(await sel.Until(() => sel.Account.Connexion == null || !sel.Account.Connexion.IsConnected(), 15).ConfigureAwait(false), "StarLoco n'a pas déconnecté le vendeur après EQ");
+                evidence.Add("vendeur : ER6| → " + eck6 + ", EMO+" + woodId + "|1|" + MerchantPrice + " → " + Short(listed, 40) + ", EV, Eq → " + tax + ", EQ → déconnecté");
+                await Task.Delay(2000).ConfigureAwait(false);
+
+                // Acheteur, avec sa fenêtre de jeu : le marchand arrive par GM|~ (liste des marchands de la carte, après GDK).
+                LiveSession ach = buyer.Session = new LiveSession(buyer.Label, buyer.Character.Login, buyer.Character.Password);
+                evidence.Add(await EnterExistingAsync(ach, buyer.Character.Id, buyer.Character.Name, shopMap.MapID, s =>
+                    s.Account.Game.character.Player_Selection += () => OnUi(() =>
+                    {
+                        if (screen != null) return;
+                        screen = new GameClientFullform(s.Account) { StartPosition = FormStartPosition.Manual, Location = new Point(60, 60), Size = new Size(1000, 700), ShowInTaskbar = false };
+                        screen.Show();
+                    })).ConfigureAwait(false));
+                string sellerKey = ";" + seller.Character.Id.ToString(CultureInfo.InvariantCulture) + ";" + seller.Character.Name + ";-5;";
+                string gm = await ach.Expect(p => p.StartsWith("GM|", StringComparison.Ordinal) && p.Contains("~") && p.Contains(sellerKey), "GM|~ du marchand", 10, 0).ConfigureAwait(false);
+                Check(await ach.Until(() => ach.Map.GetActor(seller.Character.Id) is MerchantActor, 5).ConfigureAwait(false),
+                    "Marchand non posé sur la carte de l'acheteur : " + (ach.Map.GetActor(seller.Character.Id)?.GetType().Name ?? "absent"));
+                MapActor merchant = ach.Map.GetActor(seller.Character.Id);
+                Check(merchant.CellId == sellerCell.CellID, "Marchand en " + merchant.CellId + " au lieu de " + sellerCell.CellID);
+                Check(await WaitOnUi(() => screen != null && screen.IsHandleCreated && screen.Visible && screen.Map?.Router != null ? screen : null, 20).ConfigureAwait(false) != null,
+                    "La fenêtre de jeu de l'acheteur ne s'est pas ouverte");
+                evidence.Add("acheteur : " + Short(gm.Substring(gm.IndexOf('~')), 60) + " → marchand en " + merchant.CellId);
+
+                // Clic gauche simple : menu du marchand, rien envoyé (ni ER4, ni GA001).
+                string buyText = Tool_BotProtocol.Game.Habitat.HouseTexts.Text("BUY", "Acheter");
+                sentMark = ach.SentCount;
+                string[] menu = await ClickActorAsync(screen, merchant, null).ConfigureAwait(false);
+                await Task.Delay(300).ConfigureAwait(false);
+                Check(menu.Contains(buyText), "Menu du marchand au clic gauche : " + string.Join(" | ", menu));
+                Check(!ach.SentSince(sentMark).Any(p => p.StartsWith("ER", StringComparison.Ordinal) || p.StartsWith("GA001", StringComparison.Ordinal)),
+                    "Le clic simple sur le marchand a envoyé : " + string.Join(" ", ach.SentSince(sentMark)));
+                evidence.Add("clic simple → menu « " + string.Join(" | ", menu) + " », aucun paquet");
+
+                // Maj + clic : l'entrée par défaut (Acheter) → ER4|<marchand>|<cellule> → ECK4 + EL.
+                MerchantExchange store = ach.Account.Game.Interactions.Merchant;
+                mark = ach.ReceivedCount; sentMark = ach.SentCount;
+                Task routed = await OnUi(() => screen.Map.Router.RouteActorAsync(merchant, (short)merchant.CellId, MouseButtons.Left, Keys.Shift)).ConfigureAwait(false);
+                await routed.ConfigureAwait(false);
+                string er4 = "ER4|" + seller.Character.Id.ToString(CultureInfo.InvariantCulture) + "|" + merchant.CellId.ToString(CultureInfo.InvariantCulture);
+                Check(await ach.Until(() => ach.SentSince(sentMark).Contains(er4), 5).ConfigureAwait(false), "Maj + clic sans " + er4 + " : " + string.Join(" ", ach.SentSince(sentMark)));
+                Check(!ach.SentSince(sentMark).Any(p => p.StartsWith("GA001", StringComparison.Ordinal)), "Maj + clic a envoyé un déplacement");
+                string eck4 = await ach.Expect("ECK4", "ECK4 (magasin du marchand)", 10, mark).ConfigureAwait(false);
+                string el = await ach.Expect("EL", "EL du marchand", 10, mark).ConfigureAwait(false);
+                Check(await ach.Until(() => store.IsBuying && store.MerchantId == seller.Character.Id && store.Items.Any(i => i.Id == (uint)woodId), 5).ConfigureAwait(false),
+                    "Magasin du marchand non lu : " + eck4 + " / " + el);
+                MerchantItem lot = store.Items.First(i => i.Id == (uint)woodId);
+                Check(lot.Quantity == 1 && lot.Price == MerchantPrice && lot.TemplateId == AshWood, "Lot du marchand : " + lot.Quantity + " × " + lot.TemplateId + " à " + lot.Price);
+                evidence.Add("Maj + clic → " + er4 + " → " + eck4 + ", " + Short(el, 40));
+
+                // Achat du lot entier : EB → EBK ; magasin vide, StarLoco retire le marchand (GM|-) et ferme la fenêtre (EV).
+                mark = ach.ReceivedCount;
+                sent = await store.BuyAsync((uint)woodId, 1).ConfigureAwait(false);
+                Check(sent.Sent, "EB refusé par le bot : " + sent.Message);
+                string ebk = await ach.Expect(p => p == "EBK" || p.StartsWith("EBE", StringComparison.Ordinal), "EBK", 10, mark).ConfigureAwait(false);
+                Check(ebk == "EBK", "Achat refusé par StarLoco : " + ebk);
+                string erased = await ach.Expect("GM|-" + seller.Character.Id.ToString(CultureInfo.InvariantCulture), "GM|- du marchand vidé", 10, mark).ConfigureAwait(false);
+                await ach.Expect(p => p == "EV" || p == "EVa", "EV après l'achat", 10, mark).ConfigureAwait(false);
+                Check(await ach.Until(() => ach.Map.GetActor(seller.Character.Id) == null && !store.IsOpen && buyer.Bag.GetByInventoryId((uint)woodId) != null, 5).ConfigureAwait(false),
+                    "Après l'achat : marchand " + (ach.Map.GetActor(seller.Character.Id)?.GetType().Name ?? "retiré") + ", magasin ouvert " + store.IsOpen + ", bois dans le sac " + (buyer.Bag.GetByInventoryId((uint)woodId) != null));
+                buyer.Remember();
+                seller.Seen.Remove((uint)woodId); // passé dans le sac de l'acheteur : nettoyé avec lui
+                evidence.Add("EB" + woodId + "|1 → " + ebk + ", " + erased + ", EV, bois dans le sac de l'acheteur");
+                return string.Join(" ; ", evidence);
+            }
+            finally
+            {
+                // Vendeur passé en mode marchand : reconnecté pour que StarLoco retire tout marchand restant (Player.OnJoinGame) et que son sac soit vidé en jeu.
+                if (merchantMode && seller.Character != null)
+                {
+                    try
+                    {
+                        seller.Session?.Dispose();
+                        await Task.Delay(1000).ConfigureAwait(false);
+                        seller.Session = new LiveSession(seller.Label + "2", seller.Character.Login, seller.Character.Password);
+                        Journal("[test] reconnexion du vendeur : " + await EnterExistingAsync(seller.Session, seller.Character.Id, seller.Character.Name, shopMap.MapID).ConfigureAwait(false));
+                        if (buyer.Session != null && InGame(buyer.Session))
+                            Journal("[test] vendeur vu par l'acheteur après sa reconnexion : " + (await buyer.Session.Until(() => buyer.Session.Map.GetActor(seller.Character.Id) is PlayerActor, 10).ConfigureAwait(false) ? "joueur" : "pas en joueur"));
+                    }
+                    catch (Exception error) { Journal("!! [test] reconnexion du vendeur impossible : " + error.Message); }
+                }
+                await ClosePetOwnerAsync(db, schema, buyer, () => CloseScreenAsync(screen)).ConfigureAwait(false);
+                await ClosePetOwnerAsync(db, schema, seller).ConfigureAwait(false);
+            }
+        }
+    }
+
+    /// <summary>Livre des artisans (gfx 7035 de la carte 1064 de StarLoco) et sa compétence « Consulter » (170, <c>ECK14</c>).</summary>
+    private const int CrafterBookGfx = 7035;
+    private const short CrafterBookSkill = 170;
+
+    /// <summary>
+    /// Livre des artisans de la carte, utilisé par le client dans sa fenêtre de jeu (lot X6, <c>CrafterCard</c> du client) : <c>GA500&lt;cellule&gt;;170</c>
+    /// → <c>ECK14|&lt;métiers&gt;</c> et volet « Livre des artisans » ; le choix du métier 11 envoie <c>EJF11</c> et StarLoco répond
+    /// <c>EJ+11;&lt;artisan&gt;;&lt;nom&gt;;…</c> (tous les joueurs connectés qui exercent le métier). La ligne de l'artisan sélectionnée,
+    /// « Message privé » prépare « /w &lt;nom&gt; » dans la console du chat et « Localiser » pose la boussole du bandeau sur les coordonnées de
+    /// sa carte (<c>maps.xml</c>), sans paquet ; « Fermer » envoie <c>EV</c>. Sans livre sur la carte, rien n'est rejoué et la preuve le dit.
+    /// </summary>
+    private static async Task<string> CrafterBookAsync(LiveSession cli, GameClientFullform screen, long artisanId, string artisanName, int mapId)
+    {
+        var book = cli.Map.Interactives.FirstOrDefault(p => p.Value != null && p.Value.gfx == CrafterBookGfx && p.Value.HasSkill(CrafterBookSkill));
+        if (book.Value == null) return "pas de livre des artisans (gfx " + CrafterBookGfx + ") sur la carte " + mapId + " : carte de l'artisan non rejouée";
+        Point? expectedCompass = null;
+        try { expectedCompass = LangData.Map.Coords(mapId); }
+        catch (Exception error) when (!(error is OutOfMemoryException)) { Journal("[test] coordonnées de la carte " + mapId + " illisibles : " + error.Message); }
+        Outil_Azur_complet.Bot.Panels.CrafterListPanel panel = await OnUi(() => screen.Panels.Get<Outil_Azur_complet.Bot.Panels.CrafterListPanel>()).ConfigureAwait(false);
+        Check(panel != null, "Volet « Livre des artisans » absent de la fenêtre de jeu");
+        int mark = cli.ReceivedCount, sent = cli.SentCount;
+        var used = await cli.Account.Game.Interactions.Interactive.UseAsync((short)book.Key, CrafterBookSkill).ConfigureAwait(false);
+        Check(used.Sent, "Livre des artisans en " + book.Key + " refusé par le bot : " + used.Message);
+        string use = "GA500" + book.Key.ToString(CultureInfo.InvariantCulture) + ";" + CrafterBookSkill.ToString(CultureInfo.InvariantCulture);
+        Check(await cli.Until(() => cli.SentSince(sent).Contains(use), 25).ConfigureAwait(false), "Livre utilisé sans " + use + " : " + string.Join(" ", cli.SentSince(sent)));
+        string eck = await cli.Expect(p => p.StartsWith("ECK14", StringComparison.Ordinal), "ECK14 du livre des artisans", 20, mark).ConfigureAwait(false);
+        Check(eck.Substring(eck.IndexOf('|') + 1).Split(';').Contains(SwordSmithJob.ToString(CultureInfo.InvariantCulture)), "ECK14 sans le métier " + SwordSmithJob + " : " + eck);
+        Check(await WaitOnUi(() => screen.Panels.Current == panel ? panel : null, 10).ConfigureAwait(false) != null, "Le volet « Livre des artisans » ne s'est pas ouvert sur " + eck);
+
+        // Choix du métier : EJF11, puis EJ+11;<artisan>;… ; la ligne de l'artisan apparaît dans la liste.
+        mark = cli.ReceivedCount; sent = cli.SentCount;
+        Check(await OnUi(() => panel.ChooseJob(SwordSmithJob)).ConfigureAwait(false), "Métier " + SwordSmithJob + " absent du choix du livre");
+        string ejf = "EJF" + SwordSmithJob.ToString(CultureInfo.InvariantCulture);
+        Check(await cli.Until(() => cli.SentSince(sent).Contains(ejf), 5).ConfigureAwait(false), "Choix du métier sans " + ejf + " : " + string.Join(" ", cli.SentSince(sent)));
+        string prefix = "EJ+" + SwordSmithJob.ToString(CultureInfo.InvariantCulture) + ";" + artisanId.ToString(CultureInfo.InvariantCulture) + ";";
+        string listed = await cli.Expect(p => p.StartsWith(prefix, StringComparison.Ordinal), "EJ+ de l'artisan", 10, mark).ConfigureAwait(false);
+        string id = artisanId.ToString(CultureInfo.InvariantCulture);
+        ListView rows = await WaitOnUi(() => AllControls(panel.View).OfType<ListView>().FirstOrDefault(x => x.Name == "crafters-list"
+            && x.Items.Cast<ListViewItem>().Any(row => (row.Tag as Crafter)?.Id == id)), 10).ConfigureAwait(false);
+        Check(rows != null, "Ligne de l'artisan absente du livre après " + listed);
+
+        // Carte de l'artisan : « Message privé » → « /w <nom> » ; « Localiser » → boussole ; aucun paquet.
+        sent = cli.SentCount;
+        string card = await OnUi(() =>
+        {
+            ListViewItem row = rows.Items.Cast<ListViewItem>().First(item => (item.Tag as Crafter)?.Id == id);
+            foreach (ListViewItem other in rows.Items) other.Selected = false;
+            row.Selected = true;
+            Check(panel.SelectedCrafter?.Id == id, "Artisan non sélectionné dans le livre");
+            Button whisper = AllControls(panel.View).OfType<Button>().First(x => x.Name == "crafters-whisper");
+            Button locate = AllControls(panel.View).OfType<Button>().First(x => x.Name == "crafters-locate");
+            Check(whisper.Enabled && locate.Enabled == (expectedCompass != null), "Boutons de la carte de l'artisan : Message privé " + whisper.Enabled + ", Localiser " + locate.Enabled);
+            screen.Chat.Input.Clear();
+            whisper.PerformClick();
+            if (locate.Enabled) locate.PerformClick();
+            return row.SubItems.Count > 2 ? row.Text + " " + row.SubItems[1].Text + " " + row.SubItems[2].Text : row.Text;
+        }).ConfigureAwait(false);
+        string whisperText = "/w " + artisanName + " ";
+        Check(await WaitOnUi(() => screen.Chat.Input.Text == whisperText ? screen.Chat.Input.Text : null, 5).ConfigureAwait(false) != null,
+            "« Message privé » n'a pas préparé « " + whisperText + " » : « " + await OnUi(() => screen.Chat.Input.Text).ConfigureAwait(false) + " »");
+        Point? compass = await OnUi(() => panel.LastCompass).ConfigureAwait(false), banner = await OnUi(() => screen.Banner.Xtra.CompassTarget).ConfigureAwait(false);
+        Check(expectedCompass == null || (compass == expectedCompass && banner == expectedCompass), "« Localiser » : boussole " + compass + " / bandeau " + banner + " (attendu " + expectedCompass + ")");
+        await Task.Delay(300).ConfigureAwait(false);
+        string[] unexpected = cli.SentSince(sent).Where(p => !p.StartsWith("BD", StringComparison.Ordinal) && p != "qping" && !p.StartsWith("ping", StringComparison.Ordinal)).ToArray();
+        Check(unexpected.Length == 0, "La carte de l'artisan a envoyé des paquets : " + string.Join(" ", unexpected));
+        await OnUi(() => screen.Chat.Input.Clear()).ConfigureAwait(false);
+
+        // Fermer → EV ; le volet attend l'EV du serveur.
+        mark = cli.ReceivedCount; sent = cli.SentCount;
+        await OnUi(() => AllControls(panel.View).OfType<Button>().First(x => x.Name == "crafters-leave").PerformClick()).ConfigureAwait(false);
+        Check(await cli.Until(() => cli.SentSince(sent).Contains("EV"), 5).ConfigureAwait(false), "« Fermer » du livre sans EV : " + string.Join(" ", cli.SentSince(sent)));
+        await cli.Expect(p => p == "EV" || p == "EVa", "EV du livre", 10, mark).ConfigureAwait(false);
+        Check(await WaitOnUi(() => !screen.Panels.IsOpen(panel) ? panel : null, 10).ConfigureAwait(false) != null && await cli.Until(() => cli.Account.AccountStates == AccountStates.CONNECTED_INACTIVE, 5).ConfigureAwait(false),
+            "Livre encore ouvert après EV");
+        return "livre en " + book.Key + " : " + use + " → " + eck + ", " + ejf + " → " + listed.Split(';').Take(5).Aggregate((x, y) => x + ";" + y) + "…, ligne « " + card + " », Message privé → « " + whisperText.TrimEnd()
+            + " », Localiser → boussole " + (expectedCompass == null ? "(carte absente de maps.xml)" : expectedCompass.Value.X + "," + expectedCompass.Value.Y) + ", Fermer → EV";
+    }
+
+    /// <summary>Ferme et libère une fenêtre de jeu ouverte par un scénario (fil d'interface) ; rien si elle n'a pas été créée.</summary>
+    private static Task CloseScreenAsync(GameClientFullform screen) =>
+        screen == null ? Task.FromResult(true) : OnUi(() => { if (!screen.IsDisposed) { screen.Close(); screen.Dispose(); } });
+
+    /// <summary>
+    /// Marche de <paramref name="walker"/> jusqu'à <paramref name="cellId"/>, attendue jusqu'au bout : GA001 puis GKK envoyés, cellule atteinte vue
+    /// par <paramref name="watcher"/>, puis un court délai pour que StarLoco traite le GKK (<c>setAway(false)</c> : une demande d'échange pendant
+    /// la marche reçoit <c>EREO</c>). Faux si le bot refuse la marche ou n'arrive pas sur la cellule (l'appelant essaie une autre cellule).
+    /// </summary>
+    private static async Task<bool> WalkAsync(LiveSession walker, LiveSession watcher, int cellId)
+    {
+        int sent = walker.SentCount;
+        var moved = await walker.Account.Game.Manager.Mouvements.MoveToAsync(walker.Map.GetCellFromId((short)cellId)).ConfigureAwait(false);
+        if (moved != Tool_BotProtocol.Game.Managers.Mouvements.MoveResults.EXIT) { Journal(walker.Label + " [test] marche vers " + cellId + " refusée : " + moved); return false; }
+        if (!await walker.Until(() => walker.SentSince(sent).Any(p => p.StartsWith("GA001", StringComparison.Ordinal)), 5).ConfigureAwait(false)) { Journal(walker.Label + " [test] marche vers " + cellId + " sans GA001"); return false; }
+        if (!await walker.Until(() => walker.SentSince(sent).Any(p => p.StartsWith("GKK", StringComparison.Ordinal)), 20).ConfigureAwait(false)) { Journal(walker.Label + " [test] marche vers " + cellId + " sans GKK"); return false; }
+        bool arrived = await walker.Until(() => walker.Map.Self.CellId == cellId, 5).ConfigureAwait(false)
+            && await watcher.Until(() => watcher.Map.GetActor(walker.Id)?.CellId == cellId, 10).ConfigureAwait(false);
+        if (!arrived) { Journal(walker.Label + " [test] marche vers " + cellId + " arrivée en " + walker.Map.Self.CellId + " (vu en " + watcher.Map.GetActor(walker.Id)?.CellId + ")"); return false; }
+        await Task.Delay(600).ConfigureAwait(false);
+        return true;
+    }
+
+    /// <summary>
+    /// Clic gauche sur <paramref name="actor"/> dans la fenêtre <paramref name="form"/> (fil d'interface, <c>RouteActorAsync</c> comme un clic sur le
+    /// sprite) ; rend les entrées du menu ouvert (en-tête compris) et, si <paramref name="click"/> est donné, clique cette entrée.
+    /// </summary>
+    private static async Task<string[]> ClickActorAsync(GameClientFullform form, MapActor actor, string click)
+    {
+        Check(actor != null, "Acteur absent de la carte");
+        Task routed = await OnUi(() => form.Map.Router.RouteActorAsync(actor, (short)actor.CellId, MouseButtons.Left)).ConfigureAwait(false);
+        await routed.ConfigureAwait(false);
+        return await OnUi(() =>
+        {
+            ContextMenuStrip menu = form.Map.Router.LastMenu;
+            Check(menu != null && !menu.IsDisposed, "Le clic gauche sur " + ActorClassifier.DisplayName(actor) + " n'a pas ouvert de menu");
+            string[] texts = menu.Items.OfType<ToolStripItem>().Where(i => !(i is ToolStripSeparator)).Select(i => i.Text).ToArray();
+            if (click != null)
+            {
+                ToolStripItem item = menu.Items.OfType<ToolStripMenuItem>().FirstOrDefault(i => i.Text == click);
+                Check(item != null && item.Enabled, "Menu sans « " + click + " » actif : " + string.Join(" | ", texts));
+                item.PerformClick();
+            }
+            menu.Close();
+            return texts;
+        }).ConfigureAwait(false);
     }
 }

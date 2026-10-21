@@ -218,6 +218,9 @@ namespace Tool_BotProtocol.Game.Exchanges
             }
             LastMessage = reason;
             account?.Logger?.LogError(Reference, reason + " (ERE" + code + ")");
+            // Le client affiche chaque refus par showMessage(…, "ERROR_CHAT") (Exchange.onRequest) : ligne locale du chat (lot X6, ERET compris).
+            try { account?.Game?.Chat?.AddLocal(Chat.ChatMessageKind.Error, reason); }
+            catch (Exception error) when (!(error is OutOfMemoryException)) { account?.Logger?.LogException(Reference, error); }
             Get<PlayerExchange>()?.OnRequestRefused(reason);
             RaiseChanged();
         }
