@@ -23,6 +23,7 @@ using Tool_BotProtocol.Utils.Crypto;
 /// table GA de combat (vie, PA/PM, états, invisibilité, porter/lancer, invocations, GA;999) et résultat GE (PvM, PvP, mal formé).
 /// Lot X1 : corps à corps <c>GA303&lt;cellule&gt;</c> à mains nues, à l'épée puis à l'arc (items.xml et classes.xml synthétiques),
 /// <c>GAF</c> → <c>GKK</c>, refus locaux (PA, adjacence, portée, état interdit) et réponses StarLoco (Im1170, GA;305).
+/// Lot X8 : zone du type d'arme posée sous le pointeur (« Pa » de l'épée, « Xb » du marteau, « P » à défaut).
 /// </summary>
 internal static class BotFightProtocolSmoke
 {
@@ -116,6 +117,9 @@ internal static class BotFightProtocolSmoke
         Directory.CreateDirectory(lang);
         foreach (string old in Directory.GetFiles(lang, "*.xml")) File.Delete(old);
         WriteLang(lang, "items", "<type id=\"6\" nom=\"Epée\" superType=\"2\" zone=\"Pa\" />\n<type id=\"2\" nom=\"Arc\" superType=\"2\" zone=\"Pa\" />\n"
+            + "<type id=\"7\" nom=\"Marteau\" superType=\"2\" zone=\"Xb\" />\n<type id=\"4\" nom=\"Bâton\" superType=\"2\" zone=\"?\" />\n"
+            + "<objet id=\"7001\" nom=\"Marteau synthétique\" type=\"7\" gfx=\"1\" niveau=\"1\" arme=\"30,5,1,1,25,50,false,false\" />\n"
+            + "<objet id=\"7002\" nom=\"Bâton synthétique\" type=\"4\" gfx=\"1\" niveau=\"1\" arme=\"30,5,1,1,25,50,false,false\" />\n"
             + "<objet id=\"2170\" nom=\"Épée synthétique\" type=\"6\" gfx=\"25\" niveau=\"1\" arme=\"30,5,1,1,25,50,false,false\" />\n"
             + "<objet id=\"6783\" nom=\"Arc synthétique\" type=\"2\" gfx=\"1\" niveau=\"1\" arme=\"5,4,2,6,50,50,false,true\" />\n"
             + "<objet id=\"6987\" nom=\"Pierre synthétique\" type=\"83\" gfx=\"1\" niveau=\"1\" />");
@@ -133,6 +137,11 @@ internal static class BotFightProtocolSmoke
             Check(sword.IsArmed && sword.WeaponTemplateId == 2170 && sword.Name == "Épée synthétique" && sword.ActionPoints == 5 && sword.MinRange == 1
                 && sword.MaxRange == 1 && sword.CriticalHit == 25 && !sword.LineOnly && sword.ForbiddenStates.Contains(3) && sword.Summary.Contains("5 PA"),
                 "Weapon in position 1 not read from items.xml");
+            // Lot X8 : zone de l'arme sous le pointeur (I.t[type].z) : « Pa » de l'épée, croix « Xb » du marteau ; zone illisible ou poings : « P ».
+            Check(sword.EffectZones.Count == 1 && sword.EffectZones[0].ToString() == "P0" && fists.EffectZones.Count == 1 && fists.EffectZones[0].ToString() == "P0"
+                && string.Join(",", CloseCombatStats.For(9, 7001).EffectZones) == "X1" && string.Join(",", CloseCombatStats.For(9, 7002).EffectZones) == "P0"
+                && string.Join(",", SpellAim.ForCloseCombat(CloseCombatStats.For(9, 7001)).EffectZones) == "X1",
+                "Weapon type zone not used for the pointer: " + string.Join(",", CloseCombatStats.For(9, 7001).EffectZones));
             await Feed(account, "GA;950;42;42,3,1");
             Check(fight.GetCloseCombatUnavailableReason(near.CellID).Contains("état") && !(await fight.AttackAsync(near.CellID)).Sent && peer.Available == 0,
                 "Close combat allowed in a forbidden state of the class");
@@ -459,6 +468,6 @@ internal static class BotFightProtocolSmoke
         finally { listener.Stop(); }
         Console.WriteLine("OK: GTL/GTR/GTS(2-3)/GTF timeline, GIE/GIe effects and expiry, GDZ, Go/fN/fS/fP/fH, Gf, GQ (give up, kick), " +
             "combat GA table (life, AP/MP, states, invisibility, buffs, carry/throw, summon, GA;999, router fallback), GE PvM/PvP/malformed, " +
-            "close combat GA303 (fists, sword, bow, soul stone; GAF->GKK, AP/range/state refusals, Im1170, GA;305)");
+            "close combat GA303 (fists, sword, bow, soul stone; GAF->GKK, AP/range/state refusals, Im1170, GA;305), weapon type zone under the pointer (lot X8)");
     }
 }
