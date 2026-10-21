@@ -1749,7 +1749,9 @@ internal static partial class Live
         string id = s.Id.ToString(CultureInfo.InvariantCulture), answer;
         if (weapon.IsArmed)
         {
-            answer = await s.Expect(p => p.StartsWith("GA;303;" + id + ";") || p.StartsWith("GA;305;" + id + ";") || p.StartsWith("Im1170") || p.StartsWith("Im1171"),
+            // StarLoco envoie l'échec critique sans paramètre : « GA;305;<id> » (journal du 21 octobre 2026).
+            answer = await s.Expect(p => p.StartsWith("GA;303;" + id + ";") || p == "GA;305;" + id || p.StartsWith("GA;305;" + id + ";")
+                || p.StartsWith("Im1170") || p.StartsWith("Im1171"),
                 "GA;303 (attaque au corps à corps)", 10, mark).ConfigureAwait(false);
             Check(!answer.StartsWith("Im"), s.Label + " : StarLoco refuse une attaque que le bot autorisait (" + weapon.Summary + ", distance " + distance + ", " + paStart + " PA) : " + answer);
             if (answer.StartsWith("GA;305"))
