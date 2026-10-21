@@ -123,6 +123,9 @@ try {
     # Lot X5 (artisanat sécurisé : fenêtre CraftSecureExchange des types 12 et 13, demandes ERK 12/13, paiement EP/Ep, volet) : couvert
     # par BotCraftSmoke, BotExchangeSmoke et le scénario x5 de BotStarLocoLiveSmoke (deux comptes inventés sur une carte à forge) ;
     # AZUR_STARLOCO_SCENARIOS=x5 ne joue que celui-là après la connexion.
+    # Lot X7 (événements de combat visibles : journal dans le chat, zones GDZ, cellules GDC, clip « prêt », icônes Go, invisibilité GA;150) :
+    # couvert par BotFightUiSmoke, BotMapViewSmoke, BotChatUiSmoke et le scénario x7 de BotStarLocoLiveSmoke (Sram inventé, deux pièges,
+    # Invisibilité, fenêtre de B restée sur la carte) ; AZUR_STARLOCO_SCENARIOS=x7 ne joue que celui-là après la connexion.
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'

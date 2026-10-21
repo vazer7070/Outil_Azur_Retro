@@ -152,6 +152,8 @@ Après la relecture, le bot a été joué sur une copie locale du StarLoco du ki
 
 **X5 — Artisanat sécurisé (a) : protocole et fenêtre.** Fenêtre `CraftSecureExchange` des types 12 (artisan) et 13 (client) : `ECK12` / `ECK13|<cases>;<compétence>`, ingrédients des deux côtés (`EMO±`, `EMKO±`, `EmKO±`), paiement et prime du client (`EP<1|2>G`, `EP<1|2>O±` → `Ep<type>;…`), `EK` avec le délai du client, `EcK;<modèle>;T / B<nom>;<effets>`, `EcEF`, `EcEI`, `EV` ; demandes `ERK` de types 12 et 13 posées dans la boîte de l'échange avec les textes du client ; volet **Artisanat sécurisé**. Les entrées de menu `ER12` / `ER13` et `ERET` restent au lot X6. Tests : `BotCraftSmoke`, `BotExchangeSmoke`, scénario x5 de `BotStarLocoLiveSmoke`.
 
+**X7 — Combat : événements visibles (chat, zones, cellules, prêt, invisibilité).** Journal de combat dans le filtre Infos du chat selon l'option `ChatEffects` ; zones `GDZ` dessinées au sol (`ZONE_COLOR`, 30 %) ; cellules `GDC` redécodées et redessinées d'après les bits du masque (`Map.CellDataOf`), restaurées par `GDC<cellule>` ; clip `ready.swf` au-dessus de chaque combattant prêt (`GR1<id>`), retiré au premier tour ; icônes `Go` au-dessus de l'épée de l'équipe ou de son chef ; combattant invisible (`GA;150`) caché chez les autres et à 40 % pour soi. Tests : `BotFightUiSmoke`, `BotMapViewSmoke`, `BotChatUiSmoke`, scénario x7 de `BotStarLocoLiveSmoke` (Sram, pièges, invisibilité).
+
 ## Couverture des fonctions
 
 Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par le test cité contre un serveur fictif local), **partiel** (une partie seulement), **absent**. Les fonctions rejouées par `BotStarLocoLiveSmoke` sont aussi vérifiées sur un vrai StarLoco local ; les autres lignes ne le sont pas encore. La colonne « Client 1.34 » nomme la fenêtre ou les paquets du client ; la colonne « StarLoco » dit ce que le serveur du kit en fait.
@@ -185,7 +187,7 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | A7 | Survoler, sélectionner un acteur | aucun paquet | — | fait | `BotActorRenderSmoke` |
 | A8 | Se déplacer | `GA001`, `GKK`, `GKE` | traité | fait | `BotMovementSmoke`, `BotGameplaySmoke` |
 | A9 | Orientation et marche animée | `eD`, `GA;1` | traité | partiel : bandes de marche pour les 24 classes seulement | `BotActorRenderSmoke`, `BotMovementSmoke` |
-| A10 | Objets interactifs, objets au sol, portes | `GDF`, `GDO`, `GDC` | traité | partiel : images 1 et 2 des objets seulement | `BotInteractivesSmoke`, `BotActorsModelSmoke` |
+| A10 | Objets interactifs, objets au sol, portes | `GDF`, `GDO`, `GDC` | traité | partiel : images 1 et 2 des objets seulement ; cellule `GDC` redessinée depuis le lot X7 (piège rejoué, portes non) | `BotInteractivesSmoke`, `BotActorsModelSmoke`, `BotMapViewSmoke`, x7 |
 | A11 | Bulles, smileys, émotes | `cMK`, `cS`, `eUK` | traité | partiel : émotes 1, 2, 3, 9, 14, 15, 19, 20 et 21 animées en bande pour les classes, icône pour les autres (lot AN8) | `BotActorRenderSmoke`, `BotExtraClipsSmoke` |
 
 ### B. Interactions sur la carte
@@ -222,6 +224,7 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | C8 | Noms, objets liés, coordonnées | liens du chat | pas d’objets liés | partiel : pas d’objets liés | `BotChatUiSmoke` |
 | C9 | Historique, complétion, agrandissement | local | — | fait | `BotChatUiSmoke` |
 | C10 | Messages du serveur | `Im`, `cs`, `M1` | traité | fait | `BotSessionSmoke`, `BotChatUiSmoke` |
+| C11 | Journal de combat (lot X7) | `INFO_FIGHT_CHAT`, option `ChatEffects` | — | partiel : textes du journal du bot, pas ceux de langue du client | `BotChatUiSmoke`, `BotFightUiSmoke`, x7 |
 
 ### D. Bandeau, fiches et petits menus
 
@@ -273,7 +276,7 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | G6 | Pierres d’âme et arènes | `OU` | pierre utilisable en arène seulement | fait | `BotServerCommandsSmoke` |
 | G7 | Documents | `dCK`, `dV` | pancartes seulement | fait | `BotInteractivesSmoke`, `BotServerCommandsSmoke` |
 | G8 | Commandes joueur du serveur | — | `.commande` dans le canal général | fait | `BotServerCommandsSmoke` |
-| G9 | Combat | `G…`, `GA` | traité ; défis à rejouer, `GA303` rejoué (lot X1) | partiel : ni défis, ni mode tactique | `BotFightProtocolSmoke`, `BotCombatSmoke`, `BotFightUiSmoke`, `BotCombatUiSmoke` (Windows) |
+| G9 | Combat | `G…`, `GA` | traité ; défis à rejouer, `GA303` rejoué (lot X1) ; `Go` envoyé à la carte d'origine seulement | partiel : ni défis, ni mode tactique ; zones `GDZ`, prêt `GR1<id>`, options `Go` et invisibilité `GA;150` dessinés depuis le lot X7 | `BotFightProtocolSmoke`, `BotCombatSmoke`, `BotFightUiSmoke`, `BotCombatUiSmoke` (Windows), x7 |
 
 ## Reste à faire
 
@@ -302,6 +305,8 @@ Lot X4 : le repas du familier et de la monture, la garde chez un gardien (PNJ 29
 
 Lot X32 : le changement de nom en jeu (potion 10860 écrite dans la base, fenêtre du nom, refus sur place, `AlEs`, `AlEr` puis `GM|~` au nouveau nom) et la roulette du Bouftou (`TC30` → `TV0|<cellule>|<orientation>`, boîte « mini-jeu », joueur libéré) sont rejoués (scénarios x32a et x32b). Restent `TC31` (une fois sur 200), le cas sans potion dans le sac, et l’animation du tutoriel, que le bot ne joue pas.
 
+Lot X7 : l'option « aide » vue au-dessus de l'épée par un joueur resté sur la carte, le clip « prêt » d'un Sram inventé dans les deux fenêtres, deux Pièges Sournois (`GDZ` et `GDC` à la seule équipe du lanceur), l'Invisibilité (masqué chez l'adversaire, 40 % chez lui, ligne du chat) et le déclenchement d'un piège sont rejoués (scénario x7). Restent les icônes d'options au-dessus du chef d'équipe en combat (StarLoco n'envoie pas `Go` aux combattants), les `GDC` des portes de labyrinthe, les glyphes et les zones de taille supérieure à 0, et la comparaison des captures avec le client en jeu.
+
 ### Carte et acteurs
 
 - Images des sols en pente : `swfsvg` sait rendre une image choisie, mais le décor versionné a été exporté sans les pentes.
@@ -324,6 +329,7 @@ Lot X32 : le changement de nom en jeu (potion 10860 écrite dans la base, fenêt
 - Aperçu du chemin pendant un combat.
 - Effets de sorts (lot AN4) : aucun repli pour les 10 gfx de type 10 ou 11 sans scène (dessinés par script ou vides) ; scripts des SWF non exécutés (hasard, niveau du sort) ; `anim8` des ballons et feux d’artifice non exporté, couleur à 200 % de `GA208` non reproduite ; clip du coup critique limité à `staticF` d’après le code du client, non observé ; rien n’a été comparé au client en jeu.
 - Projectiles des sorts (lot AN5) : types 50 et 51 approchés par la scène, ou `shoot`, à la cellule visée (le clip du client se dessine par script) ; rien à dessiner pour 41 des 61 gfx de type 51, pour le gfx de type 50 et pour 103 et 3001 (scripts) ; `duplicate` de 1210 joué en entier au lieu de retirer le clip ; aucune capture prise pendant un vol sur le vrai StarLoco, rien n’a été comparé au client en jeu.
+- Événements visibles (lot X7) : journal du chat écrit avec les textes du bot plutôt que ceux de langue du client (`INVISIBILITY`, `ENTER_STATE` / `EXIT_STATE` et le nom de l'état), « Combattant #<id> » quand un état arrive avant le `GM` ; zones tracées cellule par cellule au lieu du losange vectoriel de `Zone.drawCircle`.
 
 ### Bandeau, options et fiches
 
