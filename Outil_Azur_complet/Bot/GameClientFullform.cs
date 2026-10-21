@@ -421,6 +421,7 @@ namespace Outil_Azur_complet.Bot
         private void Escape()
         {
             if (mapControl != null && mapControl.FlagMode) { mapControl.FlagMode = false; return; }
+            if (mapControl != null && mapControl.CancelItemTarget()) return;
             if (mapControl?.SelectedSpellId != null) { mapControl.SelectSpell(null); return; }
             if (drawer.Current != null) { drawer.CloseCurrent(); mapArea.Focus(); return; }
             _ = banner.MainMenu.AskAsync();

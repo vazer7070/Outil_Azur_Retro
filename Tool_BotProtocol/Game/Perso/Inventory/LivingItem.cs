@@ -150,7 +150,9 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
             try
             {
                 string name = LangData.Item.TypeName(type);
-                return string.IsNullOrWhiteSpace(name) ? "type " + type.ToString(CultureInfo.InvariantCulture) : name;
+                string number = type.ToString(CultureInfo.InvariantCulture);
+                // Sans textes du client, LangData rend le numéro du type.
+                return string.IsNullOrWhiteSpace(name) || name.Trim() == number ? "type " + number : name.Trim();
             }
             catch (Exception error) when (!(error is OutOfMemoryException)) { return "type " + type.ToString(CultureInfo.InvariantCulture); }
         }

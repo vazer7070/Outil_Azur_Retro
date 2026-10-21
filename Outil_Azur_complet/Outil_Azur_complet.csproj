@@ -298,6 +298,9 @@
     <Compile Include="Bot\Interfaces\MapControl.Fight.cs">
       <DependentUpon>MapControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="Bot\Interfaces\MapControl.ItemTarget.cs">
+      <DependentUpon>MapControl.cs</DependentUpon>
+    </Compile>
     <Compile Include="Bot\Interfaces\MapControl.Effects.cs">
       <DependentUpon>MapControl.cs</DependentUpon>
     </Compile>
