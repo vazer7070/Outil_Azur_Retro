@@ -493,6 +493,7 @@ internal static partial class Live
         await Scenario("x32b. roulette du Bouftou : 100 kamas, TC → TV envoyé, boîte « mini-jeu », joueur libéré (lot X32)", 90, RouletteAsync).ConfigureAwait(false);
         await Scenario("x5. artisanat sécurisé : ER13 du client, ERK 12, ECK12 / ECK13, ingrédients, paiement, EK des deux, EcK, EV (lot X5)", 150, SecureCraftAsync).ConfigureAwait(false);
         await Scenario("x6. artisanat sécurisé depuis les menus : EW+ à l'arrivée, clic gauche sur l'artisan, « Demander à » → ER13, ERET (artisan éloigné), ERK 12 → ECK, « Inviter à » → ER12 → ERK 13 → ECK (lot X6)", 200, SecureCraftMenuAsync).ConfigureAwait(false);
+        await Scenario("x6b. marchand hors ligne : ER6|, EMO+, Eq → Eq1, EQ → marchand -5 ; clic simple → menu « Acheter » sans paquet, Maj + clic → ER4 → ECK4, EB → EBK, GM|- (lot X6)", 150, OfflineMerchantClickAsync).ConfigureAwait(false);
         // Toujours en dernier : arrête puis redémarre le serveur de jeu (A et B restent déconnectés).
         await Scenario("x3c. serveur de jeu arrêté en pleine partie : boîte de perte de connexion, « Oui » reconnecte A (lot X3)", 360, GameStopAsync).ConfigureAwait(false);
     }
@@ -2863,11 +2864,15 @@ internal static partial class Live
     /// supprime les lignes restantes (objets, entrées de familier, monture), relit la base et journalise exactement ce qui a été fait ;
     /// puis le compte et le personnage inventés.
     /// </summary>
-    private static async Task ClosePetOwnerAsync(MySql.Data.MySqlClient.MySqlConnection db, string schema, PetOwner owner)
+    private static async Task ClosePetOwnerAsync(MySql.Data.MySqlClient.MySqlConnection db, string schema, PetOwner owner, Func<Task> beforeLogout = null)
     {
         var destroyed = new List<uint>(); var gone = new List<uint>(); var failed = new List<string>();
         try { await DestroyBagAsync(owner, destroyed, gone, failed).ConfigureAwait(false); }
         catch (Exception error) { failed.Add("destruction en jeu interrompue : " + error.Message); }
+        // Fenêtre de jeu du compte (lot X6) : fermée après la destruction en jeu, sa fermeture libérant le compte.
+        if (beforeLogout != null)
+            try { await beforeLogout().ConfigureAwait(false); }
+            catch (Exception error) { failed.Add("fermeture avant la déconnexion : " + error.Message); }
         owner.Session?.Dispose();
         await Task.Delay(1500).ConfigureAwait(false);
         try
@@ -4013,10 +4018,164 @@ internal static partial class Live
             {
                 if (artisanRequests != null) artisanRequests.RequestReceived -= keep;
                 if (clientRequests != null) clientRequests.RequestReceived -= keep;
-                if (screen != null) await OnUi(() => { if (!screen.IsDisposed) { screen.Close(); screen.Dispose(); } }).ConfigureAwait(false);
-                // Nettoyage comme x4 et x5 (objets détruits en jeu, lignes de la base, comptes), un compte après l'autre.
-                await ClosePetOwnerAsync(db, schema, client).ConfigureAwait(false);
+                // Nettoyage comme x4 et x5 (objets détruits en jeu, lignes de la base, comptes), un compte après l'autre ; la fenêtre de jeu du
+                // client se ferme après la destruction de son sac, sa fermeture libérant le compte.
+                await ClosePetOwnerAsync(db, schema, client, () => CloseScreenAsync(screen)).ConfigureAwait(false);
                 await ClosePetOwnerAsync(db, schema, artisan).ConfigureAwait(false);
+            }
+        }
+    }
+
+    /// <summary>Prix unitaire du lot du marchand : taxe du mode marchand = somme des prix ÷ 1 000 (<c>storeAllBuy() / 1000</c>), donc 0.</summary>
+    private const int MerchantPrice = 1, MerchantBuyerKamas = 10;
+
+    /// <summary>
+    /// Marchand hors ligne (lot X6, <c>onSpriteRelease</c> du client) sur la carte de la forge de x5/x6 (aucune interdiction de marchand dans
+    /// <c>forbidden</c> chez StarLoco). Un vendeur inventé organise son magasin (<c>ER6|</c> → <c>ECK6</c>, <c>EMO+&lt;bois&gt;|1|1</c> → <c>EL</c>,
+    /// <c>EV</c>), demande la taxe (<c>Eq</c> → <c>Eq1|1|0</c>) puis passe en mode marchand (<c>EQ</c> : StarLoco le déconnecte et le garde sur
+    /// sa cellule). L'acheteur arrive ensuite avec sa fenêtre de jeu : <c>GM|~…;-5;…</c> (<c>GAME_SEND_MERCHANT_LIST</c>) pose le marchand ;
+    /// un clic gauche simple ouvre son menu (« Acheter » par défaut, « Maj + clic ») sans rien envoyer ; Maj + clic envoie
+    /// <c>ER4|&lt;marchand&gt;|&lt;cellule&gt;</c> → <c>ECK4</c> + <c>EL</c> ; <c>EB&lt;lot&gt;|1</c> → <c>EBK</c>, magasin vide : <c>GM|-&lt;marchand&gt;</c>
+    /// et <c>EV</c>. Le vendeur se reconnecte enfin (StarLoco retire alors tout marchand restant), puis les deux comptes sont nettoyés.
+    /// </summary>
+    private static async Task<string> OfflineMerchantClickAsync()
+    {
+        RequireMaps();
+        if (!FindForge(out Map shopMap, out Cell forge, out Cell sellerCell, out Cell buyerCell))
+            throw new SkipScenario("aucune carte du bot n'a de forge (objet " + ForgeGfx + ") : pas de carte connue des deux côtés pour le marchand");
+        using (MySql.Data.MySqlClient.MySqlConnection db = OpenAccountsDatabase(out string schema))
+        {
+            var seller = new PetOwner { Label = "Mar" }; var buyer = new PetOwner { Label = "Ach" };
+            var evidence = new List<string>();
+            GameClientFullform screen = null;
+            bool merchantMode = false;
+            try
+            {
+                int woodId = 610000000 + random.Next(1, 100000) * 10 + 5;
+                seller.Character = Invent(db, schema, a.Id, shopMap.MapID, sellerCell.CellID, 10000, seller.Created);
+                Sql(db, "INSERT INTO " + schema + ".`world.entity.objects` (id, template, quantity, position, stats, puit) VALUES (@id, @template, 1, -1, '', 0)", "@id", woodId, "@template", AshWood);
+                Sql(db, "UPDATE " + schema + ".players SET kamas = 0, objets = @objets WHERE id = @id", "@objets", woodId.ToString(CultureInfo.InvariantCulture) + "|", "@id", seller.Character.Id);
+                seller.Seen.Add((uint)woodId);
+                buyer.Character = Invent(db, schema, b.Id, shopMap.MapID, buyerCell.CellID, 10000, buyer.Created);
+                Sql(db, "UPDATE " + schema + ".players SET kamas = @kamas WHERE id = @id", "@kamas", MerchantBuyerKamas, "@id", buyer.Character.Id);
+                Journal("[test] carte " + shopMap.MapID + " : vendeur " + seller.Character.Name + " en " + sellerCell.CellID + " avec le bois " + woodId + ", acheteur " + buyer.Character.Name + " en " + buyerCell.CellID);
+
+                // Vendeur : magasin organisé (ER6| → ECK6, EMO+ → EL, EV), taxe (Eq → Eq1|1|0), mode marchand (EQ → déconnexion).
+                LiveSession sel = seller.Session = new LiveSession(seller.Label, seller.Character.Login, seller.Character.Password);
+                evidence.Add(await EnterExistingAsync(sel, seller.Character.Id, seller.Character.Name, shopMap.MapID).ConfigureAwait(false));
+                MerchantExchange shop = sel.Account.Game.Interactions.Merchant;
+                Check(await sel.Until(() => seller.Bag.GetByInventoryId((uint)woodId) != null, 10).ConfigureAwait(false), "Bois " + woodId + " absent du sac du vendeur");
+                int mark = sel.ReceivedCount;
+                var sent = await shop.OrganizeAsync().ConfigureAwait(false);
+                Check(sent.Sent, "ER6| refusé par le bot : " + sent.Message);
+                string eck6 = await sel.Expect("ECK6", "ECK6 (son magasin)", 10, mark).ConfigureAwait(false);
+                Check(await sel.Until(() => shop.IsOrganizing && shop.ContentReceived, 5).ConfigureAwait(false), "Magasin du vendeur non ouvert après " + eck6);
+                mark = sel.ReceivedCount;
+                sent = await shop.AddToShopAsync((uint)woodId, 1, MerchantPrice).ConfigureAwait(false);
+                Check(sent.Sent, "EMO+ refusé par le bot : " + sent.Message);
+                string listed = await sel.Expect(p => p.StartsWith("EL" + woodId.ToString(CultureInfo.InvariantCulture) + ";", StringComparison.Ordinal), "EL avec le bois mis en vente", 10, mark).ConfigureAwait(false);
+                mark = sel.ReceivedCount;
+                sent = await shop.LeaveAsync().ConfigureAwait(false);
+                Check(sent.Sent, "EV du magasin refusé : " + sent.Message);
+                await sel.Expect(p => p == "EV" || p == "EVa", "EV du magasin", 10, mark).ConfigureAwait(false);
+                Check(await sel.Until(() => !shop.IsOpen && sel.Account.AccountStates == AccountStates.CONNECTED_INACTIVE, 5).ConfigureAwait(false), "Magasin encore ouvert après EV");
+                seller.Remember();
+                mark = sel.ReceivedCount;
+                sent = await shop.AskMerchantModeAsync().ConfigureAwait(false);
+                Check(sent.Sent, "Eq refusé par le bot : " + sent.Message);
+                string tax = await sel.Expect(p => p.StartsWith("Eq", StringComparison.Ordinal) || p == "Im113" || p == "Im123" || p == "Im176" || p.StartsWith("Im125", StringComparison.Ordinal),
+                    "Eq1 (taxe) ou refus Im", 10, mark).ConfigureAwait(false);
+                if (tax == "Im113") throw new SkipScenario("StarLoco interdit les marchands sur la carte " + shopMap.MapID + " (Im113)");
+                if (tax.StartsWith("Im125", StringComparison.Ordinal)) throw new SkipScenario("trop de marchands sur la carte " + shopMap.MapID + " (" + tax + ")");
+                Check(tax == "Eq1|1|0", "Taxe du mode marchand : " + tax + " (attendu Eq1|1|0, prix " + MerchantPrice + " ÷ 1 000)");
+                Check(await sel.Until(() => shop.PendingTax != null, 5).ConfigureAwait(false), "Eq1 non retenu par le bot");
+                int sentMark = sel.SentCount;
+                sent = await shop.ConfirmMerchantModeAsync().ConfigureAwait(false);
+                Check(sent.Sent, "EQ refusé par le bot : " + sent.Message);
+                merchantMode = true;
+                Check(sel.SentSince(sentMark).Contains("EQ"), "EQ non envoyé");
+                Check(await sel.Until(() => sel.Account.Connexion == null || !sel.Account.Connexion.IsConnected(), 15).ConfigureAwait(false), "StarLoco n'a pas déconnecté le vendeur après EQ");
+                evidence.Add("vendeur : ER6| → " + eck6 + ", EMO+" + woodId + "|1|" + MerchantPrice + " → " + Short(listed, 40) + ", EV, Eq → " + tax + ", EQ → déconnecté");
+                await Task.Delay(2000).ConfigureAwait(false);
+
+                // Acheteur, avec sa fenêtre de jeu : le marchand arrive par GM|~ (liste des marchands de la carte, après GDK).
+                LiveSession ach = buyer.Session = new LiveSession(buyer.Label, buyer.Character.Login, buyer.Character.Password);
+                evidence.Add(await EnterExistingAsync(ach, buyer.Character.Id, buyer.Character.Name, shopMap.MapID, s =>
+                    s.Account.Game.character.Player_Selection += () => OnUi(() =>
+                    {
+                        if (screen != null) return;
+                        screen = new GameClientFullform(s.Account) { StartPosition = FormStartPosition.Manual, Location = new Point(60, 60), Size = new Size(1000, 700), ShowInTaskbar = false };
+                        screen.Show();
+                    })).ConfigureAwait(false));
+                string sellerKey = ";" + seller.Character.Id.ToString(CultureInfo.InvariantCulture) + ";" + seller.Character.Name + ";-5;";
+                string gm = await ach.Expect(p => p.StartsWith("GM|", StringComparison.Ordinal) && p.Contains("~") && p.Contains(sellerKey), "GM|~ du marchand", 10, 0).ConfigureAwait(false);
+                Check(await ach.Until(() => ach.Map.GetActor(seller.Character.Id) is MerchantActor, 5).ConfigureAwait(false),
+                    "Marchand non posé sur la carte de l'acheteur : " + (ach.Map.GetActor(seller.Character.Id)?.GetType().Name ?? "absent"));
+                MapActor merchant = ach.Map.GetActor(seller.Character.Id);
+                Check(merchant.CellId == sellerCell.CellID, "Marchand en " + merchant.CellId + " au lieu de " + sellerCell.CellID);
+                Check(await WaitOnUi(() => screen != null && screen.IsHandleCreated && screen.Visible && screen.Map?.Router != null ? screen : null, 20).ConfigureAwait(false) != null,
+                    "La fenêtre de jeu de l'acheteur ne s'est pas ouverte");
+                evidence.Add("acheteur : " + Short(gm.Substring(gm.IndexOf('~')), 60) + " → marchand en " + merchant.CellId);
+
+                // Clic gauche simple : menu du marchand, rien envoyé (ni ER4, ni GA001).
+                string buyText = Tool_BotProtocol.Game.Habitat.HouseTexts.Text("BUY", "Acheter");
+                sentMark = ach.SentCount;
+                string[] menu = await ClickActorAsync(screen, merchant, null).ConfigureAwait(false);
+                await Task.Delay(300).ConfigureAwait(false);
+                Check(menu.Contains(buyText), "Menu du marchand au clic gauche : " + string.Join(" | ", menu));
+                Check(!ach.SentSince(sentMark).Any(p => p.StartsWith("ER", StringComparison.Ordinal) || p.StartsWith("GA001", StringComparison.Ordinal)),
+                    "Le clic simple sur le marchand a envoyé : " + string.Join(" ", ach.SentSince(sentMark)));
+                evidence.Add("clic simple → menu « " + string.Join(" | ", menu) + " », aucun paquet");
+
+                // Maj + clic : l'entrée par défaut (Acheter) → ER4|<marchand>|<cellule> → ECK4 + EL.
+                MerchantExchange store = ach.Account.Game.Interactions.Merchant;
+                mark = ach.ReceivedCount; sentMark = ach.SentCount;
+                Task routed = await OnUi(() => screen.Map.Router.RouteActorAsync(merchant, (short)merchant.CellId, MouseButtons.Left, Keys.Shift)).ConfigureAwait(false);
+                await routed.ConfigureAwait(false);
+                string er4 = "ER4|" + seller.Character.Id.ToString(CultureInfo.InvariantCulture) + "|" + merchant.CellId.ToString(CultureInfo.InvariantCulture);
+                Check(await ach.Until(() => ach.SentSince(sentMark).Contains(er4), 5).ConfigureAwait(false), "Maj + clic sans " + er4 + " : " + string.Join(" ", ach.SentSince(sentMark)));
+                Check(!ach.SentSince(sentMark).Any(p => p.StartsWith("GA001", StringComparison.Ordinal)), "Maj + clic a envoyé un déplacement");
+                string eck4 = await ach.Expect("ECK4", "ECK4 (magasin du marchand)", 10, mark).ConfigureAwait(false);
+                string el = await ach.Expect("EL", "EL du marchand", 10, mark).ConfigureAwait(false);
+                Check(await ach.Until(() => store.IsBuying && store.MerchantId == seller.Character.Id && store.Items.Any(i => i.Id == (uint)woodId), 5).ConfigureAwait(false),
+                    "Magasin du marchand non lu : " + eck4 + " / " + el);
+                MerchantItem lot = store.Items.First(i => i.Id == (uint)woodId);
+                Check(lot.Quantity == 1 && lot.Price == MerchantPrice && lot.TemplateId == AshWood, "Lot du marchand : " + lot.Quantity + " × " + lot.TemplateId + " à " + lot.Price);
+                evidence.Add("Maj + clic → " + er4 + " → " + eck4 + ", " + Short(el, 40));
+
+                // Achat du lot entier : EB → EBK ; magasin vide, StarLoco retire le marchand (GM|-) et ferme la fenêtre (EV).
+                mark = ach.ReceivedCount;
+                sent = await store.BuyAsync((uint)woodId, 1).ConfigureAwait(false);
+                Check(sent.Sent, "EB refusé par le bot : " + sent.Message);
+                string ebk = await ach.Expect(p => p == "EBK" || p.StartsWith("EBE", StringComparison.Ordinal), "EBK", 10, mark).ConfigureAwait(false);
+                Check(ebk == "EBK", "Achat refusé par StarLoco : " + ebk);
+                string erased = await ach.Expect("GM|-" + seller.Character.Id.ToString(CultureInfo.InvariantCulture), "GM|- du marchand vidé", 10, mark).ConfigureAwait(false);
+                await ach.Expect(p => p == "EV" || p == "EVa", "EV après l'achat", 10, mark).ConfigureAwait(false);
+                Check(await ach.Until(() => ach.Map.GetActor(seller.Character.Id) == null && !store.IsOpen && buyer.Bag.GetByInventoryId((uint)woodId) != null, 5).ConfigureAwait(false),
+                    "Après l'achat : marchand " + (ach.Map.GetActor(seller.Character.Id)?.GetType().Name ?? "retiré") + ", magasin ouvert " + store.IsOpen + ", bois dans le sac " + (buyer.Bag.GetByInventoryId((uint)woodId) != null));
+                buyer.Remember();
+                seller.Seen.Remove((uint)woodId); // passé dans le sac de l'acheteur : nettoyé avec lui
+                evidence.Add("EB" + woodId + "|1 → " + ebk + ", " + erased + ", EV, bois dans le sac de l'acheteur");
+                return string.Join(" ; ", evidence);
+            }
+            finally
+            {
+                // Vendeur passé en mode marchand : reconnecté pour que StarLoco retire tout marchand restant (Player.OnJoinGame) et que son sac soit vidé en jeu.
+                if (merchantMode && seller.Character != null)
+                {
+                    try
+                    {
+                        seller.Session?.Dispose();
+                        await Task.Delay(1000).ConfigureAwait(false);
+                        seller.Session = new LiveSession(seller.Label + "2", seller.Character.Login, seller.Character.Password);
+                        Journal("[test] reconnexion du vendeur : " + await EnterExistingAsync(seller.Session, seller.Character.Id, seller.Character.Name, shopMap.MapID).ConfigureAwait(false));
+                        if (buyer.Session != null && InGame(buyer.Session))
+                            Journal("[test] vendeur vu par l'acheteur après sa reconnexion : " + (await buyer.Session.Until(() => buyer.Session.Map.GetActor(seller.Character.Id) is PlayerActor, 10).ConfigureAwait(false) ? "joueur" : "pas en joueur"));
+                    }
+                    catch (Exception error) { Journal("!! [test] reconnexion du vendeur impossible : " + error.Message); }
+                }
+                await ClosePetOwnerAsync(db, schema, buyer, () => CloseScreenAsync(screen)).ConfigureAwait(false);
+                await ClosePetOwnerAsync(db, schema, seller).ConfigureAwait(false);
             }
         }
     }
@@ -4098,6 +4257,10 @@ internal static partial class Live
         return "livre en " + book.Key + " : " + use + " → " + eck + ", " + ejf + " → " + listed.Split(';').Take(5).Aggregate((x, y) => x + ";" + y) + "…, ligne « " + card + " », Message privé → « " + whisperText.TrimEnd()
             + " », Localiser → boussole " + (expectedCompass == null ? "(carte absente de maps.xml)" : expectedCompass.Value.X + "," + expectedCompass.Value.Y) + ", Fermer → EV";
     }
+
+    /// <summary>Ferme et libère une fenêtre de jeu ouverte par un scénario (fil d'interface) ; rien si elle n'a pas été créée.</summary>
+    private static Task CloseScreenAsync(GameClientFullform screen) =>
+        screen == null ? Task.FromResult(true) : OnUi(() => { if (!screen.IsDisposed) { screen.Close(); screen.Dispose(); } });
 
     /// <summary>
     /// Marche de <paramref name="walker"/> jusqu'à <paramref name="cellId"/>, attendue jusqu'au bout : GA001 puis GKK envoyés, cellule atteinte vue
