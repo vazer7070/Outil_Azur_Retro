@@ -140,15 +140,8 @@ namespace Outil_Azur_complet.Bot.Controls
         /// <summary>Cellules du chemin prévisualisé (couleur <c>CELL_PATH_OVER_COLOR</c> #FF6600), vide sans aperçu.</summary>
         public IReadOnlyCollection<short> PathPreview => pathPreview ?? (IReadOnlyCollection<short>)new short[0];
 
-        /// <summary>Remplace l'aperçu du chemin (null ou vide : aucun).</summary>
-        public void SetPathPreview(IEnumerable<short> cells)
-        {
-            HashSet<short> next = cells == null ? null : new HashSet<short>(cells);
-            if (next != null && next.Count == 0) next = null;
-            if ((pathPreview == null && next == null) || (pathPreview != null && next != null && pathPreview.SetEquals(next))) return;
-            pathPreview = next;
-            Invalidate();
-        }
+        /// <summary>Remplace l'aperçu du chemin hors combat (null ou vide : aucun) ; en combat, voir la surcharge du lot X8.</summary>
+        public void SetPathPreview(IEnumerable<short> cells) => SetPathPreview(cells, false);
 
         /// <summary>Redessin demandé depuis n'importe quel fil (images lues, acteurs modifiés) ; regroupé en un seul.</summary>
         public void RequestRepaint()
@@ -752,6 +745,8 @@ namespace Outil_Azur_complet.Bot.Controls
         private void DrawPathPreview(Graphics graphics)
         {
             if (pathPreview == null || worldPolygons == null) return;
+            // Lot X8 : en combat, formes de sélection opaques du client (UserMapControl.Aim.cs).
+            if (pathSelection) { DrawPathSelection(graphics, false); return; }
             using (var fill = new SolidBrush(Color.FromArgb(110, 0xFF, 0x66, 0x00)))
             using (var pen = new Pen(Color.FromArgb(200, 0xFF, 0x66, 0x00), 1 / Math.Max(.01f, viewScale)))
                 foreach (short cell in pathPreview)

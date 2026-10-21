@@ -14,6 +14,8 @@ namespace Tool_BotProtocol.Game.Perso.Spells
         CROIX,
         ANNEAU,
         RECTANGLE,
-        TLIGNE
+        TLIGNE,
+        /// <summary>Lettre <c>D</c> du client (damier : anneaux de même parité que la taille).</summary>
+        DAMIER
     }
 }

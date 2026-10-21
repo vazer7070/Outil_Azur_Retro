@@ -554,13 +554,17 @@ SYMBOLES_UI = [
     "UI_FightOptionButtonCell", "UI_FightOptionTacticModeUp", "UI_FightOptionTacticModeDown", "UI_ChallengeMenu", "UI_GameResultPlayer",
     # Maisons (lot F8) : icône du menu intérieur
     "UI_HouseIndoor",
+    # Curseurs (lot X8) : déplacement de la vue de la carte du monde (`MapNavigator`, glisser)
+    "MapNavigatorMoveCursor",
 ]
 # Scènes de clips/ rendues à une image donnée (symbole, SWF relatif au client, image, échelle) : le drapeau de combat
 # (`Gf`, `flag.swf` joué par `spriteLaunchVisualEffect`) est pris à l'image 30, flèche posée au-dessus du losange.
 # L'icône des poings (`defaultcc.swf`, case ² du corps à corps sans arme, lot X1) est prise à sa première image.
+# La croix d'interdiction (`forbidden.swf`, `FORBIDDEN_FILE` posé sur le curseur d'un sort hors cible, lot X8) aussi.
 SCENES_UI = [
     ("FlagCell", "clips/flag.swf", 30, 1),
     ("DefaultCC", "clips/defaultcc.swf", 1, 2),
+    ("Forbidden", "clips/forbidden.swf", 1, 2),
 ]
 # Calques : (symbole, suffixe, instance, garder) ; le rendu complet garde le nom du symbole.
 CALQUES_UI = [
