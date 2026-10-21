@@ -30,6 +30,11 @@ namespace Outil_Azur_complet.Bot.Panels
     /// (<c>Re+</c>), une pile passe d'abord par la boîte de quantité du client (<see cref="QuantityPopup"/>) puis
     /// <c>OM&lt;objet&gt;|16|&lt;quantité&gt;</c>. Les réponses <c>Im</c> du repas (<c>INFOS_25</c> à <c>INFOS_32</c>, <c>INFOS_105</c>,
     /// <c>ERROR_53</c>, <c>ERROR_54</c>, <c>ERROR_90</c>) s'affichent sous l'objet.
+    /// Objets vivants (lot X13) : sous la fiche, les boutons de <c>LivingItemsViewer</c> (<c>FEED_WORD</c>, <c>CHOOSE_SKIN</c>,
+    /// <c>DISSOCIATE</c> ; nourrir et dissocier seulement pour un objet associé) et les mêmes entrées dans le menu de l'objet :
+    /// <c>Of</c> après le choix d'un aliment et la question <c>CONFIRM_FOOD_LIVING_ITEM</c>, <c>Os</c> après le choix d'une
+    /// apparence, <c>Ox</c> sans question comme le client. « Cibler avec cet objet » (<c>CLICK_TO_TARGET</c>, objet ciblable du
+    /// sac) ferme le volet et arme la visée de la carte (<see cref="Interfaces.MapControl.BeginItemTarget"/>).
     /// </summary>
     public sealed class InventoryPanel : GamePanel
     {
@@ -45,6 +50,13 @@ namespace Outil_Azur_complet.Bot.Panels
         private readonly List<KeyValuePair<ItemCategory?, ClientButton>> filterButtons = new List<KeyValuePair<ItemCategory?, ClientButton>>();
         private ItemCategory? filter;
         private Control equipItem, unequipItem, useItem, dropItem, destroyItem;
+        private Control feedItem, skinItem, dissociateItem;
+        private FlowLayoutPanel livingActions;
+        private Panel pageView;
+        private bool livingShown;
+        /// <summary>Hauteur de la fiche quand la place le permet.</summary>
+        private const int SheetHeight = 150;
+        private bool livingPending;
         private ContextMenuStrip itemMenu, sortMenu;
         private ClientButton sortButton;
         private ToolTip sortTips;
@@ -132,7 +144,7 @@ namespace Outil_Azur_complet.Bot.Panels
             inventory.MenuRequested += (item, location) => ShowMenu(item, inventory, location);
             inventory.Dropped += payload => _ = MoveAsync(payload, -1);
 
-            sheetArea = new Panel { Dock = DockStyle.Bottom, Height = 150, Margin = Padding.Empty, AutoScroll = true, BackColor = BotUi.Paper, Padding = new Padding(0, 4, 0, 0) };
+            sheetArea = new Panel { Dock = DockStyle.Bottom, Height = SheetHeight, Margin = Padding.Empty, AutoScroll = true, BackColor = BotUi.Paper, Padding = new Padding(0, 4, 0, 0) };
             sheet = new ItemTooltip { Dock = DockStyle.Top };
             sheetArea.Controls.Add(sheet);
 
@@ -142,13 +154,47 @@ namespace Outil_Azur_complet.Bot.Panels
             useItem = MakeButton("Utiliser", async (s, e) => await UseSelected(), false, 84);
             dropItem = MakeButton("Jeter", async (s, e) => await DropSelected(), false, 84);
             destroyItem = MakeButton("Détruire", async (s, e) => await DestroySelected(), false, 84);
-            itemMenu = new ContextMenuStrip { Renderer = new RetroMenuRenderer(), BackColor = BotUi.Paper, Font = BotFonts.Get(9), ShowImageMargin = false };
+            itemMenu = new ContextMenuStrip { Renderer = new RetroMenuRenderer(), BackColor = BotUi.Paper, Font = BotFonts.Get(9), ShowImageMargin = false, Name = "inventory-item-menu" };
+            // Boutons de LivingItemsViewer (lot X13) : une rangée sous la fiche, montrée pour un objet vivant seulement.
+            livingActions = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 30, Margin = Padding.Empty, Padding = new Padding(0, 3, 0, 0), WrapContents = false,
+                BackColor = BotUi.Paper, Visible = false, Name = "inventory-living-actions" };
+            feedItem = LivingButton(Lang("FEED_WORD", "Nourrir"), "inventory-living-feed", async (s, e) => await FeedSelected(), 84);
+            skinItem = LivingButton(Lang("CHOOSE_SKIN", "Choix de l'apparence"), "inventory-living-skin", async (s, e) => await SkinSelected(), 150);
+            dissociateItem = LivingButton(Lang("DISSOCIATE", "Dissocier"), "inventory-living-dissociate", async (s, e) => await DissociateSelected(), 90);
+            livingActions.Controls.Add(feedItem); livingActions.Controls.Add(skinItem); livingActions.Controls.Add(dissociateItem);
 
             // Ordre d'ancrage : le dernier ajouté prend le bord en premier.
             page.Controls.Add(inventory); page.Controls.Add(filters); page.Controls.Add(plateau); page.Controls.Add(header);
-            page.Controls.Add(sheetArea); page.Controls.Add(inventoryHelp);
+            page.Controls.Add(sheetArea); page.Controls.Add(livingActions); page.Controls.Add(inventoryHelp);
             page.Controls.Add(BotUi.Actions(equipItem, unequipItem, useItem, dropItem, destroyItem));
+            pageView = page;
+            page.Resize += (s, e) => FitSheet();
             return page;
+        }
+
+        /// <summary>
+        /// Hauteur de la fiche d'après la place restante (lot X13) : dans une fenêtre basse, la fiche rétrécit et défile au lieu de
+        /// passer sous le plateau, et la rangée des objets vivants reste visible ; la grille du sac garde au moins une rangée de cases.
+        /// </summary>
+        private void FitSheet()
+        {
+            if (pageView == null || sheetArea == null) return;
+            int used = pageView.Padding.Vertical + ItemGrid.CellSize + 8;
+            foreach (Control child in pageView.Controls)
+            {
+                if (child == sheetArea || child.Dock == DockStyle.Fill || (child == livingActions && !livingShown)) continue;
+                used += child.Height + child.Margin.Vertical;
+            }
+            int room = Math.Min(SheetHeight, pageView.ClientSize.Height - used);
+            sheetArea.Height = Math.Max(0, room);
+            sheetArea.Visible = room >= 24;
+        }
+
+        private static Control LivingButton(string title, string name, EventHandler action, int width)
+        {
+            var button = (ClientButton)MakeButton(title, action, false, width);
+            button.Height = 24; button.Margin = new Padding(0, 0, 4, 0); button.Font = BotFonts.Get(8); button.Name = name; button.AccessibleName = title;
+            return button;
         }
 
         private void AddFilter(ItemCategory? category, string title, int width)
@@ -327,6 +373,13 @@ namespace Outil_Azur_complet.Bot.Panels
             dropItem.Enabled = ready && !worn && (card == null || card.CanDrop);
             destroyItem.Enabled = ready && !worn && (card == null || card.CanDestroy);
             useItem.Text = SpecialItems.IsDocument(item) ? "Lire" : "Utiliser";
+            // Objet vivant (lot X13) : nourrir et dissocier comme isAssociate, l'apparence pour tout objet à apparence.
+            LivingItem living = LivingItem.From(item);
+            bool showLiving = living != null && living.IsLiving;
+            // Affectation directe : Visible rend faux tant que le volet est fermé, une comparaison laisserait la rangée affichée.
+            livingActions.Visible = livingShown = showLiving;
+            feedItem.Enabled = dissociateItem.Enabled = ready && !livingPending && living?.IsAssociated == true;
+            skinItem.Enabled = ready && !livingPending && living?.Skineable == true;
             // Pierres d'âme et documents (lot F14) : règle du serveur rappelée sous l'objet ; dernier refus du serveur en dessous.
             string note = item == null ? null : SpecialItems.Note(item, Game.Map?.MapID ?? 0);
             string text = item == null ? SelectText
@@ -336,6 +389,7 @@ namespace Outil_Azur_complet.Bot.Panels
             if (!string.IsNullOrEmpty(serverNotice)) text = (item == null ? string.Empty : text + Environment.NewLine) + serverNotice;
             inventoryHelp.Text = text;
             inventoryHelp.Height = note == null && (item == null || string.IsNullOrEmpty(serverNotice)) ? 46 : 80;
+            FitSheet();
         }
 
         /// <summary>Double-clic ou Entrée sur un objet du sac : utiliser s'il est utilisable, sinon équiper (<c>DOUBLE_CLICK_TO_EQUIP</c>).</summary>
@@ -447,6 +501,81 @@ namespace Outil_Azur_complet.Bot.Panels
             finally { destroyPending = false; }
         }
 
+        /// <summary>
+        /// Nourrir (<c>LivingItemsViewer</c> → <c>ChooseFeed</c>) : aliments du sac du type de l'objet vivant ; sans aliment, la boîte
+        /// <c>ERROR_NO_FOOD_LIVING_ITEM</c> ; sinon la grille <c>FEED_ITEM</c>, la question <c>CONFIRM_FOOD_LIVING_ITEM</c>, puis
+        /// <c>Of&lt;objet&gt;|&lt;position&gt;|&lt;aliment&gt;</c> sur les fiches relues. Le serveur répond <c>OR</c>/<c>OQ</c> et <c>OCO</c>.
+        /// </summary>
+        private async Task FeedSelected()
+        {
+            InventoryObjects item = CurrentItem;
+            InventoryClass items = Game?.character?.Inventory;
+            if (item == null || items == null || livingPending) return;
+            livingPending = true; UpdateActions();
+            try
+            {
+                InventoryObjects food = await BotDialogs.ChooseFoodAsync(View, item, LivingItem.FoodsFor(items.Objets, item));
+                if (food == null) { Feedback("Repas annulé : rien n'a été envoyé."); return; }
+                InventoryObjects current = items.GetByInventoryId(item.Inventory_ID), meal = items.GetByInventoryId(food.Inventory_ID);
+                if (current == null || meal == null) { Feedback("L'objet ou l'aliment n'est plus dans l'inventaire."); return; }
+                ItemUseResult result = await items.FeedAsync(current, meal);
+                Feedback(result.Message);
+            }
+            catch (Exception error) when (!(error is OutOfMemoryException)) { Feedback(error.Message); }
+            finally { livingPending = false; UpdateActions(); }
+        }
+
+        /// <summary>Choix de l'apparence (<c>CHOOSE_SKIN</c>) : une case par niveau atteint, puis <c>Os&lt;objet&gt;|&lt;position&gt;|&lt;apparence&gt;</c>.</summary>
+        private async Task SkinSelected()
+        {
+            InventoryObjects item = CurrentItem;
+            LivingItem living = LivingItem.From(item);
+            InventoryClass items = Game?.character?.Inventory;
+            if (item == null || living == null || items == null || livingPending) return;
+            livingPending = true; UpdateActions();
+            try
+            {
+                int? skin = await BotDialogs.ChooseSkinAsync(View, item, living);
+                if (skin == null) { Feedback("Apparence inchangée : rien n'a été envoyé."); return; }
+                InventoryObjects current = items.GetByInventoryId(item.Inventory_ID);
+                if (current == null) { Feedback("L'objet n'est plus dans l'inventaire."); return; }
+                ItemUseResult result = await items.SetSkinAsync(current, skin.Value);
+                Feedback(result.Message);
+            }
+            catch (Exception error) when (!(error is OutOfMemoryException)) { Feedback(error.Message); }
+            finally { livingPending = false; UpdateActions(); }
+        }
+
+        /// <summary>Dissocier : <c>Ox&lt;objet&gt;|&lt;position&gt;</c> sans question, comme le bouton du client ; le serveur rend l'objet vivant au sac.</summary>
+        private async Task DissociateSelected()
+        {
+            InventoryObjects item = CurrentItem;
+            InventoryClass items = Game?.character?.Inventory;
+            if (item == null || items == null || livingPending) return;
+            livingPending = true; UpdateActions();
+            try
+            {
+                ItemUseResult result = await items.DissociateAsync(item);
+                Feedback(result.Message);
+            }
+            catch (Exception error) when (!(error is OutOfMemoryException)) { Feedback(error.Message); }
+            finally { livingPending = false; UpdateActions(); }
+        }
+
+        /// <summary>
+        /// « Cibler avec cet objet » (<c>CLICK_TO_TARGET</c>) : le volet se ferme et la carte passe en visée d'objet
+        /// (<c>switchToItemTarget</c>) ; le clic suivant envoie <c>OU</c> avec la cible et la cellule.
+        /// </summary>
+        private void TargetSelected()
+        {
+            InventoryObjects item = CurrentItem;
+            if (item == null) return;
+            Interfaces.MapControl map = (View?.FindForm() as GameClientFullform)?.Map;
+            if (map == null) { Feedback("La carte n'est pas affichée : rien à viser."); return; }
+            if (!map.BeginItemTarget(item)) { Feedback("Visée impossible : voir le bandeau de la carte."); return; }
+            Host?.Close(this);
+        }
+
         /// <summary>Options de la fenêtre de jeu (<c>ConfirmDropItem</c>), sinon celles du dossier de configuration.</summary>
         private BotOptions Options => (View?.FindForm() as GameClientFullform)?.Options ?? BotOptions.Current;
 
@@ -502,8 +631,20 @@ namespace Outil_Azur_complet.Bot.Panels
             {
                 itemMenu.Items.Add(new ToolStripMenuItem("Équiper", null, async (s, e) => await EquipSelected(true)) { Enabled = equipItem.Enabled });
                 itemMenu.Items.Add(new ToolStripMenuItem(useItem.Text, null, async (s, e) => await UseSelected()) { Enabled = useItem.Enabled });
+                // createActionPopupMenu : « Cibler avec cet objet » pour un objet ciblable, jamais en combat (lot X13).
+                ItemSheet card = sheet?.Sheet ?? ItemSheet.From(item);
+                if (card != null && card.Targetable)
+                    itemMenu.Items.Add(new ToolStripMenuItem(Lang("CLICK_TO_TARGET", "Cibler avec cet objet"), null, (s, e) => TargetSelected())
+                        { Enabled = useItem.Enabled, Name = "inventory-menu-target" });
                 itemMenu.Items.Add(new ToolStripMenuItem("Jeter…", null, async (s, e) => await DropSelected()) { Enabled = dropItem.Enabled });
                 itemMenu.Items.Add(new ToolStripMenuItem("Détruire…", null, async (s, e) => await DestroySelected()) { Enabled = destroyItem.Enabled });
+            }
+            if (LivingItem.From(item)?.IsLiving == true)
+            {
+                itemMenu.Items.Add(new ToolStripSeparator());
+                itemMenu.Items.Add(new ToolStripMenuItem(Lang("FEED_WORD", "Nourrir") + "…", null, async (s, e) => await FeedSelected()) { Enabled = feedItem.Enabled, Name = "inventory-menu-feed" });
+                itemMenu.Items.Add(new ToolStripMenuItem(Lang("CHOOSE_SKIN", "Choix de l'apparence") + "…", null, async (s, e) => await SkinSelected()) { Enabled = skinItem.Enabled, Name = "inventory-menu-skin" });
+                itemMenu.Items.Add(new ToolStripMenuItem(Lang("DISSOCIATE", "Dissocier"), null, async (s, e) => await DissociateSelected()) { Enabled = dissociateItem.Enabled, Name = "inventory-menu-dissociate" });
             }
             try { itemMenu.Show(owner, location); }
             catch (Exception error) when (error is InvalidOperationException || error is ArgumentException) { /* Contrôle en cours de fermeture. */ }

@@ -136,6 +136,9 @@ try {
     # Lot X8 (visée des sorts : portée #246696 avec le bonus GA;117/116, pointeur des zones d'effet, curseurs du client, chemin de
     # combat survolé puis GA001) : couvert par BotCombatSmoke, BotMapViewSmoke, BotFightUiSmoke, BotFightProtocolSmoke, BotEntitiesSmoke,
     # BotWorldMapSmoke et le scénario x8 de BotStarLocoLiveSmoke (Iop inventé défié par A) ; AZUR_STARLOCO_SCENARIOS=x8 ne joue que celui-là après la connexion.
+    # Lot X13 (objets vivants : Of, Os, Ox, OCO relu, fiche et rangée de l'inventaire ; OU avec cible et cellule par la visée d'objet
+    # de la carte) : couvert par BotInventoryGridSmoke et le scénario x13 de BotStarLocoLiveSmoke (chapeau vivant de la base, pain donné
+    # à l'autre joueur) ; AZUR_STARLOCO_SCENARIOS=x13 ne joue que celui-là après la connexion.
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'

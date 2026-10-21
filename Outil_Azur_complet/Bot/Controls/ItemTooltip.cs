@@ -70,6 +70,7 @@ namespace Outil_Azur_complet.Bot.Controls
                 Add(Lang("EFFECTS", "Effets"), Style.Header);
                 if (sheet.Effects.Count == 0) Add(Lang("NO_EFFECTS", "Aucun effet"), Style.Muted);
                 foreach (string effect in sheet.Effects) Add(effect, Style.Effect);
+                AddLivingSection();
                 if (sheet.Conditions.Length > 0 && sheet.ConditionLines.Count > 0)
                 {
                     Add(Lang("CONDITIONS", "Conditions"), Style.Header);
@@ -102,6 +103,35 @@ namespace Outil_Azur_complet.Bot.Controls
             }
             if (AutoHeight && IsHandleCreated) Height = PreferredHeightFor(Width);
             Invalidate();
+        }
+
+        /// <summary>
+        /// Section « objet vivant » (lot X13), comme <c>LivingItemsViewer</c> du client : état (humeur), niveau, expérience du
+        /// niveau (« xp / max » de la barre), apparence et objet vivant porté. La date du repas (effet 808) est déjà parmi les effets.
+        /// </summary>
+        private void AddLivingSection()
+        {
+            LivingItem living = LivingItem.Parse(sheet.Stats, sheet.Type);
+            if (living == null || !living.IsLiving) return;
+            string header = TypeNameOr(LivingItem.LivingItemType, "Objet vivant");
+            if (living.IsAssociated && living.AssociatedTemplate.HasValue) header += " · " + ItemEffects.ItemName(living.AssociatedTemplate.Value);
+            Add(header, Style.Header);
+            Add(LivingItem.Text("STATE", "État") + " : " + living.MoodText, Style.Body);
+            Add(LivingItem.Text("LEVEL", "Niveau") + " : " + living.Level.ToString(CultureInfo.InvariantCulture), Style.Body);
+            string xp = living.Xp.ToString("#,0", Spaced);
+            Add(LivingItem.Text("EXPERIMENT", "Expérience") + " : " + (living.LevelXpMax >= 0 ? xp + " / " + living.LevelXpMax.ToString("#,0", Spaced) : xp + " (niveau maximal)"), Style.Body);
+            if (living.Skineable)
+                Add("Apparence " + (living.Skin + 1).ToString(CultureInfo.InvariantCulture) + " sur " + living.Level.ToString(CultureInfo.InvariantCulture), Style.Body);
+            if (!living.IsAssociated) Add("Objet vivant libre : il ne se nourrit et ne se dissocie qu'une fois posé sur un objet.", Style.Muted);
+        }
+
+        private static string TypeNameOr(int type, string fallback)
+        {
+            string name;
+            try { name = Tool_BotProtocol.Game.Data.LangData.Item.TypeName(type); }
+            catch (Exception error) when (!(error is OutOfMemoryException)) { return fallback; }
+            // Sans textes du client, LangData rend le numéro du type.
+            return string.IsNullOrWhiteSpace(name) || name.Trim() == type.ToString(CultureInfo.InvariantCulture) ? fallback : name.Trim();
         }
 
         private void Add(string text, Style style) { if (!string.IsNullOrWhiteSpace(text)) lines.Add(new Line { Text = text.Trim(), Style = style }); }

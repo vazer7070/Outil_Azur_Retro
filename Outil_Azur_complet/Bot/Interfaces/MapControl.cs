@@ -69,6 +69,8 @@ namespace Outil_Azur_complet.Bot.Interfaces
             Router = new InteractionRouter(UserMap, () => Account, ActorsAt,
                 () => SelectedSpellId.HasValue || Account.Game?.Fight?.IsInFight == true, DefaultCellActionAsync);
             Router.Feedback += message => ActionFeedback?.Invoke(message);
+            // Lot X13 : la visée d'objet passe avant les menus des cellules (objets interactifs, enclos) branchés ensuite.
+            HookItemTarget();
             iTalk_Label1.Visible = iTalk_Label2.Visible = false;
             // The owner thread creates handles before any network event can update the view.
             IntPtr ownerHandle = Handle;
@@ -147,7 +149,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
 
         private void RefreshEntities() => OnUi(() => { RefreshSpellTargets(); UserMap.Invalidate(); });
         // Lot X8 : l'aperçu du chemin de combat suit les PM et le tour (recalculé pour la cellule encore survolée).
-        private void CombatChanged() => OnUi(() => { RefreshSpellTargets(); DisarmFlagOutOfFight(); PreviewPathTo(UserMap.HoveredCell); });
+        private void CombatChanged() => OnUi(() => { DisarmItemTarget(false); RefreshSpellTargets(); DisarmFlagOutOfFight(); PreviewPathTo(UserMap.HoveredCell); });
 
         public void SelectSpell(short? id)
         {
@@ -157,6 +159,8 @@ namespace Outil_Azur_complet.Bot.Interfaces
             }
             // Le client remplace le mode drapeau par la visée (switchToSpellLaunch) : le signalement est désarmé sans message.
             if (id.HasValue && flagMode) { flagMode = false; UserMap.Cursor = Cursors.Default; }
+            // Lot X13 : de même, un sort choisi remplace la visée d'un objet.
+            if (id.HasValue) itemTarget = null;
             SelectedSpellId = id;
             if (id.HasValue) { previewPending = null; UserMap.SetPathPreview(null); }
             RefreshSpellTargets(); SpellSelectionChanged?.Invoke(SelectedSpellId);
@@ -173,6 +177,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
             }
             if (!SelectedSpellId.HasValue)
             {
+                if (itemTarget != null) { ApplyItemTarget(); return; }
                 UserMap.SetSpellTargets(null); UserMap.SetSpellRange(null); UserMap.SetAimIcon(null, null); UserMap.SpellTargetReason = null;
                 UpdatePointerShapes(null); return;
             }
@@ -213,7 +218,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
         /// </summary>
         private void UpdatePointerShapes(SpellAim aim)
         {
-            if (flagMode) { UserMap.PointerShapes = cell => new[] { new[] { cell } }; return; }
+            if (flagMode || itemTarget != null) { UserMap.PointerShapes = cell => new[] { new[] { cell } }; return; }
             Map map = Account.Game?.Map;
             Cell caster = Account.Game?.character?.Cell;
             Cell[] cells = map?.MapCells;
@@ -227,6 +232,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
         {
             Map map = Account.Game?.Map;
             if (map == null) return;
+            DisarmItemTarget(true);
             SelectSpell(null);
             DisarmFlagOutOfFight();
             UserMap.W = map.MapWidth;
@@ -296,14 +302,14 @@ namespace Outil_Azur_complet.Bot.Interfaces
         /// <summary>
         /// Aperçu du chemin vers la cellule survolée : hors combat (ajout du bot), et pendant son tour de combat comme le client
         /// (<c>calculatePath</c> → <see cref="Fights.PreviewMovePath"/>, sélection <c>CELL_PATH_OVER_COLOR</c>) ; jamais pendant la
-        /// visée, le signalement ou le placement. La recherche tourne sur le pool de threads, seul le dernier survol compte.
+        /// visée (sort ou objet), le signalement ou le placement. La recherche tourne sur le pool de threads, seul le dernier survol compte.
         /// </summary>
         private void PreviewPathTo(UserMapCell cell)
         {
             Map map = Account.Game?.Map;
             Fights fight = Account.Game?.Fight;
             bool inFight = fight?.IsInFight == true;
-            bool allowed = cell != null && map?.HasMapData == true && !SelectedSpellId.HasValue && !flagMode && Account.Game.character?.Cell != null
+            bool allowed = cell != null && map?.HasMapData == true && !SelectedSpellId.HasValue && !flagMode && itemTarget == null && Account.Game.character?.Cell != null
                 && (inFight ? !fight.IsPlacement && fight.IsMyTurn : !Account.IsMoving());
             previewVersion++;
             if (!allowed) { previewPending = null; UserMap.SetPathPreview(null); return; }

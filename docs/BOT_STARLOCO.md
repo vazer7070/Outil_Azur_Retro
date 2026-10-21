@@ -570,6 +570,8 @@ Lot X4-CORR : la case 16 vide est barrée de `inventaire-croix` tant qu'aucune m
 
 Lot X12 : le champ **Quantité** disparaît du volet. **Jeter** suit `Inventory.dropDownItem` : `CANT_MOVE_ITEM` pendant un échange, boîte de quantité pour une pile (valeur 1, maximum la pile), puis la question `CONFIRM_DROP_ITEM` (titre `CAUTION`) si l'option `ConfirmDropItem` est vraie (défaut du client, case `OPTION_CONFIRM_DROPITEM` de la fenêtre d'options), enfin `OD<objet>|<quantité>` ; **Détruire** : une pile passe par la boîte puis part sans question, un exemplaire seul par `DO_U_DESTROY`, puis `Od<objet>|<quantité>`. Le bouton « plus de choix » (`SEARCH_AND_SORT`) propose les six tris d'`InventoryViewer` dans l'ordre et avec les textes du client (`INVENTORY_DATE_SORT`, `INVENTORY_NAME_SORT`, `INVENTORY_TYPE_SORT`, `INVENTORY_LEVEL_SORT`, `INVENTORY_POD_SORT`, `INVENTORY_QTY_SORT`), croissants comme `sortOn` et stables, gardés avec les filtres et les mises à jour ; la date est un compteur qui décroît à chaque fiche reçue (`OAK`, `OC`), la dernière arrive en tête ; aucun paquet n'est envoyé. Écart : chez le client ce menu appartient aux sacs d'`InventoryViewer` (coffre, vente, boutique), pas à la fenêtre Inventaire ; la recherche, première entrée du même menu, relève du lot X36. Le glisser-déposer vers les volets d'échange est décrit dans [Échanges, coffre et banque](#échanges-coffre-et-banque).
 
+Lot X13 : la fiche d'un objet vivant ajoute la section de `LivingItemsViewer`, une rangée Nourrir / Apparence / Dissocier s'affiche sous la fiche, le menu d'un objet ciblable propose « Cibler avec cet objet », et la fiche rétrécit puis défile dans une fenêtre basse (voir [Objets vivants et objets à cible](#objets-vivants-et-objets-à-cible-lot-x13)).
+
 ## Carte du monde (lot F11)
 
 Le volet **Carte du monde** (`Bot/Panels/WorldMapPanel.cs`, bouton `icone-carte` du bandeau qui remplace l’ancien bouton « Géoposition ») reprend la fenêtre `UI_MapExplorer` du client 1.34 (742 × 433) : la vue `Bot/Controls/WorldMapView.cs` dessine les tuiles de D3 (`Resources/Bot/WorldMap/<superZone>/<x>_<y>.png`, une tuile par bloc de 15 × 15 cartes posée en (x × 600, y × 345) au zoom 100 plus le décalage de `tuiles.tsv`, soit 40 × 23 pixels par carte comme `MapNavigator.wPage / hPage`), le centre de la vue étant le centre de la carte courante (`setMapPosition`) ; la carte survolée suit `getCoordinatesFromReal`. Zoom 10 à 100 par pas de 5 (molette, boutons + / −, curseur), huit flèches de déplacement en mode **Déplacer** (`moveMap(±1, ±1)`), glisser à la souris par cartes entières, flèches du clavier, **Centrer** sur ma position. Les tables, les PNG et l’index des zones sont lus hors du fil de l’interface (`ClientAssets.GetAsync`, `WorldMapAreas.GetAsync`) : un dessin ne lit jamais le disque et la vue se redessine quand une tuile arrive ; sans tuiles pour la super-zone, le fond est le parchemin de la palette et le repère reste dessiné.
@@ -1073,3 +1075,77 @@ Limites :
 - sans formes de sélection exportées, la cellule du chemin reste un losange opaque.
 
 Passage réel (21 octobre 2026, StarLoco local, scénario x8 de `BotStarLocoLiveSmoke`, `AZUR_STARLOCO_SCENARIOS=x8`) : carte 164, un Iop inventé (Pression, Épée de Iop et Flèche Enflammée écrits dans la base) défié par A ; pendant le tour de A, le survol d'une cellule dans la fenêtre de l'Iop ne dessine aucun chemin ; à son tour, Pression dessine 12 cellules en cercle (1 à 2) et l'Épée de Iop 12 cellules en croix (1 à 3), chacune avec son icône à côté de la flèche ; sur une cible alignée, la croix `Xd` de 13 cellules est posée deux fois (effets normaux et critiques) ; sur une cellule non alignée, croix d'interdiction, pas de pointeur et un clic n'envoie rien ; la Flèche Enflammée pose quatre fois la ligne `Le` de 5 cellules, et le clic sur la cible envoie `GA300165;263`, accepté par `GA;300;<Iop>;165,263,…` ; sans sort, le chemin survolé de deux cellules est dessiné avec les formes de sélection et le clic envoie `GA001feh`, que StarLoco renvoie avec la cellule de départ (`GA0;1;<Iop>;aeLfeh`) ; l'abandon de l'Iop (`GE`) efface visée et chemin. Compte et personnage supprimés ensuite ; captures `23-reel-x8-croix`, `-ligne` et `-chemin` prises dans le dossier de travail du test, non versionnées.
+## Objets vivants et objets à cible (lot X13)
+
+Le client 1.34 lit un objet vivant dans les effets de sa fiche (`Item.updateDataFromEffect`). Il ne lit que le quatrième champ, en hexadécimal :
+
+- 970 : modèle de l'objet vivant associé ;
+- 971 : humeur ;
+- 972 : apparence plus un ;
+- 973 : type pris par l'objet ;
+- 974 : expérience.
+
+Un objet à apparence dont le modèle n'est pas du type 113 est « associé ». Le bot fait de même dans `Tool_BotProtocol/Game/Perso/Inventory/LivingItem.cs` :
+
+- niveau et bornes d'expérience d'après `LEVEL_STEP`, soit vingt paliers et autant d'apparences ;
+- aliments proposés comme `ChooseFeed` : objets du sac du type de l'objet vivant, sans apparence, sans l'effet 983 et autres que lui.
+
+Les effets illisibles donnent un objet de niveau 1 et ne lèvent jamais d'exception.
+
+- **Envois du client** (`InventoryClass`) :
+  - `FeedAsync` envoie `Of<objet>|<position>|<aliment>` ;
+  - `SetSkinAsync` envoie `Os<objet>|<position>|<apparence>`, l'apparence allant de 1 au niveau de l'objet ;
+  - `DissociateAsync` envoie `Ox<objet>|<position>` ;
+  - la position est celle de l'objet, -1 dans le sac, écrite en chiffres ASCII quelle que soit la culture ;
+  - comme `Items.use`, `Use_Item(objet, cible, cellule)` envoie `OU<objet>|` sans cible, `OU<objet>|<sprite>|<cellule>` sur un acteur et `OU<objet>||<cellule>` sur une case vide.
+
+  Ces cas sont refusés sur place, sans paquet : un aliment d'un autre type, vivant ou non échangeable ; un objet libre qu'on voudrait nourrir ou dissocier ; une apparence hors de 1 au niveau ; une cellule négative.
+- **Réponses de StarLoco** : l'objet est renvoyé par `OCO<guid hexa>~<modèle hexa>~<quantité hexa>~<position, vide à -1>~<effets>`, que le bot relit.
+  - `feedObvi` retire l'aliment (`OR`, ou `OQ` pour une pile) et ajoute à 974 le tiers du niveau de l'aliment. Il ne vérifie ni le type ni le propriétaire de l'aliment ; le filtre du client reste donc chez le bot.
+  - `setSkinObvi` accepte les apparences 1 à 20. Pour un objet porté, il envoie aussi aux joueurs de la carte `Oa<joueur>|<accessoires>`, avec `<objet vivant>~<type>~<apparence>` dans la coiffe.
+  - `dissociateObvi` crée l'objet vivant libre (`OAKO`). Son modèle vient de `world.entity.obvijevans` ; sans ligne dans cette table, un chapeau donne 9234. Les effets 971 à 974 sont gardés. L'objet est renvoyé nu (`OCO`) et `Oa` part à la carte.
+  - Sur `OU` avec cible, `useObject` applique l'effet à la cible si c'est un joueur, sinon au lanceur. Pour un pain ou une viande, `ObjectAction` soigne la cible, lui envoie `As` et `Im01;<points>`, retire l'objet au lanceur (`OR` ou `OQ`) et envoie `eUK<cible>|17` à sa carte ; une bière envoie `|18`.
+- **Écart de StarLoco** : `parseStatsString` écrit 971 et 973 en décimal, mais 970, 972 et 974 en hexadécimal. Le client et le bot lisent tout en hexadécimal. L'humeur (0 à 2) s'écrit pareil dans les deux bases. Pour le type, une base où 973 vaut 10 donne « 3cd#0#0#10 », que le client et le bot lisent 0x10 = 16 (chapeau). Le bot ne corrige rien.
+- **Fiche et volet Inventaire** :
+  - La fiche d'objet (`ItemTooltip`) ajoute la section de `LivingItemsViewer` : titre du type 113 suivi de l'objet vivant associé, `STATE` (humeur `SATISFIED_WORD`, `LEAN` ou `FAT`), `LEVEL`, `EXPERIMENT` (« points / palier suivant », sans palier au niveau 20) et « Apparence n sur niveau ».
+  - Sous la fiche, une rangée porte `FEED_WORD`, `CHOOSE_SKIN` et `DISSOCIATE`. Nourrir et Dissocier ne sont actifs que pour un objet associé. Le menu de l'objet reprend les trois entrées.
+  - Nourrir ouvre la grille des aliments (`FEED_ITEM`, `SELECT_ITEM` tant que rien n'est choisi), ou la boîte `ERROR_NO_FOOD_LIVING_ITEM` s'il n'y en a aucun. La question `CONFIRM_FOOD_LIVING_ITEM` (titre `CAUTION`) vient ensuite.
+  - L'apparence se choisit dans une grille d'une case par niveau atteint ; l'apparence portée est cerclée.
+  - Dissocier part sans question, comme le bouton du client.
+  - Objet et aliment sont relus juste avant l'envoi, et une seule demande part à la fois.
+- **Visée d'objet** (`Bot/Interfaces/MapControl.ItemTarget.cs`) : le menu d'un objet ciblable du sac (drapeau `ciblable` d'`items_fr`) propose « Cibler avec cet objet » (`CLICK_TO_TARGET`), jamais en combat.
+  - Le volet se ferme et la carte passe en visée comme `switchToItemTarget`. La flèche du système garde l'icône de l'objet à côté (cadre de 25 × 25) et le pointeur couvre une cellule en `CELL_SPELL_EFFECT_COLOR`.
+  - Le premier clic gauche envoie `OU<objet>|<sprite>|<cellule>` sur un acteur (ou sur l'acteur posé sur la cellule) et `OU<objet>||<cellule>` sur une case vide. La carte revient ensuite au déplacement, même si rien n'est parti.
+  - Échap, un changement de carte, l'entrée en combat ou le choix d'un sort annulent la visée. Ce gestionnaire passe avant les menus des cellules.
+- **Ajout du bot** : dans une fenêtre basse, la fiche sous la grille rétrécit et défile (`FitSheet`), si bien que la rangée des objets vivants reste dégagée.
+
+`BotInventoryGridSmoke` vérifie ces règles sur le serveur fictif :
+
+- lecture des effets 970 à 974, de l'objet libre et des effets illisibles ;
+- paliers de niveau et filtre des aliments, avec les raisons des refus ;
+- `Of`, `Os` (position -1 comprise), `Ox` et les trois formes d'`OU` ;
+- relecture d'`OCO` et d'`OAKO` après une dissociation ;
+- section de la fiche, rangée et menu ;
+- boîtes du repas (aucun aliment, sélection exigée, question) et de l'apparence (bornes, clavier) ;
+- visée : icône, pointeur, clic sur une case vide, sur la cellule d'un acteur et sur un joueur, Échap ;
+- position de la rangée sous la grille à la taille par défaut de la fenêtre.
+
+Le test passe sous Mono.
+
+- le bot n'a qu'une image par modèle d'objet vivant : la grille des apparences et la case de l'objet n'en montrent pas une par apparence ;
+- associer un objet vivant libre à un objet (le glisser sur un emplacement) n'est pas proposé ;
+- la barre de raccourcis n'arme pas la visée d'objet ;
+- la boîte de choix est celle du bot, pas les fenêtres `ChooseFeed` et `ChooseItemSkin` du client ;
+- en dessous de la taille par défaut de la fenêtre, la grille du sac peut encore chevaucher le plateau.
+
+Passage réel du 21 octobre 2026 (StarLoco local, scénario x13 de `BotStarLocoLiveSmoke`, `AZUR_STARLOCO_SCENARIOS=x13`) sur la carte 164, avec deux personnages inventés. La base donne au porteur un chapeau 2474 porté en coiffe et associé à l'objet vivant 9234 (9 points, niveau 1), un chapeau 949 pour aliment et un pain 468 ; la cible est à 50 % de vie.
+
+1. L'apparence 2 est refusée sur place au niveau 1.
+2. Le volet Inventaire, à la taille par défaut de la fenêtre (1100 × 760), montre la rangée dégagée.
+3. Nourrir ouvre la grille avec le seul aliment, puis la question. `Of<chapeau>|6|<aliment>` reçoit `OR<aliment>` et `OCO…3ce#0#0#a` : 10 points, niveau 2.
+4. Apparence ouvre une grille de deux cases. `Os<chapeau>|6|2` reçoit `OCO…3cc#0#0#2`, et l'autre joueur reçoit `Oa<porteur>|,2412~16~2,,,`.
+5. Dissocier envoie `Ox<chapeau>|6`. StarLoco répond `OAKO<guid>~2412~1~~3cb#0#0#1,3cc#0#0#2,3cd#0#0#10,3ce#0#0#a` (objet vivant libre à 10 points), puis l'`OCO` du chapeau nu ; l'autre joueur reçoit un `Oa` sans objet vivant.
+6. « Cibler avec cet objet » sur le pain, puis un clic sur l'autre joueur, envoie `OU<pain>|<joueur>|<cellule>`. `eUK<joueur>|17` arrive aux deux. La cible reçoit `Im01;10` (vie de 25 à 36, régénération de StarLoco comprise : le test exige au moins 25 + 10) et le porteur `OR<pain>`.
+
+Comptes, personnages et objets ont été supprimés ensuite. La capture `23-reel-x13-objet-vivant` a été prise dans le dossier de travail du test et n'est pas versionnée.
+

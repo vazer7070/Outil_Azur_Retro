@@ -500,6 +500,7 @@ internal static partial class Live
         await Scenario("x7. Sram contre A : prêt et option d'équipe vus par l'autre, pièges GDZ/GDC, invisibilité GA;150, journal dans le chat (lot X7)", 180, FightEventsAsync).ConfigureAwait(false);
         await Scenario("x12. glisser-déposer et boîte de quantité : échange entre deux comptes (EMO+, EMO-, EMG), banque (EMO±, EMG±), hôtel de vente réfuté (lot X12)", 200, TransferDragAsync).ConfigureAwait(false);
         await Scenario("x8. Iop contre A : portée en cercle et en croix, pointeur en croix et en ligne, croix d'interdiction, GA300 sur la cible, chemin de combat survolé puis GA001 (lot X8)", 180, SpellAimAsync).ConfigureAwait(false);
+        await Scenario("x13. objet vivant de la base nourri, apparence changée et dissocié par le volet de l'inventaire ; pain donné à l'autre joueur par la visée de la carte (lot X13)", 150, LivingItemAsync).ConfigureAwait(false);
         // Toujours en dernier : arrête puis redémarre le serveur de jeu (A et B restent déconnectés).
         await Scenario("x3c. serveur de jeu arrêté en pleine partie : boîte de perte de connexion, « Oui » reconnecte A (lot X3)", 360, GameStopAsync).ConfigureAwait(false);
     }
@@ -5133,5 +5134,278 @@ internal static partial class Live
             "L'Iop n'est pas arrivé en " + step.CellID + " avec deux PM de moins (cellule " + Self(si)?.CellId + ", PM " + fi.MovementPoints + ")");
         evidence.Add("chemin survolé " + CellList(expectedPath) + " en formes de sélection, clic → " + move + " → " + Short(moved, 40));
         return evidence;
+    }
+}
+
+// Scénario x13 (lot X13) : objet vivant écrit dans la base, nourri, changé d'apparence et dissocié par le volet de l'inventaire ;
+// pain donné à l'autre joueur par la visée d'objet de la carte.
+internal static partial class Live
+{
+    /// <summary>
+    /// Chapeau de l'Aventurier (2474, type 16, niveau 1) porté avec l'objet vivant 9234 (Chapeau Obvijevan, recréé par StarLoco à la
+    /// dissociation d'un chapeau sans ligne <c>world.entity.obvijevans</c>) ; Grand Bandeau de Vitalité (949, type 16, niveau 3 :
+    /// <c>obvijevanNourir</c> ajoute le tiers du niveau, un point) ; Pain d'Amakna (468, type 33, ciblable, action 3 sur l'effet 110).
+    /// La cible entre en jeu à la moitié de sa vie (<c>pdvper</c>), sinon le pain ne rend rien et reste dans le sac.
+    /// </summary>
+    private const int LivingHatTemplate = 2474, LivingObviTemplate = 9234, LivingFoodTemplate = 949, LivingBreadTemplate = 468, LivingHatSlot = 6, LivingTargetLife = 50;
+
+    /// <summary>
+    /// Effets du chapeau écrits dans la base comme <c>GameObject.parseStringToStats</c> les lit (valeur au deuxième champ, hexadécimal) :
+    /// +1 en force, 970 = 0x2412 (9234), humeur 1, apparence 1, type 10 (StarLoco le renvoie en décimal, « 3cd#0#0#10 », que le client
+    /// lit 0x10 = 16) et 9 points d'expérience, un de moins que le niveau 2 (<c>LEVEL_STEP</c>).
+    /// </summary>
+    private const string LivingHatStats = "76#1#0#0#0d0+1,3ca#2412#0#0#0d0+9234,3cb#1#0#0#0d0+1,3cc#1#0#0#0d0+1,3cd#a#0#0#0d0+10,3ce#9#0#0#0d0+9";
+
+    /// <summary>Jet fixe du pain, celui de son modèle : « 0d0+10 », 10 points de vie (<c>getRandomValue</c>).</summary>
+    private const string LivingBreadStats = "6e#a#0#0#0d0+10";
+
+    /// <summary>Début exact du <c>OCO</c> de l'objet porté (<c>obvijevanOCO_Packet</c>) : identifiant, modèle et quantité en hexadécimal, position décimale.</summary>
+    private static string LivingOco(int id, int template, int position) =>
+        "OCO" + id.ToString("x", CultureInfo.InvariantCulture) + "~" + template.ToString("x", CultureInfo.InvariantCulture) + "~1~" + position.ToString(CultureInfo.InvariantCulture) + "~";
+
+    /// <summary>
+    /// Cellule praticable de la carte (cellules du bot décodées), hors téléporteur et déclencheur, à 2 à 4 cases de <paramref name="fromCell"/> :
+    /// la cible du pain n'est pas sur la cellule du lanceur, le clic sur son sprite reste sans ambiguïté.
+    /// </summary>
+    private static Cell LivingTargetCell(int mapId, int fromCell)
+    {
+        if (!Map.AllBotMaps.TryGetValue(mapId, out Map info) || info == null || string.IsNullOrEmpty(info.MapData)) return null;
+        Map decoded = DecodeCells(info);
+        Cell from = decoded?.GetCellFromId((short)fromCell);
+        if (from == null || decoded.MapCells == null) return null;
+        IReadOnlyDictionary<int, Trigger> triggers = Triggers.ForMap(mapId);
+        return decoded.MapCells.Where(c => c != null && c.CellID != fromCell && c.IsWalkable() && c.C_Types != Tool_BotProtocol.Game.Maps.Enums.CellTypes.TELEPORT_CELL && !triggers.ContainsKey(c.CellID))
+            .Select(c => new { c, d = from.GetDistanceBetweenCells(c) }).Where(x => x.d >= 2 && x.d <= 4)
+            .OrderBy(x => x.d).ThenBy(x => x.c.CellID).Select(x => x.c).FirstOrDefault();
+    }
+
+    /// <summary>Rangée des objets vivants (visible/Nourrir/Apparence/Dissocier) et lignes de la fiche du volet de l'inventaire (fil d'interface).</summary>
+    private static string[] LivingState(Outil_Azur_complet.Bot.Panels.InventoryPanel panel) => new[]
+    {
+        ((Control)Field(panel, "livingActions")).Visible + "/" + ((Control)Field(panel, "feedItem")).Enabled + "/" + ((Control)Field(panel, "skinItem")).Enabled
+            + "/" + ((Control)Field(panel, "dissociateItem")).Enabled,
+        string.Join(" | ", ((ItemTooltip)Field(panel, "sheet")).Lines),
+        LivingLayout(panel)
+    };
+
+    /// <summary>
+    /// Place de la rangée des objets vivants dans le volet : « dégagée » quand elle est entièrement sous la grille du sac et au-dessus
+    /// de l'aide (rien ne la recouvre), avec les hauteurs du volet, de la grille et de la fiche pour le journal.
+    /// </summary>
+    private static string LivingLayout(Outil_Azur_complet.Bot.Panels.InventoryPanel panel)
+    {
+        var row = (Control)Field(panel, "livingActions"); var grid = (Control)Field(panel, "inventory");
+        var help = (Control)Field(panel, "inventoryHelp"); var sheetArea = (Control)Field(panel, "sheetArea");
+        bool clear = row.Visible && row.Top >= grid.Bottom && row.Bottom <= help.Top && (!sheetArea.Visible || sheetArea.Bottom <= row.Top);
+        return (clear ? "dégagée" : "recouverte") + " (volet " + row.Parent.ClientSize.Height + " px, grille " + grid.Top + "-" + grid.Bottom + ", fiche "
+            + (sheetArea.Visible ? sheetArea.Height + " px" : "cachée") + ", rangée " + row.Top + "-" + row.Bottom + ", aide " + help.Top + ")";
+    }
+
+    /// <summary>
+    /// x13. Objet vivant et objet à cible (lot X13), avec la fenêtre de jeu du porteur. Deux comptes inventés sur la carte 164 : le porteur
+    /// a dans la base un chapeau porté (case 6) avec un objet vivant (<see cref="LivingHatStats"/>), un chapeau qui lui sert de repas et un
+    /// pain ; la cible est à deux cases au moins, à la moitié de sa vie. Le bot lit l'objet vivant de l'<c>ASK</c> (associé, type 16, 9 points,
+    /// niveau 1) et refuse sur place l'apparence 2. Dans le volet de l'inventaire : « Nourrir » ouvre <c>FEED_ITEM</c> avec le seul chapeau
+    /// échangeable du sac, « Valider » puis « Oui » à <c>CONFIRM_FOOD_LIVING_ITEM</c> → <c>Of&lt;chapeau&gt;|6|&lt;repas&gt;</c> → <c>OR</c> du repas,
+    /// <c>OCO</c> à 10 points (niveau 2) ; « Choix de l'apparence » ouvre deux cases, la 2 → <c>Os&lt;chapeau&gt;|6|2</c> → <c>OCO</c> et
+    /// <c>Oa</c> « 2412~16~2 » chez l'autre joueur ; « Dissocier » → <c>Ox&lt;chapeau&gt;|6</c> → <c>OAKO</c> d'un objet vivant 9234 libre (10 points,
+    /// apparence 2), <c>OCO</c> du chapeau sans 970-974, <c>Oa</c> du chapeau nu. Enfin « Cibler avec cet objet » sur le pain ferme le volet et
+    /// arme la visée ; le clic sur le sprite de la cible → <c>OU&lt;pain&gt;|&lt;cible&gt;|&lt;cellule&gt;</c> → <c>eUK&lt;cible&gt;|17</c> aux deux,
+    /// <c>Im01;10</c> et la vie rendue chez la cible, <c>OR</c> du pain chez le porteur. Objets détruits en jeu puis comptes supprimés (x4).
+    /// </summary>
+    private static async Task<string> LivingItemAsync()
+    {
+        RequirePetsData();
+        Cell targetCell = LivingTargetCell(PetsMap, PetsCell);
+        if (targetCell == null) throw new SkipScenario("aucune cellule praticable à 2 à 4 cases de la cellule " + PetsCell + " sur la carte " + PetsMap);
+        using (MySql.Data.MySqlClient.MySqlConnection db = OpenAccountsDatabase(out string schema))
+        {
+            var holder = new PetOwner { Label = "Viv" }; var other = new PetOwner { Label = "Cib" };
+            var evidence = new List<string>();
+            GameClientFullform screen = null;
+            try
+            {
+                // Base : objets du porteur à des identifiants hors de la plage de StarLoco, retenus avant d'être écrits (nettoyage).
+                int baseId = 630000000 + random.Next(1, 100000) * 10;
+                int hatId = baseId, foodId = baseId + 1, breadId = baseId + 2;
+                foreach (int id in new[] { hatId, foodId, breadId }) holder.Seen.Add((uint)id);
+                holder.Character = Invent(db, schema, a.Id, PetsMap, PetsCell, 10000, holder.Created);
+                string insert = "INSERT INTO " + schema + ".`world.entity.objects` (id, template, quantity, position, stats, puit) VALUES (@id, @template, 1, @position, @stats, 0)";
+                Sql(db, insert, "@id", hatId, "@template", LivingHatTemplate, "@position", LivingHatSlot, "@stats", LivingHatStats);
+                Sql(db, insert, "@id", foodId, "@template", LivingFoodTemplate, "@position", -1, "@stats", string.Empty);
+                Sql(db, insert, "@id", breadId, "@template", LivingBreadTemplate, "@position", -1, "@stats", LivingBreadStats);
+                Sql(db, "UPDATE " + schema + ".players SET objets = @objets WHERE id = @id AND account = @account",
+                    "@objets", string.Join("|", new[] { hatId, foodId, breadId }.Select(id => id.ToString(CultureInfo.InvariantCulture))) + "|", "@id", holder.Character.Id, "@account", holder.Character.Guid);
+                other.Character = Invent(db, schema, b.Id, PetsMap, targetCell.CellID, 10000, other.Created);
+                Sql(db, "UPDATE " + schema + ".players SET pdvper = @life WHERE id = @id AND account = @account", "@life", LivingTargetLife, "@id", other.Character.Id, "@account", other.Character.Guid);
+                Journal("[test] " + holder.Character.Name + " : chapeau vivant " + hatId + " (case " + LivingHatSlot + ", " + LivingHatStats + "), repas " + foodId + ", pain " + breadId
+                    + " ; " + other.Character.Name + " en " + targetCell.CellID + " à " + LivingTargetLife + " % de sa vie");
+
+                // Entrées en jeu l'une après l'autre ; le porteur a sa fenêtre de jeu.
+                LiveSession v = holder.Session = new LiveSession(holder.Label, holder.Character.Login, holder.Character.Password);
+                evidence.Add(await EnterExistingAsync(v, holder.Character.Id, holder.Character.Name, PetsMap, s =>
+                    s.Account.Game.character.Player_Selection += () => OnUi(() =>
+                    {
+                        if (screen != null) return;
+                        // Taille par défaut de la fenêtre de jeu (1100 × 760) : la rangée des objets vivants doit y rester dégagée.
+                        screen = new GameClientFullform(s.Account) { StartPosition = FormStartPosition.Manual, Location = new Point(60, 60), ShowInTaskbar = false };
+                        screen.Show();
+                    })).ConfigureAwait(false));
+                Tool_BotProtocol.Game.Perso.Inventory.InventoryClass bag = holder.Bag;
+                Func<Tool_BotProtocol.Game.Perso.Inventory.LivingItem> hatLiving = () => Tool_BotProtocol.Game.Perso.Inventory.LivingItem.From(bag.GetByInventoryId((uint)hatId));
+                Check(await v.Until(() => bag.GetByInventoryId((uint)hatId) != null && bag.GetByInventoryId((uint)foodId) != null && bag.GetByInventoryId((uint)breadId) != null, 10).ConfigureAwait(false),
+                    "Chapeau, repas ou pain absents de l'inventaire lu par le bot (ASK)");
+                holder.Remember();
+                Tool_BotProtocol.Game.Perso.Inventory.InventoryObjects hat = bag.GetByInventoryId((uint)hatId);
+                Tool_BotProtocol.Game.Perso.Inventory.LivingItem living = hatLiving();
+                Check((int)hat.position == LivingHatSlot && living != null && living.IsAssociated && living.AssociatedTemplate == LivingObviTemplate && living.ItemType == 16
+                    && living.Mood == 1 && living.Skin == 0 && living.Xp == 9 && living.Level == 1, "Chapeau vivant mal lu (case " + (int)hat.position + ") : " + Short(hat.Stats, 140));
+                Check(Tool_BotProtocol.Game.Perso.Inventory.LivingItem.FoodsFor(bag.Objets, hat).Select(x => x.Inventory_ID).SequenceEqual(new[] { (uint)foodId }),
+                    "Repas proposés : " + string.Join(",", Tool_BotProtocol.Game.Perso.Inventory.LivingItem.FoodsFor(bag.Objets, hat).Select(x => x.Inventory_ID)));
+                int sent = v.SentCount;
+                var early = await bag.SetSkinAsync(hat, 2).ConfigureAwait(false);
+                Check(!early.Sent && v.SentCount == sent, "Apparence 2 acceptée au niveau 1 : " + early.Message);
+                evidence.Add("ASK : " + Short(hat.Stats, 90) + " → associé à " + living.AssociatedTemplate + ", type " + living.ItemType + ", " + living.Xp + " points, niveau " + living.Level
+                    + " ; apparence 2 refusée sur place (« " + early.Message + " »)");
+
+                LiveSession w = other.Session = new LiveSession(other.Label, other.Character.Login, other.Character.Password);
+                evidence.Add(await EnterExistingAsync(w, other.Character.Id, other.Character.Name, PetsMap).ConfigureAwait(false));
+                other.Remember();
+                Check(await v.Until(() => v.Map.GetActor(w.Id) != null, 10).ConfigureAwait(false) && await w.Until(() => w.Map.GetActor(v.Id) != null, 10).ConfigureAwait(false),
+                    "Les deux personnages ne se voient pas sur la carte " + PetsMap);
+                Func<int> life = () => w.Account.Game.character.stats?.VitalityActual ?? -1, maxLife = () => w.Account.Game.character.stats?.MaxVitality ?? -1;
+                Check(await w.Until(() => maxLife() > 0 && life() >= 0 && life() < maxLife(), 10).ConfigureAwait(false), "La cible n'est pas blessée : vie " + life() + " / " + maxLife());
+                Check(await WaitOnUi(() => screen != null && screen.IsHandleCreated && screen.Visible ? screen : null, 20).ConfigureAwait(false) != null, "La fenêtre de jeu du porteur ne s'est pas ouverte");
+
+                // Volet de l'inventaire, chapeau porté sélectionné : rangée des objets vivants et section de la fiche.
+                var panel = await OnUi(() =>
+                {
+                    var found = screen.Panels.Get<Outil_Azur_complet.Bot.Panels.InventoryPanel>();
+                    if (found != null) screen.Panels.Show(found);
+                    return found;
+                }).ConfigureAwait(false);
+                Check(panel != null, "Pas de volet d'inventaire dans la fenêtre de jeu");
+                await OnUi(() => ((EquipmentPlateau)Field(panel, "plateau"))[LivingHatSlot].Activate()).ConfigureAwait(false);
+                string[] shown = await WaitOnUi(() =>
+                {
+                    string[] state = LivingState(panel);
+                    return panel.CurrentItem?.Inventory_ID == (uint)hatId && state[0] == "True/True/True/True" && state[1].Contains("Apparence 1 sur 1")
+                        && state[2].StartsWith("dégagée", StringComparison.Ordinal) ? state : null;
+                }, 10).ConfigureAwait(false);
+                Check(shown != null, "Rangée ou fiche de l'objet vivant absente ou recouverte : " + string.Join(" ; ", await OnUi(() => LivingState(panel)).ConfigureAwait(false)));
+                evidence.Add("volet de l'inventaire, chapeau porté : rangée " + shown[2]);
+
+                // « Nourrir » : FEED_ITEM avec le seul repas, Valider, « Oui » → Of ; OR du repas et OCO à 10 points.
+                int vMark = v.ReceivedCount; sent = v.SentCount;
+                await OnUi(() => ((Button)Field(panel, "feedItem")).PerformClick()).ConfigureAwait(false);
+                Form choice = await WaitOnUi(() => OpenDialog(BotDialogs.FeedDialogName), 10).ConfigureAwait(false);
+                Check(choice != null, "« Nourrir » n'a pas ouvert le choix du repas");
+                string[] offered = await OnUi(() => new[] { choice.Text, string.Join(",", AllControls(choice).OfType<ItemGrid>().First(x => x.Name == "living-feed-grid").Items.Select(x => x.Inventory_ID)) }).ConfigureAwait(false);
+                Check(offered[1] == foodId.ToString(CultureInfo.InvariantCulture), "Repas de la grille FEED_ITEM : " + offered[1]);
+                await OnUi(() =>
+                {
+                    AllControls(choice).OfType<ItemGrid>().First(x => x.Name == "living-feed-grid").SelectItem((uint)foodId);
+                    AllControls(choice).OfType<Button>().First(x => x.Name == "dialog-validate").PerformClick();
+                }).ConfigureAwait(false);
+                Form caution = await WaitOnUi(() => OpenDialog(BotDialogs.FeedDialogName + "-confirm"), 10).ConfigureAwait(false);
+                Check(caution != null, "Pas de confirmation CONFIRM_FOOD_LIVING_ITEM après le choix du repas");
+                Check(!v.SentSince(sent).Any(p => p.StartsWith("Of", StringComparison.Ordinal)), "Of est parti avant la confirmation");
+                string question = await OnUi(() => DialogMessage(caution)).ConfigureAwait(false);
+                await OnUi(() => AllControls(caution).OfType<Button>().First(x => Equals(x.Tag, BotDialogResult.Yes)).PerformClick()).ConfigureAwait(false);
+                string feed = "Of" + hatId + "|" + LivingHatSlot + "|" + foodId;
+                Check(await v.Until(() => v.SentSince(sent).Contains(feed), 5).ConfigureAwait(false), "« Oui » n'a pas envoyé " + feed + " : " + string.Join(" ", v.SentSince(sent)));
+                string eaten = await v.Expect(p => p == "OR" + foodId || p.StartsWith("OQ" + foodId + "|", StringComparison.Ordinal), "OR du repas", 10, vMark).ConfigureAwait(false);
+                string fedOco = await v.Expect(p => p.StartsWith(LivingOco(hatId, LivingHatTemplate, LivingHatSlot), StringComparison.Ordinal), "OCO du chapeau nourri", 10, vMark).ConfigureAwait(false);
+                Check(fedOco.Contains("3ce#0#0#a"), "OCO sans les 10 points d'expérience : " + fedOco);
+                Check(await v.Until(() => hatLiving()?.Xp == 10 && hatLiving().Level == 2 && bag.GetByInventoryId((uint)foodId) == null, 5).ConfigureAwait(false),
+                    "OCO ou OR non relus : " + hatLiving()?.Xp + " points, repas " + (bag.GetByInventoryId((uint)foodId) == null ? "retiré" : "encore là"));
+                string[] fed = await WaitOnUi(() => { string[] state = LivingState(panel); return state[0] == "True/True/True/True" && state[1].Contains("Apparence 1 sur 2") ? state : null; }, 10).ConfigureAwait(false);
+                Check(fed != null, "La fiche ne suit pas l'OCO du repas : " + string.Join(" ; ", await OnUi(() => LivingState(panel)).ConfigureAwait(false)));
+                evidence.Add("« " + offered[0] + " » : " + offered[1] + ", « " + question.Replace("\n", " ") + " » Oui → " + feed + " → " + eaten + ", " + Short(fedOco, 150) + " ; fiche « " + Short(fed[1], 160) + " »");
+                await Capture("23-reel-x13-objet-vivant", screen).ConfigureAwait(false);
+
+                // « Choix de l'apparence » : deux cases, la 2 → Os ; OCO et Oa de l'apparence chez l'autre joueur.
+                string obviHex = LivingObviTemplate.ToString("x", CultureInfo.InvariantCulture);
+                vMark = v.ReceivedCount; sent = v.SentCount; int wMark = w.ReceivedCount;
+                await OnUi(() => ((Button)Field(panel, "skinItem")).PerformClick()).ConfigureAwait(false);
+                Form skinChoice = await WaitOnUi(() => OpenDialog(BotDialogs.SkinDialogName), 10).ConfigureAwait(false);
+                Check(skinChoice != null, "« Choix de l'apparence » n'a pas ouvert la boîte");
+                string skins = await OnUi(() =>
+                {
+                    LivingSkinGrid grid = AllControls(skinChoice).OfType<LivingSkinGrid>().First(x => x.Name == "living-skin-grid");
+                    return grid.SkinCount + "/" + grid.CurrentSkin + "/" + grid.SelectSkin(2) + "/" + grid.SelectedSkin;
+                }).ConfigureAwait(false);
+                Check(skins == "2/1/True/2", "Choix de l'apparence (cases/portée/choix/choisie) : " + skins);
+                await OnUi(() => AllControls(skinChoice).OfType<Button>().First(x => x.Name == "dialog-validate").PerformClick()).ConfigureAwait(false);
+                string skin = "Os" + hatId + "|" + LivingHatSlot + "|2";
+                Check(await v.Until(() => v.SentSince(sent).Contains(skin), 5).ConfigureAwait(false), "« Valider » n'a pas envoyé " + skin + " : " + string.Join(" ", v.SentSince(sent)));
+                string skinOco = await v.Expect(p => p.StartsWith(LivingOco(hatId, LivingHatTemplate, LivingHatSlot), StringComparison.Ordinal) && p.Contains("3cc#0#0#2"), "OCO de l'apparence 2", 10, vMark).ConfigureAwait(false);
+                string look = await w.Expect(p => p.StartsWith("Oa" + v.Id + "|", StringComparison.Ordinal) && p.Contains(obviHex + "~16~2"), "Oa de l'apparence 2 chez l'autre joueur", 10, wMark).ConfigureAwait(false);
+                Check(await v.Until(() => hatLiving()?.Skin == 1, 5).ConfigureAwait(false), "Apparence de l'OCO non relue : " + hatLiving()?.Skin);
+                string[] skinned = await WaitOnUi(() => { string[] state = LivingState(panel); return state[0] == "True/True/True/True" && state[1].Contains("Apparence 2 sur 2") ? state : null; }, 10).ConfigureAwait(false);
+                Check(skinned != null, "La fiche ne suit pas l'OCO de l'apparence : " + string.Join(" ; ", await OnUi(() => LivingState(panel)).ConfigureAwait(false)));
+                evidence.Add("apparence (" + skins + ") → " + skin + " → " + Short(skinOco, 120) + " ; l'autre joueur : " + Short(look, 60));
+
+                // « Dissocier » : Ox ; OAKO de l'objet vivant libre, OCO du chapeau sans 970-974, Oa du chapeau nu.
+                vMark = v.ReceivedCount; sent = v.SentCount; wMark = w.ReceivedCount;
+                await OnUi(() => ((Button)Field(panel, "dissociateItem")).PerformClick()).ConfigureAwait(false);
+                string dissociate = "Ox" + hatId + "|" + LivingHatSlot;
+                Check(await v.Until(() => v.SentSince(sent).Contains(dissociate), 5).ConfigureAwait(false), "« Dissocier » n'a pas envoyé " + dissociate + " : " + string.Join(" ", v.SentSince(sent)));
+                string born = await v.Expect(p => p.StartsWith("OAKO", StringComparison.Ordinal) && p.Contains("~" + obviHex + "~"), "OAKO de l'objet vivant recréé", 10, vMark).ConfigureAwait(false);
+                string bare = await v.Expect(p => p.StartsWith(LivingOco(hatId, LivingHatTemplate, LivingHatSlot), StringComparison.Ordinal) && !p.Contains("3ca#"), "OCO du chapeau sans objet vivant", 10, vMark).ConfigureAwait(false);
+                string plain = await w.Expect(p => p.StartsWith("Oa" + v.Id + "|", StringComparison.Ordinal) && !p.Contains("~16~"), "Oa du chapeau nu chez l'autre joueur", 10, wMark).ConfigureAwait(false);
+                Tool_BotProtocol.Game.Perso.Inventory.InventoryObjects freed = null;
+                Check(await v.Until(() => (freed = Owned(v, LivingObviTemplate)) != null && hatLiving() == null, 5).ConfigureAwait(false), "OAKO ou OCO de la dissociation non relus");
+                holder.Remember();
+                Tool_BotProtocol.Game.Perso.Inventory.LivingItem loose = Tool_BotProtocol.Game.Perso.Inventory.LivingItem.From(freed);
+                Check(loose != null && loose.IsLiving && !loose.IsAssociated && loose.Xp == 10 && loose.Skin == 1 && (int)freed.position == -1,
+                    "Objet vivant libre mal lu : " + Short(freed.Stats, 120));
+                Check(await WaitOnUi(() => LivingState(panel)[0].StartsWith("False/", StringComparison.Ordinal) ? "cachée" : null, 10).ConfigureAwait(false) != null,
+                    "La rangée des objets vivants reste affichée pour le chapeau nu");
+                evidence.Add(dissociate + " → " + Short(born, 90) + " (objet vivant " + freed.Inventory_ID + " libre, " + loose.Xp + " points), " + Short(bare, 60) + " ; l'autre joueur : " + Short(plain, 40));
+
+                // « Cibler avec cet objet » sur le pain : volet fermé, visée armée ; clic sur le sprite de la cible → OU<pain>|<cible>|<cellule>.
+                Tool_BotProtocol.Game.Perso.Inventory.InventoryObjects bread = bag.GetByInventoryId((uint)breadId);
+                string[] entry = await OnUi(() =>
+                {
+                    var grid = (ItemGrid)Field(panel, "inventory");
+                    grid.SelectItem((uint)breadId);
+                    typeof(Outil_Azur_complet.Bot.Panels.InventoryPanel).GetMethod("ShowMenu", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(panel, new object[] { bread, grid, new Point(4, 4) });
+                    var strip = (ContextMenuStrip)Field(panel, "itemMenu");
+                    ToolStripItem target = strip.Items.Cast<ToolStripItem>().FirstOrDefault(x => x.Name == "inventory-menu-target");
+                    string[] seen = { target?.Text ?? "(absente)", (target != null && target.Enabled).ToString() };
+                    if (target != null && target.Enabled) target.PerformClick();
+                    strip.Close();
+                    return seen;
+                }).ConfigureAwait(false);
+                Check(entry[1] == "True", "Pas d'entrée « Cibler avec cet objet » active pour le pain : " + entry[0]);
+                Check(await WaitOnUi(() => screen.Map.ItemTargetMode && screen.Map.TargetedItem?.Inventory_ID == (uint)breadId && !screen.Panels.IsOpen(panel) ? "visée" : null, 10).ConfigureAwait(false) != null,
+                    "« " + entry[0] + " » n'a pas fermé le volet ni armé la visée du pain");
+                MapActor aimed = v.Map.GetActor(w.Id);
+                Check(aimed != null && aimed.CellId == targetCell.CellID, "Sprite de la cible absent ou ailleurs qu'en " + targetCell.CellID + " : " + aimed);
+                int lifeBefore = life();
+                vMark = v.ReceivedCount; sent = v.SentCount; wMark = w.ReceivedCount;
+                await (await OnUi(() => screen.Map.Router.RouteActorAsync(aimed, (short)aimed.CellId, MouseButtons.Left)).ConfigureAwait(false)).ConfigureAwait(false);
+                string use = "OU" + breadId + "|" + w.Id + "|" + targetCell.CellID;
+                Check(await v.Until(() => v.SentSince(sent).Contains(use), 5).ConfigureAwait(false), "Le clic sur la cible n'a pas envoyé " + use + " : " + string.Join(" ", v.SentSince(sent)));
+                Check(await OnUi(() => !screen.Map.ItemTargetMode).ConfigureAwait(false), "La visée reste armée après le clic");
+                string emote = await v.Expect("eUK" + w.Id + "|17", "eUK<cible>|17 chez le porteur", 10, vMark).ConfigureAwait(false);
+                await w.Expect("eUK" + w.Id + "|17", "eUK<cible>|17 chez la cible", 10, wMark).ConfigureAwait(false);
+                string healed = await w.Expect(p => p.StartsWith("Im01;", StringComparison.Ordinal), "Im01 (vie rendue) chez la cible", 10, wMark).ConfigureAwait(false);
+                string used = await v.Expect(p => p == "OR" + breadId || p.StartsWith("OQ" + breadId + "|", StringComparison.Ordinal), "OR du pain chez le porteur", 10, vMark).ConfigureAwait(false);
+                Check(int.TryParse(healed.Substring(5), NumberStyles.None, CultureInfo.InvariantCulture, out int gained) && gained > 0 && gained <= 10, "Im01 illisible : " + healed);
+                // StarLoco régénère la vie hors combat entre deux As : la cible a au moins ce que le pain rend en plus.
+                Check(await w.Until(() => life() >= lifeBefore + gained, 5).ConfigureAwait(false), "Vie de la cible " + life() + " au lieu d'au moins " + lifeBefore + " + " + gained + " (As)");
+                Check(await v.Until(() => bag.GetByInventoryId((uint)breadId) == null, 5).ConfigureAwait(false), "Le pain reste dans le sac du porteur après " + used);
+                evidence.Add("« " + entry[0] + " » → visée, clic sur " + other.Character.Name + " → " + use + " → " + emote + " (aux deux), cible : " + healed + ", vie " + lifeBefore + " → " + life()
+                    + " ; porteur : " + used);
+                return string.Join(" | ", evidence);
+            }
+            finally
+            {
+                await ClosePetOwnerAsync(db, schema, holder, () => CloseScreenAsync(screen)).ConfigureAwait(false);
+                await ClosePetOwnerAsync(db, schema, other).ConfigureAwait(false);
+            }
+        }
     }
 }

@@ -160,6 +160,15 @@ Après la relecture, le bot a été joué sur une copie locale du StarLoco du ki
 
 **X8 — Combat : visée et chemin.** Portée du client (`checkRange` : max(min, max + bonus) pour un sort modifiable, bonus = PO de `As` et effets `GA` de caractéristique 19, `117` et `116`, retirés au tour suivant de leur porteur) dessinée en `CELL_SPELL_RANGE_COLOR` (#246696, 30 %, cercle ou croix) ; sur une cible valable, une forme par zone d'effet sous le pointeur (`P`, `C`, `D`, `X`, `L`, `T`, `O`, zone du type d'arme au corps à corps) en `CELL_SPELL_EFFECT_COLOR` à 30 % ; flèche du système gardée et image du client à côté (icône du sort, de l'arme ou `DefaultCC`, croix `Forbidden` hors des cibles, flèches `MapNavigatorMoveCursor` pendant le glisser) ; pendant son tour, chemin de combat du client survolé (quatre directions, au plus PM cases) dessiné avec les formes de sélection `cellules/s<pente>.png` teintes en #FF6600 et envoyé tel quel par le clic (`GA001`). Écart avec StarLoco (portée min + 1) décrit dans le guide. Tests : `BotCombatSmoke`, `BotMapViewSmoke`, `BotFightUiSmoke`, `BotFightProtocolSmoke`, `BotEntitiesSmoke`, `BotWorldMapSmoke`, scénario x8 de `BotStarLocoLiveSmoke`.
 
+**X13 — Objets vivants et objets à cible (V-19, m-04).** Ce lot couvre :
+
+- l'objet vivant lu dans les effets 970 à 974 (`LivingItem`) ;
+- la section `LivingItemsViewer` de la fiche (humeur, niveau, expérience, apparence) ;
+- sous la fiche et dans le menu de l'objet : Nourrir (grille des aliments du même type, question `CONFIRM_FOOD_LIVING_ITEM`, `Of<objet>|<position>|<aliment>`), Apparence (une case par niveau, `Os<objet>|<position>|<apparence>`) et Dissocier (`Ox<objet>|<position>`), avec `OCO`, `OAKO` et `Oa` relus ;
+- « Cibler avec cet objet » (`CLICK_TO_TARGET`) : le volet se ferme et la carte passe en visée d'objet comme `switchToItemTarget` (icône à côté de la flèche, pointeur d'une cellule, Échap). Le clic envoie `OU<objet>|<sprite>|<cellule>`, ou `OU<objet>||<cellule>` sur une case vide.
+
+Écart de StarLoco : 971 et 973 sont écrits en décimal. Il est décrit dans le guide. Tests : `BotInventoryGridSmoke` ; scénario x13 de `BotStarLocoLiveSmoke`.
+
 ## Couverture des fonctions
 
 Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par le test cité contre un serveur fictif local), **partiel** (une partie seulement), **absent**. Les fonctions rejouées par `BotStarLocoLiveSmoke` sont aussi vérifiées sur un vrai StarLoco local ; les autres lignes ne le sont pas encore. La colonne « Client 1.34 » nomme la fenêtre ou les paquets du client ; la colonne « StarLoco » dit ce que le serveur du kit en fait.
@@ -269,6 +278,7 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | F7 | Monture et enclos | `Rr`, `Rn`, `Rx`, `ER15`, `ER16` | ignore `Rr` sous le niveau 60 | partiel : ni ancêtres, ni recoloration, certificat hors inventaire | `BotMountSmoke` |
 | — | Garde et résurrection de familiers (type 9, lot X4) | `ER9`, `ER17`, `EMO`, `EK` | `ECK9` aux deux demandes, sans `EL` | fait | `BotExchangeSmoke`, `BotStarLocoLiveSmoke` |
 | — | Artisanat sécurisé (types 12 et 13, lots X5 et X6) | `ER12`, `ER13`, `EP`, `EK` | `ECK12` / `ECK13`, `Ep`, `EcK`, `ERET` | fait (fenêtre et volet ; entrées « Demander à » / « Inviter à » du menu d'un joueur, `ERET` dans le chat, carte de l'artisan du livre : lot X6) | `BotCraftSmoke`, `BotExchangeSmoke`, `BotMapActionsSmoke`, `BotStarLocoLiveSmoke` |
+| — | Objets vivants et objets à cible (lot X13) | `Of`, `Os`, `Ox`, `OU<id>\|<sprite>\|<cellule>` | `OCO`, `OAKO`, `Oa`, `eUK<cible>\|17` ; 971 et 973 en décimal | fait (sans association d'un objet libre ni image par apparence) | `BotInventoryGridSmoke`, `BotStarLocoLiveSmoke` |
 
 ### G. Progression, monde, combat
 
@@ -319,6 +329,8 @@ Lot X12 : l'échange entre deux comptes par glisser-déposer et la boîte de qua
 
 Lot X8 : la portée en cercle et en croix de deux sorts d'un Iop inventé, la croix `Xd` posée deux fois sur une cible alignée, la croix d'interdiction et le clic sans envoi hors des cibles, la ligne `Le` et le lancer `GA300<sort>;<cellule>` accepté, le chemin de combat survolé puis envoyé (`GA001`, renvoyé par StarLoco avec la cellule de départ) et l'absence de chemin pendant le tour de l'adversaire sont rejoués (scénario x8). Restent un bonus de PO reçu de StarLoco (`GA;117` d'un sort ou d'un objet), la ligne de vue (lot X33) et la comparaison des captures avec le client en jeu.
 
+Lot X13 : sont rejoués (scénario x13) un chapeau vivant écrit dans la base, nourri, changé d'apparence (vue par l'autre joueur, `Oa`) et dissocié par le volet de l'inventaire, et un pain donné à l'autre joueur par la visée de la carte (`OU<pain>|<cible>|<cellule>`, `eUK|17`, `Im01`). Restent l'association d'un objet vivant libre à un objet, la dissociation d'un objet vivant inscrit dans `world.entity.obvijevans` et une bière (`eUK|18`).
+
 ### Carte et acteurs
 
 - Images des sols en pente : `swfsvg` sait rendre une image choisie, mais le décor versionné a été exporté sans les pentes.
@@ -354,6 +366,7 @@ Lot X8 : la portée en cercle et en croix de deux sorts d'un Iop inventé, la cr
 - Les volets prennent la largeur du tiroir au lieu des fenêtres fixes du client.
 - Son : le bot ne joue ni bruitage ni musique. L’évaluation chiffrée et la recommandation (pas de lot son avant les animations) sont dans [la note sur le son](SON_BOT.md) (lot AN9).
 - Lot X12 : la boîte de quantité sert à jeter et détruire ; restent les cases d'objets de la barre non voilées en combat et les états requis ou interdits des sorts, inconnus du bot.
+- Lot X13 : une seule image par modèle d'objet vivant (grille des apparences et case de l'objet) ; pas d'association d'un objet vivant libre ; pas de visée d'objet depuis la barre de raccourcis ; boîtes de choix du bot au lieu de `ChooseFeed` / `ChooseItemSkin` ; sous la taille par défaut de la fenêtre, la grille du sac peut encore chevaucher le plateau.
 
 ### Chat
 
