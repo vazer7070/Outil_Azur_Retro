@@ -58,6 +58,7 @@ internal static class BotFightUiSmoke
     private static object Get(object target, string field) => target.GetType().GetField(field, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(target);
     /// <summary>Propriété d'une case de la barre (<c>SpellShortcutButton</c> est interne à l'application).</summary>
     private static bool Flag(Button slot, string property) => (bool)slot.GetType().GetProperty(property).GetValue(slot);
+    private static string Badge(Button slot) => (string)slot.GetType().GetProperty("Badge").GetValue(slot);
     private static void PumpUntil(Func<bool> done, string what, int seconds = 6)
     {
         DateTime end = DateTime.UtcNow.AddSeconds(seconds);
@@ -132,6 +133,8 @@ internal static class BotFightUiSmoke
                     account.Game.character.SetPerso_Data(42, "Personnage de test", 25, 0, 8);
                     account.Game.Map.SetRefreshMap("900094|date|"); account.Game.character.Cell = account.Game.Map.MapCells[0];
                     account.Game.character.Spells[10] = Spell.ForCharacter(10, 1);
+                    // Lot X12 (V-26) : 3 PA et 2 tours de relance, pour voiler la case faute de PA ou pendant le délai.
+                    account.Game.character.Spells[10].Stats[1] = new SpellStats { PA = 3, Interval = 2, Max_portee = 1 };
                     account.AccountStates = AccountStates.CONNECTED_INACTIVE;
                     using (var form = new GameClientFullform(account))
                     {
@@ -212,6 +215,10 @@ internal static class BotFightUiSmoke
                         options.FlagButton.PerformClick(); Check(form.Map.FlagMode, "Flag mode not re-armed");
                         Check(form.ProcessShortcut(Keys.Escape) && !form.Map.FlagMode, "Escape does not cancel the flag mode");
                         NoPacket(peer, "Escape in flag mode sent a packet");
+                        // Lot X12 (V-26, règle du client) : avant GS, placement compris, les cases de sort sont voilées (NOT_IN_FIGHT).
+                        ShortcutBar spellBar = form.Banner.Shortcuts; Button spellSlot = spellBar.SlotButtons[0];
+                        spellBar.RefreshContent();
+                        Check(spellBar.SpellAt(1) == 10 && !Flag(spellSlot, "Available") && !Flag(spellBar.CloseCombatSlot, "Available"), "Spell cells are not dimmed during the placement");
 
                         // ---------------------------------------------------------------- combat lancé : ligne de temps
                         Feed(account, "GS");
@@ -242,6 +249,9 @@ internal static class BotFightUiSmoke
                         // Another fighter's turn: its own PA and PM (GTM 43 : 6 PA, 3 PM), never those of the account (8 PA).
                         Check(((Label)Get(form, "summary")).Text == "Tour de Allié de test · 6 PA · 3 PM",
                             "status bar shows other points than the current fighter's: " + ((Label)Get(form, "summary")).Text);
+                        // Le tour d'un autre ne voile pas la case : le client refuse seulement le clic (NOT_YOUR_TURN n'est pas testé par la barre).
+                        spellBar.RefreshContent();
+                        Check(Flag(spellSlot, "Available"), "Another fighter's turn dimmed the spell cell");
                         entries = timeline.Entries;
                         Check(entries[1].IsCurrent && entries[1].IsHighlighted && timeline.RemainingMilliseconds > 20000 && timeline.RemainingMilliseconds <= 30000,
                             "GTS43|30000 (two fields) did not start the chrono");
@@ -289,6 +299,17 @@ internal static class BotFightUiSmoke
                         Check(timeline.RemainingMilliseconds == 0 && timeline.HighlightedFighterId == 43, "GTF kept the chrono or lost the GTR frame");
                         Feed(account, "GTS42|30000"); PumpUntil(() => timeline.CurrentFighterId == 42, "own turn");
                         PumpUntil(() => ((Label)Get(form, "summary")).Text == "Votre tour · 8 PA · 3 PM", "status bar shows the account's points on its turn");
+                        // V-26 : PA insuffisants puis délai de relance (tours restants dans le coin, showLabel) voilent la case.
+                        spellBar.RefreshContent();
+                        Check(Flag(spellSlot, "Available") && Badge(spellSlot) == null, "Spell cell dimmed on the own turn");
+                        Feed(account, "GTM|42;0;100;2;3;3;;100"); spellBar.RefreshContent();
+                        Check(!Flag(spellSlot, "Available") && Badge(spellSlot) == null, "Spell cell is not dimmed without enough AP (NOT_ENOUGH_AP)");
+                        Feed(account, "GTM|42;0;100;8;3;3;;100"); spellBar.RefreshContent(); Check(Flag(spellSlot, "Available"), "Spell cell stayed dimmed with AP back");
+                        Feed(account, "GAS42"); Feed(account, "GA;300;42;10,5,,1"); Feed(account, "GAF0|42");
+                        Expect(peer, "GKK0", "GAF of the spell cast not acknowledged");
+                        Check(fight.GetSpellCooldownRemaining(10) == 2, "Spell cooldown not recorded: " + fight.GetSpellCooldownRemaining(10));
+                        spellBar.RefreshContent();
+                        Check(!Flag(spellSlot, "Available") && Badge(spellSlot) == "2" && !Flag(spellSlot, "WrongState"), "Spell cell in cooldown is not dimmed with its turns (CANT_LAUNCH_BEFORE)");
 
                         // ---------------------------------------------------------------- corps à corps (lot X1) : case ², clic adjacent
                         Cell origin = account.Game.character.Cell;

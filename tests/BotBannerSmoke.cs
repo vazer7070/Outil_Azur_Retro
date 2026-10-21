@@ -323,6 +323,21 @@ internal static class BotBannerSmoke
                         Check(bar.SlotButtons.Count == 14 && bar.SlotButtons.All(b => b.Width == 25 && b.Height == 25) && bar.CloseCombatSlot.Width == 25, "Shortcut bar is not 14 + 1 cells of 25 × 25");
                         Check(bar.SpellAt(1) == 10 && bar.SpellAt(2) == 11 && bar.SpellAt(3) == 12 && bar.SpellAt(4) == null, "Learned spells are not laid out in order");
                         PumpUntil(() => bar.SlotButtons[0].GetType().GetProperty("Icon").GetValue(bar.SlotButtons[0], null) != null, "spell icon");
+                        // Lot X12 (V-26, règle du client NOT_IN_FIGHT) : hors combat, les sorts et le corps à corps sont voilés ; l'icône est
+                        // teinte à 50 % (INACTIVE_TRANSFORM) au lieu d'être couverte d'un voile.
+                        bar.RefreshContent();
+                        Button firstSpell = bar.SlotButtons[0]; PropertyInfo available = firstSpell.GetType().GetProperty("Available");
+                        Check(bar.SlotButtons.Take(3).All(b => !(bool)available.GetValue(b)) && !(bool)available.GetValue(bar.CloseCombatSlot), "Spell cells are not dimmed outside a fight");
+                        Color dimmed, lit;
+                        using (var image = new Bitmap(firstSpell.Width, firstSpell.Height))
+                        {
+                            firstSpell.DrawToBitmap(image, new Rectangle(Point.Empty, firstSpell.Size)); dimmed = image.GetPixel(firstSpell.Width / 2, firstSpell.Height / 2 - 2);
+                            available.SetValue(firstSpell, true);
+                            firstSpell.DrawToBitmap(image, new Rectangle(Point.Empty, firstSpell.Size)); lit = image.GetPixel(firstSpell.Width / 2, firstSpell.Height / 2 - 2);
+                        }
+                        Check(Math.Abs(dimmed.R - lit.R / 2) <= 3 && Math.Abs(dimmed.G - lit.G / 2) <= 3 && Math.Abs(dimmed.B - lit.B / 2) <= 3,
+                            "Dimmed spell icon is not the 50 % colour transform: " + dimmed + " / " + lit);
+                        bar.RefreshContent(); Check(!(bool)available.GetValue(firstSpell), "Refresh did not dim the spell cell again");
                         string key = bar.CharacterKey;
                         Check(key == "42|Personnage de test", "Character key differs");
                         Check(!Result(bar.DropSpellAsync(10, 0)) && !Result(bar.DropSpellAsync(10, 15)) && !Result(bar.DropSpellAsync(99, 3)), "Invalid drops were accepted");
