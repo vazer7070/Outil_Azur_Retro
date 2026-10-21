@@ -498,6 +498,7 @@ internal static partial class Live
         await Scenario("x6. artisanat sécurisé depuis les menus : EW+ à l'arrivée, clic gauche sur l'artisan, « Demander à » → ER13, ERET (artisan éloigné), ERK 12 → ECK, « Inviter à » → ER12 → ERK 13 → ECK, livre des artisans : Message privé, Localiser (lot X6)", 200, SecureCraftMenuAsync).ConfigureAwait(false);
         await Scenario("x6b. marchand hors ligne : ER6|, EMO+, Eq → Eq1, EQ → marchand -5 ; clic simple → menu « Acheter » sans paquet, Maj + clic → ER4 → ECK4, EB → EBK, GM|- (lot X6)", 150, OfflineMerchantClickAsync).ConfigureAwait(false);
         await Scenario("x7. Sram contre A : prêt et option d'équipe vus par l'autre, pièges GDZ/GDC, invisibilité GA;150, journal dans le chat (lot X7)", 180, FightEventsAsync).ConfigureAwait(false);
+        await Scenario("x12. glisser-déposer et boîte de quantité : échange entre deux comptes (EMO+, EMO-, EMG), banque (EMO±, EMG±), hôtel de vente réfuté (lot X12)", 200, TransferDragAsync).ConfigureAwait(false);
         // Toujours en dernier : arrête puis redémarre le serveur de jeu (A et B restent déconnectés).
         await Scenario("x3c. serveur de jeu arrêté en pleine partie : boîte de perte de connexion, « Oui » reconnecte A (lot X3)", 360, GameStopAsync).ConfigureAwait(false);
     }
@@ -4591,5 +4592,238 @@ internal static partial class Live
             evidence.Add("pas sur " + first.CellID + " : " + gdz + ", " + gdc + ", " + Short(trapped, 40) + " ; zone effacée, cellule d'origine redessinée, second piège en place");
         }
         return second.CellID.ToString(CultureInfo.InvariantCulture);
+    }
+
+    // ------------------------------------------------------------------------------------------------ lot X12
+
+    private const int TransferStack = 5, TransferOffered = 3, TransferTaken = 1, TransferKamas = 10, BankDeposit = 2;
+
+    /// <summary>
+    /// x12. Glisser-déposer et boîte de quantité (lot X12), avec la fenêtre de jeu du donneur : deux comptes inventés sur la carte 164, le
+    /// donneur avec 5 Greu-Vette et 1000 kamas écrits dans la base. Échange : <c>ER1</c>, <c>EA</c> du receveur, <c>ECK1</c> ; dans le volet
+    /// d'échange du donneur, les poissons glissés du sac sur sa grille ouvrent la boîte (valeur 1, maximum 5) : 3 → <c>EMO+&lt;poisson&gt;|3</c>
+    /// (<c>EMKO+</c> chez lui, <c>EmKO+…|3|598|</c> chez le receveur) ; la case glissée sur le sac : 1 → <c>EMO-&lt;poisson&gt;|1</c> ;
+    /// « Proposer des kamas » : 10 → <c>EMG10</c> ; <c>EK</c> des deux, puis 2 poissons et 10 kamas chez le receveur. Banque ensuite
+    /// (<c>.banque</c>, commande de StarLoco : <c>ECK5</c> et <c>EL</c>) : 2 poissons glissés du sac sur le coffre (<c>EMO+</c> → <c>EsKO+</c>,
+    /// <c>OQ</c>), la case glissée sur le sac reprend tout (<c>EMO-</c> → <c>EsKO-</c>), 10 kamas déposés puis retirés par la boîte
+    /// (<c>EMG10</c>, <c>EMG-10</c> → <c>EsKG</c>), « Fermer » → <c>EV</c>. Le coffre d'une maison ouvre la même fenêtre (<c>ECK5</c>,
+    /// <c>Trunk.open</c>) : aucun personnage de test n'ayant de maison, la banque la représente. Hôtel de vente : l'interface
+    /// <c>BigStoreSell</c> du client n'accepte aucun dépôt glissé, rien n'est joué.
+    /// </summary>
+    private static async Task<string> TransferDragAsync()
+    {
+        RequirePetsData();
+        using (MySql.Data.MySqlClient.MySqlConnection db = OpenAccountsDatabase(out string schema))
+        {
+            var giver = new PetOwner { Label = "Don" }; var taker = new PetOwner { Label = "Rec" };
+            var evidence = new List<string>();
+            EventHandler<ExchangeRequestEventArgs> keep = (s, e) => e.Handled = true;
+            PlayerExchange takerRequests = null;
+            GameClientFullform screen = null;
+            try
+            {
+                // Base : poissons du donneur à un identifiant hors de la plage de StarLoco ; le receveur n'a rien.
+                int fishId = 620000000 + random.Next(1, 100000) * 10;
+                giver.Character = Invent(db, schema, a.Id, PetsMap, PetsCell, 10000, giver.Created);
+                giver.FishId = fishId;
+                Sql(db, "INSERT INTO " + schema + ".`world.entity.objects` (id, template, quantity, position, stats, puit) VALUES (@id, @template, @quantity, -1, '', 0)",
+                    "@id", fishId, "@template", FishTemplate, "@quantity", TransferStack);
+                Sql(db, "UPDATE " + schema + ".players SET kamas = @kamas, objets = @objets WHERE id = @id",
+                    "@kamas", PetsKamas, "@objets", fishId.ToString(CultureInfo.InvariantCulture) + "|", "@id", giver.Character.Id);
+                taker.Character = Invent(db, schema, b.Id, PetsMap, PetsCell, 10000, taker.Created);
+                Journal("[test] " + giver.Character.Name + " : " + TransferStack + " poissons (" + fishId + ") et " + PetsKamas + " kamas écrits dans la base ; " + taker.Character.Name + " sans objet");
+
+                // Entrées en jeu l'une après l'autre ; le donneur a sa fenêtre de jeu.
+                LiveSession don = giver.Session = new LiveSession(giver.Label, giver.Character.Login, giver.Character.Password);
+                evidence.Add(await EnterExistingAsync(don, giver.Character.Id, giver.Character.Name, PetsMap, s =>
+                    s.Account.Game.character.Player_Selection += () => OnUi(() =>
+                    {
+                        if (screen != null) return;
+                        screen = new GameClientFullform(s.Account) { StartPosition = FormStartPosition.Manual, Location = new Point(60, 60), Size = new Size(1000, 700), ShowInTaskbar = false };
+                        screen.Show();
+                    })).ConfigureAwait(false));
+                Check(await don.Until(() => giver.Fish?.Qua == TransferStack && don.Account.Game.character.Kamas == PetsKamas, 10).ConfigureAwait(false),
+                    "Poissons ou kamas du donneur absents : poissons " + giver.Fish?.Qua + ", kamas " + don.Account.Game.character.Kamas);
+                giver.Remember();
+                LiveSession rec = taker.Session = new LiveSession(taker.Label, taker.Character.Login, taker.Character.Password);
+                evidence.Add(await EnterExistingAsync(rec, taker.Character.Id, taker.Character.Name, PetsMap).ConfigureAwait(false));
+                taker.Remember();
+                Check(await don.Until(() => don.Map.GetActor(rec.Id) != null, 10).ConfigureAwait(false) && await rec.Until(() => rec.Map.GetActor(don.Id) != null, 10).ConfigureAwait(false),
+                    "Les deux personnages ne se voient pas sur la carte " + PetsMap);
+                Check(await WaitOnUi(() => screen != null && screen.IsHandleCreated && screen.Visible ? screen : null, 20).ConfigureAwait(false) != null, "La fenêtre de jeu du donneur ne s'est pas ouverte");
+
+                // Échange ouvert (ER1, EA du receveur, ECK1 aux deux) : le volet d'échange du donneur s'affiche.
+                takerRequests = rec.Account.Game.Interactions.Exchange; takerRequests.RequestReceived += keep;
+                PlayerExchange giverExchange = don.Account.Game.Interactions.Exchange;
+                int donMark = don.ReceivedCount, recMark = rec.ReceivedCount;
+                var request = await giverExchange.RequestAsync(rec.Id).ConfigureAwait(false);
+                Check(request.Sent, "Demande d'échange refusée par le bot : " + request.Message);
+                await rec.Expect("ERK", "ERK chez le receveur", 10, recMark).ConfigureAwait(false);
+                Check(await rec.Until(() => takerRequests.PendingRequest != null, 5).ConfigureAwait(false), "Le receveur n'a pas de demande en attente");
+                var accept = await takerRequests.AcceptAsync().ConfigureAwait(false);
+                Check(accept.Sent, "EA refusé par le bot : " + accept.Message);
+                string eck = await don.Expect("ECK", "ECK1 chez le donneur", 10, donMark).ConfigureAwait(false);
+                await rec.Expect("ECK", "ECK1 chez le receveur", 10, recMark).ConfigureAwait(false);
+                Outil_Azur_complet.Bot.Panels.ExchangePanel exchangePanel = await WaitOnUi(() =>
+                {
+                    var panel = screen.Panels.Get<Outil_Azur_complet.Bot.Panels.ExchangePanel>();
+                    return panel != null && ReferenceEquals(screen.Panels.Current, panel) && giverExchange.IsOpen ? panel : null;
+                }, 10).ConfigureAwait(false);
+                Check(exchangePanel != null, "Le volet d'échange du donneur ne s'est pas ouvert sur " + eck);
+                var localGrid = await OnUi(() => (Outil_Azur_complet.Bot.Panels.ExchangeItemGrid)Field(exchangePanel, "localGrid")).ConfigureAwait(false);
+
+                // Poissons glissés du sac sur la grille : boîte (maximum la pile), 3 → EMO+<poisson>|3.
+                int sentMark = don.SentCount; donMark = don.ReceivedCount; recMark = rec.ReceivedCount;
+                var bagItem = new Outil_Azur_complet.Bot.Controls.Banner.ShortcutPayload(ShortcutSlotKind.Item, fishId, TransferStack, -1);
+                Check(await OnUi(() => localGrid.AcceptDrop(bagItem)).ConfigureAwait(false), "Le glisser des poissons sur la grille de l'échange est refusé");
+                int maximum = await AnswerQuantityAsync(TransferOffered.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
+                Check(maximum == TransferStack, "Maximum de la boîte de l'échange : " + maximum + " (attendu la pile, " + TransferStack + ")");
+                string offer = "EMO+" + fishId + "|" + TransferOffered;
+                Check(await don.Until(() => don.SentSince(sentMark).Contains(offer), 5).ConfigureAwait(false), "Le dépôt glissé n'a pas envoyé " + offer + " : " + string.Join(" ", don.SentSince(sentMark)));
+                string local = await don.Expect("EMKO+" + fishId + "|" + TransferOffered, "EMKO+ chez le donneur", 10, donMark).ConfigureAwait(false);
+                string distant = await rec.Expect("EmKO+" + fishId + "|" + TransferOffered + "|" + FishTemplate + "|", "EmKO+ chez le receveur", 10, recMark).ConfigureAwait(false);
+                evidence.Add("glisser du sac → boîte (max " + maximum + ") « " + TransferOffered + " » → " + offer + " → " + local + " / " + Short(distant, 40));
+
+                // La case proposée glissée sur le sac : 1 → EMO-<poisson>|1, l'offre passe à 2.
+                sentMark = don.SentCount; donMark = don.ReceivedCount; recMark = rec.ReceivedCount;
+                var offered = new Outil_Azur_complet.Bot.Panels.ExchangeItemDrag(localGrid, (uint)fishId, FishTemplate, TransferOffered);
+                Check(await OnUi(() => exchangePanel.DropOnBag(offered)).ConfigureAwait(false), "Le glisser de la case proposée sur le sac est refusé");
+                maximum = await AnswerQuantityAsync(TransferTaken.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
+                Check(maximum == TransferOffered, "Maximum de la boîte du retrait : " + maximum + " (attendu " + TransferOffered + ")");
+                string back = "EMO-" + fishId + "|" + TransferTaken;
+                Check(await don.Until(() => don.SentSince(sentMark).Contains(back), 5).ConfigureAwait(false), "Le retrait glissé n'a pas envoyé " + back + " : " + string.Join(" ", don.SentSince(sentMark)));
+                int kept = TransferOffered - TransferTaken;
+                string after = await don.Expect("EMKO+" + fishId + "|" + kept, "EMKO+ de l'offre réduite chez le donneur", 10, donMark).ConfigureAwait(false);
+                await rec.Expect("EmKO+" + fishId + "|" + kept + "|", "EmKO+ de l'offre réduite chez le receveur", 10, recMark).ConfigureAwait(false);
+                evidence.Add("case glissée sur le sac → « " + TransferTaken + " » → " + back + " → " + after);
+
+                // « Proposer des kamas » : boîte (valeur 0, maximum la bourse), 10 → EMG10.
+                sentMark = don.SentCount; recMark = rec.ReceivedCount;
+                await OnUi(() => ((Button)Field(exchangePanel, "exchangeKamasSend")).PerformClick()).ConfigureAwait(false);
+                QuantityPopup kamasBox = await QuantityBoxAsync().ConfigureAwait(false);
+                Check(kamasBox != null, "« Proposer des kamas » n'a pas ouvert la boîte");
+                string kamasValue = await OnUi(() => kamasBox.InputText + "/" + kamasBox.Minimum + "/" + kamasBox.Maximum).ConfigureAwait(false);
+                Check(kamasValue == "0/0/" + PetsKamas, "Boîte des kamas (valeur/min/max) : " + kamasValue + " (attendu 0/0/" + PetsKamas + ")");
+                await AnswerQuantityAsync(TransferKamas.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
+                Check(await don.Until(() => don.SentSince(sentMark).Contains("EMG" + TransferKamas), 5).ConfigureAwait(false), "La boîte des kamas n'a pas envoyé EMG" + TransferKamas);
+                await rec.Expect("EmKG" + TransferKamas, "EmKG chez le receveur", 10, recMark).ConfigureAwait(false);
+                evidence.Add("« Proposer des kamas » → boîte " + kamasValue + " → EMG" + TransferKamas);
+
+                // EK des deux après le délai du bouton : poissons et kamas chez le receveur.
+                Check(await don.Until(() => giverExchange.CanValidate, 6).ConfigureAwait(false), "Le donneur ne peut pas valider (délai)");
+                donMark = don.ReceivedCount; recMark = rec.ReceivedCount;
+                Check((await giverExchange.ValidateAsync().ConfigureAwait(false)).Sent, "EK du donneur refusé");
+                await rec.Expect("EK1" + don.Id, "EK1<donneur> chez le receveur", 10, recMark).ConfigureAwait(false);
+                Check(await rec.Until(() => takerRequests.CanValidate, 6).ConfigureAwait(false), "Le receveur ne peut pas valider (délai)");
+                Check((await takerRequests.ValidateAsync().ConfigureAwait(false)).Sent, "EK du receveur refusé");
+                string ev = await don.Expect("EV", "EV (échange conclu) chez le donneur", 10, donMark).ConfigureAwait(false);
+                Check(await rec.Until(() => rec.Account.Game.character.Inventory.Objets.Any(x => x != null && x.ID == FishTemplate && x.Qua == kept) && rec.Account.Game.character.Kamas == TransferKamas, 10).ConfigureAwait(false)
+                    && await don.Until(() => giver.Fish?.Qua == TransferStack - kept && don.Account.Game.character.Kamas == PetsKamas - TransferKamas, 10).ConfigureAwait(false),
+                    "Après l'échange : donneur " + giver.Fish?.Qua + " poissons et " + don.Account.Game.character.Kamas + " kamas, receveur "
+                    + rec.Account.Game.character.Inventory.Objets.Where(x => x != null && x.ID == FishTemplate).Sum(x => x.Qua) + " poissons et " + rec.Account.Game.character.Kamas + " kamas");
+                Check(await WaitOnUi(() => screen.Panels.IsOpen(exchangePanel) ? null : exchangePanel, 10).ConfigureAwait(false) != null, "Le volet d'échange est resté ouvert après " + ev);
+                giver.Remember(); taker.Remember();
+                evidence.Add("EK des deux → " + ev + " ; donneur " + giver.Fish?.Qua + " poissons, " + don.Account.Game.character.Kamas + " kamas ; receveur " + kept + " poissons, " + rec.Account.Game.character.Kamas + " kamas");
+
+                // Banque (.banque) : ECK5 et EL ; le volet du coffre s'affiche.
+                donMark = don.ReceivedCount;
+                await don.Send("BM*|.banque|").ConfigureAwait(false);
+                string eck5 = await don.Expect(p => p.StartsWith("ECK5", StringComparison.Ordinal), "ECK5 (banque ouverte par .banque)", 10, donMark).ConfigureAwait(false);
+                StorageExchange bank = don.Account.Game.Interactions.Storage;
+                Outil_Azur_complet.Bot.Panels.StoragePanel chest = await WaitOnUi(() =>
+                {
+                    var panel = screen.Panels.Get<Outil_Azur_complet.Bot.Panels.StoragePanel>();
+                    return panel != null && ReferenceEquals(screen.Panels.Current, panel) && bank.IsOpen && bank.ContentReceived ? panel : null;
+                }, 10).ConfigureAwait(false);
+                Check(chest != null, "Le volet du coffre ne s'est pas ouvert sur " + eck5);
+                Check(bank.Items.Count == 0 && bank.Kamas == 0, "Banque du compte inventé non vide : " + bank.Items.Count + " objet(s), " + bank.Kamas + " kamas");
+                var storageGrid = await OnUi(() => (Outil_Azur_complet.Bot.Panels.ExchangeItemGrid)Field(chest, "storageGrid")).ConfigureAwait(false);
+
+                // Dépôt glissé : boîte (maximum la pile du sac), 2 → EMO+<poisson>|2 → EsKO+<objet de banque>|2|598|, OQ du sac.
+                int bagLeft = giver.Fish.Qua;
+                sentMark = don.SentCount; donMark = don.ReceivedCount;
+                Check(await OnUi(() => storageGrid.AcceptDrop(new Outil_Azur_complet.Bot.Controls.Banner.ShortcutPayload(ShortcutSlotKind.Item, fishId, bagLeft, -1))).ConfigureAwait(false),
+                    "Le glisser des poissons sur le coffre est refusé");
+                maximum = await AnswerQuantityAsync(BankDeposit.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
+                Check(maximum == bagLeft, "Maximum de la boîte du dépôt : " + maximum + " (attendu " + bagLeft + ")");
+                string deposit = "EMO+" + fishId + "|" + BankDeposit;
+                Check(await don.Until(() => don.SentSince(sentMark).Contains(deposit), 5).ConfigureAwait(false), "Le dépôt glissé n'a pas envoyé " + deposit);
+                string stored = await don.Expect(p => p.StartsWith("EsKO+", StringComparison.Ordinal) && p.Contains("|" + BankDeposit + "|" + FishTemplate + "|"), "EsKO+ du dépôt", 10, donMark).ConfigureAwait(false);
+                Check(await don.Until(() => bank.Items.Count == 1 && bank.Items[0].Quantity == BankDeposit && giver.Fish?.Qua == bagLeft - BankDeposit, 10).ConfigureAwait(false),
+                    "Après le dépôt : banque " + string.Join(",", bank.Items.Select(x => x.Id + "×" + x.Quantity)) + ", sac " + giver.Fish?.Qua);
+                ExchangeItem banked = bank.Items[0];
+                giver.Seen.Add(banked.Id);
+                evidence.Add(eck5 + " ; glisser sur le coffre → boîte (max " + maximum + ") « " + BankDeposit + " » → " + deposit + " → " + Short(stored, 40));
+
+                // Retrait glissé : la case du coffre sur le sac, boîte bornée aux pods libres, tout → EMO-<objet>|2 → EsKO-, poissons revenus.
+                sentMark = don.SentCount; donMark = don.ReceivedCount;
+                var bankCell = new Outil_Azur_complet.Bot.Panels.ExchangeItemDrag(storageGrid, banked.Id, banked.TemplateId, banked.Quantity);
+                Check(await OnUi(() => chest.DropOnBag(bankCell)).ConfigureAwait(false), "Le glisser de la case du coffre sur le sac est refusé");
+                maximum = await AnswerQuantityAsync(BankDeposit.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
+                Check(maximum == BankDeposit, "Maximum de la boîte du retrait : " + maximum + " (attendu " + BankDeposit + ", pods libres " + (giver.Bag.Pods_Max - giver.Bag.Actual_pods) + ")");
+                string withdraw = "EMO-" + banked.Id + "|" + BankDeposit;
+                Check(await don.Until(() => don.SentSince(sentMark).Contains(withdraw), 5).ConfigureAwait(false), "Le retrait glissé n'a pas envoyé " + withdraw);
+                string emptied = await don.Expect("EsKO-" + banked.Id, "EsKO- du retrait", 10, donMark).ConfigureAwait(false);
+                Check(await don.Until(() => bank.Items.Count == 0 && giver.Fish?.Qua == bagLeft, 10).ConfigureAwait(false), "Après le retrait : banque " + bank.Items.Count + " objet(s), sac " + giver.Fish?.Qua);
+                // Player.removeFromBank : la pile revenue s'ajoute à celle du sac et l'objet de banque quitte le monde (World.removeGameObject) ;
+                // il n'a plus rien à nettoyer (gardé jusque-là au cas où le scénario échouerait objet en banque).
+                giver.Seen.Remove(banked.Id);
+                evidence.Add("case du coffre glissée sur le sac → « " + BankDeposit + " » → " + withdraw + " → " + emptied);
+
+                // Kamas : dépôt par la boîte (valeur et maximum la bourse), 10 → EMG10 ; retrait (valeur et maximum le coffre) → EMG-10.
+                long purse = don.Account.Game.character.Kamas;
+                sentMark = don.SentCount; donMark = don.ReceivedCount;
+                await OnUi(() => ((Button)Field(chest, "storageKamasDeposit")).PerformClick()).ConfigureAwait(false);
+                QuantityPopup depositBox = await QuantityBoxAsync().ConfigureAwait(false);
+                Check(depositBox != null, "« Déposer des kamas » n'a pas ouvert la boîte");
+                string depositValue = await OnUi(() => depositBox.InputText + "/" + depositBox.Maximum).ConfigureAwait(false);
+                Check(depositValue == purse + "/" + purse, "Boîte du dépôt de kamas (valeur/max) : " + depositValue + " (attendu " + purse + "/" + purse + ")");
+                await AnswerQuantityAsync(TransferKamas.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
+                Check(await don.Until(() => don.SentSince(sentMark).Contains("EMG" + TransferKamas), 5).ConfigureAwait(false), "Le dépôt de kamas n'a pas envoyé EMG" + TransferKamas);
+                await don.Expect("EsKG" + TransferKamas, "EsKG du dépôt de kamas", 10, donMark).ConfigureAwait(false);
+                Check(await don.Until(() => bank.Kamas == TransferKamas, 5).ConfigureAwait(false), "Kamas du coffre après le dépôt : " + bank.Kamas);
+                sentMark = don.SentCount; donMark = don.ReceivedCount;
+                await OnUi(() => ((Button)Field(chest, "storageKamasWithdraw")).PerformClick()).ConfigureAwait(false);
+                QuantityPopup withdrawBox = await QuantityBoxAsync().ConfigureAwait(false);
+                Check(withdrawBox != null, "« Retirer des kamas » n'a pas ouvert la boîte");
+                string withdrawValue = await OnUi(() => withdrawBox.InputText + "/" + withdrawBox.Maximum).ConfigureAwait(false);
+                Check(withdrawValue == TransferKamas + "/" + TransferKamas, "Boîte du retrait de kamas (valeur/max) : " + withdrawValue);
+                await OnUi(() => withdrawBox.Confirm()).ConfigureAwait(false);
+                Check(await don.Until(() => don.SentSince(sentMark).Contains("EMG-" + TransferKamas), 5).ConfigureAwait(false), "Le retrait de kamas n'a pas envoyé EMG-" + TransferKamas);
+                await don.Expect("EsKG0", "EsKG0 du retrait de kamas", 10, donMark).ConfigureAwait(false);
+                Check(await don.Until(() => bank.Kamas == 0 && don.Account.Game.character.Kamas == purse, 5).ConfigureAwait(false),
+                    "Kamas après le retrait : coffre " + bank.Kamas + ", bourse " + don.Account.Game.character.Kamas + " (attendu " + purse + ")");
+                evidence.Add("kamas : boîte " + depositValue + " → EMG" + TransferKamas + " → EsKG" + TransferKamas + ", boîte " + withdrawValue + " → EMG-" + TransferKamas + " → EsKG0");
+
+                // « Fermer » → EV ; le volet se ferme.
+                donMark = don.ReceivedCount;
+                await OnUi(() => ((Button)Field(chest, "storageLeave")).PerformClick()).ConfigureAwait(false);
+                await don.Expect("EV", "EV de la banque", 10, donMark).ConfigureAwait(false);
+                Check(await WaitOnUi(() => !bank.IsOpen && !screen.Panels.IsOpen(chest) ? chest : null, 10).ConfigureAwait(false) != null, "La banque ou son volet sont restés ouverts après EV");
+                giver.Remember();
+                evidence.Add("« Fermer » → EV, volet fermé ; hôtel de vente : aucun dépôt glissé chez le client (BigStoreSell), non joué");
+                return string.Join(" ; ", evidence);
+            }
+            finally
+            {
+                if (takerRequests != null) takerRequests.RequestReceived -= keep;
+                await OnUi(() => { foreach (QuantityPopup open in QuantityPopup.OpenPopups) open.Cancel(); }).ConfigureAwait(false);
+                // Nettoyage comme x4 à x6 : sac détruit en jeu, lignes de la base, comptes ; la fenêtre du donneur se ferme après son sac.
+                await ClosePetOwnerAsync(db, schema, giver, () => CloseScreenAsync(screen)).ConfigureAwait(false);
+                await ClosePetOwnerAsync(db, schema, taker).ConfigureAwait(false);
+            }
+        }
+    }
+
+    /// <summary>Seule boîte de quantité ouverte dans le bot, attendue (fil d'interface), ou <c>null</c>.</summary>
+    private static Task<QuantityPopup> QuantityBoxAsync(int seconds = 10) =>
+        WaitOnUi(() => QuantityPopup.OpenPopups.Count == 1 ? QuantityPopup.OpenPopups[0] : null, seconds);
+
+    /// <summary>Saisit <paramref name="text"/> dans la boîte de quantité ouverte et la valide ; rend son maximum.</summary>
+    private static async Task<int> AnswerQuantityAsync(string text)
+    {
+        QuantityPopup box = await QuantityBoxAsync().ConfigureAwait(false);
+        Check(box != null, "La boîte de quantité ne s'est pas ouverte");
+        return await OnUi(() => { int maximum = box.Maximum; box.InputText = text; box.Confirm(); return maximum; }).ConfigureAwait(false);
     }
 }
