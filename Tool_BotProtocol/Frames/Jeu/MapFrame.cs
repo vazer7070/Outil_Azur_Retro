@@ -293,12 +293,21 @@ namespace Tool_BotProtocol.Frames.Jeu
             {
                 FightSwordsActor swords = GmParser.ParseFightSwords(payload.Substring(1));
                 if (swords == null) client.account.Logger?.LogDanger("CARTE", "Combat de la carte illisible : " + Shorten(message));
-                else map.AddFightSwords(swords);
+                else
+                {
+                    client.account.Game.Fight?.ForgetTeamOptions(swords.Teams.Where(team => team != null).Select(team => team.TeamId).ToArray());
+                    map.AddFightSwords(swords);
+                }
             }
             else if (payload[0] == '-')
             {
                 string id = payload.Substring(1).Split('|')[0].Split(';')[0];
-                if (long.TryParse(id, NumberStyles.Integer, CultureInfo.InvariantCulture, out long fightId)) map.RemoveFightSwords(fightId);
+                if (long.TryParse(id, NumberStyles.Integer, CultureInfo.InvariantCulture, out long fightId))
+                {
+                    if (map.FightSwords.TryGetValue(fightId, out FightSwordsActor ended))
+                        client.account.Game.Fight?.ForgetTeamOptions(ended.Teams.Where(team => team != null).Select(team => team.TeamId).ToArray());
+                    map.RemoveFightSwords(fightId);
+                }
             }
             map.GetEntitiesRefreshEvent();
         }

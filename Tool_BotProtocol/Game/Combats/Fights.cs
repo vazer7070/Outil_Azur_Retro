@@ -43,6 +43,11 @@ namespace Tool_BotProtocol.Game.Combats
         public bool IsDead { get; internal set; }
         /// <summary>Invisible (<c>GA;150</c> avec un nombre de tours positif) ; sa cellule n'est plus transmise par <c>GTM</c>.</summary>
         public bool IsInvisible { get; internal set; }
+        /// <summary>
+        /// Prêt pendant le placement (<c>GR1&lt;id&gt;</c>, clip <c>ready.swf</c> du client au-dessus du sprite) ; remis à faux par
+        /// <c>GR0&lt;id&gt;</c> et pour tous au premier <c>GTS</c> du combat (<c>Game.onTurnStart</c>, <c>isFirstTurn</c>).
+        /// </summary>
+        public bool IsReady { get; internal set; }
         /// <summary>Combattant porté par celui-ci (<c>GA;50</c>) ; 0 si aucun.</summary>
         public int CarryingId { get; internal set; }
         /// <summary>Porteur de ce combattant (<c>GA;50</c>) ; 0 si aucun.</summary>
@@ -87,6 +92,7 @@ namespace Tool_BotProtocol.Game.Combats
         private DateTime pendingAt;
         private CombatPhase phase;
         private bool spectator, ready, canCancel, challengeMenu;
+        private bool firstTurnPending;
         private int fightType = -1;
         private int actor, turn, turnDuration;
         private int lastActor, readyActor;
@@ -123,6 +129,12 @@ namespace Tool_BotProtocol.Game.Combats
         public short[] TeamPlacementCells(int team) { lock (sync) return team == 0 || team == 1 ? (short[])teamPlaces[team].Clone() : new short[0]; }
         public IReadOnlyDictionary<int, CombatFighter> Fighters
         { get { lock (sync) return fighters.ToDictionary(entry => entry.Key, entry => entry.Value.Copy()); } }
+        /// <summary><see cref="CombatFighter.IsReady"/> du combattant ; faux s'il est inconnu.</summary>
+        public bool IsFighterReady(int id) { lock (sync) { CombatFighter fighter; return fighters.TryGetValue(id, out fighter) && fighter.IsReady; } }
+        /// <summary><see cref="CombatFighter.IsInvisible"/> du combattant ; faux s'il est inconnu.</summary>
+        public bool IsFighterInvisible(int id) { lock (sync) { CombatFighter fighter; return fighters.TryGetValue(id, out fighter) && fighter.IsInvisible; } }
+        /// <summary>Identifiants des combattants invisibles (<c>GA;150</c>), sans copie des combattants (lu à chaque image de la carte).</summary>
+        public int[] InvisibleFighterIds { get { lock (sync) return fighters.Values.Where(fighter => fighter.IsInvisible).Select(fighter => fighter.Id).ToArray(); } }
         /// <summary>Ordre des tours (<c>GTL</c>), tour courant (<c>GTS</c>), dernier tour terminé (<c>GTF</c>) et dernier <c>GTR</c>.</summary>
         public FightTimeline Timeline
         { get { lock (sync) return new FightTimeline(turnOrder, actor, lastActor, readyActor, turnDuration, turnStartedUtc, tableTurn); } }
@@ -494,20 +506,31 @@ namespace Tool_BotProtocol.Game.Combats
             for (int i = 0; i < encoded.Length; i += 2) cells.Add(Hash.Get_Cell_From_Hash(encoded.Substring(i, 2)));
             return cells.Distinct().ToArray();
         }
+        /// <summary>
+        /// <c>GR1&lt;id&gt;</c> / <c>GR0&lt;id&gt;</c> : <c>Game.onReady</c> du client pose ou retire le clip <c>ready.swf</c> au-dessus du
+        /// sprite de n'importe quel combattant (<see cref="CombatFighter.IsReady"/>) ; pour le compte, l'état du bouton « Prêt ».
+        /// </summary>
         internal void SetReady(string payload)
         {
             int id;
-            if (payload.Length < 2 || (payload[0] != '0' && payload[0] != '1') || !int.TryParse(payload.Substring(1), out id)) return;
+            if (payload.Length < 2 || (payload[0] != '0' && payload[0] != '1') || !int.TryParse(payload.Substring(1), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out id)) return;
+            bool value = payload[0] == '1';
             lock (sync)
             {
-                if (!InFight || id != account.Game.character.id) return;
-                ready = payload[0] == '1'; if (pendingKind == "prêt") pendingKind = null;
-                lastMessage = ready ? "Vous êtes prêt. Le serveur démarrera le combat." : "Vous pouvez choisir votre position.";
+                if (!InFight) return;
+                CombatFighter fighter;
+                if (fighters.TryGetValue(id, out fighter)) fighter.IsReady = value;
+                if (id == account.Game.character.id)
+                {
+                    ready = value; if (pendingKind == "prêt") pendingKind = null;
+                    lastMessage = ready ? "Vous êtes prêt. Le serveur démarrera le combat." : "Vous pouvez choisir votre position.";
+                }
+                else if (fighter == null) return;
             }
             Changed();
         }
         internal void Start()
-        { lock (sync) { if (!InFight) return; phase = CombatPhase.Active; places = new short[0]; teamPlaces = new[] { new short[0], new short[0] }; pendingKind = null; lastMessage = "Combat commencé. Attendez votre tour."; } Changed(); }
+        { lock (sync) { if (!InFight) return; phase = CombatPhase.Active; firstTurnPending = true; places = new short[0]; teamPlaces = new[] { new short[0], new short[0] }; pendingKind = null; lastMessage = "Combat commencé. Attendez votre tour."; } Changed(); }
 
         /// <summary><c>GTL|id|id…</c> : ordre de jeu des combattants vivants (début du combat, invocations, morts).</summary>
         internal void SetTurnList(string payload)
@@ -536,6 +559,8 @@ namespace Tool_BotProtocol.Game.Combats
             {
                 if (!InFight) return;
                 phase = CombatPhase.Active; actor = id; turnDuration = duration; tableTurn = table; turnStartedUtc = DateTime.UtcNow; pendingKind = null;
+                // Premier tour : Game.onTurnStart retire le clip du dessus (« prêt ») de tous les sprites.
+                if (firstTurnPending) { firstTurnPending = false; foreach (CombatFighter fighter in fighters.Values) fighter.IsReady = false; }
                 // Game.onTurnStart → GameManager.cleanPlayer(lastPlayerID) : les effets du combattant précédent perdent un tour.
                 if (lastActor != 0 && lastActor != id) ExpireEffects(lastActor);
                 if (id == account.Game.character.id && !spectator)
@@ -630,6 +655,22 @@ namespace Tool_BotProtocol.Game.Combats
                 if (current == FightOptions.None) teamOptions.Remove(team); else teamOptions[team] = current;
             }
             FightOptionChanged?.Invoke(team, current); Changed();
+        }
+
+        /// <summary>
+        /// Oublie les options des équipes d'un combat de la carte qui apparaît (<c>Gc+</c>) ou disparaît (<c>Gc-</c>) : le client recrée ou
+        /// retire alors les sprites de ces équipes, et leurs options avec eux.
+        /// </summary>
+        internal void ForgetTeamOptions(IEnumerable<long> teams)
+        {
+            if (teams == null) return;
+            bool changed = false;
+            lock (sync)
+            {
+                if (disposed) return;
+                foreach (long team in teams) changed |= teamOptions.Remove(team);
+            }
+            if (changed) Changed();
         }
 
         /// <summary><c>Gf&lt;combattant&gt;|&lt;cellule&gt;</c> : cellule signalée (message <c>PLAYER_SET_FLAG</c> du client).</summary>
@@ -880,7 +921,7 @@ namespace Tool_BotProtocol.Game.Combats
             lock (sync)
             {
                 generation++; previous = cancellation; cancellation = disposed ? null : new CancellationTokenSource();
-                phase = CombatPhase.None; spectator = ready = canCancel = challengeMenu = false; fightType = -1; actor = turn = turnDuration = 0; pa = pm = -1;
+                phase = CombatPhase.None; spectator = ready = canCancel = challengeMenu = firstTurnPending = false; fightType = -1; actor = turn = turnDuration = 0; pa = pm = -1;
                 lastActor = readyActor = 0; tableTurn = null; turnStartedUtc = DateTime.MinValue;
                 places = new short[0]; teamPlaces = new[] { new short[0], new short[0] }; fighters.Clear(); lastSpellTurn.Clear(); castsThisTurn.Clear();
                 turnOrder.Clear(); effects.Clear(); states.Clear(); zones.Clear(); teamOptions.Clear(); journal.Clear();

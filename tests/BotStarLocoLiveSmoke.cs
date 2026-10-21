@@ -346,17 +346,20 @@ internal static partial class Live
     }
 
     /// <summary>Photographie la fenêtre de jeu (zone cliente) sur l'écran Xvfb, comme tools/captures.</summary>
-    private static async Task Capture(string name)
+    private static async Task Capture(string name, Form form = null)
     {
         if (string.IsNullOrWhiteSpace(captures)) return;
         // La fenêtre se construit sur le fil d'interface après ASK : l'attendre avant la première capture.
         DateTime until = DateTime.UtcNow.AddSeconds(20);
-        while (DateTime.UtcNow < until && !await OnUi(() => window != null && window.IsHandleCreated && window.Visible).ConfigureAwait(false))
+        while (DateTime.UtcNow < until && !await OnUi(() => (form ?? window) != null && (form ?? window).IsHandleCreated && (form ?? window).Visible).ConfigureAwait(false))
             await Task.Delay(100).ConfigureAwait(false);
-        if (window == null) { Say("capture impossible : fenêtre de jeu absente"); return; }
+        Form target = form ?? window;
+        if (target == null) { Say("capture impossible : fenêtre de jeu absente"); return; }
         Directory.CreateDirectory(captures);
+        // Lot X7 : plusieurs fenêtres de jeu se chevauchent ; celle qui est photographiée passe au premier plan puis a le temps de se redessiner.
+        await OnUi(() => { target.BringToFront(); target.Refresh(); return true; }).ConfigureAwait(false);
         await Task.Delay(1200).ConfigureAwait(false);
-        Rectangle area = await OnUi(() => window.RectangleToScreen(window.ClientRectangle)).ConfigureAwait(false);
+        Rectangle area = await OnUi(() => target.RectangleToScreen(target.ClientRectangle)).ConfigureAwait(false);
         Journal("capture " + name + " : acteurs dessinés " + await OnUi(DrawnActors).ConfigureAwait(false));
         string file = Path.Combine(captures, name + ".png");
         var start = new ProcessStartInfo("import", "-window root -crop " + area.Width + "x" + area.Height + "+" + area.X + "+" + area.Y + " +repage \"" + file + "\"")
@@ -494,6 +497,7 @@ internal static partial class Live
         await Scenario("x5. artisanat sécurisé : ER13 du client, ERK 12, ECK12 / ECK13, ingrédients, paiement, EK des deux, EcK, EV (lot X5)", 150, SecureCraftAsync).ConfigureAwait(false);
         await Scenario("x6. artisanat sécurisé depuis les menus : EW+ à l'arrivée, clic gauche sur l'artisan, « Demander à » → ER13, ERET (artisan éloigné), ERK 12 → ECK, « Inviter à » → ER12 → ERK 13 → ECK, livre des artisans : Message privé, Localiser (lot X6)", 200, SecureCraftMenuAsync).ConfigureAwait(false);
         await Scenario("x6b. marchand hors ligne : ER6|, EMO+, Eq → Eq1, EQ → marchand -5 ; clic simple → menu « Acheter » sans paquet, Maj + clic → ER4 → ECK4, EB → EBK, GM|- (lot X6)", 150, OfflineMerchantClickAsync).ConfigureAwait(false);
+        await Scenario("x7. Sram contre A : prêt et option d'équipe vus par l'autre, pièges GDZ/GDC, invisibilité GA;150, journal dans le chat (lot X7)", 180, FightEventsAsync).ConfigureAwait(false);
         // Toujours en dernier : arrête puis redémarre le serveur de jeu (A et B restent déconnectés).
         await Scenario("x3c. serveur de jeu arrêté en pleine partie : boîte de perte de connexion, « Oui » reconnecte A (lot X3)", 360, GameStopAsync).ConfigureAwait(false);
     }
@@ -4305,5 +4309,287 @@ internal static partial class Live
             menu.Close();
             return texts;
         }).ConfigureAwait(false);
+    }
+}
+
+// Scénario x7 (lot X7) : événements de combat visibles (prêt, options d'équipe, pièges GDZ/GDC, invisibilité, journal dans le chat).
+internal static partial class Live
+{
+    /// <summary>
+    /// Sram de StarLoco (<c>Constant.CLASS_SRAM</c>) et ses trois sorts de départ (<c>Constant.getStartSortsPlaces</c>), le Piège Sournois
+    /// au niveau 2 : la table <c>sorts</c> de StarLoco et <c>spells.xml</c> n'en permettent qu'un lancer par tour au niveau 1, deux au niveau 2.
+    /// </summary>
+    private const int SramClass = 4;
+    private const string SramSpells = "61;1;b,72;1;c,65;2;d";
+    /// <summary>Piège Sournois (taille 0 : portée « Ca ») et Invisibilité (3 tours : <c>GA;150</c> porte 3 - 1 = 2).</summary>
+    private const short TrapSpell = 65, InvisibilitySpell = 72;
+    /// <summary>
+    /// <c>Constant.getTrapsColor(65)</c> de StarLoco ; <c>SpellEffect.applyEffect_400</c> envoie ensuite à l'équipe du lanceur
+    /// <c>GDC&lt;cellule&gt;;Haaaaaaaaz3005;</c> : objet 2 numéro 25, actif, ligne de vue, masque 0x3005.
+    /// </summary>
+    private const int TrapColor = 7, TrapObject = 25, InvisibleTurns = 2;
+    private const string TrapCell = "Haaaaaaaaz3005";
+
+    private static UserMapControl UserMapOf(GameClientFullform form) =>
+        form?.Map == null ? null : typeof(MapControl).GetField("UserMap", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(form.Map) as UserMapControl;
+
+    /// <summary>Objet 2 dessiné par le décor de la fenêtre sur la cellule (fil d'interface) ; -1 sans décor.</summary>
+    private static int DrawnObject2(GameClientFullform form, int cellId)
+    {
+        UserMapControl user = UserMapOf(form);
+        var artwork = user == null ? null : typeof(UserMapControl).GetField("artwork", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(user) as BotMapArtwork;
+        return artwork == null || cellId < 0 || cellId >= artwork.Cells.Length ? -1 : artwork.Cells[cellId].Object2Id;
+    }
+
+    /// <summary>Objet 2 de la cellule d'après ses dix caractères effectifs (<see cref="Map.CellDataOf"/>) ; -1 hors carte.</summary>
+    private static int Object2Of(LiveSession s, int cellId)
+    {
+        string data = s.Map.CellDataOf(cellId);
+        return data == null ? -1 : s.Map.DecompressCell(data, (short)cellId).layer_object_2_num;
+    }
+
+    private static string OriginalCell(LiveSession s, int cellId) =>
+        s.Map.MapData != null && (cellId + 1) * 10 <= s.Map.MapData.Length ? s.Map.MapData.Substring(cellId * 10, 10) : null;
+
+    /// <summary>Clip « prêt » au-dessus de l'acteur et dessiné au dernier passage de la vue (bande lue, acteur visible).</summary>
+    private static bool HasReadyClip(GameClientFullform form, long actorId) =>
+        form.Map.ExtraClips.Active.Any(clip => clip.Family == ActorExtraClips.ReadyFamily && clip.ActorId == actorId && clip.Above && clip.Visible);
+
+    /// <summary>
+    /// Un Sram inventé (classe 4 et ses sorts de départ écrits dans la base) entre sur la carte de A avec sa propre fenêtre de jeu ; A le
+    /// défie. Placement : A coche « aide » (<c>fH</c> → <c>Go+H&lt;A&gt;</c> aux joueurs de la carte d'origine seulement : icône au-dessus
+    /// de l'épée de l'équipe de A dans la fenêtre de B, rien chez le Sram) ;
+    /// le Sram se dit prêt (<c>GR1&lt;Sram&gt;</c> aux deux équipes : clip « prêt » au-dessus de lui dans les deux fenêtres), puis A
+    /// (<c>GS</c>) ; le premier <c>GTS</c> retire les clips. Au tour du Sram : deux Pièges Sournois (<c>GA;999;…;GDZ+…;0;7</c> et
+    /// <c>GA;999;…;GDC…;Haaaaaaaaz3005;</c> à sa seule équipe : zone gardée, objet 25 redessiné dans sa fenêtre, rien chez A) ;
+    /// Invisibilité (<c>GA;150;&lt;Sram&gt;;&lt;Sram&gt;,2</c> aux deux : masqué chez A, 40 % chez lui, ligne « … devient invisible. » dans
+    /// le chat de A) ; un pas sur le premier piège le déclenche (<c>GDZ-</c> et <c>GDC&lt;cellule&gt;</c> seul : zone effacée, cellule
+    /// d'origine redessinée). L'abandon du Sram termine le combat ; après <c>GE</c>, <c>GC1</c> et <c>GDM</c>, le second piège a disparu
+    /// de la carte du Sram (cellule d'origine) et il est de nouveau visible chez A. Compte et personnage supprimés de la base.
+    /// </summary>
+    private static async Task<string> FightEventsAsync()
+    {
+        RequireMaps();
+        if (!LangData.IsLoaded("spells")) throw new SkipScenario("textes du client « spells » absents : le bot ne connaît ni les PA ni la portée du piège et de l'invisibilité");
+        using (MySql.Data.MySqlClient.MySqlConnection db = OpenAccountsDatabase(out string schema))
+        {
+            var created = new List<InventedCharacter>();
+            var evidence = new List<string>();
+            LiveSession s = null;
+            GameClientFullform screen = null, viewer = null;
+            try
+            {
+                Cell place = FreeCellNear(a, 2, 6);
+                Check(place != null, "Aucune cellule libre près de A pour le Sram");
+                InventedCharacter sram = Invent(db, schema, a.Id, a.MapId, place.CellID, 10000, created);
+                Sql(db, "UPDATE " + schema + ".players SET class = @class, gfx = @gfx, spells = @spells WHERE id = @id AND account = @account",
+                    "@class", SramClass, "@gfx", SramClass * 10 + sram.Sex, "@spells", SramSpells, "@id", sram.Id, "@account", sram.Guid);
+                s = new LiveSession("S", sram.Login, sram.Password);
+                evidence.Add(await EnterExistingAsync(s, sram.Id, sram.Name, a.MapId, started =>
+                    started.Account.Game.character.Player_Selection += () => OnUi(() => { if (screen == null) { screen = OpenScreen(started); screen.Show(); } })).ConfigureAwait(false));
+                LiveSession sr = s;
+                Check(sr.Account.Game.character.Race_ID == SramClass && await sr.Until(() => sr.Account.Game.character.Spells.Values.Any(x => x.ID == TrapSpell)
+                    && sr.Account.Game.character.Spells.Values.Any(x => x.ID == InvisibilitySpell), 10).ConfigureAwait(false),
+                    "Le bot ne voit pas un Sram avec le Piège Sournois et l'Invisibilité : classe " + sr.Account.Game.character.Race_ID + ", sorts "
+                    + string.Join(",", sr.Account.Game.character.Spells.Values.Select(x => x.ID)));
+                Check(await WaitOnUi(() => screen != null && screen.IsHandleCreated && screen.Visible ? screen : null, 20).ConfigureAwait(false) != null, "La fenêtre de jeu du Sram ne s'est pas ouverte");
+                Check(await a.Until(() => a.Map.GetActor(sr.Id) != null, 10).ConfigureAwait(false) && await sr.Until(() => sr.Map.GetActor(a.Id) != null, 10).ConfigureAwait(false),
+                    "A et le Sram ne se voient pas sur la carte " + a.MapId);
+
+                // Fenêtre de B, qui reste hors du combat sur la carte : il voit les épées et les options d'équipe.
+                viewer = await OnUi(() => { GameClientFullform opened = OpenScreen(b); opened.Location = new Point(120, 120); opened.Show(); return opened; }).ConfigureAwait(false);
+                Check(await WaitOnUi(() => viewer.IsHandleCreated && viewer.Visible && UserMapOf(viewer) != null ? viewer : null, 20).ConfigureAwait(false) != null, "La fenêtre de B ne s'est pas ouverte");
+
+                // Défi de A accepté par le Sram (GA;900 → GA901) : deux équipes, placement.
+                int markA = a.ReceivedCount, markS = sr.ReceivedCount;
+                var challenge = await a.Account.Game.Interactions.MapActions.ChallengeAsync(sr.Id).ConfigureAwait(false);
+                Check(challenge.Sent, "Défi refusé par le bot : " + challenge.Message);
+                await sr.Expect(p => p.StartsWith("GA;900;" + a.Id + ";", StringComparison.Ordinal), "GA;900 (défi reçu par le Sram)", 10, markS).ConfigureAwait(false);
+                Check(await sr.Until(() => sr.Account.Game.Interactions.MapActions.PendingChallenge?.ChallengerId == a.Id, 5).ConfigureAwait(false), "Le Sram n'a pas de défi en attente");
+                var accept = await sr.Account.Game.Interactions.MapActions.AcceptChallengeAsync(a.Id).ConfigureAwait(false);
+                Check(accept.Sent, "Acceptation du défi refusée par le bot : " + accept.Message);
+                await a.Expect("GJK", "GJK (entrée en combat, A)", 15, markA).ConfigureAwait(false);
+                await sr.Expect("GJK", "GJK (entrée en combat, Sram)", 15, markS).ConfigureAwait(false);
+                Fights fa = a.Account.Game.Fight, fs = sr.Account.Game.Fight;
+                Check(await a.Until(() => fa.IsPlacement && fs.IsPlacement && Self(a) != null && Self(sr) != null && Enemies(a).Any(e => e.Id == sr.Id), 10).ConfigureAwait(false),
+                    "Placement incomplet : " + string.Join(", ", fa.Fighters.Values.Select(f => f.Name + " équipe " + f.Team)));
+
+                // Option « aide » de l'équipe de A : fH → Go+H<A> aux seuls joueurs de la carte d'origine (getCurMap de l'initiateur) ;
+                // B, resté sur la carte, voit l'icône NeedHelp au-dessus de l'épée de l'équipe de A (sprite qui porte l'identifiant de l'équipe).
+                Check(await b.Until(() => b.Map.FightSwords.Values.Any(swords => swords.Teams.Any(team => team.TeamId == a.Id)), 10).ConfigureAwait(false),
+                    "B ne voit pas l'épée de l'équipe de A (Gc+)");
+                int markB = b.ReceivedCount; markS = sr.ReceivedCount;
+                var help = await fa.ToggleOptionAsync(FightOptions.NeedHelp).ConfigureAwait(false);
+                Check(help.Sent, "« Aide » refusée par le bot : " + help.Message);
+                string go = await b.Expect(p => p == "Go+H" + a.Id, "Go+H<A> chez B", 10, markB).ConfigureAwait(false);
+                string[] icons = await WaitOnUi(() => { string[] files = UserMapOf(viewer)?.OptionIconsOf(a.Id); return files != null && files.Length > 0 ? files : null; }, 10).ConfigureAwait(false);
+                Check(icons != null && icons.SequenceEqual(new[] { "UI/Client/UI_FightOptionNeedHelpUp.png" }),
+                    "Icônes d'options au-dessus de l'épée de A dans la fenêtre de B : " + (icons == null ? "aucune" : string.Join(",", icons)));
+                Check(!sr.ReceivedSince(markS).Any(p => p.StartsWith("Go", StringComparison.Ordinal)), "Le Sram, en combat, a reçu Go");
+                await Capture("22-reel-x7-options", viewer).ConfigureAwait(false);
+                evidence.Add("fH → " + go + " à B seul : icône « aide » au-dessus de l'épée de l'équipe de A dans sa fenêtre");
+
+                // Prêt du Sram : GR1<Sram> aux deux équipes → clip « prêt » au-dessus de lui dans les deux fenêtres.
+                markA = a.ReceivedCount; markS = sr.ReceivedCount;
+                var ready = await fs.SetReadyAsync(true).ConfigureAwait(false);
+                Check(ready.Sent, "« Prêt » du Sram refusé par le bot : " + ready.Message);
+                string gr = await a.Expect(p => p == "GR1" + sr.Id, "GR1<Sram> chez A", 10, markA).ConfigureAwait(false);
+                Check(await a.Until(() => fa.IsFighterReady(sr.Id) && !fa.IsFighterReady(a.Id), 5).ConfigureAwait(false), "A ne garde pas l'état « prêt » du Sram seul");
+                Check(await WaitOnUi(() => HasReadyClip(window, sr.Id) && HasReadyClip(screen, sr.Id) && !HasReadyClip(window, a.Id) ? "prêt" : null, 10).ConfigureAwait(false) != null,
+                    "Clip « prêt » absent au-dessus du Sram (fenêtre de A " + await OnUi(() => HasReadyClip(window, sr.Id)).ConfigureAwait(false)
+                    + ", fenêtre du Sram " + await OnUi(() => HasReadyClip(screen, sr.Id)).ConfigureAwait(false) + ")");
+                await Capture("22-reel-x7-pret").ConfigureAwait(false);
+                evidence.Add(gr + " : clip « prêt » au-dessus du Sram dans les deux fenêtres");
+
+                // Prêt de A : GS ; le premier GTS retire les clips (Game.onTurnStart, isFirstTurn).
+                await ReadyAsync(a, markA).ConfigureAwait(false);
+                await a.Expect("GS", "GS (début du combat)", 30, markA).ConfigureAwait(false);
+                await a.Expect("GTS", "GTS (premier tour)", 15, markA).ConfigureAwait(false);
+                Check(await a.Until(() => !fa.IsFighterReady(sr.Id) && !fs.IsFighterReady(sr.Id), 5).ConfigureAwait(false), "L'état « prêt » survit au premier tour");
+                Check(await WaitOnUi(() => !window.Map.ExtraClips.Active.Any(clip => clip.Family == ActorExtraClips.ReadyFamily)
+                    && !screen.Map.ExtraClips.Active.Any(clip => clip.Family == ActorExtraClips.ReadyFamily) ? "retirés" : null, 10).ConfigureAwait(false) != null,
+                    "Clips « prêt » encore affichés après le premier GTS");
+                evidence.Add("GS puis GTS : clips « prêt » retirés");
+
+                // Tours : A passe, le Sram joue le sien.
+                DateTime until = DateTime.UtcNow.AddSeconds(80);
+                string played = null;
+                int turns = 0;
+                while (played == null && DateTime.UtcNow < until && fa.IsInFight)
+                {
+                    int actor = await WaitForTurnOf(new[] { a, sr }, 40).ConfigureAwait(false);
+                    turns++;
+                    if (actor == a.Id)
+                    {
+                        int mark = a.ReceivedCount;
+                        var passed = await fa.PassTurnAsync().ConfigureAwait(false);
+                        Check(passed.Sent, "Fin de tour de A refusée par le bot : " + passed.Message);
+                        await a.Expect("GTF" + a.Id, "GTF (fin du tour de A)", 10, mark).ConfigureAwait(false);
+                        await a.Until(() => !fa.IsMyTurn, 5).ConfigureAwait(false);
+                    }
+                    else if (actor == sr.Id) played = await SramTurnAsync(sr, screen, evidence).ConfigureAwait(false);
+                }
+                Check(played != null, "Le Sram n'a pas eu son tour en " + turns + " tour(s)");
+
+                // Abandon du Sram : GE, GC1 → GCK, GDM : carte rechargée, second piège disparu, Sram visible chez A.
+                int endA = a.ReceivedCount, endS = sr.ReceivedCount;
+                var giveUp = await fs.GiveUpAsync().ConfigureAwait(false);
+                Check(giveUp.Sent, "Abandon refusé par le bot : " + giveUp.Message);
+                await a.Expect("GE", "GE (fin du combat, A)", 20, endA).ConfigureAwait(false);
+                await sr.Expect(p => p.StartsWith("GE", StringComparison.Ordinal) || p.StartsWith("GV", StringComparison.Ordinal), "GE ou GV (fin du combat, Sram)", 20, endS).ConfigureAwait(false);
+                await WaitBackOnMap(a).ConfigureAwait(false); await WaitBackOnMap(sr).ConfigureAwait(false);
+                await sr.Expect("GDM", "GDM (carte rechargée après le combat, Sram)", 15, endS).ConfigureAwait(false);
+                int second = int.Parse(played, CultureInfo.InvariantCulture);
+                // StarLoco retire les pièges d'un combattant mort ou parti (Fight.onFighterDie → Trap.desappear) avant GE ; sinon GDM recharge la carte.
+                string[] ending = sr.ReceivedSince(endS);
+                int removedAt = Array.FindIndex(ending, p => p == "GA;999;" + sr.Id + ";GDC" + second), endedAt = Array.FindIndex(ending, p => p.StartsWith("GE", StringComparison.Ordinal));
+                Check(await sr.Until(() => sr.Map.CellDataOf(second) == OriginalCell(sr, second) && Object2Of(sr, second) != TrapObject, 10).ConfigureAwait(false),
+                    "Le second piège reste sur la carte du Sram après le combat : cellule " + second + " = " + sr.Map.CellDataOf(second));
+                Check(await WaitOnUi(() => DrawnObject2(screen, second) != TrapObject && DrawnObject2(screen, second) >= 0 ? "restauré" : null, 15).ConfigureAwait(false) != null,
+                    "La fenêtre du Sram dessine encore le piège en " + second + " après le combat (objet " + await OnUi(() => DrawnObject2(screen, second)).ConfigureAwait(false) + ")");
+                Check(await WaitOnUi(() => { UserMapControl.ActorVisualState state = UserMapOf(window)?.GetActorVisualState(sr.Id); return state != null && state.IsVisible && state.Alpha == 1f ? state : null; }, 15).ConfigureAwait(false) != null,
+                    "Le Sram n'est pas redevenu visible dans la fenêtre de A après le combat");
+                evidence.Add("abandon du Sram → " + (removedAt >= 0 && (endedAt < 0 || removedAt < endedAt) ? "GDZ-/GDC" + second + " (piège retiré), " : "") + "GE, GDM : cellule " + second
+                    + " d'origine sur sa carte et dans sa fenêtre, Sram visible chez A");
+                return string.Join(" ; ", evidence);
+            }
+            finally
+            {
+                if (screen != null) await OnUi(() => { if (!screen.IsDisposed) { screen.Close(); screen.Dispose(); } }).ConfigureAwait(false);
+                if (viewer != null) await OnUi(() => { if (!viewer.IsDisposed) { viewer.Close(); viewer.Dispose(); } }).ConfigureAwait(false);
+                await ForgetAsync(db, schema, s == null ? new LiveSession[0] : new[] { s }, created).ConfigureAwait(false);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Tour du Sram : deux Pièges Sournois (le premier à un pas, le second plus loin), Invisibilité sur lui-même, un pas sur le premier
+    /// piège pour le déclencher. Rend le numéro de la cellule du second piège, laissé en place jusqu'à la fin du combat.
+    /// </summary>
+    private static async Task<string> SramTurnAsync(LiveSession sr, GameClientFullform screen, List<string> evidence)
+    {
+        Fights fa = a.Account.Game.Fight, fs = sr.Account.Game.Fight;
+        CombatFighter self = Self(sr);
+        Check(self != null && self.CellId >= 0, "Cellule du Sram inconnue");
+        Cell own = sr.Map.GetCellFromId((short)self.CellId);
+        var occupied = new HashSet<int>(fs.Fighters.Values.Where(f => !f.IsDead).Select(f => (int)f.CellId));
+        Func<Cell, bool> nearEnemy = c => Enemies(sr).Any(e => sr.Map.GetCellFromId((short)e.CellId)?.GetDistanceBetweenCells(c) <= 1);
+        Check(!nearEnemy(own), "Le Sram commence son tour au contact de A : un pas serait taclé");
+        List<Cell> traps = sr.Map.MapCells.Where(c => c != null && c.IsWalkable() && c.C_Types != Tool_BotProtocol.Game.Maps.Enums.CellTypes.TELEPORT_CELL
+                && !occupied.Contains(c.CellID) && !nearEnemy(c) && fs.GetSpellUnavailableReason(TrapSpell, c.CellID) == null)
+            .OrderBy(c => own.GetDistanceBetweenCells(c)).ThenBy(c => c.CellID).ToList();
+        Cell first = traps.FirstOrDefault(c => own.GetDistanceBetweenCells(c) == 1);
+        Cell second = first == null ? null : traps.FirstOrDefault(c => own.GetDistanceBetweenCells(c) >= 2 && first.GetDistanceBetweenCells(c) >= 2);
+        Check(first != null && second != null, "Pas deux cellules où poser un Piège Sournois autour de " + own.CellID + " (" + traps.Count + " possibles)");
+        string firstOriginal = OriginalCell(sr, first.CellID), secondOriginal = OriginalCell(sr, second.CellID);
+        int firstObject = Object2Of(sr, first.CellID);
+        Check(firstObject != TrapObject && Object2Of(sr, second.CellID) != TrapObject, "Objet 25 déjà posé avant les pièges");
+
+        foreach (Cell trap in new[] { first, second })
+        {
+            int markS = sr.ReceivedCount, markA = a.ReceivedCount, paBefore = fs.ActionPoints;
+            var cast = await fs.CastSpellAsync(TrapSpell, trap.CellID).ConfigureAwait(false);
+            Check(cast.Sent, "Piège Sournois refusé par le bot en " + trap.CellID + " : " + cast.Message);
+            string launched = await sr.Expect(p => p.StartsWith("GA;300;" + sr.Id + ";", StringComparison.Ordinal) || p.StartsWith("GA;302;" + sr.Id + ";", StringComparison.Ordinal)
+                || p.StartsWith("GA;0", StringComparison.Ordinal) || p.StartsWith("GAE", StringComparison.Ordinal), "GA;300 du Piège Sournois", 10, markS).ConfigureAwait(false);
+            Check(launched.StartsWith("GA;300;", StringComparison.Ordinal), "StarLoco ne lance pas le Piège Sournois en " + trap.CellID + " : " + launched);
+            string gdz = "GA;999;" + sr.Id + ";GDZ+" + trap.CellID + ";0;" + TrapColor, gdc = "GA;999;" + sr.Id + ";GDC" + trap.CellID + ";" + TrapCell + ";";
+            await sr.Expect(p => p == gdz, gdz, 10, markS).ConfigureAwait(false);
+            await sr.Expect(p => p == gdc, gdc, 10, markS).ConfigureAwait(false);
+            Check(await sr.Until(() => !fs.IsActionPending && fs.ActionPoints < paBefore, 10).ConfigureAwait(false), "Le Sram attend encore la fin du piège (PA " + fs.ActionPoints + ")");
+            Check(await sr.Until(() => fs.Zones.Any(z => z.CellId == trap.CellID && z.Size == 0 && z.Color == TrapColor) && Object2Of(sr, trap.CellID) == TrapObject, 5).ConfigureAwait(false),
+                "Le Sram ne garde pas la zone ou l'objet 25 du piège en " + trap.CellID + " : zones " + string.Join(",", fs.Zones.Select(z => z.CellId + "/" + z.Size + "/" + z.Color))
+                + ", objet " + Object2Of(sr, trap.CellID));
+            Check(FightZoneLayer.CellsOf(fs.Zones.First(z => z.CellId == trap.CellID), sr.Map.MapCells).SequenceEqual(new[] { (int)trap.CellID }), "La zone de taille 0 ne couvre pas sa seule cellule");
+            Check(await WaitOnUi(() => DrawnObject2(screen, trap.CellID) == TrapObject ? "redessinée" : null, 10).ConfigureAwait(false) != null,
+                "La fenêtre du Sram ne dessine pas l'objet 25 en " + trap.CellID + " (objet " + await OnUi(() => DrawnObject2(screen, trap.CellID)).ConfigureAwait(false) + ")");
+            // Équipe adverse : StarLoco n'envoie ni GDZ ni GDC ; A ne voit ni zone ni objet.
+            Check(!a.ReceivedSince(markA).Any(p => p.Contains("GDZ") || p.Contains(";GDC")), "A a reçu le piège de l'équipe adverse");
+            Check(fa.Zones.Count == 0 && Object2Of(a, trap.CellID) != TrapObject, "A voit le piège de l'équipe adverse en " + trap.CellID);
+            evidence.Add("piège en " + trap.CellID + " : " + Short(gdz, 50) + " et " + Short(gdc, 50) + " au Sram seul, zone et objet 25 dans sa fenêtre, rien chez A");
+        }
+        await Capture("22-reel-x7-pieges", screen).ConfigureAwait(false);
+
+        // Invisibilité sur soi : GA;150;<Sram>;<Sram>,2 aux deux équipes.
+        {
+            int markS = sr.ReceivedCount, markA = a.ReceivedCount;
+            var cast = await fs.CastSpellAsync(InvisibilitySpell, own.CellID).ConfigureAwait(false);
+            Check(cast.Sent, "Invisibilité refusée par le bot : " + cast.Message);
+            string expected = "GA;150;" + sr.Id + ";" + sr.Id + "," + InvisibleTurns;
+            string launched = await sr.Expect(p => p.StartsWith("GA;300;" + sr.Id + ";", StringComparison.Ordinal) || p.StartsWith("GA;302;" + sr.Id + ";", StringComparison.Ordinal)
+                || p.StartsWith("GA;0", StringComparison.Ordinal) || p.StartsWith("GAE", StringComparison.Ordinal), "GA;300 de l'Invisibilité", 10, markS).ConfigureAwait(false);
+            Check(launched.StartsWith("GA;300;", StringComparison.Ordinal), "StarLoco ne lance pas l'Invisibilité : " + launched);
+            await sr.Expect(p => p == expected, expected + " (Sram)", 10, markS).ConfigureAwait(false);
+            await a.Expect(p => p == expected, expected + " (A)", 10, markA).ConfigureAwait(false);
+            Check(await sr.Until(() => !fs.IsActionPending, 10).ConfigureAwait(false), "Le Sram attend encore la fin de l'Invisibilité");
+            Check(await a.Until(() => fa.IsFighterInvisible(sr.Id), 5).ConfigureAwait(false) && fs.IsFighterInvisible(sr.Id), "Invisibilité non retenue par les deux bots");
+            UserMapControl.ActorVisualState hidden = await WaitOnUi(() => { UserMapControl.ActorVisualState state = UserMapOf(window)?.GetActorVisualState(sr.Id); return state != null && !state.IsVisible ? state : null; }, 10).ConfigureAwait(false);
+            Check(hidden != null && (hidden.SpriteReason ?? string.Empty).Contains("invisible"), "Le Sram reste dessiné dans la fenêtre de A après GA;150");
+            UserMapControl.ActorVisualState ghost = await WaitOnUi(() => { UserMapControl.ActorVisualState state = UserMapOf(screen)?.GetActorVisualState(sr.Id); return state != null && state.IsVisible && Math.Abs(state.Alpha - UserMapControl.InvisibleSelfAlpha) < .01f ? state : null; }, 10).ConfigureAwait(false);
+            Check(ghost != null, "Le Sram n'est pas dessiné à 40 % dans sa propre fenêtre");
+            string line = sr.Account.Game.character.Name + " devient invisible.";
+            Check(await WaitOnUi(() => window.Chat.FightInfos && window.Chat.View.DisplayedLines.Any(l => l.Filter == ChatFilter.Infos && l.Text == line) ? "chat" : null, 10).ConfigureAwait(false) != null,
+                "Ligne « " + line + " » absente du chat de A (infos de combat " + await OnUi(() => window.Chat.FightInfos).ConfigureAwait(false) + ")");
+            await Capture("22-reel-x7-invisible").ConfigureAwait(false);
+            evidence.Add(expected + " aux deux : masqué chez A, 40 % chez lui, « " + line + " » dans le chat de A");
+        }
+
+        // Un pas sur le premier piège : StarLoco le déclenche (verifyTraps) → GDZ- puis GDC<cellule> seul à l'équipe du Sram.
+        {
+            int markS = sr.ReceivedCount;
+            var moved = await fs.MoveAsync(first.CellID).ConfigureAwait(false);
+            Check(moved.Sent, "Pas vers le piège refusé par le bot : " + moved.Message);
+            string gdz = "GA;999;" + sr.Id + ";GDZ-" + first.CellID + ";0;" + TrapColor, gdc = "GA;999;" + sr.Id + ";GDC" + first.CellID;
+            await sr.Expect(p => p == gdz, gdz, 15, markS).ConfigureAwait(false);
+            await sr.Expect(p => p == gdc, gdc, 10, markS).ConfigureAwait(false);
+            string trapped = await sr.Expect(p => p.StartsWith("GA;307;" + sr.Id + ";", StringComparison.Ordinal), "GA;307 (piège déclenché)", 10, markS).ConfigureAwait(false);
+            Check(await sr.Until(() => !fs.Zones.Any(z => z.CellId == first.CellID) && fs.Zones.Any(z => z.CellId == second.CellID)
+                && sr.Map.CellDataOf(first.CellID) == firstOriginal && sr.Map.CellDataOf(second.CellID) != secondOriginal, 10).ConfigureAwait(false),
+                "Après le déclenchement : zones " + string.Join(",", fs.Zones.Select(z => z.CellId)) + ", cellule " + first.CellID + " = " + sr.Map.CellDataOf(first.CellID) + " (origine " + firstOriginal + ")");
+            Check(await WaitOnUi(() => DrawnObject2(screen, first.CellID) == firstObject && DrawnObject2(screen, second.CellID) == TrapObject ? "restaurée" : null, 10).ConfigureAwait(false) != null,
+                "La fenêtre du Sram ne redessine pas la cellule " + first.CellID + " d'origine (objet " + await OnUi(() => DrawnObject2(screen, first.CellID)).ConfigureAwait(false) + ", attendu " + firstObject + ")");
+            evidence.Add("pas sur " + first.CellID + " : " + gdz + ", " + gdc + ", " + Short(trapped, 40) + " ; zone effacée, cellule d'origine redessinée, second piège en place");
+        }
+        return second.CellID.ToString(CultureInfo.InvariantCulture);
     }
 }

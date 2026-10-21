@@ -20,6 +20,21 @@ namespace Tool_BotProtocol.Game.Maps
         private ConcurrentDictionary<long, Entites> actors;
         // Alloués à la première écriture : les milliers de cartes de BotMaps n'en ont jamais besoin.
         private ConcurrentDictionary<int, CellSnapshot> originalCells;
+        // Dix caractères effectifs des cellules modifiées par GDC (champs du masque remplacés) ; les autres gardent MapData.
+        private ConcurrentDictionary<int, string> cellData;
+        /// <summary>
+        /// Champs de <c>MapHandler.updateCell</c> du client 1.34 : bit du masque hexadécimal de <c>GDC</c>, caractère (0 à 9) et bits
+        /// de ce caractère que le champ occupe dans les dix caractères d'une cellule (<c>Cell.decompress</c>) : 8192 active,
+        /// 4096 ligne de vue, 2048 déplacement, 1024 niveau, 512 pente, 256 sol, 128 sol retourné, 64 rotation du sol,
+        /// 32 objet 1, 16 objet 1 retourné, 8 rotation de l'objet 1, 4 objet 2, 2 objet 2 retourné, 1 objet 2 interactif.
+        /// </summary>
+        private static readonly int[,] CellFieldBits =
+        {
+            { 8192, 0, 32 }, { 4096, 0, 1 }, { 2048, 2, 56 }, { 1024, 1, 15 }, { 512, 4, 60 },
+            { 256, 0, 24 }, { 256, 2, 7 }, { 256, 3, 63 }, { 128, 4, 2 }, { 64, 1, 48 },
+            { 32, 0, 4 }, { 32, 4, 1 }, { 32, 5, 63 }, { 32, 6, 63 }, { 16, 7, 8 }, { 8, 7, 48 },
+            { 4, 0, 2 }, { 4, 7, 1 }, { 4, 8, 63 }, { 4, 9, 63 }, { 2, 7, 4 }, { 1, 7, 2 }
+        };
         private ConcurrentDictionary<long, FightSwordsActor> fightSwords;
         private ConcurrentDictionary<int, GroundObject> groundObjects;
         private ConcurrentDictionary<int, InteractiveObjectState> objectStates;
@@ -163,8 +178,10 @@ namespace Tool_BotProtocol.Game.Maps
 
         /// <summary>
         /// Applique <c>GDC</c> comme <c>MapHandler.updateCell</c> : le masque hexadécimal choisit les champs remplacés.
-        /// Le bot tient compte de la ligne de vue (4096) et du type de déplacement (2048) ; les bits graphiques ne changent
-        /// que l'affichage du client. Sans données, la cellule revient à son état d'origine (<c>initializeCell</c>).
+        /// Le bot tient compte de la ligne de vue (4096) et du type de déplacement (2048) ; les bits graphiques (sol, objets,
+        /// niveau, pente…) sont gardés dans les dix caractères effectifs de la cellule (<see cref="CellDataOf"/>) pour que
+        /// l'affichage reconstruise la cellule (lot X7 : porte de labyrinthe, piège du Sram). Sans données, la cellule
+        /// revient à son état d'origine (<c>initializeCell</c>).
         /// </summary>
         public bool ApplyCellUpdate(CellUpdate update)
         {
@@ -176,6 +193,7 @@ namespace Tool_BotProtocol.Game.Maps
                 if (originalCells == null || !originalCells.TryRemove(update.CellId, out CellSnapshot original)) return false;
                 cell.C_Types = original.Movement;
                 cell.LineofSight = original.LineOfSight;
+                cellData?.TryRemove(update.CellId, out string ignored);
                 CellUpdated?.Invoke(update.CellId);
                 return true;
             }
@@ -189,8 +207,48 @@ namespace Tool_BotProtocol.Game.Maps
             int[] data = update.Data.Select(character => (int)Hash.get_Hash(character)).ToArray();
             if ((mask & 4096) != 0) cell.LineofSight = (data[0] & 1) == 1;
             if ((mask & 2048) != 0) cell.C_Types = (CellTypes)((data[2] & 56) >> 3);
+            string current = CellDataOf(update.CellId);
+            // MapData hors de l'alphabet (carte corrompue) : seuls la ligne de vue et le déplacement sont appliqués.
+            if (current != null && current.All(character => Array.IndexOf(Hash.caracteres_array, character) >= 0))
+            {
+                string merged = MergeCellData(current, update.Data.Substring(0, 10), mask);
+                if (merged != current) LazyInitializer.EnsureInitialized(ref cellData)[update.CellId] = merged;
+            }
             CellUpdated?.Invoke(update.CellId);
             return true;
+        }
+
+        /// <summary>
+        /// Dix caractères effectifs de la cellule : ceux de <see cref="MapData"/>, champs remplacés par les <c>GDC</c> reçus
+        /// (<see cref="ApplyCellUpdate"/>) ; null hors de la carte ou sans données de carte.
+        /// </summary>
+        public string CellDataOf(int cellId)
+        {
+            string data = MapData;
+            if (data == null || cellId < 0 || (cellId + 1) * 10 > data.Length) return null;
+            if (cellData != null && cellData.TryGetValue(cellId, out string current)) return current;
+            return data.Substring(cellId * 10, 10);
+        }
+
+        /// <summary>
+        /// Dix caractères d'une cellule après un <c>GDC</c> : les bits des champs du masque (<see cref="CellFieldBits"/>) pris dans
+        /// <paramref name="incoming"/>, les autres gardés de <paramref name="current"/> (dix caractères chacun, de l'alphabet de
+        /// <see cref="Hash"/>).
+        /// </summary>
+        public static string MergeCellData(string current, string incoming, int mask)
+        {
+            if (current == null || incoming == null || current.Length != 10 || incoming.Length != 10) throw new ArgumentException("Une cellule compte dix caractères.");
+            int[] bits = new int[10];
+            for (int field = 0; field < CellFieldBits.GetLength(0); field++)
+                if ((mask & CellFieldBits[field, 0]) != 0) bits[CellFieldBits[field, 1]] |= CellFieldBits[field, 2];
+            var merged = new char[10];
+            for (int i = 0; i < 10; i++)
+            {
+                int before = Array.IndexOf(Hash.caracteres_array, current[i]), after = Array.IndexOf(Hash.caracteres_array, incoming[i]);
+                if (before < 0 || after < 0) throw new ArgumentException("Caractère inconnu dans les données de cellule.");
+                merged[i] = Hash.caracteres_array[(before & ~bits[i]) | (after & bits[i])];
+            }
+            return new string(merged);
         }
 
         /// <summary>
@@ -215,6 +273,7 @@ namespace Tool_BotProtocol.Game.Maps
                 foreach (KeyValuePair<int, CellSnapshot> entry in originalCells.ToArray())
                 {
                     if (!entry.Value.Permanent || !originalCells.TryRemove(entry.Key, out CellSnapshot original)) continue;
+                    cellData?.TryRemove(entry.Key, out string ignored);
                     Cell cell = GetCellFromId((short)entry.Key);
                     if (cell == null) continue;
                     cell.C_Types = original.Movement;
@@ -235,6 +294,7 @@ namespace Tool_BotProtocol.Game.Maps
             groundObjects?.Clear();
             objectStates?.Clear();
             originalCells?.Clear();
+            cellData?.Clear();
             Self = null;
             if (any) ActorsCleared?.Invoke();
         }

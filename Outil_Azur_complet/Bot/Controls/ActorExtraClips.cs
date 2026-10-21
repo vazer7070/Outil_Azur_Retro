@@ -226,6 +226,9 @@ namespace Outil_Azur_complet.Bot.Controls
         public const string AuraFamily = "auras";
         public const string CircleFamily = "cercle";
         public const string ExtraFamily = "extra";
+        /// <summary>Clip <c>ready.swf</c> (<c>READY_FILE</c>) posé au-dessus d'un combattant prêt pendant le placement (lot X7).</summary>
+        public const string ReadyFamily = "pret";
+        public const int ReadyClip = 1;
         public const string SceneAnimation = "scene";
         /// <summary><c>Effets/cercle/1_scene.png</c> : <c>circle.swf</c> exporté sous le numéro 1.</summary>
         public const int CircleClip = 1;
@@ -238,15 +241,21 @@ namespace Outil_Azur_complet.Bot.Controls
         /// <summary>Un clip voulu pour un acteur.</summary>
         public struct Wanted
         {
-            public Wanted(long actorId, string family, int id, bool above, int? rgb = null)
+            public Wanted(long actorId, string family, int id, bool above, int? rgb = null, bool topClipRule = true)
             {
-                ActorId = actorId; Family = family; Id = id; Above = above; Rgb = rgb;
+                ActorId = actorId; Family = family; Id = id; Above = above; Rgb = rgb; TopClipRule = topClipRule;
             }
             public long ActorId { get; }
             public string Family { get; }
             public int Id { get; }
             public bool Above { get; }
             public int? Rgb { get; }
+            /// <summary>
+            /// Clip du dessus soumis à <c>xtraClipTopAnimations</c> (<see cref="ActorAttachedEffect.TopClipVisible"/>). Faux pour le clip
+            /// « prêt » : <c>addExtraClip</c> du client le charge sans regarder l'animation en cours, et rien ne la change avant le
+            /// premier tour (le placement est figé une fois prêt).
+            /// </summary>
+            public bool TopClipRule { get; }
             public string Key => ActorId.ToString(CultureInfo.InvariantCulture) + "|" + Family + "/" + Id.ToString(CultureInfo.InvariantCulture)
                 + (Above ? "|dessus" : "|dessous") + (Rgb.HasValue ? "|" + Rgb.Value.ToString("X6", CultureInfo.InvariantCulture) : string.Empty);
             public override string ToString() => Key;
@@ -262,9 +271,11 @@ namespace Outil_Azur_complet.Bot.Controls
         /// <summary>
         /// Clips voulus pour <paramref name="actor"/> : <paramref name="fightRunning"/> = combat lancé (<c>isRunning</c>),
         /// <paramref name="auraOption"/> = option <c>Aura</c>, <paramref name="teamOf"/> = équipe connue du combat quand l'acteur
-        /// n'en annonce pas.
+        /// n'en annonce pas, <paramref name="isReady"/> = combattant prêt pendant le placement. Dans l'ordre : marchand et PNJ,
+        /// cercle d'équipe en combat lancé, sinon le clip « prêt » (<c>GR1</c> : le client charge <c>ready.swf</c> dans le clip du
+        /// dessus, à la place de l'aura ; lot X7), sinon l'aura selon l'option.
         /// </summary>
-        public static IEnumerable<Wanted> WantedFor(MapActor actor, bool fightRunning, bool auraOption, Func<long, int?> teamOf)
+        public static IEnumerable<Wanted> WantedFor(MapActor actor, bool fightRunning, bool auraOption, Func<long, int?> teamOf, Func<long, bool> isReady = null)
         {
             if (actor == null) yield break;
             switch (actor)
@@ -281,6 +292,11 @@ namespace Outil_Azur_complet.Bot.Controls
                 int? team = (actor as PlayerActor)?.Team ?? (actor as FightMonsterActor)?.Team ?? (actor as CollectorActor)?.Team;
                 if (!team.HasValue || team.Value < 0) team = teamOf?.Invoke(actor.Id);
                 yield return new Wanted(actor.Id, CircleFamily, CircleClip, false, TeamColor(team));
+                yield break;
+            }
+            if (isReady != null && isReady(actor.Id))
+            {
+                yield return new Wanted(actor.Id, ReadyFamily, ReadyClip, true, null, false);
                 yield break;
             }
             if (actor is PlayerActor player && auraOption && player.Aura > 0)
@@ -307,7 +323,7 @@ namespace Outil_Azur_complet.Bot.Controls
                     clips.Remove(key);
                     if (existing.Skipped) { missing.Add(key); continue; }
                 }
-                var effect = new ExtraClipEffect(clip.ActorId, sprites.ResolveFixed(clip.Family, clip.Id, SceneAnimation), clip.Above, now, clip.Rgb);
+                var effect = new ExtraClipEffect(clip.ActorId, sprites.ResolveFixed(clip.Family, clip.Id, SceneAnimation), clip.Above, now, clip.Rgb, clip.TopClipRule);
                 if (!tryAdd(effect)) { Forget(effects); return; }
                 clips[key] = effect;
             }

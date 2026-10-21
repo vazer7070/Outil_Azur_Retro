@@ -325,6 +325,7 @@ namespace Outil_Azur_complet.Bot
             {
                 chatPanel.View.ShowTimestamps = options.TimestampInChat;
                 chatPanel.Censor = options.CensorshipFilter ? (Func<string, string>)CensorText : null;
+                chatPanel.FightInfos = options.ChatEffects;
             }
         }
 

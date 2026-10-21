@@ -53,6 +53,10 @@ namespace Outil_Azur_complet.Bot.Controls
         private readonly List<PictureCache.Entry> acquired = new List<PictureCache.Entry>();
         private readonly HashSet<string> missing = new HashSet<string>();
         private readonly Task loader;
+        private readonly Lazy<AssetLibrary> libraryEntry;
+        private readonly int mapWidth;
+        // GDC reçus avant la fin de la première lecture : rejoués par Publish (cellule, dix caractères).
+        private readonly List<KeyValuePair<int, string>> pendingUpdates = new List<KeyValuePair<int, string>>();
         private Request[] requests = new Request[0];
         // Object2 pictures of frames 2 and up, loaded with the others but not counted as map visuals.
         private Request[] stateRequests = new Request[0];
@@ -76,6 +80,11 @@ namespace Outil_Azur_complet.Bot.Controls
         public int LoadThreadId => loadThreadId;
         /// <summary>Raised once, on the creator's synchronization context when it has one, after the PNG are published.</summary>
         public event EventHandler AssetsLoaded;
+        /// <summary>
+        /// Cellule redessinée après <see cref="UpdateCell"/> (lot X7, <c>GDC</c>) : tout de suite quand ses images sont déjà
+        /// chargées, sinon sur le contexte du créateur une fois lues. Argument : numéro de la cellule.
+        /// </summary>
+        public event Action<int> CellChanged;
         public int MissingAssetCount { get { lock (gate) return missing.Count; } }
         // requests holds every distinct picture of the map, the background included.
         public int LoadedAssetCount => ready ? requests.Count(request => request.Picture != null) : 0;
@@ -364,10 +373,11 @@ namespace Outil_Azur_complet.Bot.Controls
             ownerThreadId = Thread.CurrentThread.ManagedThreadId;
             backgroundId = map.Back_ID;
             mapId = map.MapID;
+            mapWidth = map.MapWidth;
             stateSource = map;
             if (map.MapWidth >= 2 && !string.IsNullOrEmpty(map.MapData) && map.MapData.Length % 10 == 0)
                 DecodeCells(map);
-            Lazy<AssetLibrary> library = LibraryEntry(resourceDirectory);
+            Lazy<AssetLibrary> library = libraryEntry = LibraryEntry(resourceDirectory);
             // An index already built (normal case: LoadingBotForm warms it) resolves paths and anchors right now,
             // so the fitted bounds are known before any PNG is read. Otherwise the loader builds the index too.
             if (library.IsValueCreated)
@@ -385,39 +395,142 @@ namespace Outil_Azur_complet.Bot.Controls
                 throw new FormatException("Les données visuelles de la carte sont invalides.");
             var cells = new ArtworkCell[map.MapData.Length / 10];
             int period = 2 * map.MapWidth - 1;
-            for (int id = 0; id < cells.Length; id++)
-            {
-                int[] value = map.MapData.Substring(id * 10, 10).Select(character => (int)Hash.get_Hash(character)).ToArray();
-                var cell = new ArtworkCell
-                {
-                    Id = id, Active = (value[0] & 32) != 0, Level = value[1] & 15,
-                    Slope = (value[4] & 60) >> 2, GroundRotation = (value[1] & 48) >> 4,
-                    GroundId = ((value[0] & 24) << 6) + ((value[2] & 7) << 6) + value[3],
-                    GroundFlip = (value[4] & 2) != 0,
-                    Object1Id = ((value[0] & 4) << 11) + ((value[4] & 1) << 12) + (value[5] << 6) + value[6],
-                    Object1Rotation = (value[7] & 48) >> 4, Object1Flip = (value[7] & 8) != 0,
-                    Object2Id = ((value[0] & 2) << 12) + ((value[7] & 1) << 12) + (value[8] << 6) + value[9],
-                    Object2Flip = (value[7] & 4) != 0
-                };
-                int within = id % period, row = 2 * (id / period) + (within >= map.MapWidth ? 1 : 0);
-                int column = within >= map.MapWidth ? within - map.MapWidth : within;
-                float x = (column + (row % 2 == 0 ? .5f : 1f)) * CellWidth;
-                float y = (row + 1) * CellHeight / 2;
-                // Level 7 is the client's flat reference. The polygon and visual use the same elevation.
-                if (cell.Active) y -= (cell.Level - 7) * LevelHeight;
-                cell.Center = new PointF(x, y);
-                cell.Polygon = Diamond(cell.Center);
-                cells[id] = cell;
-            }
+            for (int id = 0; id < cells.Length; id++) cells[id] = DecodeCell(map.MapData.Substring(id * 10, 10), id, map.MapWidth);
             float gridHeight = (2 * ((cells.Length - 1) / period) + ((cells.Length - 1) % period >= map.MapWidth ? 2 : 1) + 1) * CellHeight / 2;
             gridBounds = new RectangleF(0, 0, map.MapWidth * CellWidth, gridHeight);
             Cells = cells;
             WorldBounds = Bounds(cells);
+            depthLayers = DepthLayersOf(cells);
+        }
+
+        /// <summary>Une cellule d'après ses dix caractères (<c>Cell.decompress</c> du client), avec sa position dans la grille.</summary>
+        private static ArtworkCell DecodeCell(string data, int id, int width)
+        {
+            int[] value = data.Select(character => (int)Hash.get_Hash(character)).ToArray();
+            var cell = new ArtworkCell
+            {
+                Id = id, Active = (value[0] & 32) != 0, Level = value[1] & 15,
+                Slope = (value[4] & 60) >> 2, GroundRotation = (value[1] & 48) >> 4,
+                GroundId = ((value[0] & 24) << 6) + ((value[2] & 7) << 6) + value[3],
+                GroundFlip = (value[4] & 2) != 0,
+                Object1Id = ((value[0] & 4) << 11) + ((value[4] & 1) << 12) + (value[5] << 6) + value[6],
+                Object1Rotation = (value[7] & 48) >> 4, Object1Flip = (value[7] & 8) != 0,
+                Object2Id = ((value[0] & 2) << 12) + ((value[7] & 1) << 12) + (value[8] << 6) + value[9],
+                Object2Flip = (value[7] & 4) != 0
+            };
+            int period = 2 * width - 1;
+            int within = id % period, row = 2 * (id / period) + (within >= width ? 1 : 0);
+            int column = within >= width ? within - width : within;
+            float x = (column + (row % 2 == 0 ? .5f : 1f)) * CellWidth;
+            float y = (row + 1) * CellHeight / 2;
+            // Level 7 is the client's flat reference. The polygon and visual use the same elevation.
+            if (cell.Active) y -= (cell.Level - 7) * LevelHeight;
+            cell.Center = new PointF(x, y);
+            cell.Polygon = Diamond(cell.Center);
+            return cell;
+        }
+
+        private DepthLayer[] DepthLayersOf(ArtworkCell[] cells)
+        {
             var layers = new List<DepthLayer>();
             foreach (ArtworkCell cell in cells)
                 if (cell.Active && cell.Object2Id != 0)
-                    layers.Add(new DepthLayer { Depth = cell.Id * 100f, Order = 2, Draw = graphics => DrawPicture(graphics, Object2Picture(cell), cell.Center) }); // profondeur du client : cellule × 100
-            depthLayers = layers.OrderBy(layer => layer.Depth).ThenBy(layer => layer.Order).ToArray();
+                {
+                    ArtworkCell drawn = cell;
+                    layers.Add(new DepthLayer { Depth = cell.Id * 100f, Order = 2, Draw = graphics => DrawPicture(graphics, Object2Picture(drawn), drawn.Center) }); // profondeur du client : cellule × 100
+                }
+            return layers.OrderBy(layer => layer.Depth).ThenBy(layer => layer.Order).ToArray();
+        }
+
+        /// <summary>
+        /// <c>GDC</c> (lot X7) : la cellule <paramref name="cellId"/> prend les dix caractères effectifs <paramref name="data"/>
+        /// (<see cref="Map.CellDataOf"/>) ; ses images sont résolues dans la bibliothèque, celles qui manquent lues par une
+        /// tâche de fond, puis <see cref="CellChanged"/> est levé. Faux si rien de visible ne change, si la cellule est hors
+        /// carte ou si les données sont illisibles. Appelée sur le fil du créateur ; avant la première publication, la mise à
+        /// jour est rejouée par celle-ci.
+        /// </summary>
+        public bool UpdateCell(int cellId, string data)
+        {
+            ArtworkCell[] cells = Cells;
+            if (disposed || cellId < 0 || cellId >= cells.Length || data == null || data.Length != 10 || data.Any(character => Array.IndexOf(Hash.caracteres_array, character) < 0)) return false;
+            ArtworkCell previous = cells[cellId];
+            ArtworkCell cell = DecodeCell(data, cellId, mapWidth);
+            if (SameVisual(previous, cell)) return false;
+            lock (gate)
+            {
+                if (!ready)
+                {
+                    // Première lecture en cours : requests/stateRequests appartiennent encore au chargeur.
+                    pendingUpdates.RemoveAll(pending => pending.Key == cellId);
+                    pendingUpdates.Add(new KeyValuePair<int, string>(cellId, data));
+                    return true;
+                }
+            }
+            AssetLibrary library;
+            lock (gate) library = owner;
+            if (library == null) { if (!libraryEntry.IsValueCreated) return false; library = libraryEntry.Value; }
+            var unique = new Dictionary<string, Request>(StringComparer.Ordinal);
+            var states = new Dictionary<string, Request>(StringComparer.Ordinal);
+            var absent = new List<string>();
+            foreach (Request request in requests) unique[request.CacheKey] = request;
+            foreach (Request request in stateRequests) states[request.CacheKey] = request;
+            ResolveCell(cell, library, unique, states, absent);
+            var known = new HashSet<Request>(requests.Concat(stateRequests));
+            Request[] added = unique.Values.Concat(states.Values).Where(request => !known.Contains(request)).ToArray();
+            lock (gate)
+            {
+                if (disposed) return false;
+                foreach (string label in absent) missing.Add(label);
+                requests = unique.Values.ToArray();
+                stateRequests = states.Values.ToArray();
+                cells[cellId] = cell;
+                depthLayers = DepthLayersOf(cells);
+            }
+            if (added.Length == 0) { CellChanged?.Invoke(cellId); return true; }
+            Task.Run(() => LoadCellPictures(library, cellId, added));
+            return true;
+        }
+
+        private static bool SameVisual(ArtworkCell a, ArtworkCell b) =>
+            a.Active == b.Active && a.Level == b.Level && a.Slope == b.Slope && a.GroundId == b.GroundId && a.GroundFlip == b.GroundFlip
+            && a.GroundRotation == b.GroundRotation && a.Object1Id == b.Object1Id && a.Object1Flip == b.Object1Flip && a.Object1Rotation == b.Object1Rotation
+            && a.Object2Id == b.Object2Id && a.Object2Flip == b.Object2Flip;
+
+        private void LoadCellPictures(AssetLibrary library, int cellId, Request[] added)
+        {
+            var loaded = new Dictionary<Request, PictureCache.Entry>();
+            var failed = new List<string>();
+            try
+            {
+                foreach (Request request in added)
+                {
+                    if (disposed) break;
+                    string cacheKey = request.CacheKey + "|" + Stamp(request.Path);
+                    PictureCache.Entry entry = library.Cache.Acquire(cacheKey, () => LoadPicture(request));
+                    lock (gate)
+                    {
+                        if (disposed) { library.Cache.Release(entry); break; }
+                        acquired.Add(entry);
+                    }
+                    loaded[request] = entry;
+                    if (entry.Picture == null) failed.Add(request.Label + " illisible");
+                }
+            }
+            catch (Exception error) { failed.Add("décor illisible (" + error.GetType().Name + ")"); }
+            Action publish = () =>
+            {
+                lock (gate)
+                {
+                    if (disposed) return;
+                    foreach (KeyValuePair<Request, PictureCache.Entry> pair in loaded) pair.Key.Picture = pair.Value.Picture;
+                    foreach (string label in failed) missing.Add(label);
+                }
+                CellChanged?.Invoke(cellId);
+            };
+            SynchronizationContext target = context;
+            if (target == null) { publish(); return; }
+            try { target.Post(state => ((Action)state)(), publish); }
+            catch (Exception) { publish(); }
         }
 
         /// <summary>Builds the picture requests of every cell with the client's rules (MapHandler.build):
@@ -430,45 +543,8 @@ namespace Outil_Azur_complet.Bot.Controls
             var unique = new Dictionary<string, Request>(StringComparer.Ordinal);
             var states = new Dictionary<string, Request>(StringComparer.Ordinal);
             var absent = new List<string>();
-            Request Make(DecorKind kind, int id, int frame, bool flip, int rotation, Dictionary<string, Request> into = null)
-            {
-                if (id <= 0) return null;
-                if (!library.TryResolve(kind, id, frame, out long fileKey))
-                {
-                    absent.Add(Label(kind) + " " + id);
-                    return null;
-                }
-                into = into ?? unique;
-                string path = library.Files[fileKey];
-                bool anchored = library.Generated.Contains(fileKey) && library.Anchors.ContainsKey(fileKey);
-                string cacheKey = path + "|" + (flip ? 1 : 0) + "|" + rotation;
-                if (into.TryGetValue(cacheKey, out Request existing)) return existing;
-                var request = new Request
-                {
-                    Kind = KindOf(fileKey), Label = Label(kind) + " " + id + (frame > 1 && kind == DecorKind.Object ? " image " + frame : ""),
-                    Path = path, CacheKey = cacheKey, Flip = flip, Rotation = rotation, Anchored = anchored,
-                    Anchor = anchored ? library.Anchors[fileKey] : RectangleF.Empty
-                };
-                into[cacheKey] = request;
-                return request;
-            }
-            foreach (ArtworkCell cell in Cells)
-            {
-                if (!cell.Active) continue;
-                bool flat = cell.Slope == 1;
-                int groundFrame = cell.Slope >= 2 && cell.Slope <= MaxSlopeFrame ? cell.Slope : 1;
-                cell.Ground = Make(DecorKind.Ground, cell.GroundId, groundFrame, cell.GroundFlip, flat ? cell.GroundRotation : 0);
-                cell.Object1 = Make(DecorKind.Object, cell.Object1Id, 1, cell.Object1Flip, flat ? cell.Object1Rotation : 0);
-                cell.Object2 = Make(DecorKind.Object, cell.Object2Id, 1, cell.Object2Flip, 0);
-                cell.Object2States = null;
-                for (int frame = 2; frame <= MaxObjectFrame && cell.Object2Id > 0; frame++)
-                {
-                    if (!library.Files.ContainsKey(Key(DecorKind.Object, cell.Object2Id, frame))) continue;
-                    if (cell.Object2States == null) cell.Object2States = new Request[MaxObjectFrame + 1];
-                    cell.Object2States[frame] = Make(DecorKind.Object, cell.Object2Id, frame, cell.Object2Flip, 0, states);
-                }
-            }
-            Request backgroundRequest = backgroundId > 0 ? Make(DecorKind.Background, backgroundId, 1, false, 0) : null;
+            foreach (ArtworkCell cell in Cells) ResolveCell(cell, library, unique, states, absent);
+            Request backgroundRequest = backgroundId > 0 ? Make(library, unique, absent, DecorKind.Background, backgroundId, 1, false, 0) : null;
             lock (gate)
             {
                 rejectedAnchorLines = library.RejectedAnchorLines;
@@ -476,6 +552,45 @@ namespace Outil_Azur_complet.Bot.Controls
                 stateRequests = states.Values.ToArray();
                 background = backgroundRequest;
                 foreach (string label in absent) missing.Add(label);
+            }
+        }
+
+        private static Request Make(AssetLibrary library, Dictionary<string, Request> into, List<string> absent, DecorKind kind, int id, int frame, bool flip, int rotation)
+        {
+            if (id <= 0) return null;
+            if (!library.TryResolve(kind, id, frame, out long fileKey))
+            {
+                absent.Add(Label(kind) + " " + id);
+                return null;
+            }
+            string path = library.Files[fileKey];
+            bool anchored = library.Generated.Contains(fileKey) && library.Anchors.ContainsKey(fileKey);
+            string cacheKey = path + "|" + (flip ? 1 : 0) + "|" + rotation;
+            if (into.TryGetValue(cacheKey, out Request existing)) return existing;
+            var request = new Request
+            {
+                Kind = KindOf(fileKey), Label = Label(kind) + " " + id + (frame > 1 && kind == DecorKind.Object ? " image " + frame : ""),
+                Path = path, CacheKey = cacheKey, Flip = flip, Rotation = rotation, Anchored = anchored,
+                Anchor = anchored ? library.Anchors[fileKey] : RectangleF.Empty
+            };
+            into[cacheKey] = request;
+            return request;
+        }
+
+        private static void ResolveCell(ArtworkCell cell, AssetLibrary library, Dictionary<string, Request> unique, Dictionary<string, Request> states, List<string> absent)
+        {
+            if (!cell.Active) return;
+            bool flat = cell.Slope == 1;
+            int groundFrame = cell.Slope >= 2 && cell.Slope <= MaxSlopeFrame ? cell.Slope : 1;
+            cell.Ground = Make(library, unique, absent, DecorKind.Ground, cell.GroundId, groundFrame, cell.GroundFlip, flat ? cell.GroundRotation : 0);
+            cell.Object1 = Make(library, unique, absent, DecorKind.Object, cell.Object1Id, 1, cell.Object1Flip, flat ? cell.Object1Rotation : 0);
+            cell.Object2 = Make(library, unique, absent, DecorKind.Object, cell.Object2Id, 1, cell.Object2Flip, 0);
+            cell.Object2States = null;
+            for (int frame = 2; frame <= MaxObjectFrame && cell.Object2Id > 0; frame++)
+            {
+                if (!library.Files.ContainsKey(Key(DecorKind.Object, cell.Object2Id, frame))) continue;
+                if (cell.Object2States == null) cell.Object2States = new Request[MaxObjectFrame + 1];
+                cell.Object2States[frame] = Make(library, states, absent, DecorKind.Object, cell.Object2Id, frame, cell.Object2Flip, 0);
             }
         }
 
@@ -667,6 +782,9 @@ namespace Outil_Azur_complet.Bot.Controls
             }
             publishedSignal.Set();
             if (!disposed) AssetsLoaded?.Invoke(this, EventArgs.Empty);
+            KeyValuePair<int, string>[] pending;
+            lock (gate) { pending = pendingUpdates.ToArray(); pendingUpdates.Clear(); }
+            foreach (KeyValuePair<int, string> update in pending) UpdateCell(update.Key, update.Value);
         }
 
         /// <summary>Waits for the background loading; on the creator's thread it also publishes a pending result
@@ -805,8 +923,10 @@ namespace Outil_Azur_complet.Bot.Controls
                 foreach (Request request in requests.Concat(stateRequests)) request.Picture = null;
                 stateSource = null;
                 Cells = new ArtworkCell[0]; depthLayers = new DepthLayer[0];
+                pendingUpdates.Clear();
                 library = owner;
             }
+            CellChanged = null;
             // Pictures go back to the shared cache: another map may still draw them, the cache frees the rest.
             if (library != null)
                 foreach (PictureCache.Entry entry in release) library.Cache.Release(entry);

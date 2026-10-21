@@ -19,6 +19,7 @@ using Outil_Azur_complet.Bot.Panels;
 using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
+using Tool_BotProtocol.Game.Chat;
 using Tool_BotProtocol.Game.Combats;
 using Tool_BotProtocol.Game.Maps;
 using Tool_BotProtocol.Game.Perso.Spells;
@@ -48,7 +49,7 @@ internal static class BotFightUiSmoke
         {
             Application.EnableVisualStyles(); Run();
             Check(uiErrors.Count == 0, "Interface errors: " + string.Join(" / ", uiErrors.Select(e => e.GetType().Name + " " + e.Message)));
-            Console.WriteLine("OK: menu de placement GR1/GQ, options fN/fH/fS et Go±, drapeau Gf, ligne de temps GTL/GTR/GTS/GTF, corps à corps (case ², SH0, clic sur un ennemi adjacent) → GA303, abandon confirmé → GQ, spectateur, résultat GE PvM/PvP");
+            Console.WriteLine("OK: menu de placement GR1/GQ, clip « prêt » et icônes d'options par combattant, zones GDZ, invisibilité GA;150 (lot X7), options fN/fH/fS et Go±, drapeau Gf, ligne de temps GTL/GTR/GTS/GTF, corps à corps (case ², SH0, clic sur un ennemi adjacent) → GA303, abandon confirmé → GQ, spectateur, résultat GE PvM/PvP");
         }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
@@ -99,6 +100,17 @@ internal static class BotFightUiSmoke
         Application.DoEvents();
     }
     private static string Cell(this ListViewItem item, int column) => item.SubItems[column].Text;
+    /// <summary>Pixel du centre d'une cellule après un dessin complet de la vue hors écran (lot X7 : zones GDZ).</summary>
+    private static Color PixelOfCell(UserMapControl map, int cellId)
+    {
+        using (var image = new Bitmap(Math.Max(1, map.Width), Math.Max(1, map.Height)))
+        using (Graphics graphics = Graphics.FromImage(image))
+        {
+            map.DrawCells(graphics);
+            Point centre = map.Cells[cellId].Centre;
+            return image.GetPixel(centre.X, centre.Y);
+        }
+    }
 
     private static void Run()
     {
@@ -132,6 +144,20 @@ internal static class BotFightUiSmoke
                             "Fight controls are shown outside a fight");
                         Check(form.Panels.Get<FightResultPanel>() != null && !form.Panels.Visible, "Result panel is not registered or the drawer is open");
 
+                        // Lot X7 : hors combat, Go accroche ses icônes à l'épée de l'équipe (onFightOption : sprite qui porte l'identifiant de
+                        // l'équipe) ; StarLoco ne l'envoie qu'à la carte d'origine. Gc- retire l'épée et ses options, Gc+ recrée l'épée sans option.
+                        Feed(account, "Gc+77;0|77;5;0;-1|78;6;0;-1"); Feed(account, "Go+H77");
+                        PumpUntil(() => map.OptionIconsOf(77).Length > 0, "Go+H77 icon above the team sword");
+                        Check(map.OptionIconsOf(77).SequenceEqual(new[] { "UI/Client/UI_FightOptionNeedHelpUp.png" }) && map.OptionIconsOf(78).Length == 0 && map.OptionIconsOf(79).Length == 0,
+                            "Go+H77 outside a fight: " + string.Join(",", map.OptionIconsOf(77)) + " / " + string.Join(",", map.OptionIconsOf(78)));
+                        PixelOfCell(map, 5); // DrawCells → DrawOverheads dessine les icônes au-dessus de l'épée
+                        Feed(account, "Gc-77"); PumpUntil(() => map.OptionIconsOf(77).Length == 0, "Gc-77 removes the sword icons");
+                        Check(fight.GetTeamOptions(77) == FightOptions.None, "Gc- kept the options of the ended fight");
+                        Feed(account, "Go+A77"); Feed(account, "Gc+77;0|77;5;0;-1|78;6;0;-1");
+                        PumpUntil(() => account.Game.Map.FightSwords.ContainsKey(77), "Gc+77 again");
+                        Check(map.OptionIconsOf(77).Length == 0 && fight.GetTeamOptions(77) == FightOptions.None, "Gc+ kept options sent before the swords");
+                        Feed(account, "Gc-77"); PumpUntil(() => !account.Game.Map.FightSwords.ContainsKey(77), "Gc-77 again");
+
                         // ---------------------------------------------------------------- placement : menu, options, drapeau
                         FeedFromNetwork(account, "GJK2|1|1|0|30000|0");
                         PumpUntil(() => menu.Visible && options.Visible, "placement menu and options after GJK received on the network thread");
@@ -156,12 +182,26 @@ internal static class BotFightUiSmoke
                         options.ButtonFor(FightOptions.NeedHelp).PerformClick(); Expect(peer, "fH", "Help button does not send fH");
                         options.ButtonFor(FightOptions.BlockSpectators).PerformClick(); Expect(peer, "fS", "Spectators button does not send fS");
                         Feed(account, "Go+S42"); PumpUntil(() => options.ButtonFor(FightOptions.BlockSpectators).Checked, "Go+S42 checked");
+                        // Lot X7 : icônes d'options au-dessus du chef de l'équipe (addSpriteOverHeadItem("FightOptions") du client), dans l'ordre A, S, P, H.
+                        Check(map.OptionIconsOf(42).SequenceEqual(new[] { "UI/Client/UI_FightOptionBlockSpectatorUp.png" }) && map.OptionIconsOf(43).Length == 0,
+                            "Go+S42 did not give the team leader its spectator icon: " + string.Join(",", map.OptionIconsOf(42)));
+                        Check(UserMapControl.FightOptionIconFiles(FightOptions.NeedHelp | FightOptions.BlockJoiner)
+                            .SequenceEqual(new[] { "UI/Client/UI_FightOptionBlockJoinerUp.png", "UI/Client/UI_FightOptionNeedHelpUp.png" })
+                            && UserMapControl.FightOptionIconFiles(FightOptions.None).Length == 0, "Option icons are not in the client order (A, S, P, H)");
 
                         menu.ReadyButton.PerformClick(); Expect(peer, "GR1", "Placement menu Prêt does not send GR1");
                         Check(!fight.IsReady, "Ready state predicted locally");
                         Feed(account, "GR142"); PumpUntil(() => menu.ReadyButton.Text == "Annuler", "ready tick");
+                        // Lot X7 : GR1 de chaque combattant → clip « prêt » (ready.swf) au-dessus du sprite, à la place de l'aura ; GR0 le retire.
+                        Feed(account, "GR143"); Feed(account, "GRx"); Feed(account, "GR199");
+                        PumpUntil(() => fight.IsFighterReady(42) && fight.IsFighterReady(43) && !fight.IsFighterReady(99), "GR1 per fighter");
+                        // Sprites en staticR (direction 1) : le clip « prêt » ignore xtraClipTopAnimations, comme addExtraClip du client.
+                        PumpUntil(() => form.Map.ExtraClips.Active.Count(clip => clip.Family == ActorExtraClips.ReadyFamily && clip.Above && !clip.TopClipRule
+                            && (clip.ActorId == 42 || clip.ActorId == 43)) == 2, "ready clips of both fighters");
                         menu.ReadyButton.PerformClick(); Expect(peer, "GR0", "Second click does not send GR0");
                         Feed(account, "GR042"); PumpUntil(() => menu.ReadyButton.Text == "Prêt", "ready reset");
+                        PumpUntil(() => !fight.IsFighterReady(42) && fight.IsFighterReady(43)
+                            && form.Map.ExtraClips.Active.All(clip => clip.Family != ActorExtraClips.ReadyFamily || clip.ActorId == 43), "GR042 removed the clip of 42 only");
 
                         Feed(account, "Gf43|7"); PumpUntil(() => form.Map.DisplayedFlag != null && form.Map.DisplayedFlag.CellId == 7 && form.Map.DisplayedFlag.ActorId == 43, "Gf43|7 flag");
                         Feed(account, "Gf43"); Feed(account, "Gfx|y"); Application.DoEvents();
@@ -214,6 +254,37 @@ internal static class BotFightUiSmoke
                             Color frame = image.GetPixel(0, 0);
                             Check(Math.Abs(frame.R - 180) <= 16 && Math.Abs(frame.G - 172) <= 16 && Math.Abs(frame.B - 141) <= 16, "Timeline frame is not the gold rule: " + frame);
                         }
+                        // ---------------------------------------------------------------- lot X7 : premier tour, zones GDZ, invisibilité GA;150
+                        // Le premier tour retire l'état « prêt » (onTurnStart isFirstTurn : clips du dessus retirés de tous les sprites).
+                        Check(!fight.IsFighterReady(43) && !form.Map.ExtraClips.Active.Any(clip => clip.Family == ActorExtraClips.ReadyFamily), "Ready state survived the first turn");
+                        // GDZ+ : zone de la couleur ZONE_COLOR[3] fondue à 30 % (Zone.ALPHA) sur la cellule ; GDZ- l'efface.
+                        Color before = PixelOfCell(map, 5);
+                        Feed(account, "GDZ+5;0;3"); Feed(account, "GDZx"); Feed(account, "GDZ+a;b;c");
+                        Check(fight.Zones.Count == 1 && fight.Zones[0].CellId == 5 && fight.Zones[0].Size == 0 && fight.Zones[0].Color == 3, "GDZ+5;0;3 not kept as the only zone");
+                        int zoneRgb = FightZoneLayer.Rgb(3);
+                        Color zoned = PixelOfCell(map, 5);
+                        Func<int, int, int> blend = (under, over) => (int)Math.Round(under * (100 - FightZoneLayer.FillAlphaPercent) / 100.0 + over * FightZoneLayer.FillAlphaPercent / 100.0);
+                        Check(Math.Abs(zoned.R - blend(before.R, (zoneRgb >> 16) & 0xFF)) <= 10 && Math.Abs(zoned.G - blend(before.G, (zoneRgb >> 8) & 0xFF)) <= 10
+                            && Math.Abs(zoned.B - blend(before.B, zoneRgb & 0xFF)) <= 10, "GDZ zone is not blended at 30 % on its cell: " + before + " -> " + zoned + " with " + zoneRgb.ToString("X6"));
+                        Feed(account, "GDZ-5;0;3");
+                        Check(fight.Zones.Count == 0 && PixelOfCell(map, 5) == before, "GDZ- did not erase the zone");
+                        Feed(account, "GDZ+5;1;3");
+                        Check(fight.Zones.Count == 1 && FightZoneLayer.CellsOf(fight.Zones[0], account.Game.Map.MapCells).OrderBy(id => id).SequenceEqual(
+                            account.Game.Map.MapCells.Where(c => c != null && c.IsActive && account.Game.Map.MapCells[5].GetDistanceBetweenCells(c) <= 1).Select(c => (int)c.CellID).OrderBy(id => id)),
+                            "Zone of size 1 does not cover the cells at distance 1");
+                        Feed(account, "GDZ-5;1;3"); Check(fight.Zones.Count == 0, "GDZ- of the size 1 zone ignored");
+                        // GA;150 : l'autre combattant disparaît (setVisible(false)), le sien passe à 40 % (setAlpha(40)), journal dans le chat (INFO_FIGHT_CHAT).
+                        PumpUntil(() => map.GetActorVisualState(43) != null && map.GetActorVisualState(43).IsVisible && map.GetActorVisualState(42) != null, "fighters drawn before GA;150");
+                        Feed(account, "GA;150;43;43,2"); Feed(account, "GA;150;43;zz");
+                        PumpUntil(() => fight.IsFighterInvisible(43) && !map.GetActorVisualState(43).IsVisible, "GA;150 did not hide the other fighter");
+                        Check((map.GetActorVisualState(43).SpriteReason ?? string.Empty).Contains("invisible") && fight.InvisibleFighterIds.SequenceEqual(new[] { 43 }), "Hidden fighter lacks its reason or is not listed");
+                        Feed(account, "GA;150;42;42,2");
+                        PumpUntil(() => map.GetActorVisualState(42).IsVisible && Math.Abs(map.GetActorVisualState(42).Alpha - .4f) < .01f, "own invisible fighter is not drawn at 40 %");
+                        PumpUntil(() => form.Chat.View.DisplayedLines.Any(line => line.Filter == ChatFilter.Infos && line.Text == "Allié de test devient invisible."), "journal line of GA;150 missing in the chat");
+                        Feed(account, "GA;150;43;43,0"); Feed(account, "GA;150;42;42,0");
+                        PumpUntil(() => !fight.IsFighterInvisible(43) && map.GetActorVisualState(43).IsVisible && map.GetActorVisualState(42).Alpha == 1f, "GA;150 with 0 turn did not show the fighters again");
+                        Check(form.Chat.View.DisplayedLines.Any(line => line.Text == "Personnage de test redevient visible."), "journal line of the visibility return missing");
+
                         Feed(account, "GTF43"); PumpUntil(() => timeline.CurrentFighterId == 0, "GTF");
                         Check(timeline.RemainingMilliseconds == 0 && timeline.HighlightedFighterId == 43, "GTF kept the chrono or lost the GTR frame");
                         Feed(account, "GTS42|30000"); PumpUntil(() => timeline.CurrentFighterId == 42, "own turn");

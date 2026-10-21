@@ -126,6 +126,9 @@ try {
     # Lot X6 (demandes ER12/ER13 depuis le menu d'un joueur, ERET dans le chat, EW+ à l'arrivée, clic gauche sur les acteurs, carte de
     # l'artisan du livre) : couvert par BotCraftSmoke, BotMapActionsSmoke et les scénarios x6 et x6b de BotStarLocoLiveSmoke (comptes
     # inventés sur la carte de la forge) ; AZUR_STARLOCO_SCENARIOS=x6,x6b ne joue que ceux-là après la connexion.
+    # Lot X7 (événements de combat visibles : journal dans le chat, zones GDZ, cellules GDC, clip « prêt », icônes Go, invisibilité GA;150) :
+    # couvert par BotFightUiSmoke, BotMapViewSmoke, BotChatUiSmoke et le scénario x7 de BotStarLocoLiveSmoke (Sram inventé, deux pièges,
+    # Invisibilité, fenêtre de B restée sur la carte) ; AZUR_STARLOCO_SCENARIOS=x7 ne joue que celui-là après la connexion.
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'
