@@ -259,6 +259,10 @@ internal static class BotInventoryGridSmoke
                 "Living item section is wrong: " + string.Join(" / ", lines));
             Check(row.Visible && feed.Enabled && skin.Enabled && dissociate.Enabled && feed.Text == "Nourrir (test)" && skin.Text == "Choix de l'apparence (test)"
                 && dissociate.Text == "Dissocier (test)", "Living item buttons are wrong for the worn hat");
+            // Fenêtre à sa taille par défaut : la fiche rétrécit (elle défile) plutôt que de passer sous la grille, la rangée reste dégagée.
+            var help = (Control)Get(panel, "inventoryHelp"); var sheetArea = (Control)Get(panel, "sheetArea");
+            Check(row.Top >= grid.Bottom && row.Bottom <= help.Top && (!sheetArea.Visible || (sheetArea.Bottom <= row.Top && sheetArea.Top >= grid.Bottom)) && sheetArea.Height <= 150,
+                "Living row covered at the default window size: grid ends " + grid.Bottom + ", sheet " + sheetArea.Top + "-" + sheetArea.Bottom + ", row " + row.Top + "-" + row.Bottom + ", help " + help.Top);
             Check(grid.SelectItem(1000u), "Potion cell cannot be selected"); Application.DoEvents();
             Check(!row.Visible && !sheet.Lines.Contains("Objet vivant (test)"), "The living row or section is shown for a potion");
             Check(grid.SelectItem(1014u), "Free living item cannot be selected"); Application.DoEvents();

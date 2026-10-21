@@ -52,6 +52,10 @@ namespace Outil_Azur_complet.Bot.Panels
         private Control equipItem, unequipItem, useItem, dropItem, destroyItem;
         private Control feedItem, skinItem, dissociateItem;
         private FlowLayoutPanel livingActions;
+        private Panel pageView;
+        private bool livingShown;
+        /// <summary>Hauteur de la fiche quand la place le permet.</summary>
+        private const int SheetHeight = 150;
         private bool livingPending;
         private ContextMenuStrip itemMenu, sortMenu;
         private ClientButton sortButton;
@@ -140,7 +144,7 @@ namespace Outil_Azur_complet.Bot.Panels
             inventory.MenuRequested += (item, location) => ShowMenu(item, inventory, location);
             inventory.Dropped += payload => _ = MoveAsync(payload, -1);
 
-            sheetArea = new Panel { Dock = DockStyle.Bottom, Height = 150, Margin = Padding.Empty, AutoScroll = true, BackColor = BotUi.Paper, Padding = new Padding(0, 4, 0, 0) };
+            sheetArea = new Panel { Dock = DockStyle.Bottom, Height = SheetHeight, Margin = Padding.Empty, AutoScroll = true, BackColor = BotUi.Paper, Padding = new Padding(0, 4, 0, 0) };
             sheet = new ItemTooltip { Dock = DockStyle.Top };
             sheetArea.Controls.Add(sheet);
 
@@ -163,7 +167,27 @@ namespace Outil_Azur_complet.Bot.Panels
             page.Controls.Add(inventory); page.Controls.Add(filters); page.Controls.Add(plateau); page.Controls.Add(header);
             page.Controls.Add(sheetArea); page.Controls.Add(livingActions); page.Controls.Add(inventoryHelp);
             page.Controls.Add(BotUi.Actions(equipItem, unequipItem, useItem, dropItem, destroyItem));
+            pageView = page;
+            page.Resize += (s, e) => FitSheet();
             return page;
+        }
+
+        /// <summary>
+        /// Hauteur de la fiche d'après la place restante (lot X13) : dans une fenêtre basse, la fiche rétrécit et défile au lieu de
+        /// passer sous le plateau, et la rangée des objets vivants reste visible ; la grille du sac garde au moins une rangée de cases.
+        /// </summary>
+        private void FitSheet()
+        {
+            if (pageView == null || sheetArea == null) return;
+            int used = pageView.Padding.Vertical + ItemGrid.CellSize + 8;
+            foreach (Control child in pageView.Controls)
+            {
+                if (child == sheetArea || child.Dock == DockStyle.Fill || (child == livingActions && !livingShown)) continue;
+                used += child.Height + child.Margin.Vertical;
+            }
+            int room = Math.Min(SheetHeight, pageView.ClientSize.Height - used);
+            sheetArea.Height = Math.Max(0, room);
+            sheetArea.Visible = room >= 24;
         }
 
         private static Control LivingButton(string title, string name, EventHandler action, int width)
@@ -353,7 +377,7 @@ namespace Outil_Azur_complet.Bot.Panels
             LivingItem living = LivingItem.From(item);
             bool showLiving = living != null && living.IsLiving;
             // Affectation directe : Visible rend faux tant que le volet est fermé, une comparaison laisserait la rangée affichée.
-            livingActions.Visible = showLiving;
+            livingActions.Visible = livingShown = showLiving;
             feedItem.Enabled = dissociateItem.Enabled = ready && !livingPending && living?.IsAssociated == true;
             skinItem.Enabled = ready && !livingPending && living?.Skineable == true;
             // Pierres d'âme et documents (lot F14) : règle du serveur rappelée sous l'objet ; dernier refus du serveur en dessous.
@@ -365,6 +389,7 @@ namespace Outil_Azur_complet.Bot.Panels
             if (!string.IsNullOrEmpty(serverNotice)) text = (item == null ? string.Empty : text + Environment.NewLine) + serverNotice;
             inventoryHelp.Text = text;
             inventoryHelp.Height = note == null && (item == null || string.IsNullOrEmpty(serverNotice)) ? 46 : 80;
+            FitSheet();
         }
 
         /// <summary>Double-clic ou Entrée sur un objet du sac : utiliser s'il est utilisable, sinon équiper (<c>DOUBLE_CLICK_TO_EQUIP</c>).</summary>
