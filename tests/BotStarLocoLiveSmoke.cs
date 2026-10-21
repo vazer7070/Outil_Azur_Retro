@@ -4496,7 +4496,11 @@ internal static partial class Live
             finally
             {
                 if (screen != null) await OnUi(() => { if (!screen.IsDisposed) { screen.Close(); screen.Dispose(); } }).ConfigureAwait(false);
-                if (viewer != null) await OnUi(() => { if (!viewer.IsDisposed) { viewer.Close(); viewer.Dispose(); } }).ConfigureAwait(false);
+                // Fenêtre de B, session partagée par les scénarios suivants : la fermer (Close → FormClosed → OnSessionClosed)
+                // libérerait le compte de B et le déconnecterait (x3c échouait sur « B n'est plus en jeu ») ; Dispose seul ne
+                // libère que l'interface (ReleaseUi), sans FormClosed.
+                if (viewer != null) await OnUi(() => { if (!viewer.IsDisposed) { viewer.Hide(); viewer.Dispose(); } }).ConfigureAwait(false);
+                if (viewer != null && (b.Account.Connexion == null || !b.Account.Connexion.IsConnected())) Journal("!! [test] B n'est plus connecté après la fermeture de sa fenêtre");
                 await ForgetAsync(db, schema, s == null ? new LiveSession[0] : new[] { s }, created).ConfigureAwait(false);
             }
         }
