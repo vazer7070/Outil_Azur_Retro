@@ -208,7 +208,8 @@ namespace Tool_BotProtocol.Game.Maps
             if ((mask & 4096) != 0) cell.LineofSight = (data[0] & 1) == 1;
             if ((mask & 2048) != 0) cell.C_Types = (CellTypes)((data[2] & 56) >> 3);
             string current = CellDataOf(update.CellId);
-            if (current != null)
+            // MapData hors de l'alphabet (carte corrompue) : seuls la ligne de vue et le déplacement sont appliqués.
+            if (current != null && current.All(character => Array.IndexOf(Hash.caracteres_array, character) >= 0))
             {
                 string merged = MergeCellData(current, update.Data.Substring(0, 10), mask);
                 if (merged != current) LazyInitializer.EnsureInitialized(ref cellData)[update.CellId] = merged;

@@ -475,7 +475,8 @@ namespace Outil_Azur_complet.Bot.Controls
             foreach (Request request in requests) unique[request.CacheKey] = request;
             foreach (Request request in stateRequests) states[request.CacheKey] = request;
             ResolveCell(cell, library, unique, states, absent);
-            Request[] added = unique.Values.Where(request => !requests.Contains(request)).Concat(states.Values.Where(request => !stateRequests.Contains(request))).ToArray();
+            var known = new HashSet<Request>(requests.Concat(stateRequests));
+            Request[] added = unique.Values.Concat(states.Values).Where(request => !known.Contains(request)).ToArray();
             lock (gate)
             {
                 if (disposed) return false;
