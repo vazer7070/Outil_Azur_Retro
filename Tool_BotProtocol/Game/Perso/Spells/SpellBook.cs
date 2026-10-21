@@ -75,6 +75,10 @@ namespace Tool_BotProtocol.Game.Perso.Spells
         public int PerTarget { get; private set; }
         public int Delay { get; private set; }
         public string Zones { get; private set; } = string.Empty;
+        /// <summary>États que le lanceur doit porter (index 16 du niveau, <c>requiredStates</c> du client) ; vide sans données.</summary>
+        public IReadOnlyList<int> RequiredStates { get; private set; } = new int[0];
+        /// <summary>États qui empêchent le lancer (index 17 du niveau, <c>forbiddenStates</c> du client) ; vide sans données.</summary>
+        public IReadOnlyList<int> ForbiddenStates { get; private set; } = new int[0];
         /// <summary>Niveau de personnage requis (0 = inconnu).</summary>
         public int MinPlayerLevel { get; private set; }
         public bool FailureEndsTurn { get; private set; }
@@ -122,7 +126,8 @@ namespace Tool_BotProtocol.Game.Perso.Spells
             {
                 PA = ToByte(ApCost), Min_portee = ToByte(RangeMin), Max_portee = ToByte(RangeMax),
                 IsInLine = LineOnly, AvecLigneDeVue = LineOfSight, EmptyCell = FreeCell, portee_modifiable = RangeBoostable,
-                PerTurn = ToByte(PerTurn), PerObjective = ToByte(PerTarget), Interval = ToByte(Delay)
+                PerTurn = ToByte(PerTurn), PerObjective = ToByte(PerTarget), Interval = ToByte(Delay),
+                RequiredStates = RequiredStates.ToArray(), ForbiddenStates = ForbiddenStates.ToArray()
             };
             int index = 0;
             foreach (SpellEffectLine effect in Effects) stats.AddEffect(new SpellEffect(effect.Type, ZoneAt(index++)), false);
@@ -198,6 +203,8 @@ namespace Tool_BotProtocol.Game.Perso.Spells
                     PerTarget = Int(At(data, 13)),
                     Delay = Int(At(data, 14)),
                     Zones = At(data, 15)?.Type == JTokenType.String ? (string)At(data, 15) : string.Empty,
+                    RequiredStates = States(At(data, 16)),
+                    ForbiddenStates = States(At(data, 17)),
                     MinPlayerLevel = Int(At(data, 18)),
                     FailureEndsTurn = Bool(At(data, 19)),
                 };
@@ -229,6 +236,8 @@ namespace Tool_BotProtocol.Game.Perso.Spells
                 PerTurn = stats.PerTurn,
                 PerTarget = stats.PerObjective,
                 Delay = stats.Interval,
+                RequiredStates = (stats.RequiredStates ?? new int[0]).ToArray(),
+                ForbiddenStates = (stats.ForbiddenStates ?? new int[0]).ToArray(),
             };
         }
 
@@ -243,6 +252,14 @@ namespace Tool_BotProtocol.Game.Perso.Spells
         }
 
         private static int? NullableInt(JToken token) => token != null && (token.Type == JTokenType.Integer || token.Type == JTokenType.Float) ? Int(token) : (int?)null;
+
+        /// <summary>Liste d'états d'un niveau (tableau de nombres) ; les valeurs non numériques sont ignorées.</summary>
+        private static int[] States(JToken token)
+        {
+            var list = token as JArray;
+            if (list == null) return new int[0];
+            return list.Select(NullableInt).Where(value => value.HasValue).Select(value => value.Value).ToArray();
+        }
 
         private static bool Bool(JToken token)
         {

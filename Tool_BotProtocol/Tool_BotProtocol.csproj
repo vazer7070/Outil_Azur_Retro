@@ -178,6 +178,7 @@
     <Compile Include="Game\Combats\FightEffects.cs" />
     <Compile Include="Game\Combats\FightResult.cs" />
     <Compile Include="Game\Combats\FightVisuals.cs" />
+    <Compile Include="Game\Combats\LineOfSight.cs" />
     <Compile Include="Game\Combats\SpellAim.cs" />
     <Compile Include="Game\Chat\ChatChannels.cs" />
     <Compile Include="Game\Chat\ChatCommands.cs" />
