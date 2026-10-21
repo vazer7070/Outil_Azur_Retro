@@ -169,6 +169,8 @@ Après la relecture, le bot a été joué sur une copie locale du StarLoco du ki
 
 Écart de StarLoco : 971 et 973 sont écrits en décimal. Il est décrit dans le guide. Tests : `BotInventoryGridSmoke` ; scénario x13 de `BotStarLocoLiveSmoke`.
 
+**X33 — Combat : ligne de vue locale et mode tactique.** Ligne de vue du client (`checkView` : hauteurs des cellules et des combattants, cellules sans ligne de vue ou inactives, combattants entre le lanceur et la cible, `GDC` compris) vérifiée avant l'envoi d'un sort, avec les états requis et interdits du lanceur (index 16 et 17 du niveau), la cellule libre (`freeCell`), les lancers par cible (compteur de `addLaunchedSpell`) et les bonus `SB` 289 et 291 ; option `AdvancedLineOfSight` (« Mettre en valeur les cases ciblables », vraie par défaut) qui pose sur chaque cible valable la forme de sélection en #0066CC à 50 % (`drawAllowedZone`) ; bouton du mode tactique actif au placement, en combat et seul pour un spectateur, sans paquet : aplat #29261F à la place des fonds 631 et 632 absents, sols retirés, objets 10000, 10001, 10002 et 1030 du décor exporté (`turnTactic`), choix gardé d'un combat à l'autre, second clic pour le décor normal. Écarts avec StarLoco (ligne de vue des joueurs et états non vérifiés par le serveur) décrits dans le guide. Tests : `BotCombatSmoke`, `BotMapViewSmoke`, `BotFightUiSmoke`, scénario x33 de `BotStarLocoLiveSmoke`.
+
 ## Couverture des fonctions
 
 Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par le test cité contre un serveur fictif local), **partiel** (une partie seulement), **absent**. Les fonctions rejouées par `BotStarLocoLiveSmoke` sont aussi vérifiées sur un vrai StarLoco local ; les autres lignes ne le sont pas encore. La colonne « Client 1.34 » nomme la fenêtre ou les paquets du client ; la colonne « StarLoco » dit ce que le serveur du kit en fait.
@@ -292,7 +294,7 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | G6 | Pierres d’âme et arènes | `OU` | pierre utilisable en arène seulement | fait | `BotServerCommandsSmoke` |
 | G7 | Documents | `dCK`, `dV` | pancartes seulement | fait | `BotInteractivesSmoke`, `BotServerCommandsSmoke` |
 | G8 | Commandes joueur du serveur | — | `.commande` dans le canal général | fait | `BotServerCommandsSmoke` |
-| G9 | Combat | `G…`, `GA` | traité ; défis à rejouer, `GA303` rejoué (lot X1) ; `Go` envoyé à la carte d'origine seulement | partiel : ni défis, ni mode tactique ; zones `GDZ`, prêt `GR1<id>`, options `Go` et invisibilité `GA;150` dessinés depuis le lot X7 | `BotFightProtocolSmoke`, `BotCombatSmoke`, `BotFightUiSmoke`, `BotCombatUiSmoke` (Windows), x7 |
+| G9 | Combat | `G…`, `GA` | traité ; défis à rejouer, `GA303` rejoué (lot X1) ; `Go` envoyé à la carte d'origine seulement | partiel : ni défis ; zones `GDZ`, prêt `GR1<id>`, options `Go` et invisibilité `GA;150` dessinés depuis le lot X7, mode tactique et ligne de vue locale depuis le lot X33 | `BotFightProtocolSmoke`, `BotCombatSmoke`, `BotFightUiSmoke`, `BotCombatUiSmoke` (Windows), x7 |
 
 ## Reste à faire
 
@@ -331,6 +333,8 @@ Lot X8 : la portée en cercle et en croix de deux sorts d'un Iop inventé, la cr
 
 Lot X13 : sont rejoués (scénario x13) un chapeau vivant écrit dans la base, nourri, changé d'apparence (vue par l'autre joueur, `Oa`) et dissocié par le volet de l'inventaire, et un pain donné à l'autre joueur par la visée de la carte (`OU<pain>|<cible>|<cellule>`, `eUK|17`, `Im01`). Restent l'association d'un objet vivant libre à un objet, la dissociation d'un objet vivant inscrit dans `world.entity.obvijevans` et une bière (`eUK|18`).
 
+Lot X33 : le mode tactique basculé au placement sans paquet (aplat et objets 10000 à 10002), la cellule cachée par le décor exclue des cibles en #0066CC et refusée sans envoi, la Flèche Magique lancée sur une cible visible (`GA300161;<cellule>` accepté) et le retour au décor normal sont rejoués (scénario x33). Restent un bonus `SB` reçu de StarLoco, un lanceur qui porte un autre combattant, les limites par cible et les états sur le vrai serveur, et la comparaison des captures avec le client en jeu.
+
 ### Carte et acteurs
 
 - Images des sols en pente : `swfsvg` sait rendre une image choisie, mais le décor versionné a été exporté sans les pentes.
@@ -345,7 +349,7 @@ Lot X13 : sont rejoués (scénario x13) un chapeau vivant écrit dans la base, n
 
 ### Combat
 
-- Défis (`Gd…`), mode tactique, fond des invocations dans la ligne de temps.
+- Défis (`Gd…`), fond des invocations dans la ligne de temps.
 - Corps à corps (lot X1) : ligne de vue et zone de l’arme laissées au serveur (cellules surlignées = cellules à portée), effets de l’arme absents de l’infobulle, arme non changeable pendant un combat (l’inventaire du bot le refuse, StarLoco l’accepterait). Depuis le lot X8, la zone du type d’arme est dessinée sous le pointeur.
 - Bouton d’exclusion d’un coéquipier dans le menu de placement (`GQ<id>` existe dans l’API).
 - Nombre de tours du résultat compté par le bot (StarLoco n’envoie pas le troisième champ de `GTS`).
@@ -353,7 +357,8 @@ Lot X13 : sont rejoués (scénario x13) un chapeau vivant écrit dans la base, n
 - Effets de sorts (lot AN4) : aucun repli pour les 10 gfx de type 10 ou 11 sans scène (dessinés par script ou vides) ; scripts des SWF non exécutés (hasard, niveau du sort) ; `anim8` des ballons et feux d’artifice non exporté, couleur à 200 % de `GA208` non reproduite ; clip du coup critique limité à `staticF` d’après le code du client, non observé ; rien n’a été comparé au client en jeu.
 - Projectiles des sorts (lot AN5) : types 50 et 51 approchés par la scène, ou `shoot`, à la cellule visée (le clip du client se dessine par script) ; rien à dessiner pour 41 des 61 gfx de type 51, pour le gfx de type 50 et pour 103 et 3001 (scripts) ; `duplicate` de 1210 joué en entier au lieu de retirer le clip ; aucune capture prise pendant un vol sur le vrai StarLoco, rien n’a été comparé au client en jeu.
 - Événements visibles (lot X7) : journal du chat écrit avec les textes du bot plutôt que ceux de langue du client (`INVISIBILITY`, `ENTER_STATE` / `EXIT_STATE` et le nom de l'état), « Combattant #<id> » quand un état arrive avant le `GM` ; zones tracées cellule par cellule au lieu du losange vectoriel de `Zone.drawCircle`.
-- Visée et chemin (lot X8) : ligne de vue non dessinée (lot X33) ; icône d'un objet tenu à la souris (lot X12) ; un chemin coupé avant la cellule survolée n'est ni dessiné ni envoyé ; forme `R` réduite à la cellule ; losange opaque sans formes de sélection exportées.
+- Visée et chemin (lot X8) : ligne de vue dessinée depuis le lot X33 ; icône d'un objet tenu à la souris (lot X12) ; un chemin coupé avant la cellule survolée n'est ni dessiné ni envoyé ; forme `R` réduite à la cellule ; losange opaque sans formes de sélection exportées.
+- Ligne de vue et mode tactique (lot X33) : ligne de vue du corps à corps, limite d'invocations et bonus `SB` autres que 289 et 291 laissés au serveur ; fonds 631 et 632 du mode tactique remplacés par un aplat ; commande `/tactic` non reprise (seul le bouton bascule le mode).
 
 ### Bandeau, options et fiches
 

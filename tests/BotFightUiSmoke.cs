@@ -49,7 +49,7 @@ internal static class BotFightUiSmoke
         {
             Application.EnableVisualStyles(); Run();
             Check(uiErrors.Count == 0, "Interface errors: " + string.Join(" / ", uiErrors.Select(e => e.GetType().Name + " " + e.Message)));
-            Console.WriteLine("OK: menu de placement GR1/GQ, clip « prêt » et icônes d'options par combattant, zones GDZ, invisibilité GA;150 (lot X7), options fN/fH/fS et Go±, drapeau Gf, ligne de temps GTL/GTR/GTS/GTF, corps à corps (case ², SH0, clic sur un ennemi adjacent) → GA303, abandon confirmé → GQ, spectateur, résultat GE PvM/PvP");
+            Console.WriteLine("OK: menu de placement GR1/GQ, clip « prêt » et icônes d'options par combattant, zones GDZ, invisibilité GA;150 (lot X7), options fN/fH/fS et Go±, drapeau Gf, ligne de temps GTL/GTR/GTS/GTF, corps à corps (case ², SH0, clic sur un ennemi adjacent) → GA303, abandon confirmé → GQ, spectateur, résultat GE PvM/PvP, bouton du mode tactique local (lot X33)");
         }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
@@ -183,8 +183,8 @@ internal static class BotFightUiSmoke
                         Check(menu.CancelButton.Visible && menu.ReadyButton.Text == "Prêt" && menu.ReadyButton.Enabled, "Placement menu does not show Prêt and Annuler");
                         Check(giveUp.Visible && giveUp.Enabled && giveUp.Text == "Abandonner", "Give-up button missing during placement");
                         Check(options.ButtonFor(FightOptions.BlockJoiner).Visible && options.ButtonFor(FightOptions.NeedHelp).Visible && options.ButtonFor(FightOptions.BlockSpectators).Visible
-                            && !options.ButtonFor(FightOptions.PartyOnly).Visible && options.FlagButton.Visible && !options.TacticButton.Visible,
-                            "Placement options differ from the client (fN, fH, fS, flag; fP hidden without party; no tactic mode)");
+                            && !options.ButtonFor(FightOptions.PartyOnly).Visible && options.FlagButton.Visible && options.TacticButton.Visible && options.TacticButton.Enabled,
+                            "Placement options differ from the client (fN, fH, fS, flag, tactic mode; fP hidden without party)");
                         Check(options.TooltipOf(options.ButtonFor(FightOptions.BlockJoiner)).Contains("rejoindre"), "Option tooltip missing");
                         options.ButtonFor(FightOptions.BlockJoiner).PerformClick(); Expect(peer, "fN", "Block joiner button does not send fN");
                         Check(!options.ButtonFor(FightOptions.BlockJoiner).Checked, "Option state changed before the server answered");
@@ -238,7 +238,13 @@ internal static class BotFightUiSmoke
                         Feed(account, "GTM|42;0;100;8;3;3;;100|-7;0;60;4;2;9;;60|43;0;50;6;3;6;;50");
                         PumpUntil(() => !menu.Visible && !options.ButtonFor(FightOptions.BlockJoiner).Visible, "options after GS");
                         Check(!options.ButtonFor(FightOptions.NeedHelp).Visible && options.ButtonFor(FightOptions.BlockSpectators).Visible && options.FlagButton.Visible
-                            && options.TacticButton.Visible && !options.TacticButton.Enabled, "Running fight keeps only spectators, flag and (disabled) tactic mode");
+                            && options.TacticButton.Visible && options.TacticButton.Enabled, "Running fight keeps only spectators, flag and tactic mode");
+                        // Lot X33 : mode tactique purement local (Game.isTacticMode du client) ; le bouton reste enfoncé, la carte le suit.
+                        options.TacticButton.PerformClick();
+                        PumpUntil(() => fight.TacticMode && options.TacticButton.Checked && map.TacticView, "tactic mode on");
+                        NoPacket(peer, "Tactic mode button sent a packet");
+                        options.TacticButton.PerformClick();
+                        PumpUntil(() => !fight.TacticMode && !options.TacticButton.Checked && !map.TacticView, "tactic mode off");
                         Check(!timeline.Visible && timeline.Entries.Count == 0, "Timeline shown before GTL");
                         FeedFromNetwork(account, "GTL|42|43|-7");
                         PumpUntil(() => timeline.Visible && timeline.Entries.Count == 3, "GTL portraits (packet received on the network thread)");
@@ -454,7 +460,10 @@ internal static class BotFightUiSmoke
                         // ---------------------------------------------------------------- spectateur : GQ sans question
                         Feed(account, "GJK3|0|1|1|30000|4");
                         PumpUntil(() => combatTools.Visible && giveUp.Text == "Quitter", "spectator button");
-                        Check(!options.Visible && !menu.Visible && !((Control)Get(form, "ready")).Visible && !((Control)Get(form, "passTurn")).Visible, "Spectator sees fighter controls");
+                        // Lot X33 : le spectateur ne garde que le mode tactique (initData du client), ni drapeau ni option d'équipe.
+                        PumpUntil(() => options.Visible && options.TacticButton.Visible, "spectator tactic button");
+                        Check(options.Buttons.Count(button => button.Visible) == 1 && !options.FlagButton.Visible
+                            && !menu.Visible && !((Control)Get(form, "ready")).Visible && !((Control)Get(form, "passTurn")).Visible, "Spectator sees fighter controls");
                         giveUp.PerformClick(); Expect(peer, "GQ", "Spectator leave does not send GQ");
                         Check(BotDialogs.OpenDialogs.Count == 0, "Spectator leave asked a confirmation");
                         Feed(account, "GV"); Expect(peer, "GC1", "Spectator GV is not answered by GC1"); PumpUntil(() => !combatTools.Visible, "spectator GV");

@@ -537,6 +537,9 @@ namespace Tool_BotProtocol.Game.Combats
                             ? "Coup de poing confirmé par le serveur." : "Sort confirmé par le serveur.";
                         fight.lastSpellTurn[spellId] = fight.turn;
                         int count; fight.castsThisTurn.TryGetValue(spellId, out count); fight.castsThisTurn[spellId] = count + 1;
+                        // addLaunchedSpell : compteur par cible, sur le combattant posé sur la cellule visée au moment du GA;300.
+                        CombatFighter target = launch != null && launch.CellId >= 0 ? fight.OccupantLocked(launch.CellId) : null;
+                        if (target != null) fight.CountCastOnTarget(spellId, target.Id);
                     }
                     else fight.lastMessage = "Échec critique confirmé par le serveur.";
                 }
