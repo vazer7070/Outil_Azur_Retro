@@ -183,7 +183,11 @@ namespace Outil_Azur_complet.Bot.Controls
         private bool InObjectLayer(short cellId)
         {
             Cell cell = Account?.Game?.Map?.GetCellFromId(cellId);
-            return cell != null && (int)cell.C_Types > 1 && cell.layer_object_2_num != 0;
+            if (cell == null || (int)cell.C_Types <= 1) return false;
+            // Mode tactique (lot X33) : le client lit l'objet 2 de la cellule tactique (turnTactic ne garde que 25 ou 1030).
+            BotMapArtwork.ArtworkCell[] shown = artwork != null && artwork.TacticMode ? artwork.DisplayedCells : null;
+            if (shown != null && cellId < shown.Length) return shown[cellId].Object2Id != 0;
+            return cell.layer_object_2_num != 0;
         }
 
         private IEnumerable<BotMapArtwork.DepthLayer> SelectionDepthLayers()
