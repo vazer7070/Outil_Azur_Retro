@@ -136,6 +136,9 @@ try {
     # d'échange, de coffre, de sacoches et d'atelier, six tris de l'inventaire, cases de sort voilées selon le client) : couvert par
     # BotInventoryGridSmoke, BotShopSmoke, BotExchangeSmoke, BotCraftSmoke, BotMountSmoke, BotBannerSmoke, BotFightUiSmoke et le scénario
     # x12 de BotStarLocoLiveSmoke (échange entre deux comptes et banque) ; AZUR_STARLOCO_SCENARIOS=x12 ne joue que celui-là après la connexion.
+    # Lot X13 (objets vivants : Of, Os, Ox, OCO relu, fiche et rangée de l'inventaire ; OU avec cible et cellule par la visée d'objet
+    # de la carte) : couvert par BotInventoryGridSmoke et le scénario x13 de BotStarLocoLiveSmoke (chapeau vivant de la base, pain donné
+    # à l'autre joueur) ; AZUR_STARLOCO_SCENARIOS=x13 ne joue que celui-là après la connexion.
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'

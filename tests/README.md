@@ -152,3 +152,41 @@ Lot X7 : `BotFightUiSmoke` vérifie en plus, sur le serveur fictif, les événem
 
 Lot X8 : `BotCombatSmoke` vérifie en plus la portée du client sur le serveur fictif (`effects.xml` synthétique) : sort modifiable 1–1 limité à 1 sans bonus, `GA;117` +2 → 1–3, `GA;116` -3 → 1–1 (jamais sous la portée minimale), `GA;118` d'une autre caractéristique et `GA;117` mal formés sans effet, fin au tour suivant du porteur, cellules en cercle et en croix ; `BotMapViewSmoke` les formes du pointeur (`C`, `D`, `O`, `X`, `L` et `T` selon la direction lanceur → cible, `P`, `R`, zone de 63 sautée sauf ligne, effets critiques), le contour des zones, les formes de sélection lues d'un dossier temporaire (hors du fil appelant, teinte, ancre refusée, pente inconnue) et, dans une vue dessinée en entier, la portée et le pointeur à 30 % mesurés au pixel, le chemin opaque, le cadre de 25 × 25 des curseurs, la croix d'interdiction et le cadre de 40 × 40 du glisser ; `BotFightProtocolSmoke` la zone du type d'arme sous le pointeur ; `BotFightUiSmoke` le pointeur du drapeau, la portée et la croix d'interdiction du corps à corps, le chemin survolé (aucun vers une cellule occupée) effacé par `GTF` ; `BotEntitiesSmoke` la flèche gardée pendant la visée ; `BotWorldMapSmoke` le curseur `MapNavigatorMoveCursor` dans le cadre de 40 × 40 pendant le glisser de la carte du monde, la flèche du système gardée. Le scénario x8 de `BotStarLocoLiveSmoke` rejoue la visée et le chemin sur StarLoco (`AZUR_STARLOCO_SCENARIOS=x8`).
 Lot X12 : `BotInventoryGridSmoke` vérifie en plus, sur le serveur fictif, les six tris du bouton « plus de choix » (textes `INVENTORY_*_SORT` dans l'ordre du client, date par fiche reçue, tri gardé avec un filtre et après une mise à jour, tri coché, retour à l'ordre du bot), l'absence du champ « Quantité », Détruire (un exemplaire : `DO_U_DESTROY`, Non sans paquet, Oui → `Od<id>|1` ; une pile : boîte valeur 1 et maximum la pile, Échap et zéro sans paquet, `Od<id>|<n>` sans question et borné à la pile) et Jeter (`ConfirmDropItem` vraie par défaut et case `OPTION_CONFIRM_DROPITEM`, faux → `OD<id>|1` aussitôt, vrai → question `CONFIRM_DROP_ITEM` avant tout paquet, pile par la boîte, `CANT_MOVE_ITEM` sans `OD` pendant un échange) ; `BotShopSmoke` suit le nouveau Jeter. `BotExchangeSmoke` vérifie les volets Échange et Coffre sans champs fixes : boîtes de Proposer, Retirer, Déposer et des kamas (valeur, minimum, maximum), dépôts glissés acceptés ou refusés (objet équipé, case de l'autre joueur, mauvais sens, objet déjà tout proposé), quantité bornée à la part libre, retrait du coffre borné aux pods libres et `SRV_MSG_6` sans `EMO-` sac plein, aucun `EMG` pour zéro kamas. `BotMountSmoke` fait de même pour les sacoches (place libre `Ew`, `SRV_MSG_6` sans `EMO+`), `BotCraftSmoke` pour l'atelier (boîte, glisser dans les deux sens, double-clic d'un exemplaire sans boîte, atelier plein refusé). `BotBannerSmoke` vérifie les cases de sort voilées hors combat et la teinte à 50 % au pixel, `BotFightUiSmoke` la case voilée en placement, non voilée au tour d'un autre, voilée faute de PA puis rendue, et voilée pendant le délai avec ses tours dans le coin. Tous passent sous Mono. `BotStarLocoLiveSmoke` ajoute x12 : deux comptes inventés sur la carte 164, le donneur avec cinq poissons et 1000 kamas écrits dans la base et sa fenêtre de jeu ; échange (`ER1`, `EA`, `ECK1`), poissons glissés du sac sur la grille → boîte (maximum 5) « 3 » → `EMO+<poisson>|3` → `EMKO+` et `EmKO+` chez le receveur, case glissée sur le sac → « 1 » → `EMO-<poisson>|1`, « Proposer des kamas » → boîte 0/0/1000 → `EMG10`, `EK` des deux → `EVa` (2 poissons et 10 kamas chez le receveur) ; puis `.banque` → `ECK5`, dépôt glissé « 2 » → `EsKO+`, retrait glissé → `EsKO-`, kamas déposés puis retirés par la boîte (`EsKG10`, `EsKG0`), « Fermer » → `EV` ; comptes, personnages et objets supprimés à la fin. AZUR_STARLOCO_SCENARIOS=x12 ne joue que celui-là après la connexion.
+
+Lot X13 : `BotInventoryGridSmoke` vérifie en plus, sur le serveur fictif, les objets vivants et la visée d'objet :
+
+- **Modèle** :
+  - effets 970 à 974 lus au quatrième champ (associé, libre de type 113, effets illisibles sans exception) ;
+  - paliers de niveau (1, 2 à 10 points, 20 sans bornes) ;
+  - aliments du même type seulement, avec la raison de chaque refus (autre type, effet 983, soi-même, objet libre).
+- **Paquets** :
+  - `Of<id>|<position>|<aliment>`, `Os<id>|<position>|<apparence>` (position -1 en chiffres ASCII) et `Ox<id>|<position>` ;
+  - `OU<id>|`, `OU<id>|<sprite>|<cellule>` et `OU<id>||<cellule>` ;
+  - refus locaux sans paquet ;
+  - `OCO` et `OAKO` relus après le repas et la dissociation.
+- **Volet** :
+  - section « objet vivant » de la fiche, rangée Nourrir / Apparence / Dissocier et entrées du menu (absentes pour une potion) ;
+  - boîte du repas : sélection exigée, question `CONFIRM_FOOD_LIVING_ITEM`, `ERROR_NO_FOOD_LIVING_ITEM` sans aliment ;
+  - grille des apparences : bornes, clavier ;
+  - Dissocier sans question ;
+  - rangée dégagée entre la grille et l'aide, et fiche d'au plus 150 pixels, à la taille par défaut de la fenêtre.
+- **Visée** :
+  - « Cibler avec cet objet » pour le pain seulement ;
+  - icône `Items/<type>/<gfx>` et pointeur ;
+  - clic sur une case vide (`OU<id>||<cellule>`), sur la cellule d'un acteur et sur un joueur ;
+  - Échap qui annule.
+
+Il passe sous Mono.
+
+`BotStarLocoLiveSmoke` ajoute x13 sur la carte 164, avec deux personnages inventés :
+
+- le porteur a un chapeau associé à l'objet vivant 9234, un chapeau pour aliment et un pain, écrits dans la base ;
+- la cible est à 50 % de vie ;
+- par le volet de l'inventaire :
+  - Nourrir envoie `Of` et reçoit `OR` et `OCO` (niveau 2) ;
+  - Apparence 2 envoie `Os` et reçoit `OCO` ; `Oa …~16~2` arrive chez l'autre joueur ;
+  - Dissocier envoie `Ox` et reçoit `OAKO`, `OCO` et `Oa` ;
+- « Cibler avec cet objet » sur le pain, puis un clic sur la cible dans la carte, envoie `OU<pain>|<cible>|<cellule>` ; StarLoco répond `eUK<cible>|17` aux deux, `Im01;10` et une vie d'au moins 10 points de plus pour la cible, et `OR` au porteur ;
+- comptes, personnages et objets sont supprimés à la fin.
+
+`AZUR_STARLOCO_SCENARIOS=x13` ne joue que celui-là après la connexion.
