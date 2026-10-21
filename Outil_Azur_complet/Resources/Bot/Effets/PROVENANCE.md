@@ -11,6 +11,7 @@ Ce dossier est copié à côté de l'exécutable dans `ressources/Bot/Effets` (c
 | `extra/` | `5_scene.png` (scène de `clips/extra/5.swf`, le « ! » du coup critique), `0_scene.png` (sac du marchand hors ligne, `extra/<offlineType>.swf`), `4_scene.png` (clip du dessous des PNJ, `extraClip` 4), `effets.tsv` | Coup critique GA301 (lot AN4) ; sac de marchand et clip annexe des PNJ (lot AN8) |
 | `auras/` | `1_scene.png` et `2_scene.png` (scènes de `clips/auras/<n>.swf`), `effets.tsv`, `exclusions.tsv` (3 : scène vide) | Aura du champ Aura du `GM`, hors combat, option `Aura` (lot AN8) |
 | `cercle/` | `1_scene.png` (clip `circle` de `clips/circle.swf`, copié en `1.swf` pour l'export), `effets.tsv` | Cercle d'équipe en combat, teinté rouge ou bleu (lot AN8) |
+| `pret/` | `1_scene.png` (clip `ready` de `clips/ready.swf`, copié en `1.swf` pour l'export : épées croisées, 10 images, ancrées au-dessus de la tête), `effets.tsv` | Marqueur « prêt » (`GR1<id>`) au-dessus des combattants pendant le placement, retiré au premier `GTS` (lot X7) |
 
 ## Source et commandes exactes
 
@@ -29,6 +30,10 @@ python3 tools/client-analysis/exporter_sorts.py "<client>/clips/spells" \
 SWFSVG=tools/client-analysis/swfsvg/target/release/swfsvg \
 python3 tools/client-analysis/exporter_sorts.py "<client>/clips/extra" \
     Outil_Azur_complet/Resources/Bot/Effets/extra --gfx 5
+# lot X7 : clips/ready.swf copié en <tmp>/ready-src/1.swf (exporter_sorts.py nomme les SWF par gfx)
+SWFSVG=tools/client-analysis/swfsvg/target/release/swfsvg \
+python3 tools/client-analysis/exporter_sorts.py "<tmp>/ready-src" \
+    Outil_Azur_complet/Resources/Bot/Effets/pret --gfx 1
 ```
 
 Mesuré le 8 octobre 2026 (conteneur 4 cœurs) : environ 1 min 10 s pour les 212 SWF de la liste ;

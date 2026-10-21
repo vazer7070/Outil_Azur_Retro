@@ -43,7 +43,7 @@ internal static class BotChatUiSmoke
         {
             Application.EnableVisualStyles(); Run();
             Check(uiErrors.Count == 0, "Interface errors: " + string.Join(" / ", uiErrors.Select(e => e.GetType().Name + " " + e.Message)));
-            Console.WriteLine("OK: volet de discussion (couleurs, filtres cC±, /g, Maj/Ctrl + Entrée, historique, 200 caractères, menu des canaux, menu du joueur, boussole, BS, eU, agrandissement)");
+            Console.WriteLine("OK: volet de discussion (couleurs, filtres cC±, /g, Maj/Ctrl + Entrée, historique, 200 caractères, menu des canaux, menu du joueur, boussole, BS, eU, agrandissement, journal de combat selon ChatEffects)");
         }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
@@ -363,6 +363,26 @@ internal static class BotChatUiSmoke
                         // Images : lues hors du thread de l'interface, depuis le dossier temporaire.
                         Check(reads.Any(r => r.Key == "Client/UI_BannerChatCommandAll") && reads.Any(r => r.Key == "Smileys/3"), "Synthetic client images were not read");
                         Check(reads.All(r => r.Value != uiThread), "A PNG was decoded on the UI thread: " + string.Join(",", reads.Where(r => r.Value == uiThread).Select(r => r.Key)));
+                        // Lot X7 : journal de combat dans le canal des informations (INFO_FIGHT_CHAT du client, couleur 009900), seulement
+                        // avec l'option ChatEffects ; le combat est quitté par GV avant la suite.
+                        Feed(account, "GJK2|1|1|0|30000|0"); Feed(account, "GM|+0;1;0;42;Testeuse;1;100^100;0|+5;1;0;77;Amicale;1;10^100;0");
+                        PumpUntil(() => account.Game.Fight.IsInFight, "placement for the fight journal");
+                        Feed(account, "GA;150;77;77,2");
+                        PumpUntil(() => Line(chat, "Amicale devient invisible.") != null, "GA;150 journal line in the chat");
+                        ChatLine journal = Line(chat, "Amicale devient invisible.");
+                        Check(journal.Filter == ChatFilter.Infos && journal.Color == Rgb(0x009900) && journal.Message == null, "Fight journal line is not an information line in green");
+                        Check(chat.FightInfos && form.Options.ChatEffects, "ChatEffects option is off by default");
+                        form.Options.ChatEffects = false; Pump(100);
+                        Check(!chat.FightInfos, "ChatEffects off did not reach the chat panel");
+                        Feed(account, "GA;150;77;77,0"); Pump(100);
+                        Check(Line(chat, "Amicale redevient visible.") == null, "Fight journal shown while ChatEffects is off");
+                        form.Options.ChatEffects = true; Pump(100);
+                        Check(chat.FightInfos, "ChatEffects on did not reach the chat panel");
+                        Feed(account, "GA;150;77;77,1");
+                        PumpUntil(() => chat.View.DisplayedLines.Count(line => line.Text == "Amicale devient invisible.") == 2, "journal line after ChatEffects on");
+                        Feed(account, "GV"); Expect(peer, "GC1", "GV is not answered by GC1");
+                        PumpUntil(() => !account.Game.Fight.IsInFight, "fight left by GV");
+
                         // Volet détaché de la session : les paquets suivants ne le touchent plus.
                         using (var detached = new ChatPanel(account, null))
                         {

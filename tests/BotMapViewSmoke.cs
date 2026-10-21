@@ -23,11 +23,27 @@ internal static class BotMapViewSmoke
             if (!File.Exists(file)) file = Path.ChangeExtension(file, "exe");
             return File.Exists(file) ? Assembly.LoadFrom(file) : null;
         };
-        try { Run(); Console.WriteLine("OK: client map PNG layers, asset diagnostics, zoom/pan/resize hit testing and click isolation"); }
+        try { Run(); Console.WriteLine("OK: client map PNG layers, asset diagnostics, GDC redrawn then restored (lot X7), zoom/pan/resize hit testing and click isolation"); }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
 
     private static void Check(bool ok, string message) { if (!ok) throw new Exception(message); }
+    private static void WaitFor(Func<bool> done, string what)
+    {
+        DateTime end = DateTime.UtcNow.AddSeconds(10);
+        while (!done()) { if (DateTime.UtcNow > end) throw new TimeoutException("Map view timed out: " + what); Application.DoEvents(); System.Threading.Thread.Sleep(10); }
+    }
+    /// <summary>Pixel au-dessus du point d'ancrage d'une cellule, sol et objets dessinés dans le repère de la carte.</summary>
+    private static Color Pixel(BotMapArtwork scenery, int cellId)
+    {
+        using (var bitmap = new Bitmap(200, 160))
+        using (Graphics graphics = Graphics.FromImage(bitmap))
+        {
+            scenery.DrawGround(graphics); scenery.DrawObjects(graphics, null);
+            PointF center = scenery.Cells[cellId].Center;
+            return bitmap.GetPixel((int)center.X, (int)center.Y - 10);
+        }
+    }
     private static string EncodedCell(int ground, int object1, int object2, bool flip, int rotation)
     {
         int[] value = new int[10];
@@ -95,6 +111,34 @@ internal static class BotMapViewSmoke
                     Check(bitmap.GetPixel((int)center.X, (int)center.Y - 10).G == Color.ForestGreen.G,
                         "Object layer did not align its visible anchor to its cell");
                 }
+
+                // Lot X7 : GDC rejoué sur le décor. Masque 4 (object2Num) : l'objet 2 de la cellule 7 passe de 13 (SteelBlue) à 12
+                // (ForestGreen) sans toucher au sol ; GDC7 seul remet l'image d'origine. Le masque 0x3005 du piège de StarLoco
+                // (Haaaaaaaaz) ne touche que l'activité, la ligne de vue et l'objet 2 (25).
+                string trap = Map.MergeCellData(data.Substring(70, 10), "Haaaaaaaaz", 0x3005);
+                Check(map.DecompressCell(trap, 7).layer_object_2_num == 25 && map.DecompressCell(trap, 7).IsActive && map.DecompressCell(trap, 7).LineofSight
+                    && trap.Substring(1, 6) == data.Substring(71, 6), "Trap GDC mask 0x3005 changed other fields than active, line of sight and object 2: " + trap);
+                Check(Map.MergeCellData(data.Substring(70, 10), "Haaaaaaaaz", 0) == data.Substring(70, 10), "Empty GDC mask replaced a field");
+                bool refused = false;
+                try { Map.MergeCellData("abc", "Haaaaaaaaz", 1); } catch (ArgumentException) { refused = true; }
+                Check(refused, "Malformed cell data was merged");
+                var changed = new System.Collections.Concurrent.ConcurrentQueue<int>();
+                scenery.CellChanged += id => changed.Enqueue(id);
+                Check(!scenery.UpdateCell(7, map.CellDataOf(7)) && !scenery.UpdateCell(99, map.CellDataOf(7)) && !scenery.UpdateCell(7, "trop court"),
+                    "Unchanged, out-of-map or malformed cell data was accepted as a visual change");
+                Check(map.ApplyCellUpdate(GmParser.ParseCellUpdates("7;" + EncodedCell(11, 0, 12, false, 0) + "4;0")[0]), "GDC7 with the object2 mask was refused");
+                string updated = map.CellDataOf(7);
+                Check(updated != data.Substring(70, 10) && map.DecompressCell(updated, 7).layer_object_2_num == 12 && map.CellDataOf(5) == data.Substring(50, 10),
+                    "GDC mask 4 did not replace the object 2 of cell 7 only");
+                Check(scenery.UpdateCell(7, updated), "Artwork refused the GDC cell update");
+                WaitFor(() => changed.Contains(7), "artwork cell 7 redrawn after GDC");
+                Check(scenery.Cells[7].Object2Id == 12 && scenery.Cells[7].GroundId == 11 && scenery.MissingAssetCount == 0, "GDC cell kept its former object or lost its ground");
+                Check(Pixel(scenery, 7).G == Color.ForestGreen.G && Pixel(scenery, 7).B == Color.ForestGreen.B, "Updated object 2 is not drawn on its cell: " + Pixel(scenery, 7));
+                Check(map.ApplyCellUpdate(GmParser.ParseCellUpdates("7")[0]) && map.CellDataOf(7) == data.Substring(70, 10), "GDC7 alone did not restore the cell data");
+                while (changed.TryDequeue(out int ignored)) { }
+                Check(scenery.UpdateCell(7, map.CellDataOf(7)), "Artwork refused the restored cell");
+                WaitFor(() => changed.Contains(7), "artwork cell 7 restored");
+                Check(scenery.Cells[7].Object2Id == 13 && Pixel(scenery, 7).B == Color.SteelBlue.B && Pixel(scenery, 7).R == Color.SteelBlue.R, "Restored object 2 is not drawn again: " + Pixel(scenery, 7));
             }
             map.MapData = EncodedCell(1900, 0, 0, false, 0) + data.Substring(10);
             using (var missing = new BotMapArtwork(map, directory))
