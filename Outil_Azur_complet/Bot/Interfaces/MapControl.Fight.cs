@@ -27,7 +27,11 @@ namespace Outil_Azur_complet.Bot.Interfaces
         /// <summary>Drapeau actuellement dessiné sur la carte, ou <c>null</c>.</summary>
         public FightFlag DisplayedFlag => shownFlag;
 
-        /// <summary>Mode « signaler une cellule » : le prochain clic gauche envoie <c>Gf&lt;cellule&gt;</c> (<c>Game.setFlag</c>).</summary>
+        /// <summary>
+        /// Mode « signaler une cellule » : le prochain clic gauche envoie <c>Gf&lt;cellule&gt;</c> (<c>Game.setFlag</c>). Comme
+        /// <c>switchToFlagSet</c> du client (lot X8) : la visée d'un sort est abandonnée, le curseur redevient la flèche et la
+        /// cellule survolée reçoit le pointeur <c>C0</c> en <c>CELL_SPELL_EFFECT_COLOR</c>.
+        /// </summary>
         public bool FlagMode
         {
             get => flagMode;
@@ -36,7 +40,10 @@ namespace Outil_Azur_complet.Bot.Interfaces
                 if (flagMode == value) return;
                 HookFlag();
                 flagMode = value;
-                UserMap.Cursor = value ? Cursors.Cross : Cursors.Default;
+                UserMap.Cursor = Cursors.Default;
+                if (value && SelectedSpellId.HasValue) SelectSpell(null);
+                if (value) { previewPending = null; UserMap.SetPathPreview(null); }
+                UpdatePointerShapes(null);
                 ActionFeedback?.Invoke(value ? "Cliquez sur la cellule à signaler à votre équipe · Échap : annuler" : "Signalement annulé.");
             }
         }
@@ -118,16 +125,16 @@ namespace Outil_Azur_complet.Bot.Interfaces
         private void DisarmFlagOutOfFight()
         {
             if (!flagMode || Account?.Game?.Fight?.IsInFight == true) return;
-            flagMode = false; UserMap.Cursor = Cursors.Default;
+            flagMode = false; UserMap.Cursor = Cursors.Default; UpdatePointerShapes(null);
         }
 
         private async Task FlagClickAsync(object sender, MapClickEventArgs e)
         {
             if (!flagMode || e == null || e.Handled) return;
             // Combat terminé avant le choix de la cellule : le clic continue vers le déplacement ou l'acteur.
-            if (Account?.Game?.Fight?.IsInFight != true) { flagMode = false; UserMap.Cursor = Cursors.Default; return; }
+            if (Account?.Game?.Fight?.IsInFight != true) { flagMode = false; UserMap.Cursor = Cursors.Default; UpdatePointerShapes(null); return; }
             e.Handled = true;
-            flagMode = false; UserMap.Cursor = Cursors.Default; // sortie silencieuse : le message qui suit vient de l'envoi
+            flagMode = false; UserMap.Cursor = Cursors.Default; UpdatePointerShapes(null); // sortie silencieuse : le message qui suit vient de l'envoi
             var fight = Account.Game?.Fight;
             if (fight == null) return;
             try

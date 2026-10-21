@@ -100,6 +100,14 @@ internal static class BotFightUiSmoke
         typeof(UserMapControl).GetMethod("OnMouseUp", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(map, new object[] { e });
         Application.DoEvents();
     }
+    /// <summary>La souris passe au centre d'une cellule (lot X8 : pointeur, chemin de combat, croix d'interdiction).</summary>
+    private static void Hover(UserMapControl map, short id)
+    {
+        var point = map.Cells[id].Centre;
+        typeof(UserMapControl).GetMethod("OnMouseMove", BindingFlags.NonPublic | BindingFlags.Instance)
+            .Invoke(map, new object[] { new MouseEventArgs(MouseButtons.None, 0, point.X, point.Y, 0) });
+        Application.DoEvents();
+    }
     private static string Cell(this ListViewItem item, int column) => item.SubItems[column].Text;
     /// <summary>Pixel du centre d'une cellule après un dessin complet de la vue hors écran (lot X7 : zones GDZ).</summary>
     private static Color PixelOfCell(UserMapControl map, int cellId)
@@ -210,8 +218,12 @@ internal static class BotFightUiSmoke
                         Feed(account, "Gf43"); Feed(account, "Gfx|y"); Application.DoEvents();
                         Check(form.Map.DisplayedFlag.CellId == 7, "Malformed Gf replaced the flag");
                         options.FlagButton.PerformClick(); Check(form.Map.FlagMode, "Flag button did not arm the flag mode");
+                        // Lot X8 : switchToFlagSet du client, la flèche reste et la cellule survolée reçoit le pointeur « C0 » ; pas de chemin.
+                        Hover(map, 5);
+                        Check(map.Cursor == Cursors.Default && !map.IsAiming && map.PointerCells.Count == 1 && map.PointerCells[0].Count == 1
+                            && map.PointerCells[0].Contains((short)5) && map.PathPreview.Count == 0, "Flag mode pointer is not the hovered cell alone");
                         ClickCell(map, 5); Expect(peer, "Gf5", "Click in flag mode does not send Gf<cell>");
-                        Check(!form.Map.FlagMode && fight.IsPlacement, "Flag mode stays armed after the click");
+                        Check(!form.Map.FlagMode && fight.IsPlacement && map.PointerCells.Count == 0, "Flag mode stays armed (or keeps its pointer) after the click");
                         options.FlagButton.PerformClick(); Check(form.Map.FlagMode, "Flag mode not re-armed");
                         Check(form.ProcessShortcut(Keys.Escape) && !form.Map.FlagMode, "Escape does not cancel the flag mode");
                         NoPacket(peer, "Escape in flag mode sent a packet");
@@ -332,6 +344,15 @@ internal static class BotFightUiSmoke
                         var targets = (HashSet<short>)Get(map, "spellTargets");
                         Check(targets != null && targets.Contains(near.CellID) && !targets.Contains(far.CellID) && !targets.Contains(origin.CellID),
                             "Close combat targets are not the adjacent cells");
+                        // Lot X8 : portée du poing (1–1) en zone #246696, poing DefaultCC sur le curseur, pointeur « P » sur une cible valable,
+                        // croix d'interdiction ailleurs ; ni chemin ni pointeur pendant la visée hors cible.
+                        Check(map.IsAiming && map.AimIcon == "Client/DefaultCC" && map.SpellRange.Count > 0
+                            && map.SpellRange.All(id => origin.GetDistanceBetweenCells(account.Game.Map.MapCells[id]) == 1), "Close combat range zone is not the adjacent ring");
+                        Hover(map, near.CellID);
+                        Check(!map.CursorForbidden && map.PointerCells.Count == 1 && map.PointerCells[0].Count == 1 && map.PointerCells[0].Contains(near.CellID),
+                            "Pointer of the fists is not the hovered target cell");
+                        Hover(map, far.CellID);
+                        Check(map.CursorForbidden && map.PointerCells.Count == 0 && map.PathPreview.Count == 0, "Invalid target shows a pointer, a path or no forbidden cross");
                         bar.RefreshContent();
                         Check(Flag(slot, "SelectedSpell") && ((Label)Get(form, "summary")).Text.Contains("Corps à corps"), "Selected ² slot or status text missing");
                         ClickCell(map, far.CellID); NoPacket(peer, "Close combat on a cell at distance 2 was sent");
@@ -356,6 +377,23 @@ internal static class BotFightUiSmoke
                         Check(form.ProcessShortcut(Keys.Oem7) && form.Map.SelectedSpellId == Fights.CloseCombatSpellId, "SH0 does not select the close combat");
                         Check(form.ProcessShortcut(Keys.Escape) && form.Map.SelectedSpellId == null, "Escape does not cancel the close combat aim");
                         NoPacket(peer, "Escape in close combat mode sent a packet");
+                        // Lot X8 : pendant son tour, le survol montre le chemin de combat du client (calculatePath : au plus PM cases, quatre
+                        // directions, combattants évités) en formes de sélection opaques #FF6600 ; rien vers une cellule occupée.
+                        Cell walk = account.Game.Map.MapCells.FirstOrDefault(c => c != null && c.IsWalkable() && origin.GetDistanceBetweenCells(c) == 2
+                            && !fight.Fighters.Values.Any(f => !f.IsDead && f.CellId == c.CellID) && fight.PreviewMovePath(c.CellID) != null);
+                        Check(walk != null, "No free cell at distance 2 reachable in combat");
+                        var expectedPath = new HashSet<short>(fight.PreviewMovePath(walk.CellID).Skip(1).Select(c => c.CellID));
+                        Check(expectedPath.Count == 2 && expectedPath.Contains(walk.CellID), "Combat path preview is not two steps long");
+                        // Comme le client, le chemin se calcule au survol d'une nouvelle cellule : passer d'abord sur la cellule du personnage.
+                        Hover(map, origin.CellID); PumpUntil(() => map.PathPreview.Count == 0, "no combat path on the own cell");
+                        Hover(map, walk.CellID);
+                        PumpUntil(() => map.PathPreviewUsesSelection && new HashSet<short>(map.PathPreview).SetEquals(expectedPath), "combat path preview on hover");
+                        Color path = PixelOfCell(map, walk.CellID);
+                        Check(path.R > 225 && path.G > 80 && path.G < 125 && path.B < 45, "Combat path cell is not the opaque CELL_PATH_OVER_COLOR: " + path);
+                        Hover(map, near.CellID); PumpUntil(() => map.PathPreview.Count == 0, "no combat path towards an occupied cell");
+                        Hover(map, walk.CellID); PumpUntil(() => map.PathPreview.Count == 2, "combat path back on a free cell");
+                        Feed(account, "GTF42"); PumpUntil(() => map.PathPreview.Count == 0, "combat path kept after the end of the turn");
+                        Feed(account, "GTS42|30000"); PumpUntil(() => fight.IsMyTurn, "own turn again");
                         Feed(account, "GA;103;42;-7"); PumpUntil(() => timeline.Entries.Count == 2, "dead fighter removed");
                         Feed(account, "GTL|x"); Feed(account, "GTL|42|zz"); Application.DoEvents();
                         Check(timeline.Entries.Count == 2 && timeline.Visible, "Malformed GTL changed the timeline");

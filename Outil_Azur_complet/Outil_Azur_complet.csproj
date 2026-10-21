@@ -243,6 +243,8 @@
     <Compile Include="Bot\Controls\ActorAnimationQueue.cs" />
     <Compile Include="Bot\Controls\FightVisualSequencer.cs" />
     <Compile Include="Bot\Controls\FightZoneLayer.cs" />
+    <Compile Include="Bot\Controls\CellZoneLayer.cs" />
+    <Compile Include="Bot\Controls\SelectionShapes.cs" />
     <Compile Include="Bot\Controls\MapEffects.cs" />
     <Compile Include="Bot\Controls\ActorExtraClips.cs" />
     <Compile Include="Bot\Controls\SpellEffects.cs" />
@@ -264,6 +266,9 @@
     <Compile Include="Bot\Controls\CharacterSelectionScene.cs" />
     <Compile Include="Bot\Controls\DirectionChooser.cs" />
     <Compile Include="Bot\Controls\UserMapControl.Actors.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Bot\Controls\UserMapControl.Aim.cs">
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="Bot\Controls\UserMapControl.cs">

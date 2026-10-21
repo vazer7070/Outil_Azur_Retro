@@ -61,13 +61,19 @@ namespace Outil_Azur_complet.Bot.Controls
         private bool showGrid;
         private HashSet<short> spellTargets;
         public Func<short, string> SpellTargetReason { get; set; }
+        /// <summary>
+        /// Cibles valides du sort armé (null : visée terminée). Comme le client, la flèche reste et le curseur du sort est posé
+        /// à côté (lot X8, <c>UserMapControl.Aim.cs</c>), avec la croix d'interdiction hors de ces cellules.
+        /// </summary>
         public void SetSpellTargets(IEnumerable<short> validCells)
         {
             spellTargets = validCells == null ? null : new HashSet<short>(validCells);
             Cursor = BaseCursor;
+            UpdatePointer();
+            InvalidateCursor();
             Invalidate();
         }
-        private Cursor BaseCursor => spellTargets == null ? Cursors.Default : Cursors.Cross;
+        private Cursor BaseCursor => Cursors.Default;
         public event Action DisplayStateChanged;
         public int ZoomPercent => (int)Math.Round(zoom * 100);
         public int MissingAssetCount => (artwork?.MissingAssetCount ?? 0) + missingSprites.Count;
@@ -171,6 +177,7 @@ namespace Outil_Azur_complet.Bot.Controls
                 ClearVisuals();
                 hoverTip.Dispose();
                 artwork?.Dispose();
+                DisposeAimLayers();
                 // Après le dernier Paint, sur le fil de l'interface : les images ne sont plus dessinées.
                 sprites.SheetsLoaded -= AssetsArrived;
                 sprites.Dispose();
@@ -225,7 +232,8 @@ namespace Outil_Azur_complet.Bot.Controls
             frameStates = null;
             sprites.ReleaseAll();
             missingSprites.Clear(); bubbles.Clear(); staleEntryEmotes.Clear();
-            hoveredKey = null; pathPreview = null;
+            hoveredKey = null; pathPreview = null; pathSelection = false; pointerSets = null;
+            DisposeAimLayers();
             renderedMapId = map?.MapID ?? -1; renderedMapData = map?.MapData;
             renderedWidth = map?.MapWidth ?? 0; renderedHeight = map?.MapHeight ?? 0; renderedBackground = map?.Back_ID ?? 0;
             artworkError = null;
@@ -552,21 +560,22 @@ namespace Outil_Azur_complet.Bot.Controls
                 if (redStarts != null && (redStarts.Contains(cell.id) || blueStarts.Contains(cell.id)))
                     using (var start = new SolidBrush(redStarts.Contains(cell.id) ? Color.FromArgb(110, 255, 0, 0) : Color.FromArgb(110, 0, 0, 255)))
                         G.FillPolygon(start, worldPolygons[cell.id]);
-                if (spellTargets?.Contains(cell.id) == true)
-                    using (var target = new SolidBrush(Color.FromArgb(65, 70, 146, 207))) G.FillPolygon(target, worldPolygons[cell.id]);
             }
             // Zones GDZ (lot X7) : au-dessus des cellules, sous les effets et les acteurs, comme le calque des zones du client.
             if (fight != null && fight.IsInFight) FightZoneLayer.Draw(G, fight.Zones, map.MapCells, worldPolygons, 1 / Math.Max(.01f, viewScale));
+            // Portée du sort armé (lot X8) : même calque Zone du client, puis sélection (chemin) et pointeur au-dessus.
+            DrawSpellRange(G);
             // Couche Ground des effets (lot AN1) : après les cellules, sous tout le reste.
             effects.Draw(G, effectView, EffectLayer.Ground);
             DrawPathPreview(G);
+            DrawPointer(G);
             ActorVisualState[] actors = GetActorVisualStates();
             frameStates = actors;
             // Profondeur du client : objets à cellule × 100, sprites à cellule × 100 + 30 (dessinés après l'objet de leur cellule) ;
             // effets de la couche Depth intercalés (Order 2 derrière l'acteur de la cellule, 4 devant).
             IEnumerable<BotMapArtwork.DepthLayer> layers = actors.Where(actor => actor.IsVisible).Select(actor =>
                 new BotMapArtwork.DepthLayer { Depth = actor.Depth, Order = 3, Draw = graphics => DrawActor(graphics, actor) })
-                .Concat(effects.DepthLayers(effectView));
+                .Concat(effects.DepthLayers(effectView)).Concat(SelectionDepthLayers());
             if (artwork != null) artwork.DrawDepthScene(G, layers);
             else foreach (BotMapArtwork.DepthLayer layer in layers.OrderBy(layer => layer.Depth).ThenBy(layer => layer.Order)) layer.Draw?.Invoke(G);
             G.Restore(saved);
@@ -581,6 +590,7 @@ namespace Outil_Azur_complet.Bot.Controls
             // Couche Screen (chiffres, bulles d'échec critique) : repère de l'écran, après les surtêtes.
             effects.Draw(G, effectView, EffectLayer.Screen);
             DrawMapLegend(G);
+            DrawCursorOverlay(G);
         }
 
         private void DrawWaiting(Graphics graphics, string error)
@@ -702,9 +712,8 @@ namespace Outil_Azur_complet.Bot.Controls
 
         protected override void OnPaint(PaintEventArgs e)
         {
+            // Lot X8 : plus de bordure de survol ; le client montre le pointeur, le chemin et la croix d'interdiction.
             DrawCells(e.Graphics);
-            if (CellH?.Points != null) CellH.Border(e.Graphics, spellTargets == null ? Brushes.RoyalBlue
-                : spellTargets.Contains(CellH.id) ? Brushes.ForestGreen : Brushes.IndianRed);
             base.OnPaint(e);
         }
 
@@ -720,6 +729,7 @@ namespace Outil_Azur_complet.Bot.Controls
             {
                 pan = new PointF(dragPan.X + e.X - dragStart.X, dragPan.Y + e.Y - dragStart.Y);
                 if (Math.Abs(e.X - dragStart.X) + Math.Abs(e.Y - dragStart.Y) > 3) movedDuringClick = true;
+                cursorPoint = e.Location;
                 UpdateViewport(); Invalidate(); base.OnMouseMove(e); return;
             }
             if (MouseIn && Math.Abs(e.X - dragStart.X) + Math.Abs(e.Y - dragStart.Y) > 3) movedDuringClick = true;
@@ -731,9 +741,10 @@ namespace Outil_Azur_complet.Bot.Controls
             if (hover != CellH)
             {
                 CellH = hover;
-                Invalidate();
+                UpdatePointer();
                 CellHovered?.Invoke(hover);
             }
+            MoveCursorOverlay(e.Location);
             UpdateCellTip(actor == null ? hover : null);
             base.OnMouseMove(e);
         }
@@ -772,7 +783,8 @@ namespace Outil_Azur_complet.Bot.Controls
             CellH = null;
             UpdateHover(null);
             UpdateCellTip(null);
-            if (!panning) Cursor = BaseCursor;
+            if (!panning) { Cursor = BaseCursor; MoveCursorOverlay(null); }
+            UpdatePointer();
             SetPathPreview(null);
             CellHovered?.Invoke(null);
             Invalidate();
@@ -784,7 +796,8 @@ namespace Outil_Azur_complet.Bot.Controls
             Focus();
             dragStart = e.Location; dragPan = pan; movedDuringClick = false;
             panning = e.Button == MouseButtons.Middle || (e.Button == MouseButtons.Left && (ModifierKeys & Keys.Control) != 0);
-            if (panning) { Capture = true; Cursor = Cursors.SizeAll; UpdateCellTip(null); }
+            // Glisser de la vue (ajout du bot) : flèche du système et quatre flèches du navigateur de la carte du monde (lot X8).
+            if (panning) { Capture = true; Cursor = BaseCursor; UpdateCellTip(null); MoveCursorOverlay(e.Location); }
             CellBottom = GetCell(e.Location);
             MouseIn = true;
             base.OnMouseDown(e);
@@ -808,6 +821,7 @@ namespace Outil_Azur_complet.Bot.Controls
             }
             if (panning) { Capture = false; Cursor = BaseCursor; DisplayStateChanged?.Invoke(); }
             panning = false;
+            MoveCursorOverlay(ClientRectangle.Contains(e.Location) ? e.Location : (Point?)null);
             MouseIn = false;
             CellBottom = null;
             base.OnMouseUp(e);

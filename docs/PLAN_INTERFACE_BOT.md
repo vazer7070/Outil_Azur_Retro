@@ -158,6 +158,8 @@ Après la relecture, le bot a été joué sur une copie locale du StarLoco du ki
 
 **X12 — Inventaire : boîte de quantité, glisser-déposer, tris.** Boîte de quantité du client (`PopupQuantity`) pour jeter, détruire, déplacer entre le sac et un coffre ou des sacoches, proposer et les kamas, à la place des champs fixes ; option `ConfirmDropItem` (`CONFIRM_DROP_ITEM`) ; objets glissés du sac vers les volets Échange, Coffre, Sacoches et Atelier et de leurs cases vers le sac (`EMO+` / `EMO-` avec la quantité choisie, retrait borné aux pods libres, `SRV_MSG_6`) ; six tris du bouton « plus de choix » ; cases de sort voilées selon la règle du client (V-26 réfuté : `NOT_IN_FIGHT` hors combat, délai, lancers et PA en combat). Tests : `BotInventoryGridSmoke`, `BotShopSmoke`, `BotExchangeSmoke`, `BotCraftSmoke`, `BotMountSmoke`, `BotBannerSmoke`, `BotFightUiSmoke` ; scénario x12 de `BotStarLocoLiveSmoke`.
 
+**X8 — Combat : visée et chemin.** Portée du client (`checkRange` : max(min, max + bonus) pour un sort modifiable, bonus = PO de `As` et effets `GA` de caractéristique 19, `117` et `116`, retirés au tour suivant de leur porteur) dessinée en `CELL_SPELL_RANGE_COLOR` (#246696, 30 %, cercle ou croix) ; sur une cible valable, une forme par zone d'effet sous le pointeur (`P`, `C`, `D`, `X`, `L`, `T`, `O`, zone du type d'arme au corps à corps) en `CELL_SPELL_EFFECT_COLOR` à 30 % ; flèche du système gardée et image du client à côté (icône du sort, de l'arme ou `DefaultCC`, croix `Forbidden` hors des cibles, flèches `MapNavigatorMoveCursor` pendant le glisser) ; pendant son tour, chemin de combat du client survolé (quatre directions, au plus PM cases) dessiné avec les formes de sélection `cellules/s<pente>.png` teintes en #FF6600 et envoyé tel quel par le clic (`GA001`). Écart avec StarLoco (portée min + 1) décrit dans le guide. Tests : `BotCombatSmoke`, `BotMapViewSmoke`, `BotFightUiSmoke`, `BotFightProtocolSmoke`, `BotEntitiesSmoke`, `BotWorldMapSmoke`, scénario x8 de `BotStarLocoLiveSmoke`.
+
 ## Couverture des fonctions
 
 Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par le test cité contre un serveur fictif local), **partiel** (une partie seulement), **absent**. Les fonctions rejouées par `BotStarLocoLiveSmoke` sont aussi vérifiées sur un vrai StarLoco local ; les autres lignes ne le sont pas encore. La colonne « Client 1.34 » nomme la fenêtre ou les paquets du client ; la colonne « StarLoco » dit ce que le serveur du kit en fait.
@@ -315,6 +317,8 @@ Lot X7 : l'option « aide » vue au-dessus de l'épée par un joueur resté sur 
 
 Lot X12 : l'échange entre deux comptes par glisser-déposer et la boîte de quantité (`EMO+`, `EMO-`, `EMG`, `EK` des deux) et la banque (`.banque` → `ECK5`, dépôt et retrait glissés, kamas déposés puis retirés) sont rejoués (scénario x12). Le coffre d'une maison ouvre la même fenêtre mais n'est pas rejoué (aucun personnage de test n'a de maison) ; la mise en vente glissée à l'hôtel de vente n'existe pas chez le client (`BigStoreSell`) et n'est pas jouée.
 
+Lot X8 : la portée en cercle et en croix de deux sorts d'un Iop inventé, la croix `Xd` posée deux fois sur une cible alignée, la croix d'interdiction et le clic sans envoi hors des cibles, la ligne `Le` et le lancer `GA300<sort>;<cellule>` accepté, le chemin de combat survolé puis envoyé (`GA001`, renvoyé par StarLoco avec la cellule de départ) et l'absence de chemin pendant le tour de l'adversaire sont rejoués (scénario x8). Restent un bonus de PO reçu de StarLoco (`GA;117` d'un sort ou d'un objet), la ligne de vue (lot X33) et la comparaison des captures avec le client en jeu.
+
 ### Carte et acteurs
 
 - Images des sols en pente : `swfsvg` sait rendre une image choisie, mais le décor versionné a été exporté sans les pentes.
@@ -330,14 +334,14 @@ Lot X12 : l'échange entre deux comptes par glisser-déposer et la boîte de qua
 ### Combat
 
 - Défis (`Gd…`), mode tactique, fond des invocations dans la ligne de temps.
-- Corps à corps (lot X1) : ligne de vue et zone de l’arme laissées au serveur (cellules surlignées = cellules à portée), effets de l’arme absents de l’infobulle, arme non changeable pendant un combat (l’inventaire du bot le refuse, StarLoco l’accepterait).
+- Corps à corps (lot X1) : ligne de vue et zone de l’arme laissées au serveur (cellules surlignées = cellules à portée), effets de l’arme absents de l’infobulle, arme non changeable pendant un combat (l’inventaire du bot le refuse, StarLoco l’accepterait). Depuis le lot X8, la zone du type d’arme est dessinée sous le pointeur.
 - Bouton d’exclusion d’un coéquipier dans le menu de placement (`GQ<id>` existe dans l’API).
 - Nombre de tours du résultat compté par le bot (StarLoco n’envoie pas le troisième champ de `GTS`).
 - Caractéristiques temporaires et changement d’apparence non appliqués ; noms des états et des effets.
-- Aperçu du chemin pendant un combat.
 - Effets de sorts (lot AN4) : aucun repli pour les 10 gfx de type 10 ou 11 sans scène (dessinés par script ou vides) ; scripts des SWF non exécutés (hasard, niveau du sort) ; `anim8` des ballons et feux d’artifice non exporté, couleur à 200 % de `GA208` non reproduite ; clip du coup critique limité à `staticF` d’après le code du client, non observé ; rien n’a été comparé au client en jeu.
 - Projectiles des sorts (lot AN5) : types 50 et 51 approchés par la scène, ou `shoot`, à la cellule visée (le clip du client se dessine par script) ; rien à dessiner pour 41 des 61 gfx de type 51, pour le gfx de type 50 et pour 103 et 3001 (scripts) ; `duplicate` de 1210 joué en entier au lieu de retirer le clip ; aucune capture prise pendant un vol sur le vrai StarLoco, rien n’a été comparé au client en jeu.
 - Événements visibles (lot X7) : journal du chat écrit avec les textes du bot plutôt que ceux de langue du client (`INVISIBILITY`, `ENTER_STATE` / `EXIT_STATE` et le nom de l'état), « Combattant #<id> » quand un état arrive avant le `GM` ; zones tracées cellule par cellule au lieu du losange vectoriel de `Zone.drawCircle`.
+- Visée et chemin (lot X8) : ligne de vue non dessinée (lot X33) ; icône d'un objet tenu à la souris (lot X12) ; un chemin coupé avant la cellule survolée n'est ni dessiné ni envoyé ; forme `R` réduite à la cellule ; losange opaque sans formes de sélection exportées.
 
 ### Bandeau, options et fiches
 

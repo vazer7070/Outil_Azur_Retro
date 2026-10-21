@@ -213,6 +213,43 @@ namespace Tool_BotProtocol.Game.Combats
             lock (sync) return SpellUnavailable(spellId, targetCell);
         }
         private bool IsCloseCombat(short spellId) => spellId == CloseCombatSpellId && account.Game?.character?.Spells?.ContainsKey(spellId) != true;
+
+        /// <summary>
+        /// Bonus de portée du personnage, comme le client (<c>getModeratorValue(19) + Player.RangeModerator</c>) : portée de la
+        /// fiche <c>As</c> sans les boosts (base, équipement, dons) plus les effets de caractéristique <c>GA</c> portés par le
+        /// personnage dont l'effet de <c>effects.xml</c> vise la caractéristique 19, signés par son opérateur (117 « + », 116 « - »).
+        /// </summary>
+        public int RangeBonus { get { lock (sync) return RangeBonusLocked(); } }
+        /// <summary>Caractéristique « portée » des effets (<c>c</c> de <c>effects.xml</c>, <c>CharacteristicsManager</c> du client).</summary>
+        public const int RangeCharacteristic = 19;
+        private int RangeBonusLocked()
+        {
+            int bonus = account.Game?.character?.stats?.Atteignable?.Displayed ?? 0;
+            int self = account.Game?.character?.id ?? 0;
+            foreach (FightEffect effect in effects)
+            {
+                if (effect.Source != FightEffectSource.GameAction || effect.TargetId != self || !effect.Param1.HasValue) continue;
+                if (Data.LangData.Effect.Characteristic(effect.EffectId) != RangeCharacteristic) continue;
+                bonus += Data.LangData.Effect.Operator(effect.EffectId) == "-" ? -effect.Param1.Value : effect.Param1.Value;
+            }
+            return bonus;
+        }
+
+        /// <summary>
+        /// Visée du sort (ou du corps à corps, sort 0) : portée effective, cellules de portée et zones d'effet à dessiner ; null si
+        /// le sort n'est pas appris ou si ses données manquent (le serveur décide alors seul).
+        /// </summary>
+        public SpellAim GetSpellAim(short spellId)
+        {
+            if (IsCloseCombat(spellId)) return SpellAim.ForCloseCombat(CloseCombat);
+            Spell spell;
+            if (account.Game?.character?.Spells == null || !account.Game.character.Spells.TryGetValue(spellId, out spell)) return null;
+            SpellStats stats = spell.GetStats();
+            if (stats == null) return null;
+            int bonus;
+            lock (sync) bonus = RangeBonusLocked();
+            return SpellAim.For(spellId, stats, bonus);
+        }
         private string SpellUnavailable(short spellId, short? targetCell)
         {
             string reason = ActionUnavailable(false);
@@ -231,10 +268,11 @@ namespace Tool_BotProtocol.Game.Combats
             if (target == null || !target.IsActive) return "Cette cellule ne fait pas partie du terrain de combat.";
             if (origin == null) return "La position de votre personnage n’est pas encore connue.";
             if (stats == null) return null;
-            int distance = origin.GetDistanceBetweenCells(target), maximum = stats.Max_portee;
-            if (stats.portee_modifiable) maximum = Math.Max(stats.Min_portee + 1, maximum + account.Game.character.stats.Atteignable.StatsTotal);
-            if (distance < stats.Min_portee || distance > maximum) return "Cible hors portée (" + stats.Min_portee + "–" + maximum + ").";
-            if (stats.IsInLine && !origin.AreCellsOnline(target)) return "Ce sort se lance en ligne.";
+            // Même visée que le dessin de la portée (SpellAim) : checkRange du client, bonus des PO compris.
+            SpellAim aim = SpellAim.For(spellId, stats, RangeBonusLocked());
+            int distance = origin.GetDistanceBetweenCells(target);
+            if (distance < aim.MinRange || distance > aim.MaxRange) return "Cible hors portée (" + aim.MinRange + "–" + aim.MaxRange + ").";
+            if (aim.LineOnly && !origin.AreCellsOnline(target)) return "Ce sort se lance en ligne.";
             if (stats.EmptyCell && fighters.Values.Any(f => !f.IsDead && f.CellId == target.CellID)) return "Ce sort nécessite une cellule vide.";
             // LoS, equipment modifiers, states and per-target limits remain authoritative on the server.
             return null;
@@ -384,26 +422,84 @@ namespace Tool_BotProtocol.Game.Combats
             return account.Game.Map.GetCellFromId(cellId) == null ? "Cette cellule n’existe pas sur la carte." : null;
         }
 
-        public Task<CombatActionResult> MoveAsync(short targetCell)
+        /// <summary>
+        /// <c>GA001&lt;chemin&gt;</c> : déplacement en combat le long du chemin que le client calcule et sélectionne au survol
+        /// (<see cref="PreviewMovePath"/>). La recherche tourne sur le pool de threads, hors du verrou ; l'envoi est refusé si
+        /// le tour, la position, les PM ou les cellules occupées ont changé entre-temps.
+        /// </summary>
+        public async Task<CombatActionResult> MoveAsync(short targetCell)
         {
-            string packet;
-            lock (sync)
+            CombatMoveSnapshot snapshot; string reason;
+            lock (sync) reason = TakeMoveSnapshot(targetCell, out snapshot);
+            if (reason != null) return new CombatActionResult(false, reason);
+            List<Cell> path = await Task.Run(() => SearchMovePath(snapshot)).ConfigureAwait(false);
+            if (path == null) return new CombatActionResult(false, "Aucun chemin libre vers cette cellule.");
+            string packet = "GA001" + PathfinderUtils.GetCleanRoad(path);
+            return await RequestAsync(packet, "déplacement", () => ActionUnavailable(false) ?? MoveSnapshotChanged(snapshot, path)).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Chemin (départ compris) que suivrait <see cref="MoveAsync"/> vers <paramref name="targetCell"/>, sans rien envoyer :
+        /// celui que le client sélectionne en <c>CELL_PATH_OVER_COLOR</c> pendant son tour (<c>InteractionsManager.calculatePath</c>
+        /// en combat : cible à au plus PM cellules, ni occupée ni infranchissable, A* en quatre directions de longueur au plus PM).
+        /// Null hors de son tour, pendant une action, ou sans chemin. La recherche s'exécute sur le fil appelant, hors du verrou :
+        /// depuis l'interface, l'appeler sur le pool de threads.
+        /// </summary>
+        public List<Cell> PreviewMovePath(short targetCell)
+        {
+            CombatMoveSnapshot snapshot;
+            lock (sync) if (TakeMoveSnapshot(targetCell, out snapshot) != null) return null;
+            return SearchMovePath(snapshot);
+        }
+
+        private sealed class CombatMoveSnapshot
+        {
+            public Cell[] Cells; public int Width; public Cell Origin; public Cell Destination; public HashSet<int> Occupied;
+            public int MovementPoints; public int Generation;
+        }
+
+        private string TakeMoveSnapshot(short targetCell, out CombatMoveSnapshot snapshot)
+        {
+            snapshot = null;
+            string reason = ActionUnavailable(false);
+            if (reason != null) return reason;
+            Map map = account.Game.Map;
+            Cell destination = map.GetCellFromId(targetCell), origin = account.Game.character.Cell;
+            if (origin == null || destination == null || !destination.IsWalkable() || map.MapCells == null) return "Cette cellule n’est pas accessible.";
+            if (origin == destination) return "Votre personnage est déjà sur cette cellule.";
+            int self = account.Game.character.id;
+            var occupied = new HashSet<int>(fighters.Values.Where(f => !f.IsDead && f.CellId >= 0 && f.Id != self).Select(f => (int)f.CellId));
+            if (occupied.Contains(destination.CellID)) return "Cette cellule est occupée par un combattant.";
+            // checkRange(lanceur, cible, false, 0, PM, 0) du client avant toute recherche.
+            if (pm >= 0 && origin.GetDistanceBetweenCells(destination) > pm) return "PM insuffisants pour ce trajet.";
+            snapshot = new CombatMoveSnapshot
             {
-                string reason = ActionUnavailable(false);
-                Cell destination = account.Game.Map.GetCellFromId(targetCell), origin = account.Game.character.Cell;
-                if (reason == null && (origin == null || destination == null || !destination.IsWalkable())) reason = "Cette cellule n’est pas accessible.";
-                if (reason == null && origin == destination) reason = "Votre personnage est déjà sur cette cellule.";
-                if (reason != null) return Task.FromResult(new CombatActionResult(false, reason));
-                var blocked = fighters.Values.Where(f => !f.IsDead && f.CellId >= 0 && f.Id != account.Game.character.id)
-                    .Select(f => account.Game.Map.GetCellFromId(f.CellId)).Where(c => c != null).ToList();
-                if (blocked.Contains(destination)) return Task.FromResult(new CombatActionResult(false, "Cette cellule est occupée par un combattant."));
-                List<Cell> path;
-                using (var finder = new Pathfinder()) path = finder.GetPath(origin, destination, blocked, false, 0, account.Game.Map);
-                if (path == null || path.Count < 2) return Task.FromResult(new CombatActionResult(false, "Aucun chemin libre vers cette cellule."));
-                if (pm >= 0 && path.Count - 1 > pm) return Task.FromResult(new CombatActionResult(false, "PM insuffisants pour ce trajet."));
-                packet = "GA001" + PathfinderUtils.GetCleanRoad(path);
-            }
-            return RequestAsync(packet, "déplacement", () => ActionUnavailable(false));
+                Cells = map.MapCells, Width = map.MapWidth, Origin = origin, Destination = destination, Occupied = occupied,
+                MovementPoints = pm, Generation = generation
+            };
+            return null;
+        }
+
+        // pathFind du client en combat : quatre directions, longueur au plus PM, combattants infranchissables (cible comprise).
+        // Un chemin qui n'atteint pas la cible (tronqué avant un obstacle) n'est ni montré ni envoyé.
+        private static List<Cell> SearchMovePath(CombatMoveSnapshot snapshot)
+        {
+            List<Cell> path = Pathfinder.FindPath(snapshot.Cells, snapshot.Width, snapshot.Origin, snapshot.Destination, new PathRequest
+            {
+                AllDirections = false, InFight = true, SpriteCells = snapshot.Occupied,
+                MaxLength = snapshot.MovementPoints >= 0 ? snapshot.MovementPoints : 500
+            });
+            return path != null && path.Count >= 2 && ReferenceEquals(path[path.Count - 1], snapshot.Destination) ? path : null;
+        }
+
+        private string MoveSnapshotChanged(CombatMoveSnapshot snapshot, List<Cell> path)
+        {
+            if (generation != snapshot.Generation || pm != snapshot.MovementPoints || account.Game.character.Cell != snapshot.Origin
+                || !ReferenceEquals(account.Game.Map.MapCells, snapshot.Cells)) return "La situation a changé pendant le calcul du chemin : réessayez.";
+            int self = account.Game.character.id;
+            var crossed = new HashSet<int>(path.Skip(1).Select(cell => (int)cell.CellID));
+            if (fighters.Values.Any(f => !f.IsDead && f.Id != self && crossed.Contains(f.CellId))) return "Un combattant occupe désormais le chemin : réessayez.";
+            return null;
         }
         private Task<CombatActionResult> RequestAsync(string packet, string kind, Func<string> validate)
         {

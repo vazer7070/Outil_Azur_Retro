@@ -11,6 +11,7 @@ using System.Windows.Forms;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Game.Chat;
 using Tool_BotProtocol.Game.Combats;
+using Tool_BotProtocol.Game.Data;
 using Tool_BotProtocol.Game.Interactions;
 using Tool_BotProtocol.Game.Managers.Mouvements;
 using Tool_BotProtocol.Game.Maps;
@@ -18,6 +19,8 @@ using Tool_BotProtocol.Game.Maps.Entities;
 using Tool_BotProtocol.Game.Maps.Interfaces;
 using Tool_BotProtocol.Game.Maps.Mouvements;
 using Tool_BotProtocol.Game.Perso;
+using Tool_BotProtocol.Game.Perso.Inventory;
+using Tool_BotProtocol.Game.Perso.Inventory.Enums;
 
 namespace Outil_Azur_complet.Bot.Interfaces
 {
@@ -143,7 +146,8 @@ namespace Outil_Azur_complet.Bot.Interfaces
         }
 
         private void RefreshEntities() => OnUi(() => { RefreshSpellTargets(); UserMap.Invalidate(); });
-        private void CombatChanged() => OnUi(() => { RefreshSpellTargets(); DisarmFlagOutOfFight(); });
+        // Lot X8 : l'aperçu du chemin de combat suit les PM et le tour (recalculé pour la cellule encore survolée).
+        private void CombatChanged() => OnUi(() => { RefreshSpellTargets(); DisarmFlagOutOfFight(); PreviewPathTo(UserMap.HoveredCell); });
 
         public void SelectSpell(short? id)
         {
@@ -151,7 +155,10 @@ namespace Outil_Azur_complet.Bot.Interfaces
                 string reason = Account.Game.Fight.GetSpellUnavailableReason(id.Value);
                 if (reason != null) { ActionFeedback?.Invoke(reason); return; }
             }
+            // Le client remplace le mode drapeau par la visée (switchToSpellLaunch) : le signalement est désarmé sans message.
+            if (id.HasValue && flagMode) { flagMode = false; UserMap.Cursor = Cursors.Default; }
             SelectedSpellId = id;
+            if (id.HasValue) { previewPending = null; UserMap.SetPathPreview(null); }
             RefreshSpellTargets(); SpellSelectionChanged?.Invoke(SelectedSpellId);
             if (!SelectedSpellId.HasValue) return;
             // Corps à corps (sort 0 du client, case ²) : mêmes cellules surlignées, la cellule choisie reçoit GA303.
@@ -164,11 +171,56 @@ namespace Outil_Azur_complet.Bot.Interfaces
             if (SelectedSpellId.HasValue && Account.Game.Fight.GetSpellUnavailableReason(SelectedSpellId.Value) != null) {
                 SelectedSpellId = null; SpellSelectionChanged?.Invoke(null);
             }
-            if (!SelectedSpellId.HasValue) { UserMap.SetSpellTargets(null); UserMap.SpellTargetReason = null; return; }
+            if (!SelectedSpellId.HasValue)
+            {
+                UserMap.SetSpellTargets(null); UserMap.SetSpellRange(null); UserMap.SetAimIcon(null, null); UserMap.SpellTargetReason = null;
+                UpdatePointerShapes(null); return;
+            }
             short spell = SelectedSpellId.Value;
+            Fights fight = Account.Game.Fight;
             var cells = Account.Game.Map.MapCells ?? new Cell[0];
-            UserMap.SetSpellTargets(cells.Where(cell => cell != null && Account.Game.Fight.GetSpellUnavailableReason(spell, cell.CellID) == null).Select(cell => cell.CellID));
-            UserMap.SpellTargetReason = cell => Account.Game.Fight.GetSpellUnavailableReason(spell, cell);
+            List<short> valid = cells.Where(cell => cell != null && fight.GetSpellUnavailableReason(spell, cell.CellID) == null).Select(cell => cell.CellID).ToList();
+            // Lot X8 : portée du client (drawZone « C » ou « X » de min à max, bonus de PO compris), zones d'effet sous le pointeur
+            // et icône du curseur ; sans données du sort, la portée dessinée se limite aux cibles acceptées.
+            SpellAim aim = fight.GetSpellAim(spell);
+            Cell origin = Account.Game.character.Cell;
+            UserMap.SetSpellTargets(valid);
+            UserMap.SetSpellRange(aim != null && origin != null ? aim.RangeCells(origin, cells) : valid);
+            SetAimCursor(spell);
+            UserMap.SpellTargetReason = cell => fight.GetSpellUnavailableReason(spell, cell);
+            UpdatePointerShapes(aim);
+        }
+
+        /// <summary>
+        /// Icône posée à côté de la flèche pendant la visée (<c>setCursor(sort.iconFile, {25, 25, 15, 15})</c>) : celle du sort, de
+        /// l'arme en position 1 pour le corps à corps, sinon le poing <c>DefaultCC</c>.
+        /// </summary>
+        private void SetAimCursor(short spell)
+        {
+            bool closeCombat = spell == Fights.CloseCombatSpellId && Account.Game.character.Spells?.ContainsKey(spell) != true;
+            if (!closeCombat) { UserMap.SetAimIcon("Spells", spell.ToString(System.Globalization.CultureInfo.InvariantCulture)); return; }
+            InventoryObjects weapon = Account.Game.character.Inventory?.GetObjetsPosition(InventorySlots.WEAPON);
+            int? gfx = weapon == null ? null : LangData.Item.Gfx(weapon.ID);
+            if (weapon == null) UserMap.SetAimIcon("Client", "DefaultCC");
+            else if (gfx.HasValue) UserMap.SetAimIcon("Items", (LangData.Item.Type(weapon.ID) ?? weapon.Type).ToString(System.Globalization.CultureInfo.InvariantCulture)
+                + "/" + gfx.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            else UserMap.SetAimIcon(null, null);
+        }
+
+        /// <summary>
+        /// Pointeur du client : en mode drapeau la cellule survolée (<c>addPointerShape("C", 0, CELL_SPELL_EFFECT_COLOR)</c>), en
+        /// visée les zones d'effet du sort posées sur la cible (<see cref="SpellAim.PointerCells"/>) ; rien sans données du sort.
+        /// </summary>
+        private void UpdatePointerShapes(SpellAim aim)
+        {
+            if (flagMode) { UserMap.PointerShapes = cell => new[] { new[] { cell } }; return; }
+            Map map = Account.Game?.Map;
+            Cell caster = Account.Game?.character?.Cell;
+            Cell[] cells = map?.MapCells;
+            if (!SelectedSpellId.HasValue || aim == null || cells == null) { UserMap.PointerShapes = null; return; }
+            int width = map.MapWidth;
+            UserMap.PointerShapes = cell => cell < 0 || cell >= cells.Length || cells[cell] == null ? null
+                : aim.PointerCells(caster, cells[cell], cells, width).Select(shape => (IEnumerable<short>)shape);
         }
 
         private void MapChange() => OnUi(() =>
@@ -238,12 +290,22 @@ namespace Outil_Azur_complet.Bot.Interfaces
 
         private short? previewPending;
         private bool previewRunning;
+        // Chaque demande change la version : un calcul lancé avant un pas, un changement de PM ou de tour est refait.
+        private int previewVersion;
 
+        /// <summary>
+        /// Aperçu du chemin vers la cellule survolée : hors combat (ajout du bot), et pendant son tour de combat comme le client
+        /// (<c>calculatePath</c> → <see cref="Fights.PreviewMovePath"/>, sélection <c>CELL_PATH_OVER_COLOR</c>) ; jamais pendant la
+        /// visée, le signalement ou le placement. La recherche tourne sur le pool de threads, seul le dernier survol compte.
+        /// </summary>
         private void PreviewPathTo(UserMapCell cell)
         {
             Map map = Account.Game?.Map;
-            bool allowed = cell != null && map?.HasMapData == true && !SelectedSpellId.HasValue && Account.Game.Fight?.IsInFight != true
-                && Account.Game.character?.Cell != null && !Account.IsMoving();
+            Fights fight = Account.Game?.Fight;
+            bool inFight = fight?.IsInFight == true;
+            bool allowed = cell != null && map?.HasMapData == true && !SelectedSpellId.HasValue && !flagMode && Account.Game.character?.Cell != null
+                && (inFight ? !fight.IsPlacement && fight.IsMyTurn : !Account.IsMoving());
+            previewVersion++;
             if (!allowed) { previewPending = null; UserMap.SetPathPreview(null); return; }
             previewPending = cell.id;
             if (!previewRunning) StartPreview();
@@ -253,14 +315,17 @@ namespace Outil_Azur_complet.Bot.Interfaces
         {
             if (!previewPending.HasValue) return;
             short target = previewPending.Value;
+            int version = previewVersion;
             Map map = Account.Game?.Map;
             Cell destination = map?.GetCellFromId(target);
             var mouvements = Account.Game?.Manager?.Mouvements;
+            Fights fight = Account.Game?.Fight;
+            bool inFight = fight?.IsInFight == true;
             if (destination == null || mouvements == null) { UserMap.SetPathPreview(null); return; }
             previewRunning = true;
             Task.Run(() =>
             {
-                try { return mouvements.PreviewPath(destination); }
+                try { return inFight ? fight.PreviewMovePath(target) : mouvements.PreviewPath(destination); }
                 catch (Exception error) when (!(error is OutOfMemoryException))
                 {
                     Account.Logger?.LogError("CARTE", "Aperçu du chemin impossible : " + error.Message);
@@ -272,8 +337,10 @@ namespace Outil_Azur_complet.Bot.Interfaces
                 OnUi(() =>
                 {
                     previewRunning = false;
-                    if (previewPending == target)
-                        UserMap.SetPathPreview(path == null || !ReferenceEquals(map, Account.Game?.Map) ? null : path.Skip(1).Select(cell => cell.CellID));
+                    // Le combat a pu commencer ou finir pendant la recherche : le style suit l'état au moment du calcul.
+                    if (previewPending == target && version == previewVersion)
+                        UserMap.SetPathPreview(path == null || !ReferenceEquals(map, Account.Game?.Map) || inFight != (Account.Game?.Fight?.IsInFight == true)
+                            ? null : path.Skip(1).Select(cell => cell.CellID), inFight);
                     else StartPreview();
                 });
             }, TaskScheduler.Default);

@@ -11,6 +11,7 @@ using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Game.Combats;
+using Tool_BotProtocol.Game.Data;
 using Tool_BotProtocol.Game.Maps;
 using Tool_BotProtocol.Game.Maps.Mouvements;
 using Tool_BotProtocol.Game.Perso.Spells;
@@ -54,6 +55,13 @@ internal static class BotCombatSmoke
     private static async Task Run()
     {
         MessagesReception.Init(); Spell.AllSpells.Clear();
+        // Lot X8 : effets de PO du client (caractéristique 19, signe dans « o ») dans un effects.xml synthétique.
+        string lang = Path.Combine(TestPaths.Work, "combat-lang");
+        Directory.CreateDirectory(lang);
+        File.WriteAllText(Path.Combine(lang, "effects.xml"), "<?xml version='1.0' encoding='utf-8'?>\n<BotLang famille=\"effects\" langue=\"fr\" version=\"1\" source=\"effects_fr_1.swf\">\n"
+            + "<entree table=\"E\" id=\"116\" c=\"19\" d=\"Portée réduite (test)\" o=\"-\" />\n<entree table=\"E\" id=\"117\" c=\"19\" d=\"Portée accrue (test)\" o=\"+\" />\n"
+            + "<entree table=\"E\" id=\"118\" c=\"10\" d=\"Force (test)\" o=\"+\" />\n</BotLang>\n", new UTF8Encoding(false));
+        LangData.Clear(); Check(LangData.Load(lang) == 1 && LangData.Effect.Characteristic(117) == 19 && LangData.Effect.Operator(116) == "-", "Synthetic effects.xml not loaded");
         AddSpell(10, new SpellStats { PA = 3, Min_portee = 1, Max_portee = 3, PerTurn = 1 });
         AddSpell(11, new SpellStats { PA = 2, Min_portee = 1, Max_portee = 3, Interval = 2 });
         AddSpell(12, new SpellStats { PA = 1, Min_portee = 0, Max_portee = 3, EmptyCell = true });
@@ -61,6 +69,7 @@ internal static class BotCombatSmoke
         AddSpell(14, new SpellStats { PA = 1, Min_portee = 1, Max_portee = 1 });
         AddSpell(15, new SpellStats { PA = 1, Min_portee = 1, Max_portee = 3, IsInLine = true });
         AddSpell(16, null);
+        AddSpell(17, new SpellStats { PA = 1, Min_portee = 1, Max_portee = 1, portee_modifiable = true });
         Map.AllBotMaps[900090] = new Map { MapID = 900090, MapWidth = 3, MapHeight = 4,
             MapData = string.Concat(Enumerable.Repeat("HhGaeaaaaa", 18)) };
         var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
@@ -121,11 +130,34 @@ internal static class BotCombatSmoke
                     Check((await fight.CastSpellAsync(11, 3)).Sent && await Within(Read(peer)) == "GA30011;3", "Cooldown spell wire incorrect");
                     await Feed(account, "GA;300;42;11,3,0,1"); await Feed(account, "GA;102;42;42,-2"); await Feed(account, "GA;102;42;42,-0");
                     Check(fight.GetSpellCooldownRemaining(11) == 2 && !(await fight.CastSpellAsync(11, 3)).Sent, "Confirmed cooldown ignored");
+                    // Lot X8 : portée du client depuis la cellule 0 (GTM). Sort 17 modifiable 1–1 sans bonus : 1 (checkRange : max(min, max + bonus) ;
+                    // StarLoco accepterait 2, min + 1). GA;117 +2 → 3, GA;116 −3 → max(1, 0) = 1 ; le sort 14 non modifiable reste à 1.
+                    SpellAim aim = fight.GetSpellAim(17);
+                    Check(account.Game.character.Cell.CellID == 0 && aim != null && aim.Boostable && aim.MinRange == 1 && aim.MaxRange == 1 && fight.RangeBonus == 0
+                        && fight.GetSpellUnavailableReason(17, 3) == null && fight.GetSpellUnavailableReason(17, 6) == "Cible hors portée (1–1).",
+                        "Boostable 1-1 spell without bonus is not limited to 1 like the client: " + fight.GetSpellUnavailableReason(17, 6));
+                    await Feed(account, "GA;117;42;42,abc,1"); await Feed(account, "GA;117;42");
+                    Check(fight.RangeBonus == 0 && fight.IsInFight, "Malformed GA;117 changed the range bonus or broke the fight");
+                    await Feed(account, "GA;118;42;42,2,1"); Check(fight.RangeBonus == 0, "A strength effect (characteristic 10) counted as range");
+                    await Feed(account, "GA;117;42;42,2,1");
+                    aim = fight.GetSpellAim(17);
+                    Check(fight.RangeBonus == 2 && aim.RangeBonus == 2 && aim.MaxRange == 3 && fight.GetSpellUnavailableReason(17, 9) == null
+                        && fight.GetSpellUnavailableReason(17, 2) == "Cible hors portée (1–3)." && fight.GetSpellAim(14).MaxRange == 1
+                        && fight.GetSpellUnavailableReason(14, 6) == "Cible hors portée (1–1).", "GA;117 range bonus not applied like checkRange");
+                    Cell from = account.Game.character.Cell; Cell[] all = account.Game.Map.MapCells;
+                    Check(aim.RangeCells(from, all).OrderBy(c => c).SequenceEqual(new short[] { 1, 3, 4, 5, 6, 8, 9 }),
+                        "Range zone \"C\" (1 to 3 with bonus) differs: " + string.Join(",", aim.RangeCells(from, all)));
+                    Check(fight.GetSpellAim(15).RangeCells(from, all).OrderBy(c => c).SequenceEqual(new short[] { 3, 6, 9 }),
+                        "Line spell range zone \"X\" is not aligned");
+                    await Feed(account, "GA;116;42;42,3,1");
+                    Check(fight.RangeBonus == -1 && fight.GetSpellAim(17).MaxRange == 1 && fight.GetSpellUnavailableReason(17, 6) == "Cible hors portée (1–1).",
+                        "GA;116 range malus not subtracted or range fell below the minimum");
                     Check((await fight.PassTurnAsync()).Sent && await Within(Read(peer)) == "Gt", "Pass turn wire incorrect");
                     await Feed(account, "GTF42"); Check(!fight.IsMyTurn && !(await fight.CastSpellAsync(12, 3)).Sent, "GTF leaves actions available");
                     await Feed(account, "GTM|42;0;100;8;3;0;;100"); await Feed(account, "GTS43|30000"); await Feed(account, "GTF43"); await Feed(account, "GTS42|30000");
                     Check(fight.ActionPoints == 8 && fight.MovementPoints == 3 && fight.GetSpellCooldownRemaining(11) == 1 && fight.GetSpellUnavailableReason(10, 3) == null,
                         "Next turn uses exhausted PA/PM or fails to clear per-turn history");
+                    Check(fight.RangeBonus == 0 && fight.GetSpellAim(17).MaxRange == 1, "One-turn range effects did not end on the bearer's next turn");
                     Check((await fight.MoveAsync(3)).Sent && await Within(Read(peer)) == "GA001bad" && fight.MovementPoints == 3, "Movement wire or predicted PM incorrect");
                     await Feed(account, "GAS42"); await Feed(account, "GA301;1;42;aaabad");
                     Check(await Within(Read(peer)) == "GKK301" && account.Game.character.Cell.CellID == 3 && account.IsFighting(), "Combat move ACK/cell/account state incorrect");
@@ -155,6 +187,7 @@ internal static class BotCombatSmoke
             }
         }
         finally { listener.Stop(); }
-        Console.WriteLine("OK: StarLoco placement/ready/turns, spell wire and targeting, server PA/PM/refusal/ACK, confirmed limits, fight movement, spectator/end/reset");
+        LangData.Clear();
+        Console.WriteLine("OK: StarLoco placement/ready/turns, spell wire and targeting, client range with GA;117/116 bonus (lot X8), server PA/PM/refusal/ACK, confirmed limits, fight movement, spectator/end/reset");
     }
 }
