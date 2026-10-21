@@ -110,12 +110,12 @@ namespace Tool_BotProtocol.Game.Guildes
         {
             string id = PendingInviterId, inviter = PendingInviterName;
             if (id == null) return Refuse("Aucune invitation de guilde en attente.");
+            // Ignoré avant l'envoi : une nouvelle invitation gJr reçue pendant l'envoi de gJE doit déjà être refusée seule.
+            bool added;
+            lock (sync) added = !string.IsNullOrEmpty(inviter) && ignored.Add(inviter);
             InteractionResult result = await SendAsync("gJE" + id, GuildTexts.Get("TEMPORARY_BLACKLISTED", "{0} est maintenant ignoré jusqu'à la fin de la session.", inviter)).ConfigureAwait(false);
-            if (result.Sent)
-            {
-                lock (sync) if (!string.IsNullOrEmpty(inviter)) ignored.Add(inviter);
-                ClearPending(id);
-            }
+            if (result.Sent) ClearPending(id);
+            else if (added) lock (sync) ignored.Remove(inviter);
             return result;
         }
 
