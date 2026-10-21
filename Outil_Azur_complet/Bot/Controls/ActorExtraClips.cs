@@ -271,12 +271,9 @@ namespace Outil_Azur_complet.Bot.Controls
         /// <summary>
         /// Clips voulus pour <paramref name="actor"/> : <paramref name="fightRunning"/> = combat lancé (<c>isRunning</c>),
         /// <paramref name="auraOption"/> = option <c>Aura</c>, <paramref name="teamOf"/> = équipe connue du combat quand l'acteur
-        /// n'en annonce pas.
-        /// </summary>
-        /// <summary>
-        /// Clips voulus pour un acteur : marchand et PNJ, cercle d'équipe en combat lancé, sinon le clip « prêt » si
-        /// <paramref name="isReady"/> le dit (placement, <c>GR1</c> : le client charge <c>ready.swf</c> dans le clip du dessus, à la
-        /// place de l'aura), sinon l'aura selon l'option.
+        /// n'en annonce pas, <paramref name="isReady"/> = combattant prêt pendant le placement. Dans l'ordre : marchand et PNJ,
+        /// cercle d'équipe en combat lancé, sinon le clip « prêt » (<c>GR1</c> : le client charge <c>ready.swf</c> dans le clip du
+        /// dessus, à la place de l'aura ; lot X7), sinon l'aura selon l'option.
         /// </summary>
         public static IEnumerable<Wanted> WantedFor(MapActor actor, bool fightRunning, bool auraOption, Func<long, int?> teamOf, Func<long, bool> isReady = null)
         {

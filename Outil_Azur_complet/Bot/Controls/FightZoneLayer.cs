@@ -73,26 +73,31 @@ namespace Outil_Azur_complet.Bot.Controls
                 List<int> members = CellsOf(zone, cells);
                 if (members.Count == 0) continue;
                 Color rgb = Color.FromArgb(Rgb(zone.Color) | unchecked((int)0xFF000000));
-                var inside = new HashSet<int>(members);
+                // Losanges dessinables de la zone et leurs centres, calculés une fois par zone (le contour les compare deux à deux).
+                var drawn = new List<PointF[]>(members.Count);
+                foreach (int id in members)
+                    if (id < polygons.Length && polygons[id] != null && polygons[id].Length >= 3) drawn.Add(polygons[id]);
+                if (drawn.Count == 0) continue;
+                var centers = new PointF[drawn.Count];
+                for (int i = 0; i < drawn.Count; i++) centers[i] = Centroid(drawn[i]);
                 using (var path = new GraphicsPath(FillMode.Winding))
                 using (var fill = new SolidBrush(Color.FromArgb(FillAlphaPercent * 255 / 100, rgb)))
                 using (var pen = new Pen(rgb, penWidth))
                 {
-                    foreach (int id in members)
-                        if (id < polygons.Length && polygons[id] != null && polygons[id].Length >= 3) path.AddPolygon(polygons[id]);
+                    foreach (PointF[] polygon in drawn) path.AddPolygon(polygon);
                     graphics.FillPath(fill, path);
-                    foreach (int id in members)
+                    for (int index = 0; index < drawn.Count; index++)
                     {
-                        PointF[] polygon = id < polygons.Length ? polygons[id] : null;
-                        if (polygon == null || polygon.Length < 3) continue;
-                        PointF center = Centroid(polygon);
+                        PointF[] polygon = drawn[index];
+                        PointF center = centers[index];
                         for (int i = 0; i < polygon.Length; i++)
                         {
                             PointF a = polygon[i], b = polygon[(i + 1) % polygon.Length];
                             // Voisine de l'autre côté de l'arête : le point symétrique du centre par rapport à son milieu.
                             var mirrored = new PointF(a.X + b.X - center.X, a.Y + b.Y - center.Y);
-                            bool shared = members.Any(other => other != id && other < polygons.Length && polygons[other] != null
-                                && Distance(Centroid(polygons[other]), mirrored) < 1f);
+                            bool shared = false;
+                            for (int other = 0; other < centers.Length && !shared; other++)
+                                shared = other != index && Distance(centers[other], mirrored) < 1f;
                             if (!shared) graphics.DrawLine(pen, a, b);
                         }
                     }
