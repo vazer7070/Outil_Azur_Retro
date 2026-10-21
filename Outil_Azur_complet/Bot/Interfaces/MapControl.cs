@@ -290,6 +290,8 @@ namespace Outil_Azur_complet.Bot.Interfaces
 
         private short? previewPending;
         private bool previewRunning;
+        // Chaque demande change la version : un calcul lancé avant un pas, un changement de PM ou de tour est refait.
+        private int previewVersion;
 
         /// <summary>
         /// Aperçu du chemin vers la cellule survolée : hors combat (ajout du bot), et pendant son tour de combat comme le client
@@ -303,6 +305,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
             bool inFight = fight?.IsInFight == true;
             bool allowed = cell != null && map?.HasMapData == true && !SelectedSpellId.HasValue && !flagMode && Account.Game.character?.Cell != null
                 && (inFight ? !fight.IsPlacement && fight.IsMyTurn : !Account.IsMoving());
+            previewVersion++;
             if (!allowed) { previewPending = null; UserMap.SetPathPreview(null); return; }
             previewPending = cell.id;
             if (!previewRunning) StartPreview();
@@ -312,6 +315,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
         {
             if (!previewPending.HasValue) return;
             short target = previewPending.Value;
+            int version = previewVersion;
             Map map = Account.Game?.Map;
             Cell destination = map?.GetCellFromId(target);
             var mouvements = Account.Game?.Manager?.Mouvements;
@@ -334,7 +338,7 @@ namespace Outil_Azur_complet.Bot.Interfaces
                 {
                     previewRunning = false;
                     // Le combat a pu commencer ou finir pendant la recherche : le style suit l'état au moment du calcul.
-                    if (previewPending == target)
+                    if (previewPending == target && version == previewVersion)
                         UserMap.SetPathPreview(path == null || !ReferenceEquals(map, Account.Game?.Map) || inFight != (Account.Game?.Fight?.IsInFight == true)
                             ? null : path.Skip(1).Select(cell => cell.CellID), inFight);
                     else StartPreview();
