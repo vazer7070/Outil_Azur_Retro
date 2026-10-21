@@ -500,6 +500,7 @@ internal static partial class Live
         await Scenario("x7. Sram contre A : prêt et option d'équipe vus par l'autre, pièges GDZ/GDC, invisibilité GA;150, journal dans le chat (lot X7)", 180, FightEventsAsync).ConfigureAwait(false);
         await Scenario("x12. glisser-déposer et boîte de quantité : échange entre deux comptes (EMO+, EMO-, EMG), banque (EMO±, EMG±), hôtel de vente réfuté (lot X12)", 200, TransferDragAsync).ConfigureAwait(false);
         await Scenario("x8. Iop contre A : portée en cercle et en croix, pointeur en croix et en ligne, croix d'interdiction, GA300 sur la cible, chemin de combat survolé puis GA001 (lot X8)", 180, SpellAimAsync).ConfigureAwait(false);
+        await Scenario("x33. Flèche Magique contre A : mode tactique au placement sans paquet, cible derrière un mur exclue et refusée, cible visible lancée (GA;300), retour au décor normal (lot X33)", 180, TacticSightAsync).ConfigureAwait(false);
         // Toujours en dernier : arrête puis redémarre le serveur de jeu (A et B restent déconnectés).
         await Scenario("x3c. serveur de jeu arrêté en pleine partie : boîte de perte de connexion, « Oui » reconnecte A (lot X3)", 360, GameStopAsync).ConfigureAwait(false);
     }
@@ -5109,6 +5110,251 @@ internal static partial class Live
         Check(await si.Until(() => Self(si)?.CellId == step.CellID && fi.MovementPoints == pmBefore - 2 && !fi.IsActionPending, 10).ConfigureAwait(false),
             "L'Iop n'est pas arrivé en " + step.CellID + " avec deux PM de moins (cellule " + Self(si)?.CellId + ", PM " + fi.MovementPoints + ")");
         evidence.Add("chemin survolé " + CellList(expectedPath) + " en formes de sélection, clic → " + move + " → " + Short(moved, 40));
+        return evidence;
+    }
+}
+
+// Scénario x33 (lot X33) : ligne de vue vérifiée par le bot avant un sort (cible derrière un mur) et mode tactique pendant un combat.
+internal static partial class Live
+{
+    /// <summary>
+    /// Sort écrit dans la base pour le personnage inventé : Flèche Magique (lancer de 1 à 7 avec ligne de vue, 4 PA, données de niveau 1
+    /// de <c>spells.xml</c> du client).
+    /// </summary>
+    private const short SightSpell = 161;
+    private const string SightSpells = "161;1;b";
+    private const int SightRange = 7;
+
+    /// <summary>Paquets envoyés depuis la marque, sans les réponses automatiques du combat (<c>GT</c> à <c>GTR</c>, <c>GKK</c> à <c>GAF</c>).</summary>
+    private static string[] OwnPacketsSince(LiveSession s, int mark) =>
+        s.SentSince(mark).Where(p => p != "GT" && !p.StartsWith("GKK", StringComparison.Ordinal)).ToArray();
+
+    /// <summary>Cibles valables de la visée dessinée par la vue (fil d'interface).</summary>
+    private static short[] SpellTargetsOf(GameClientFullform form)
+    {
+        UserMapControl map = UserMapOf(form);
+        var targets = typeof(UserMapControl).GetField("spellTargets", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(map) as IEnumerable<short>;
+        return targets == null ? new short[0] : Sorted(targets);
+    }
+
+    /// <summary>Décor dessiné par la vue de la fenêtre (fil d'interface).</summary>
+    private static BotMapArtwork ArtworkOf(GameClientFullform form) =>
+        typeof(UserMapControl).GetField("artwork", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(UserMapOf(form)) as BotMapArtwork;
+
+    /// <summary>
+    /// Cellule praticable de la carte, à portée de <paramref name="from"/>, cachée par le seul décor (<c>checkView</c> sans aucun
+    /// combattant) : la cible « derrière un mur ».
+    /// </summary>
+    private static Cell WallHidden(Map map, Cell from) =>
+        map.MapCells.Where(c => c != null && c.IsWalkable() && c.LineofSight && c.CellID != from.CellID
+                && from.GetDistanceBetweenCells(c) >= 1 && from.GetDistanceBetweenCells(c) <= SightRange
+                && !LineOfSight.Check(map, from.CellID, c.CellID, null))
+            .OrderBy(c => from.GetDistanceBetweenCells(c)).ThenBy(c => c.CellID).FirstOrDefault();
+
+    /// <summary>
+    /// Un personnage inventé (Flèche Magique écrite dans la base) entre sur la carte de A avec sa fenêtre de jeu ; A le défie. Au
+    /// placement, il prend une cellule de son équipe d'où une cellule à portée est cachée par le décor, puis le bouton « Mode Tactique »
+    /// de sa fenêtre passe la carte en mode tactique sans envoyer de paquet (aplat, objets 10000 à 10002). Le mode reste actif quand le
+    /// combat commence. À son tour, la Flèche Magique dessine sa portée : la cellule cachée y est, mais pas parmi les cibles mises en
+    /// valeur (#0066CC) ; le bot la refuse (« hors de la ligne de vue »), le survol montre la croix d'interdiction et un clic n'envoie
+    /// rien. Un clic sur une cellule visible lance le sort (<c>GA300161;cellule</c> → <c>GA;300</c>). Un second clic sur le bouton rend
+    /// le décor normal, toujours sans paquet. Le personnage abandonne ; compte et personnage supprimés de la base.
+    /// </summary>
+    private static async Task<string> TacticSightAsync()
+    {
+        RequireMaps();
+        if (!LangData.IsLoaded("spells")) throw new SkipScenario("textes du client « spells » absents : le bot ne connaît ni la portée ni la ligne de vue des sorts");
+        using (MySql.Data.MySqlClient.MySqlConnection db = OpenAccountsDatabase(out string schema))
+        {
+            var created = new List<InventedCharacter>();
+            var evidence = new List<string>();
+            LiveSession s = null;
+            GameClientFullform screen = null;
+            try
+            {
+                Cell place = FreeCellNear(a, 2, 6);
+                Check(place != null, "Aucune cellule libre près de A pour le personnage inventé");
+                InventedCharacter archer = Invent(db, schema, a.Id, a.MapId, place.CellID, 10000, created);
+                Sql(db, "UPDATE " + schema + ".players SET spells = @spells WHERE id = @id AND account = @account",
+                    "@spells", SightSpells, "@id", archer.Id, "@account", archer.Guid);
+                s = new LiveSession("V", archer.Login, archer.Password);
+                evidence.Add(await EnterExistingAsync(s, archer.Id, archer.Name, a.MapId, started =>
+                    started.Account.Game.character.Player_Selection += () => OnUi(() => { if (screen == null) { screen = OpenScreen(started); screen.Show(); } })).ConfigureAwait(false));
+                LiveSession sv = s;
+                Check(await sv.Until(() => sv.Account.Game.character.Spells.Values.Any(x => x.ID == SightSpell), 10).ConfigureAwait(false),
+                    "Le bot ne voit pas la Flèche Magique : " + string.Join(",", sv.Account.Game.character.Spells.Values.Select(x => x.ID)));
+                Check(await WaitOnUi(() => screen != null && screen.IsHandleCreated && screen.Visible && UserMapOf(screen) != null ? screen : null, 20).ConfigureAwait(false) != null,
+                    "La fenêtre de jeu du personnage inventé ne s'est pas ouverte");
+                Check(await a.Until(() => a.Map.GetActor(sv.Id) != null, 10).ConfigureAwait(false) && await sv.Until(() => sv.Map.GetActor(a.Id) != null, 10).ConfigureAwait(false),
+                    "A et le personnage inventé ne se voient pas sur la carte " + a.MapId);
+                Fights fa = a.Account.Game.Fight, fv = sv.Account.Game.Fight;
+                Check(!fv.TacticMode, "Mode tactique déjà actif avant le combat");
+
+                int markA = a.ReceivedCount, markV = sv.ReceivedCount;
+                var challenge = await a.Account.Game.Interactions.MapActions.ChallengeAsync(sv.Id).ConfigureAwait(false);
+                Check(challenge.Sent, "Défi refusé par le bot : " + challenge.Message);
+                await sv.Expect(p => p.StartsWith("GA;900;" + a.Id + ";", StringComparison.Ordinal), "GA;900 (défi reçu)", 10, markV).ConfigureAwait(false);
+                Check(await sv.Until(() => sv.Account.Game.Interactions.MapActions.PendingChallenge?.ChallengerId == a.Id, 5).ConfigureAwait(false), "Pas de défi en attente");
+                var accept = await sv.Account.Game.Interactions.MapActions.AcceptChallengeAsync(a.Id).ConfigureAwait(false);
+                Check(accept.Sent, "Acceptation du défi refusée par le bot : " + accept.Message);
+                await a.Expect("GJK", "GJK (entrée en combat, A)", 15, markA).ConfigureAwait(false);
+                await sv.Expect("GJK", "GJK (entrée en combat, personnage inventé)", 15, markV).ConfigureAwait(false);
+                Check(await a.Until(() => fa.IsPlacement && fv.IsPlacement && Self(a) != null && Self(sv) != null && fv.PlacementCells.Length > 0, 10).ConfigureAwait(false),
+                    "Placement incomplet");
+
+                // Placement : une cellule de l'équipe d'où une cellule à portée est cachée par le décor.
+                Map map = sv.Map;
+                var taken = new HashSet<int>(fv.Fighters.Values.Select(f => (int)f.CellId));
+                Cell current = map.GetCellFromId((short)Self(sv).CellId);
+                Cell start = new[] { current }.Concat(fv.PlacementCells.Where(id => !taken.Contains(id)).Select(id => map.GetCellFromId(id)))
+                    .FirstOrDefault(c => c != null && WallHidden(map, c) != null);
+                if (start == null) throw new SkipScenario("aucune cellule de placement de l'équipe n'a de cellule cachée par le décor à " + SightRange + " cellules au plus sur la carte " + a.MapId);
+                if (start.CellID != current.CellID)
+                {
+                    int markPlace = sv.ReceivedCount;
+                    var placed = await fv.PlaceAsync(start.CellID).ConfigureAwait(false);
+                    Check(placed.Sent, "Changement de placement refusé par le bot : " + placed.Message);
+                    Check(await sv.Until(() => Self(sv)?.CellId == start.CellID, 10).ConfigureAwait(false),
+                        "Le personnage n'est pas arrivé en " + start.CellID + " au placement (cellule " + Self(sv)?.CellId + ")");
+                }
+                Cell hidden = WallHidden(map, start);
+                evidence.Add("placement en " + start.CellID + " : cellule " + hidden.CellID + " à " + start.GetDistanceBetweenCells(hidden) + " cellules, cachée par le décor");
+
+                // Mode tactique au placement : bouton de la fenêtre, aucun paquet, décor tactique dessiné.
+                int sentMark = sv.SentCount;
+                await OnUi(() => screen.FightOptions.TacticButton.PerformClick()).ConfigureAwait(false);
+                string drawn = await WaitOnUi(() =>
+                {
+                    BotMapArtwork artwork = ArtworkOf(screen);
+                    return fv.TacticMode && screen.FightOptions.TacticButton.Checked && UserMapOf(screen).TacticView && artwork != null && artwork.TacticMode
+                        && !ReferenceEquals(artwork.DisplayedCells, artwork.Cells) ? artwork.Status : null;
+                }, 10).ConfigureAwait(false);
+                Check(drawn != null, "Le bouton « Mode Tactique » n'a pas passé la carte en mode tactique");
+                Check(drawn == "Mode tactique", "Visuels tactiques absents du décor exporté : " + drawn);
+                int[] tacticObjects = await OnUi(() => ArtworkOf(screen).DisplayedCells.Where(c => c.Active).Select(c => c.Object1Id).Distinct().OrderBy(id => id).ToArray()).ConfigureAwait(false);
+                Check(tacticObjects.Length > 0 && tacticObjects.All(id => id == BotMapArtwork.TacticObstacleObject || id == BotMapArtwork.TacticWalkableObject || id == BotMapArtwork.TacticHoleObject),
+                    "Objets 1 du décor tactique : " + string.Join(",", tacticObjects));
+                await Task.Delay(500).ConfigureAwait(false);
+                Check(OwnPacketsSince(sv, sentMark).Length == 0, "Le mode tactique a envoyé un paquet : " + string.Join(" | ", OwnPacketsSince(sv, sentMark)));
+                evidence.Add("bouton « Mode Tactique » au placement : aucun paquet, aplat et objets " + string.Join("/", tacticObjects));
+
+                await ReadyAsync(sv, markV).ConfigureAwait(false);
+                await ReadyAsync(a, markA).ConfigureAwait(false);
+                await a.Expect("GS", "GS (début du combat)", 30, markA).ConfigureAwait(false);
+
+                bool played = false;
+                DateTime until = DateTime.UtcNow.AddSeconds(90);
+                while (!played && DateTime.UtcNow < until && fv.IsInFight)
+                {
+                    int actor = await WaitForTurnOf(new[] { a, sv }, 40).ConfigureAwait(false);
+                    if (actor == a.Id)
+                    {
+                        int mark = a.ReceivedCount;
+                        var passed = await fa.PassTurnAsync().ConfigureAwait(false);
+                        Check(passed.Sent, "Fin de tour de A refusée par le bot : " + passed.Message);
+                        await a.Expect("GTF" + a.Id, "GTF (fin du tour de A)", 10, mark).ConfigureAwait(false);
+                        await a.Until(() => !fa.IsMyTurn, 5).ConfigureAwait(false);
+                    }
+                    else if (actor == sv.Id)
+                    {
+                        evidence.AddRange(await SightTurnAsync(sv, screen, hidden).ConfigureAwait(false));
+                        played = true;
+                    }
+                    else break;
+                }
+                Check(played, "Le personnage inventé n'a pas joué son tour");
+
+                // Second clic : décor normal, toujours sans paquet, combat en cours.
+                sentMark = sv.SentCount;
+                await OnUi(() => screen.FightOptions.TacticButton.PerformClick()).ConfigureAwait(false);
+                Check(await WaitOnUi(() => !fv.TacticMode && !screen.FightOptions.TacticButton.Checked && !UserMapOf(screen).TacticView
+                    && ArtworkOf(screen) != null && !ArtworkOf(screen).TacticMode && ReferenceEquals(ArtworkOf(screen).DisplayedCells, ArtworkOf(screen).Cells) ? "normal" : null, 10).ConfigureAwait(false) != null,
+                    "Le second clic n'a pas rendu le décor normal");
+                await Task.Delay(500).ConfigureAwait(false);
+                Check(OwnPacketsSince(sv, sentMark).Length == 0, "Le retour au décor normal a envoyé un paquet : " + string.Join(" | ", OwnPacketsSince(sv, sentMark)));
+                evidence.Add("second clic pendant le combat : décor normal, aucun paquet");
+
+                int endA = a.ReceivedCount, endV = sv.ReceivedCount;
+                var giveUp = await fv.GiveUpAsync().ConfigureAwait(false);
+                Check(giveUp.Sent, "Abandon refusé par le bot : " + giveUp.Message);
+                await a.Expect("GE", "GE (fin du combat, A)", 20, endA).ConfigureAwait(false);
+                await sv.Expect(p => p.StartsWith("GE", StringComparison.Ordinal) || p.StartsWith("GV", StringComparison.Ordinal), "GE ou GV (fin du combat)", 20, endV).ConfigureAwait(false);
+                await WaitBackOnMap(a).ConfigureAwait(false); await WaitBackOnMap(sv).ConfigureAwait(false);
+                Check(await WaitOnUi(() => !UserMapOf(screen).IsAiming && !UserMapOf(screen).TacticView ? "rendue" : null, 10).ConfigureAwait(false) != null,
+                    "La visée ou le mode tactique survit à la fin du combat");
+                evidence.Add("abandon → GE : visée effacée, décor normal");
+                return string.Join(" ; ", evidence);
+            }
+            finally
+            {
+                if (s?.Account?.Game?.Fight != null) s.Account.Game.Fight.TacticMode = false;
+                if (screen != null) await OnUi(() => { if (!screen.IsDisposed) { screen.Close(); screen.Dispose(); } }).ConfigureAwait(false);
+                await ForgetAsync(db, schema, s == null ? new LiveSession[0] : new[] { s }, created).ConfigureAwait(false);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Tour du personnage inventé, en mode tactique : la cellule cachée est dans la portée mais hors des cibles, refusée par le bot, sous
+    /// la croix d'interdiction, et un clic n'envoie rien ; un clic sur une cellule visible lance la Flèche Magique.
+    /// </summary>
+    private static async Task<List<string>> SightTurnAsync(LiveSession sv, GameClientFullform screen, Cell hidden)
+    {
+        var evidence = new List<string>();
+        Fights fv = sv.Account.Game.Fight;
+        Check(fv.TacticMode && await OnUi(() => UserMapOf(screen).TacticView).ConfigureAwait(false), "Le mode tactique n'a pas survécu au début du combat");
+        Cell own = sv.Map.GetCellFromId((short)Self(sv).CellId);
+        Check(own != null && fv.ActionPoints >= 4, "Tour sans cellule ni PA : PA " + fv.ActionPoints);
+        await OnUi(() => screen.Map.SelectSpell(SightSpell)).ConfigureAwait(false);
+        short[] range = await WaitOnUi(() =>
+        {
+            UserMapControl map = UserMapOf(screen);
+            return map.IsAiming && map.AimIcon == "Spells/" + SightSpell ? Sorted(map.SpellRange) : null;
+        }, 10).ConfigureAwait(false);
+        Check(range != null && range.Contains(hidden.CellID), "Portée de la Flèche Magique sans la cellule cachée " + hidden.CellID + " : " + (range == null ? "aucune" : CellList(range)));
+        short[] targets = await OnUi(() => SpellTargetsOf(screen)).ConfigureAwait(false);
+        bool shown = await OnUi(() => UserMapOf(screen).AllowedZoneShown).ConfigureAwait(false);
+        string reason = fv.GetSpellUnavailableReason(SightSpell, hidden.CellID);
+        Check(shown && targets.Length > 0 && !targets.Contains(hidden.CellID) && reason == "Cible hors de la ligne de vue.",
+            "Cellule cachée " + hidden.CellID + " : mise en valeur " + shown + ", cibles " + CellList(targets) + ", raison du bot « " + reason + " »");
+        evidence.Add("Flèche Magique depuis " + own.CellID + " : portée de " + range.Length + " cellules, " + targets.Length + " cibles en #0066CC, "
+            + hidden.CellID + " exclue (« " + reason + " »)");
+
+        await HoverAsync(screen, own.CellID).ConfigureAwait(false);
+        await HoverAsync(screen, hidden.CellID).ConfigureAwait(false);
+        Check(await WaitOnUi(() => UserMapOf(screen).HoveredCell?.id == hidden.CellID && UserMapOf(screen).CursorForbidden ? "interdit" : null, 10).ConfigureAwait(false) != null,
+            "Cellule cachée " + hidden.CellID + " sans croix d'interdiction");
+        await Capture("24-reel-x33-tactique", screen).ConfigureAwait(false);
+        int sentMark = sv.SentCount, paBefore = fv.ActionPoints;
+        await (await OnUi(() => screen.Map.HandleCellActionAsync(hidden.CellID)).ConfigureAwait(false)).ConfigureAwait(false);
+        await Task.Delay(500).ConfigureAwait(false);
+        Check(!sv.SentSince(sentMark).Any(p => p.StartsWith("GA300", StringComparison.Ordinal)) && fv.ActionPoints == paBefore
+            && await OnUi(() => screen.Map.SelectedSpellId == SightSpell).ConfigureAwait(false),
+            "Un clic sur la cellule cachée a envoyé le sort ou désarmé la visée : " + string.Join(" | ", sv.SentSince(sentMark)));
+        evidence.Add("cellule cachée " + hidden.CellID + " : croix d'interdiction, clic sans paquet");
+
+        // Contrôle : une cellule visible et libre à portée est lancée et acceptée par StarLoco.
+        var occupied = new HashSet<int>(fv.Fighters.Values.Where(f => !f.IsDead).Select(f => (int)f.CellId));
+        Cell visible = targets.Select(id => sv.Map.GetCellFromId(id))
+            .Where(c => c != null && !occupied.Contains(c.CellID) && own.GetDistanceBetweenCells(c) >= 2 && own.GetDistanceBetweenCells(c) <= 5)
+            .OrderBy(c => own.GetDistanceBetweenCells(c)).ThenBy(c => c.CellID).FirstOrDefault();
+        Check(visible != null, "Aucune cible visible et libre de 2 à 5 cellules pour la Flèche Magique");
+        await HoverAsync(screen, visible.CellID).ConfigureAwait(false);
+        sentMark = sv.SentCount; int markV = sv.ReceivedCount; paBefore = fv.ActionPoints;
+        await (await OnUi(() => screen.Map.HandleCellActionAsync(visible.CellID)).ConfigureAwait(false)).ConfigureAwait(false);
+        string cast = "GA300" + SightSpell + ";" + visible.CellID;
+        Check(await sv.Until(() => sv.SentSince(sentMark).Contains(cast), 5).ConfigureAwait(false), "Le clic sur la cible visible n'a pas envoyé " + cast + " : " + string.Join(" | ", sv.SentSince(sentMark)));
+        string launched = await sv.Expect(p => p.StartsWith("GA;300;" + sv.Id + ";", StringComparison.Ordinal) || p.StartsWith("GA;302;" + sv.Id + ";", StringComparison.Ordinal)
+            || p.StartsWith("GA;0", StringComparison.Ordinal) || p.StartsWith("GAE", StringComparison.Ordinal), "GA;300 de la Flèche Magique", 10, markV).ConfigureAwait(false);
+        Check(launched.StartsWith("GA;300;", StringComparison.Ordinal), "StarLoco ne lance pas la Flèche Magique en " + visible.CellID + " : " + launched);
+        Check(await sv.Until(() => !fv.IsActionPending && fv.ActionPoints < paBefore, 10).ConfigureAwait(false), "Le personnage attend encore la fin de la Flèche Magique");
+        evidence.Add("cible visible " + visible.CellID + " : clic → " + cast + " → " + Short(launched, 40));
+
+        int mark = sv.ReceivedCount;
+        var passed = await fv.PassTurnAsync().ConfigureAwait(false);
+        Check(passed.Sent, "Fin de tour refusée par le bot : " + passed.Message);
+        await sv.Expect("GTF" + sv.Id, "GTF (fin du tour)", 10, mark).ConfigureAwait(false);
+        await sv.Until(() => !fv.IsMyTurn, 5).ConfigureAwait(false);
         return evidence;
     }
 }
