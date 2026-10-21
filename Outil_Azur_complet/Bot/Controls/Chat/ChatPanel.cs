@@ -10,6 +10,7 @@ using Outil_Azur_complet.Bot.Interfaces;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Game.Actions;
 using Tool_BotProtocol.Game.Chat;
+using Tool_BotProtocol.Game.Combats;
 using Tool_BotProtocol.Game.Maps.Entities;
 using Tool_BotProtocol.Game.Session;
 
@@ -39,6 +40,7 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
         private readonly ChatService chat;
         private readonly GameSession session;
         private readonly MapActions actions;
+        private readonly Fights fight;
         private string letters = string.Empty;
         private bool expanded, released;
         private Image sendImage;
@@ -100,6 +102,7 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
             chat = account.Game?.Chat;
             session = account.Game?.Session;
             actions = account.Game?.Interactions?.MapActions;
+            fight = account.Game?.Fight;
             if (chat != null)
             {
                 Input.History = chat.InputHistory; Input.WhisperHistory = chat.WhisperHistory;
@@ -113,8 +116,15 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
             }
             if (session != null) session.ServerMessageReceived += OnServerMessage;
             if (actions != null) { actions.Notice += OnNotice; actions.ChatInputRequested += OnChatInputRequested; }
+            if (fight != null) fight.JournalEntryAdded += OnFightJournal;
             RefreshState();
         }
+
+        /// <summary>
+        /// Option <c>ChatEffects</c> du client (vraie par défaut) : les lignes du journal de combat (<c>INFO_FIGHT_CHAT</c> :
+        /// invisibilité, sorts, dégâts, tours…) sont affichées dans le filtre Infos, couleur <c>INFO_CHAT_COLOR</c> (lot X7).
+        /// </summary>
+        public bool FightInfos { get; set; } = true;
 
         public ChatView View { get; }
         /// <summary>Filtres d'affichage (grille verticale le long du texte).</summary>
@@ -240,6 +250,7 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
             }
             if (session != null) session.ServerMessageReceived -= OnServerMessage;
             if (actions != null) { actions.Notice -= OnNotice; actions.ChatInputRequested -= OnChatInputRequested; }
+            if (fight != null) fight.JournalEntryAdded -= OnFightJournal;
             try { if (smileyDrop.Visible) smileyDrop.Close(); } catch (InvalidOperationException) { }
             Links.ReleaseLastMenu();
             ExpandedChanged = null; CompassRequested = null; Feedback = null;
@@ -253,6 +264,11 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
         private void OnEmotesChanged() => OnUi(() => { Smileys.SetEmotes(EmoteIds()); smileyHost.Size = Smileys.Size; });
         private void OnServerMessage(ServerMessage message) => OnUi(() => View.Append(ChatLineBuilder.FromServerMessage(message)));
         private void OnChatInputRequested(string text) => Prefill(text);
+        private void OnFightJournal(FightLogEntry entry)
+        {
+            if (entry == null || string.IsNullOrEmpty(entry.Text)) return;
+            OnUi(() => { if (FightInfos) View.Append(ChatLineBuilder.Local(ChatFilter.Infos, ChatColors.Info, entry.Text)); });
+        }
 
         private void OnNotice(MapActionNotice notice)
         {

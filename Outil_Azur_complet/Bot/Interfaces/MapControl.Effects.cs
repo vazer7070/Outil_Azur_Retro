@@ -552,11 +552,14 @@ namespace Outil_Azur_complet.Bot.Interfaces
             if (!IsMapShown) { extraClips.Forget(Effects); return; }
             Fights fight = Account.Game?.Fight;
             bool running = fight != null && fight.IsInFight && !fight.IsPlacement;
-            IReadOnlyDictionary<int, CombatFighter> fighters = running ? fight.Fighters : null;
+            bool placement = fight != null && fight.IsPlacement;
+            IReadOnlyDictionary<int, CombatFighter> fighters = running || placement ? fight.Fighters : null;
             Func<long, int?> teamOf = id => fighters != null && fighters.TryGetValue(unchecked((int)id), out CombatFighter fighter) && fighter.Team >= 0
                 ? fighter.Team : (int?)null;
+            // Placement (lot X7) : clip « prêt » au-dessus des combattants qui ont répondu GR1.
+            Func<long, bool> isReady = placement ? (id => fighters.TryGetValue(unchecked((int)id), out CombatFighter fighter) && fighter.IsReady) : (Func<long, bool>)null;
             bool aura = Options.Aura;
-            IEnumerable<ActorExtraClips.Wanted> wanted = MapActors().SelectMany(actor => ActorExtraClips.WantedFor(actor, running, aura, teamOf)).ToList();
+            IEnumerable<ActorExtraClips.Wanted> wanted = MapActors().SelectMany(actor => ActorExtraClips.WantedFor(actor, running, aura, teamOf, isReady)).ToList();
             extraClips.Reconcile(wanted, Effects, UserMap.Sprites, TryAddEffect, UserMap.Now);
             UserMap.WakeAnimations();
         }

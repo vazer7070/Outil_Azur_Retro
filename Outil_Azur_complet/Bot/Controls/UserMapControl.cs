@@ -236,6 +236,7 @@ namespace Outil_Azur_complet.Bot.Controls
                     // Les PNG sont lus par une tâche de fond : la vue se recadre et se redessine quand ils arrivent.
                     artwork = new BotMapArtwork(map);
                     artwork.AssetsLoaded += ArtworkAssetsLoaded;
+                    artwork.CellChanged += ArtworkCellChanged;
                     if (artwork.AssetsReady) ArtworkAssetsLoaded(artwork, EventArgs.Empty);
                 }
                 catch (Exception error)
@@ -246,6 +247,33 @@ namespace Outil_Azur_complet.Bot.Controls
             }
             zoom = 1; pan = PointF.Empty; CellH = null;
             DisplayStateChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// <c>GDC</c> (lot X7) : redécode la cellule dans le décor d'après ses dix caractères effectifs (<see cref="Map.CellDataOf"/>)
+        /// et redessine la vue (ligne de vue et déplacement changent la couleur de repli). Fil de l'interface. Vrai si l'image
+        /// de la cellule change (ses PNG arrivent ensuite par <see cref="BotMapArtwork.CellChanged"/>).
+        /// </summary>
+        public bool RefreshCell(int cellId)
+        {
+            Map map = Account?.Game?.Map;
+            string data = map?.CellDataOf(cellId);
+            bool changed = artwork != null && data != null && artwork.UpdateCell(cellId, data);
+            Invalidate();
+            return changed;
+        }
+
+        private void ArtworkCellChanged(int cellId)
+        {
+            if (IsDisposed) return;
+            if (InvokeRequired)
+            {
+                try { if (IsHandleCreated) BeginInvoke(new Action(() => ArtworkCellChanged(cellId))); }
+                catch (InvalidOperationException) { }
+                return;
+            }
+            // Le niveau ou l'activité de la cellule déplacent son losange : la grille cliquable suit le décor.
+            DrawGrille();
         }
 
         private void ArtworkAssetsLoaded(object sender, EventArgs e)
@@ -527,6 +555,8 @@ namespace Outil_Azur_complet.Bot.Controls
                 if (spellTargets?.Contains(cell.id) == true)
                     using (var target = new SolidBrush(Color.FromArgb(65, 70, 146, 207))) G.FillPolygon(target, worldPolygons[cell.id]);
             }
+            // Zones GDZ (lot X7) : au-dessus des cellules, sous les effets et les acteurs, comme le calque des zones du client.
+            if (fight != null && fight.IsInFight) FightZoneLayer.Draw(G, fight.Zones, map.MapCells, worldPolygons, 1 / Math.Max(.01f, viewScale));
             // Couche Ground des effets (lot AN1) : après les cellules, sous tout le reste.
             effects.Draw(G, effectView, EffectLayer.Ground);
             DrawPathPreview(G);

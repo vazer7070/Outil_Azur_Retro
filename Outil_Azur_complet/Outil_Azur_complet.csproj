@@ -242,6 +242,7 @@
     <Compile Include="Bot\Controls\ActorAccessories.cs" />
     <Compile Include="Bot\Controls\ActorAnimationQueue.cs" />
     <Compile Include="Bot\Controls\FightVisualSequencer.cs" />
+    <Compile Include="Bot\Controls\FightZoneLayer.cs" />
     <Compile Include="Bot\Controls\MapEffects.cs" />
     <Compile Include="Bot\Controls\ActorExtraClips.cs" />
     <Compile Include="Bot\Controls\SpellEffects.cs" />
