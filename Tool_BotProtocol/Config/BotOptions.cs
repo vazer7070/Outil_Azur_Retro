@@ -54,7 +54,7 @@ namespace Tool_BotProtocol.Config
         {
             Pair("Grid", false), Pair("Transparency", false), Pair("SpriteInfos", true), Pair("SpriteMove", true),
             Pair("MapInfos", true), Pair("ChatEffects", true), Pair("PointsOverHead", true), Pair("Aura", true), Pair("ViewAllMonsterInGroup", true),
-            Pair("TimestampInChat", true), Pair("BannerShortcuts", true), Pair("CensorshipFilter", true),
+            Pair("TimestampInChat", true), Pair("BannerShortcuts", true), Pair("CensorshipFilter", true), Pair("ConfirmDropItem", true),
             Pair("DefaultQuality", "high"), Pair("BannerGaugeMode", "xp"), Pair("BannerIllustrationMode", "artwork"),
         };
 
@@ -118,6 +118,11 @@ namespace Tool_BotProtocol.Config
         public bool TimestampInChat { get => GetBool("TimestampInChat"); set => Set("TimestampInChat", value); }
         public bool BannerShortcuts { get => GetBool("BannerShortcuts"); set => Set("BannerShortcuts", value); }
         public bool CensorshipFilter { get => GetBool("CensorshipFilter"); set => Set("CensorshipFilter", value); }
+        /// <summary>
+        /// Option <c>ConfirmDropItem</c> du client (vraie par défaut, lot X12) : jeter un objet au sol passe par la question
+        /// <c>CONFIRM_DROP_ITEM</c> (<c>CAUTION_YESNO</c>) avant <c>OD&lt;objet&gt;|&lt;quantité&gt;</c>, comme <c>Inventory.dropDownItem</c>.
+        /// </summary>
+        public bool ConfirmDropItem { get => GetBool("ConfirmDropItem"); set => Set("ConfirmDropItem", value); }
         public string DefaultQuality { get => GetString("DefaultQuality"); set => Set("DefaultQuality", value); }
         public string BannerGaugeMode { get => GetString("BannerGaugeMode"); set => Set("BannerGaugeMode", value); }
         public string BannerIllustrationMode { get => GetString("BannerIllustrationMode"); set => Set("BannerIllustrationMode", value); }

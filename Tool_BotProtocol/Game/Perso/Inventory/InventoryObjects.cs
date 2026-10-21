@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Tool_BotProtocol.Game.Data;
@@ -28,6 +29,13 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
         /// <summary>Vrai lorsque la fiche du modèle est disponible dans <c>ressources/Bot/BotObjets</c>.</summary>
         public bool HasMetadata { get; private set; }
         public static ConcurrentDictionary<int, InventoryObjects> FullInventory = new ConcurrentDictionary<int, InventoryObjects>();
+        private static long dateCounter;
+        /// <summary>
+        /// Ordre d'arrivée de la fiche, comme <c>_itemDateId</c> du client (lot X12) : chaque fiche lue (<c>OAK</c>, <c>OC</c>) prend un
+        /// compteur qui décroît (<c>Item.DATE_ID - 1</c>) ; le tri « par date » croissant met donc la dernière fiche reçue en tête.
+        /// Une mise à jour de quantité (<c>OQ</c>) garde la même fiche et donc son rang, comme chez le client.
+        /// </summary>
+        public long DateId { get; private set; }
         public InventoryObjectsTypes Inventory { get; private set; } = InventoryObjectsTypes.UNKNOWN;
         public InventoryObjects()
         {
@@ -70,7 +78,7 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
             if (!uint.TryParse(parse[0], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint inventoryId)
                 || !int.TryParse(parse[1], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int template)
                 || !int.TryParse(parse[2], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int quantity)) return null;
-            var item = new InventoryObjects { Inventory_ID = inventoryId, ID = template, Qua = quantity };
+            var item = new InventoryObjects { Inventory_ID = inventoryId, ID = template, Qua = quantity, DateId = Interlocked.Decrement(ref dateCounter) };
             if (!string.IsNullOrEmpty(parse[3]))
             {
                 if (!int.TryParse(parse[3], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int slot)) return null;
@@ -117,7 +125,7 @@ namespace Tool_BotProtocol.Game.Perso.Inventory
             if (parsed == null) throw new FormatException("Fiche d'objet illisible : " + paquet);
             Inventory_ID = parsed.Inventory_ID; ID = parsed.ID; Qua = parsed.Qua; position = parsed.position;
             Stats = parsed.Stats; Regen = parsed.Regen; Name = parsed.Name; pods = parsed.pods; Type = parsed.Type;
-            Level = parsed.Level; Conditions = parsed.Conditions; Inventory = parsed.Inventory; HasMetadata = parsed.HasMetadata;
+            Level = parsed.Level; Conditions = parsed.Conditions; Inventory = parsed.Inventory; HasMetadata = parsed.HasMetadata; DateId = parsed.DateId;
         }
         public bool IsEquipped() => position > InventorySlots.NOT_EQUIPPED;
     }

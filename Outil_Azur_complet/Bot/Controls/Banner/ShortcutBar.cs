@@ -203,7 +203,8 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
             // Arme sans icône exportée : le texte « CàC » plutôt que le poing, qui ferait croire à des mains nues.
             closeCombat.Icon = weapon != null ? ItemIcon(weapon) : Icon("Client", "DefaultCC");
             string reason = fight == null ? "Aucun combat en cours." : fight.GetCloseCombatUnavailableReason();
-            closeCombat.Available = reason == null;
+            closeCombat.Available = !CloseCombatDimmed(fight, stats, out bool wrongState);
+            closeCombat.WrongState = wrongState;
             closeCombat.SelectedSpell = SelectedSpell?.Invoke() == Fights.CloseCombatSpellId;
             closeCombat.AccessibleName = "Corps à corps · " + (stats?.Name ?? "Poings");
             tips.SetToolTip(closeCombat, CloseCombatTitle + " · " + (stats?.Summary ?? "Poings")
@@ -239,7 +240,8 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
                 slot.Icon = Icon("Spells", spell.ID.ToString(CultureInfo.InvariantCulture)); slot.Fallback = spell.ID.ToString(CultureInfo.InvariantCulture);
                 slot.SelectedSpell = selected == spell.ID;
                 string reason = fight?.GetSpellUnavailableReason(spell.ID);
-                slot.Available = reason == null;
+                slot.Available = !SpellDimmed(fight, spell, out string badge);
+                slot.WrongState = false; slot.Badge = badge;
                 slot.AccessibleName = (spell.Name ?? "Sort #" + spell.ID) + " · niveau " + spell.Level;
                 SpellStats data = spell.GetStats();
                 string cost = data == null ? "Données du sort absentes" : data.PA + " PA · portée " + data.Min_portee + "–" + data.Max_portee;
@@ -247,6 +249,49 @@ namespace Outil_Azur_complet.Bot.Controls.Banner
                     + "\nGlisser vers une autre case : SM · clic droit : fiche du sort · Échap : annuler");
                 slot.Invalidate();
             }
+        }
+
+        /// <summary>
+        /// Case de sort voilée comme <c>MouseShortcuts.setSpellStateOnContainer</c> (<c>checkCanLaunchSpellReturnObject</c>) : hors
+        /// d'un combat lancé (placement compris) ou en spectateur, <c>NOT_IN_FIGHT</c> voile toutes les cases ; en combat, seuls un
+        /// délai de relance (tours restants affichés sous 63, <c>CANT_LAUNCH_BEFORE</c>), le nombre de lancers du tour atteint
+        /// (<c>CANT_LAUNCH_MORE</c>) et des PA insuffisants (<c>NOT_ENOUGH_AP</c>) voilent la case. Le tour d'un autre combattant ou une
+        /// action en attente ne la voilent pas : le clic reste refusé avec sa raison (infobulle, journal). Les états requis ou interdits
+        /// des sorts ne sont pas connus du bot (fiches de sorts sans états).
+        /// </summary>
+        internal static bool SpellDimmed(Fights fight, Spell spell, out string badge)
+        {
+            badge = null;
+            if (fight == null || spell == null || fight.Phase != CombatPhase.Active || fight.IsSpectator) return true;
+            int remaining = fight.GetSpellCooldownRemaining(spell.ID);
+            if (remaining > 0)
+            {
+                if (remaining < 63) badge = remaining.ToString(CultureInfo.InvariantCulture);
+                return true;
+            }
+            SpellStats stats = spell.GetStats();
+            if (stats == null) return false;
+            if (stats.PerTurn > 0 && fight.GetSpellCastsThisTurn(spell.ID) >= stats.PerTurn) return true;
+            int points = fight.ActionPoints;
+            return points >= 0 && stats.PA > points;
+        }
+
+        /// <summary>
+        /// Case <c>²</c>, sort 0 du client : même règle que <see cref="SpellDimmed"/> ; un état requis absent ou un état interdit
+        /// présent la teinte en <c>WRONG_STATE_TRANSFORM</c> (<c>NOT_IN_REQUIRED_STATE</c>, <c>IN_FORBIDDEN_STATE</c>).
+        /// </summary>
+        private bool CloseCombatDimmed(Fights fight, CloseCombatStats stats, out bool wrongState)
+        {
+            wrongState = false;
+            if (fight == null || stats == null || fight.Phase != CombatPhase.Active || fight.IsSpectator) return true;
+            int self = account?.Game?.character?.id ?? 0;
+            if (stats.RequiredStates.Any(state => !fight.HasState(self, state)) || stats.ForbiddenStates.Any(state => fight.HasState(self, state)))
+            {
+                wrongState = true;
+                return true;
+            }
+            int points = fight.ActionPoints;
+            return stats.HasData && points >= 0 && stats.ActionPoints > points;
         }
 
         private void RefreshItems()

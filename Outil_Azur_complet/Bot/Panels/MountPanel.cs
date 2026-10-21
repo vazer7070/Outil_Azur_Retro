@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Outil_Azur_complet.Bot.Controls.Chat;
 using Tool_BotProtocol.Game;
 using Tool_BotProtocol.Game.Exchanges;
 using Tool_BotProtocol.Game.Interactions;
@@ -36,7 +37,8 @@ namespace Outil_Azur_complet.Bot.Panels
         private Label status, bagsPods;
         private ExchangeItemGrid bagsGrid;
         private ListView bagsBag;
-        private NumericUpDown withdrawQuantity, depositQuantity;
+        private ItemDropZone bagsDrop;
+        private readonly TransferGate gate = new TransferGate();
         private Control bagsWithdraw, bagsDeposit, bagsLeave;
         private MountActions bound;
         private MountExchange boundBags;
@@ -60,6 +62,8 @@ namespace Outil_Azur_complet.Bot.Panels
         public ExchangeItemGrid BagsGrid => bagsGrid;
         /// <summary>Boîte de confirmation ouverte (castrer, libérer), ou <c>null</c>.</summary>
         public Form ConfirmDialog => confirmDialog;
+        /// <summary>Dépose un contenu glissé sur la liste du sac des sacoches (glisser-déposer, tests) : faux s'il n'y est pas accepté.</summary>
+        public bool DropOnBag(object payload) => bagsDrop != null && bagsDrop.AcceptDrop(payload);
 
         protected override Control CreateView()
         {
@@ -115,22 +119,26 @@ namespace Outil_Azur_complet.Bot.Panels
             var top = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 6) };
             var title = MakeLabel("Sacoches de la monture", 9, true); title.Dock = DockStyle.Top; title.Height = 22;
             bagsPods = MakeLabel(string.Empty, 9); bagsPods.Dock = DockStyle.Bottom; bagsPods.Height = 22; bagsPods.TextAlign = ContentAlignment.MiddleLeft;
-            bagsGrid = new ExchangeItemGrid { Dock = DockStyle.Fill, AccessibleName = "Sacoches de la monture", EmptyText = "Sacoches vides." };
+            bagsGrid = new ExchangeItemGrid { Dock = DockStyle.Fill, AccessibleName = "Sacoches de la monture", EmptyText = "Sacoches vides.", AllowItemDrag = true };
             bagsGrid.SelectionChanged += (s, e) => UpdateBagButtons();
-            withdrawQuantity = InventoryPanel.Quantity();
-            bagsWithdraw = MakeButton("Retirer", async (s, e) => await Withdraw(), false, 100);
+            // Lot X12 : glisser du sac vers les sacoches (EMO+) et des sacoches vers le sac (EMO-), boîte de quantité au-delà de 1.
+            bagsGrid.DropFilter = payload => ItemTransfer.IsBagItem(payload) && CanEditBags();
+            bagsGrid.Dropped += payload => _ = Deposit(ItemTransfer.BagItemId(payload));
+            bagsWithdraw = MakeButton("Retirer", async (s, e) => await WithdrawSelected(), false, 100);
             top.Controls.Add(bagsGrid); top.Controls.Add(bagsPods); top.Controls.Add(title);
-            top.Controls.Add(BotUi.Actions(bagsWithdraw, InventoryPanel.QuantityLabel(), withdrawQuantity));
+            top.Controls.Add(BotUi.Actions(bagsWithdraw));
             var bottom = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0) };
             var bagTitle = MakeLabel("Votre sac", 9, true); bagTitle.Dock = DockStyle.Top; bagTitle.Height = 22;
             bagsBag = MakeList(9, "Objet", "Qté");
             bagsBag.Columns[0].Width = 250; bagsBag.Columns[1].Width = 75;
             bagsBag.SelectedIndexChanged += (s, e) => UpdateBagButtons();
-            depositQuantity = InventoryPanel.Quantity();
-            bagsDeposit = MakeButton("Déposer", async (s, e) => await Deposit(), false, 100);
+            ItemTransfer.MakeBagSource(bagsBag, id => Game?.character?.Inventory?.GetByInventoryId(id), item => item.Qua);
+            bagsDrop = new ItemDropZone(bagsBag, payload => ItemTransfer.IsFrom(payload, bagsGrid) && CanEditBags(),
+                payload => _ = Withdraw(((ExchangeItemDrag)payload).Id));
+            bagsDeposit = MakeButton("Déposer", async (s, e) => await DepositSelected(), false, 100);
             bagsLeave = MakeButton("Fermer", async (s, e) => await LeaveBags(), false, 90);
             bottom.Controls.Add(bagsBag); bottom.Controls.Add(bagTitle);
-            bottom.Controls.Add(BotUi.Actions(bagsDeposit, InventoryPanel.QuantityLabel(), depositQuantity, bagsLeave));
+            bottom.Controls.Add(BotUi.Actions(bagsDeposit, bagsLeave));
             split.Controls.Add(top, 0, 0); split.Controls.Add(bottom, 0, 1);
             area.Controls.Add(split);
             return area;
@@ -260,8 +268,6 @@ namespace Outil_Azur_complet.Bot.Panels
             bool open = Connected && bags.IsOpen;
             ExchangeItem stored = bagsGrid.SelectedItem;
             InventoryObjects item = InventoryPanel.SelectedItem(Game, bagsBag);
-            if (stored != null) withdrawQuantity.Maximum = Math.Max(1, stored.Quantity);
-            if (item != null) depositQuantity.Maximum = Math.Max(1, item.Qua);
             bagsWithdraw.Enabled = open && stored != null;
             bagsDeposit.Enabled = open && item != null;
             bagsLeave.Enabled = open;
@@ -280,21 +286,61 @@ namespace Outil_Azur_complet.Bot.Panels
             return ReportAsync(() => Game.Interactions.Mount.RenameAsync(name));
         }
 
-        private Task Withdraw()
+        private bool CanEditBags() => Connected && Game?.Interactions?.Mount?.Inventory?.IsOpen == true;
+
+        private Task WithdrawSelected()
         {
             ExchangeItem stored = bagsGrid.SelectedItem;
-            if (stored == null) return Task.CompletedTask;
-            int quantity = (int)withdrawQuantity.Value;
-            return ReportAsync(() => Game.Interactions.Mount.Inventory.WithdrawAsync(stored.Id, quantity));
+            return stored == null ? Task.CompletedTask : Withdraw(stored.Id);
         }
 
-        private Task Deposit()
+        private Task DepositSelected()
         {
             InventoryObjects item = InventoryPanel.SelectedItem(Game, bagsBag);
-            if (item == null) return Task.CompletedTask;
-            int quantity = (int)depositQuantity.Value;
-            return ReportAsync(() => Game.Interactions.Mount.Inventory.DepositAsync(item.Inventory_ID, quantity));
+            return item == null ? Task.CompletedTask : Deposit(item.Inventory_ID);
         }
+
+        /// <summary>
+        /// Retrait des sacoches comme l'interface <c>Storage</c> en mode monture : borné à ce que le personnage peut porter
+        /// (<c>getPossibleItemReceiveQuantity</c>), <c>SRV_MSG_6</c> s'il ne peut rien prendre, boîte au-delà de 1, puis <c>EMO-</c>.
+        /// </summary>
+        private Task Withdraw(uint storedId) => gate.RunAsync(async () =>
+        {
+            MountExchange bags = Game?.Interactions?.Mount?.Inventory;
+            ExchangeItem stored = bags?.Items.FirstOrDefault(entry => entry.Id == storedId);
+            if (bags == null || !bags.IsOpen || stored == null) return;
+            int limit = ItemTransfer.Receivable(stored.Quantity, ItemTransfer.UnitWeight(stored.TemplateId), ItemTransfer.FreePods(Game?.character?.Inventory));
+            if (limit <= 0) { await NoRoom(); return; }
+            int? chosen = await ItemTransfer.AskAsync(View, limit);
+            if (chosen == null) return;
+            stored = bags.Items.FirstOrDefault(entry => entry.Id == storedId);
+            if (!bags.IsOpen || stored == null || stored.Quantity <= 0) return;
+            int quantity = Math.Min(Math.Min(chosen.Value, limit), stored.Quantity);
+            await ReportAsync(() => bags.WithdrawAsync(storedId, quantity));
+        });
+
+        /// <summary>
+        /// Dépôt dans les sacoches : borné à la place libre de la monture (<c>Ew</c>, <c>getPossibleItemReceiveQuantity(…, true)</c>),
+        /// <c>SRV_MSG_6</c> s'il ne tient rien, boîte au-delà de 1, puis <c>EMO+</c>.
+        /// </summary>
+        private Task Deposit(uint inventoryId) => gate.RunAsync(async () =>
+        {
+            MountExchange bags = Game?.Interactions?.Mount?.Inventory;
+            InventoryObjects item = Game?.character?.Inventory?.GetByInventoryId(inventoryId);
+            if (bags == null || !bags.IsOpen || item == null || item.IsEquipped()) return;
+            long? free = bags.Pods.HasValue && bags.PodsMax.HasValue && bags.PodsMax.Value > 0 ? bags.PodsMax.Value - (long)bags.Pods.Value : (long?)null;
+            int limit = ItemTransfer.Receivable(item.Qua, item.pods, free);
+            if (limit <= 0) { await NoRoom(); return; }
+            int? chosen = await ItemTransfer.AskAsync(View, limit);
+            if (chosen == null) return;
+            item = Game?.character?.Inventory?.GetByInventoryId(inventoryId);
+            if (!bags.IsOpen || item == null || item.Qua <= 0) return;
+            int quantity = Math.Min(Math.Min(chosen.Value, limit), item.Qua);
+            await ReportAsync(() => bags.DepositAsync(inventoryId, quantity));
+        });
+
+        private Task NoRoom() => BotDialogs.InfoAsync(View, ChatUiText.Get("INFORMATIONS", "Informations"),
+            ChatUiText.Get("SRV_MSG_6", "Le nombre maximum d'objets pour cet inventaire est déjà atteint."));
 
         private Task LeaveBags() => ReportAsync(() => Game.Interactions.Mount.Inventory.LeaveAsync());
 

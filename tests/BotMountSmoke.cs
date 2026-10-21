@@ -118,6 +118,12 @@ internal static class BotMountSmoke
     private static void Click(object button) => ((Button)button).PerformClick();
     private static void Answer(Form dialog, string choice) => All(dialog).OfType<Button>().First(button => button.Text == choice).PerformClick();
     private static string DialogMessage(Form dialog) => All(dialog).FirstOrDefault(control => control.Name == "dialog-message")?.Text ?? string.Empty;
+    /// <summary>Seule boîte de quantité ouverte (lot X12).</summary>
+    private static QuantityPopup Quantity([System.Runtime.CompilerServices.CallerLineNumber] int line = 0)
+    {
+        PumpUntil(() => QuantityPopup.OpenPopups.Count == 1, 6, line);
+        return QuantityPopup.OpenPopups[0];
+    }
     private static IEnumerable<string> Texts(ToolStrip strip) => strip.Items.Cast<ToolStripItem>().Select(item => item.Text);
     private static ToolStripItem Item(ToolStrip strip, string text) => strip.Items.Cast<ToolStripItem>().FirstOrDefault(item => item.Text == text);
     private static string Base36(long value)
@@ -587,10 +593,34 @@ internal static class BotMountSmoke
         var bag = (ListView)Get(panel, "bagsBag");
         Check(RowWithTag(bag, 3u) != null && RowWithTag(bag, 1003u) != null, "Bag list of the bags tab differs");
         RowWithTag(bag, 3u).Selected = true; Application.DoEvents();
-        ((NumericUpDown)Get(panel, "depositQuantity")).Value = 1;
-        Click(Get(panel, "bagsDeposit")); Expect(peer, "EMO+3|1", "Deposit button does not send EMO+");
+        Check(!All(panel.View).OfType<NumericUpDown>().Any(control => control.Name == "depositQuantity" || control.Name == "withdrawQuantity"), "Bags tab still has fixed quantity fields");
+        // Lot X12 : boîte de quantité (valeur 1, maximum la pile bornée par la place libre) au lieu d'un champ fixe.
+        Click(Get(panel, "bagsDeposit")); var box = Quantity();
+        Check(box.Maximum == 5 && box.InputText == "1", "Deposit box differs (max " + box.Maximum + ", value " + box.InputText + ")");
+        box.InputText = "1"; box.Confirm(); Expect(peer, "EMO+3|1", "Deposit button does not send EMO+");
         Check(panel.BagsGrid.SelectItem(1002), "Stored item cannot be selected"); Application.DoEvents();
-        Click(Get(panel, "bagsWithdraw")); Expect(peer, "EMO-1002|1", "Withdraw button does not send EMO-");
+        Click(Get(panel, "bagsWithdraw")); box = Quantity(); Check(box.Maximum == 2, "Withdraw box maximum is not the stored stack");
+        box.InputText = "1"; box.Confirm(); Expect(peer, "EMO-1002|1", "Withdraw button does not send EMO-");
+        // Glisser-déposer : objet du sac sur les sacoches, case des sacoches sur le sac ; un objet équipé ou venu d'ailleurs est refusé.
+        Check(!panel.BagsGrid.AcceptDrop(new ShortcutPayload(ShortcutSlotKind.Item, 3, 5, 1)), "An equipped item was accepted by the bags");
+        Check(!panel.BagsGrid.AcceptDrop(new ExchangeItemDrag(panel.BagsGrid, 1002, 2003, 2)), "A bags cell was accepted back by the bags");
+        Check(!panel.DropOnBag(new ShortcutPayload(ShortcutSlotKind.Item, 3, 5, -1)), "A bag item was accepted by the bag list");
+        Check(panel.BagsGrid.AcceptDrop(new ShortcutPayload(ShortcutSlotKind.Item, 3, 5, -1)), "Bag item drop on the bags was refused");
+        box = Quantity(); box.InputText = "9"; box.Confirm(); Expect(peer, "EMO+3|5", "Dropped deposit is not clamped to the stack");
+        Check(panel.DropOnBag(new ExchangeItemDrag(panel.BagsGrid, 1002, 2003, 2)), "Bags cell drop on the bag list was refused");
+        box = Quantity(); box.InputText = "0"; box.Confirm(); PumpUntil(() => QuantityPopup.OpenPopups.Count == 0);
+        NoPacket(peer, "A zero quantity sent EMO-");
+        Check(panel.DropOnBag(new ExchangeItemDrag(panel.BagsGrid, 1002, 2003, 2)), "Second bags cell drop was refused");
+        box = Quantity(); box.InputText = "2"; box.Confirm(); Expect(peer, "EMO-1002|2", "Dropped withdraw does not send EMO-");
+        // Sacoches pleines (Ew) : SRV_MSG_6 et rien n'est envoyé (getPossibleItemReceiveQuantity).
+        FeedFromNetwork(account, "Ew250;250"); Application.DoEvents();
+        Check(panel.BagsGrid.AcceptDrop(new ShortcutPayload(ShortcutSlotKind.Item, 3, 5, -1)), "Drop on full bags was refused before the check");
+        PumpUntil(() => BotDialogs.OpenDialogs.Count == 1);
+        Form full = BotDialogs.OpenDialogs[0];
+        Check(QuantityPopup.OpenPopups.Count == 0 && DialogMessage(full).Length > 0, "Full bags did not show SRV_MSG_6 without a quantity box");
+        Answer(full, "OK"); PumpUntil(() => BotDialogs.OpenDialogs.Count == 0);
+        NoPacket(peer, "Full bags still sent EMO+");
+        FeedFromNetwork(account, "Ew40;250");
         drawer.RequestClose(panel); Expect(peer, "EV", "Closing the panel does not send EV");
         Check(drawer.IsOpen(panel), "Mount panel closed before the server");
         FeedFromNetwork(account, "EV");

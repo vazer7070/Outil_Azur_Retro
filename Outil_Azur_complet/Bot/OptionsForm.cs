@@ -21,7 +21,7 @@ namespace Outil_Azur_complet.Bot
         public static readonly IReadOnlyCollection<string> PendingOptions = new HashSet<string>(StringComparer.Ordinal)
             { "Transparency", "SpriteInfos", "SpriteMove" };
 
-        private static readonly string[] GeneralOptions = { "BannerShortcuts", "ChatEffects", "TimestampInChat", "CensorshipFilter", "ViewAllMonsterInGroup" };
+        private static readonly string[] GeneralOptions = { "BannerShortcuts", "ChatEffects", "TimestampInChat", "CensorshipFilter", "ViewAllMonsterInGroup", "ConfirmDropItem" };
         private static readonly string[] DisplayOptions = { "Grid", "MapInfos", "Transparency", "SpriteInfos", "SpriteMove", "PointsOverHead", "Aura" };
 
         private readonly BotOptions options;
@@ -306,6 +306,7 @@ namespace Outil_Azur_complet.Bot
                 case "TimestampInChat": return Lang("OPTION_USE_CHATTIMESTAMP", "Afficher l'heure de réception des messages dans le chat");
                 case "BannerShortcuts": return Lang("OPTION_BANNERSHORTCUTS", "Activer les raccourcis (caractéristiques, inventaire, ...)");
                 case "CensorshipFilter": return Lang("OPTION_CENSORSHIP_FILTER", "Filtrer les mots insultants dans le chat");
+                case "ConfirmDropItem": return Lang("OPTION_CONFIRM_DROPITEM", "Popup de confirmation lorsqu'on pose un objet au sol");
                 case "DefaultQuality": return Lang("OPTION_DEFAULTQUALITY", "Qualité Flash");
                 default: return name;
             }

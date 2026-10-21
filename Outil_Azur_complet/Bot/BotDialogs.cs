@@ -55,6 +55,20 @@ namespace Outil_Azur_complet.Bot
         public static Task<BotDialogResult> InfoAsync(Control owner, string title, string message, string name) =>
             ShowAsync(owner, title, message, name, BotDialogResult.Ok, BotDialogResult.Ok);
 
+        // Lot X12 : boîte de quantité du client pour jeter, détruire, proposer, déposer et retirer.
+        /// <summary>
+        /// <c>PopupQuantity</c> du client (<see cref="Controls.QuantityPopup"/>, au pointeur, Entrée valide, Échap abandonne) avec
+        /// <paramref name="value"/> dans le champ et <paramref name="maximum"/> pour « max », puis la validation commune du client :
+        /// une valeur nulle, vide ou abandonnée rend <c>null</c> (rien n'est envoyé), sinon <c>Math.min(valeur, maximum)</c>.
+        /// L'appelant borne encore à la pile qu'il relit après la réponse, celle-ci ayant pu changer pendant que la boîte était ouverte.
+        /// </summary>
+        public static async Task<int?> AskQuantityAsync(Control owner, int value, int maximum)
+        {
+            int? chosen = await Controls.QuantityPopup.AskAsync(owner, value, maximum);
+            if (chosen == null || chosen.Value <= 0) return null;
+            return Math.Min(chosen.Value, Math.Max(1, maximum));
+        }
+
         /// <summary>Referme sans réponse (<see cref="BotDialogResult.None"/>) les boîtes portant ce nom ; renvoie leur nombre.</summary>
         public static int Dismiss(string name)
         {

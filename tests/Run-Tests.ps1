@@ -129,6 +129,10 @@ try {
     # Lot X7 (événements de combat visibles : journal dans le chat, zones GDZ, cellules GDC, clip « prêt », icônes Go, invisibilité GA;150) :
     # couvert par BotFightUiSmoke, BotMapViewSmoke, BotChatUiSmoke et le scénario x7 de BotStarLocoLiveSmoke (Sram inventé, deux pièges,
     # Invisibilité, fenêtre de B restée sur la carte) ; AZUR_STARLOCO_SCENARIOS=x7 ne joue que celui-là après la connexion.
+    # Lot X12 (boîte de quantité pour jeter, détruire, proposer, déposer et les kamas, ConfirmDropItem, glisser-déposer vers les volets
+    # d'échange, de coffre, de sacoches et d'atelier, six tris de l'inventaire, cases de sort voilées selon le client) : couvert par
+    # BotInventoryGridSmoke, BotShopSmoke, BotExchangeSmoke, BotCraftSmoke, BotMountSmoke, BotBannerSmoke, BotFightUiSmoke et le scénario
+    # x12 de BotStarLocoLiveSmoke (échange entre deux comptes et banque) ; AZUR_STARLOCO_SCENARIOS=x12 ne joue que celui-là après la connexion.
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'

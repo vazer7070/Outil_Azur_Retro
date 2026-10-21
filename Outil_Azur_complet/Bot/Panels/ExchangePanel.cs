@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Outil_Azur_complet.Bot.Controls;
 using Tool_BotProtocol.Game;
 using Tool_BotProtocol.Game.Exchanges;
 using Tool_BotProtocol.Game.Interactions;
@@ -17,6 +18,10 @@ namespace Outil_Azur_complet.Bot.Panels
     /// (ou pendant l'attente d'une demande envoyée) et se ferme sur <c>EV</c>. Une demande reçue (<c>ERK</c>, échange ou artisanat
     /// sécurisé) est posée dans une boîte Oui / Non / Ignorer : Oui envoie <c>EA</c>, Non <c>EV</c>, Ignorer <c>EV</c> et ignore le joueur pour la session.
     /// « Valider » (<c>EK</c>) reste grisé 3 secondes après chaque modification, comme le bouton du client.
+    /// Lot X12 : un objet du sac glissé sur sa proposition (ou « Proposer ») et une case de sa proposition glissée sur le sac
+    /// (ou « Retirer ») passent par la boîte de quantité quand la pile dépasse 1 (<c>Exchange.dropItem</c>), puis
+    /// <c>EMO+</c> / <c>EMO-</c> ; « Proposer des kamas » ouvre la boîte sur la somme déjà proposée, de 0 à ses kamas
+    /// (<c>askKamaQuantity</c>), puis <c>EMG</c>.
     /// </summary>
     public sealed class ExchangePanel : GamePanel
     {
@@ -25,7 +30,8 @@ namespace Outil_Azur_complet.Bot.Panels
         private Label exchangeHeading, localTitle, distantTitle, localKamas, distantKamas, exchangeStatus;
         private ExchangeItemGrid localGrid, distantGrid;
         private ListView exchangeBag;
-        private NumericUpDown exchangeQuantity, exchangeKamas;
+        private ItemDropZone bagDrop;
+        private readonly TransferGate gate = new TransferGate();
         private Control exchangeAdd, exchangeRemove, exchangeKamasSend, exchangeValidate, exchangeCancel;
         private Timer countdown;
         private bool wasOpen;
@@ -47,6 +53,8 @@ namespace Outil_Azur_complet.Bot.Panels
         }
         /// <summary>Boîte Oui / Non / Ignorer de la demande reçue encore affichée, sinon <c>null</c>.</summary>
         public Form RequestDialog => requestDialog;
+        /// <summary>Dépose un contenu glissé sur la liste du sac (glisser-déposer, tests) : faux s'il n'y est pas accepté.</summary>
+        public bool DropOnBag(object payload) => bagDrop != null && bagDrop.AcceptDrop(payload);
 
         protected override Control CreateView()
         {
@@ -62,25 +70,28 @@ namespace Outil_Azur_complet.Bot.Panels
             localGrid.EmptyText = "Proposez des objets de votre sac.";
             distantGrid.EmptyText = "Rien de proposé pour l'instant.";
             localGrid.SelectionChanged += (s, e) => UpdateButtons();
+            // Glisser du sac vers sa proposition (EMO+) et de sa proposition vers le sac (EMO-), comme _cgGrid / _cgLocal.
+            localGrid.AllowItemDrag = true;
+            localGrid.DropFilter = payload => ItemTransfer.IsBagItem(payload) && CanEdit();
+            localGrid.Dropped += payload => _ = Offer(ItemTransfer.BagItemId(payload));
 
-            exchangeKamas = InventoryPanel.Quantity(); exchangeKamas.Minimum = 0; exchangeKamas.Maximum = 0; exchangeKamas.Width = 110;
-            exchangeKamas.ThousandsSeparator = true;
-            exchangeKamasSend = MakeButton("Proposer les kamas", async (s, e) => await SendKamas(), false, 150);
-            var kamasLabel = InventoryPanel.QuantityLabel(); kamasLabel.Text = "Kamas";
+            exchangeKamasSend = MakeButton("Proposer des kamas", async (s, e) => await AskKamas(), false, 170);
             var kamasBar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, MinimumSize = new Size(0, 43), WrapContents = true,
                 Padding = new Padding(0, 7, 0, 0) };
-            kamasBar.Controls.AddRange(new[] { kamasLabel, (Control)exchangeKamas, exchangeKamasSend });
+            kamasBar.Controls.Add(exchangeKamasSend);
 
             var bagArea = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0) };
             var bagTitle = MakeLabel("Votre sac", 9, true); bagTitle.Dock = DockStyle.Top; bagTitle.Height = 22;
             exchangeBag = MakeList(9, "Objet", "Qté");
             exchangeBag.Columns[0].Width = 250; exchangeBag.Columns[1].Width = 75;
             exchangeBag.SelectedIndexChanged += (s, e) => UpdateButtons();
-            exchangeQuantity = InventoryPanel.Quantity();
+            ItemTransfer.MakeBagSource(exchangeBag, id => Game?.character?.Inventory?.GetByInventoryId(id), Available);
+            bagDrop = new ItemDropZone(exchangeBag, payload => ItemTransfer.IsFrom(payload, localGrid) && CanEdit(),
+                payload => _ = Withdraw(((ExchangeItemDrag)payload).Id));
             exchangeAdd = MakeButton("Proposer", async (s, e) => await AddSelected(), false, 100);
             exchangeRemove = MakeButton("Retirer", async (s, e) => await RemoveSelected(), false, 100);
             bagArea.Controls.Add(exchangeBag); bagArea.Controls.Add(bagTitle);
-            bagArea.Controls.Add(BotUi.Actions(exchangeAdd, exchangeRemove, InventoryPanel.QuantityLabel(), exchangeQuantity));
+            bagArea.Controls.Add(BotUi.Actions(exchangeAdd, exchangeRemove));
 
             exchangeStatus = MakeStatus(IdleText);
             exchangeValidate = MakeButton("Valider", async (s, e) => await Validate(), true, 130);
@@ -170,11 +181,7 @@ namespace Outil_Azur_complet.Bot.Panels
         private void OnServerChanged() => Post(() =>
         {
             bool open = IsServerWindowOpen;
-            if (open && !wasOpen)
-            {
-                if (exchangeKamas != null) exchangeKamas.Value = 0;
-                RequestShow();
-            }
+            if (open && !wasOpen) RequestShow();
             else if (!open && wasOpen) RaiseClosed();
             wasOpen = open;
             if (requestShown != null && !ReferenceEquals(Game?.Interactions?.Exchange?.PendingRequest, requestShown)) CloseRequestDialog();
@@ -257,12 +264,8 @@ namespace Outil_Azur_complet.Bot.Panels
             bool open = Connected && exchange.IsOpen;
             InventoryObjects bagItem = InventoryPanel.SelectedItem(Game, exchangeBag);
             ExchangeItem offer = localGrid.SelectedItem;
-            int limit = Math.Max(bagItem?.Qua ?? 1, offer?.Quantity ?? 1);
-            exchangeQuantity.Maximum = Math.Max(1, limit);
             exchangeAdd.Enabled = open && bagItem != null;
             exchangeRemove.Enabled = open && offer != null;
-            long owned = Math.Max(0, Game.character?.Kamas ?? 0);
-            exchangeKamas.Maximum = owned;
             exchangeKamasSend.Enabled = open;
             TimeSpan wait = exchange.ValidationWait;
             bool waiting = open && wait > TimeSpan.Zero;
@@ -280,32 +283,76 @@ namespace Outil_Azur_complet.Bot.Panels
             return false;
         }
 
-        private Task AddSelected()
+        private bool CanEdit() => Connected && Game?.Interactions?.Exchange?.IsOpen == true;
+
+        /// <summary>Quantité d'un objet du sac pas encore proposée.</summary>
+        private int Available(InventoryObjects item)
         {
             PlayerExchange exchange = Game?.Interactions?.Exchange;
+            if (item == null) return 0;
+            int offered = exchange == null ? 0 : exchange.LocalItems.Where(entry => entry.Id == item.Inventory_ID).Sum(entry => entry.Quantity);
+            return Math.Max(0, item.Qua - offered);
+        }
+
+        private Task AddSelected()
+        {
             InventoryObjects item = InventoryPanel.SelectedItem(Game, exchangeBag);
-            if (exchange == null || item == null) return Task.CompletedTask;
-            int offered = exchange.LocalItems.Where(entry => entry.Id == item.Inventory_ID).Sum(entry => entry.Quantity);
-            int quantity = Math.Min((int)exchangeQuantity.Value, Math.Max(1, item.Qua - offered));
-            return ReportAsync(() => exchange.AddItemAsync(item.Inventory_ID, quantity));
+            return item == null ? Task.CompletedTask : Offer(item.Inventory_ID);
         }
 
         private Task RemoveSelected()
         {
-            PlayerExchange exchange = Game?.Interactions?.Exchange;
             ExchangeItem offer = localGrid.SelectedItem;
-            if (exchange == null || offer == null) return Task.CompletedTask;
-            int quantity = Math.Min((int)exchangeQuantity.Value, offer.Quantity);
-            return ReportAsync(() => exchange.RemoveItemAsync(offer.Id, quantity));
+            return offer == null ? Task.CompletedTask : Withdraw(offer.Id);
         }
 
-        private Task SendKamas()
+        /// <summary>
+        /// <c>Exchange.dropItem</c> sur <c>_cgLocal</c> : un objet du sac (non équipé), boîte de quantité si la part encore libre
+        /// dépasse 1, puis <c>EMO+&lt;objet&gt;|&lt;quantité&gt;</c> borné à cette part relue après la boîte.
+        /// </summary>
+        private Task Offer(uint inventoryId) => gate.RunAsync(async () =>
         {
             PlayerExchange exchange = Game?.Interactions?.Exchange;
-            if (exchange == null) return Task.CompletedTask;
-            long kamas = (long)exchangeKamas.Value;
-            return ReportAsync(() => exchange.SetKamasAsync(kamas));
-        }
+            InventoryObjects item = Game?.character?.Inventory?.GetByInventoryId(inventoryId);
+            if (exchange == null || !exchange.IsOpen || item == null || item.IsEquipped()) return;
+            int? chosen = await ItemTransfer.AskAsync(View, Available(item));
+            if (chosen == null) return;
+            item = Game?.character?.Inventory?.GetByInventoryId(inventoryId);
+            int available = Available(item);
+            if (!exchange.IsOpen || available <= 0) return;
+            int quantity = Math.Min(chosen.Value, available);
+            await ReportAsync(() => exchange.AddItemAsync(inventoryId, quantity));
+        });
+
+        /// <summary><c>Exchange.dropItem</c> sur <c>_cgGrid</c> : une case de sa proposition, boîte si la pile dépasse 1, puis <c>EMO-</c>.</summary>
+        private Task Withdraw(uint offerId) => gate.RunAsync(async () =>
+        {
+            PlayerExchange exchange = Game?.Interactions?.Exchange;
+            ExchangeItem offer = exchange?.LocalItems.FirstOrDefault(entry => entry.Id == offerId);
+            if (exchange == null || !exchange.IsOpen || offer == null) return;
+            int? chosen = await ItemTransfer.AskAsync(View, offer.Quantity);
+            if (chosen == null) return;
+            offer = exchange.LocalItems.FirstOrDefault(entry => entry.Id == offerId);
+            if (!exchange.IsOpen || offer == null || offer.Quantity <= 0) return;
+            int quantity = Math.Min(chosen.Value, offer.Quantity);
+            await ReportAsync(() => exchange.RemoveItemAsync(offerId, quantity));
+        });
+
+        /// <summary>
+        /// <c>Exchange.askKamaQuantity</c> : boîte sur la somme déjà proposée, de 0 à ses kamas ; la réponse est bornée à ses kamas
+        /// (<c>validateKama</c>), puis <c>EMG&lt;kamas&gt;</c>.
+        /// </summary>
+        private Task AskKamas() => gate.RunAsync(async () =>
+        {
+            PlayerExchange exchange = Game?.Interactions?.Exchange;
+            if (exchange == null || !exchange.IsOpen) return;
+            int owned = (int)Math.Min(int.MaxValue, Math.Max(0, Game?.character?.Kamas ?? 0));
+            int current = (int)Math.Min(owned, Math.Max(0, exchange.LocalKamas));
+            int? chosen = await QuantityPopup.AskAsync(View, current, owned, 0);
+            if (chosen == null || !exchange.IsOpen) return;
+            long kamas = Math.Min(chosen.Value, Math.Max(0, Game?.character?.Kamas ?? 0));
+            await ReportAsync(() => exchange.SetKamasAsync(kamas));
+        });
 
         private Task Validate()
         {

@@ -22,6 +22,9 @@ namespace Outil_Azur_complet.Bot.Panels
     /// <c>EMR&lt;n-1&gt;</c> pour une série), Stop <c>EMr</c>, Mémoire <c>EL</c>. Sans recette reconnue, Combiner demande d'abord confirmation
     /// (<c>WRONG_CRAFT_CONFIRM</c>). Les recettes de la compétence sont lues hors du thread de l'interface. La forgemagie n'est pas assistée
     /// et l'artisanat sécurisé n'est pas proposé.
+    /// Lot X12 (<c>Craft.dropItem</c>, <c>dblClickItem</c>) : un objet du sac glissé sur les cases (ou « Poser ») et un ingrédient glissé
+    /// sur le sac (ou « Retirer ») passent par la boîte de quantité quand la pile dépasse 1 ; un double-clic déplace un exemplaire
+    /// (toute la pile avec Ctrl) ; un nouvel ingrédient glissé sur un atelier plein est refusé sans message (<c>canDropInGarbage</c>).
     /// </summary>
     public sealed class CraftPanel : GamePanel
     {
@@ -33,7 +36,9 @@ namespace Outil_Azur_complet.Bot.Panels
         private Panel bagPage, recipesPage;
         private ListView bagList, recipeList;
         private CheckBox usefulOnly;
-        private NumericUpDown placeQuantity, repeatCount;
+        private NumericUpDown repeatCount;
+        private ItemDropZone bagDrop;
+        private readonly TransferGate gate = new TransferGate();
         private Control removeButton, combineButton, stopButton, replayButton, placeButton, placeRecipeButton, leaveButton;
         private CraftExchange bound;
         private InventoryClass inventory;
@@ -69,6 +74,8 @@ namespace Outil_Azur_complet.Bot.Panels
         public Recipe ExpectedRecipe => expectedRecipe;
         /// <summary>Boîte <c>WRONG_CRAFT_CONFIRM</c> affichée, ou <c>null</c>.</summary>
         public Form CombineDialog => combineDialog;
+        /// <summary>Dépose un contenu glissé sur la liste du sac (glisser-déposer, tests) : faux s'il n'y est pas accepté.</summary>
+        public bool DropOnBag(object payload) => bagDrop != null && bagDrop.AcceptDrop(payload);
 
         private static string Text(string key, string fallback, params string[] args) => JobCatalog.Text(key, fallback, args);
 
@@ -80,7 +87,14 @@ namespace Outil_Azur_complet.Bot.Panels
             subheading.Name = "craft-job";
             slotsView = new CraftSlotsView { Dock = DockStyle.Top, Height = 2 * CraftSlotsView.CellSize + 3 * 4 + 2, Name = "craft-slots", AccessibleName = "Cases de l'atelier" };
             slotsView.SelectionChanged += (s, e) => UpdateButtons();
-            slotsView.ItemActivated += async (s, e) => await RemoveSelected();
+            slotsView.ItemActivated += async (s, e) =>
+            {
+                ExchangeItem ingredient = slotsView.SelectedItem;
+                if (ingredient != null) await Remove(ingredient.Id, (Control.ModifierKeys & Keys.Control) != 0 ? ingredient.Quantity : 1);
+            };
+            slotsView.AllowItemDrag = true;
+            slotsView.DropFilter = payload => ItemTransfer.IsBagItem(payload) && CanEdit() && HasRoomFor(ItemTransfer.BagItemId(payload));
+            slotsView.Dropped += payload => _ = Place(ItemTransfer.BagItemId(payload), null, true);
             expectedText = MakeLabel(string.Empty, 8.25f); expectedText.Dock = DockStyle.Top; expectedText.Height = 34; expectedText.Name = "craft-expected";
             expectedText.Padding = new Padding(0, 3, 0, 0);
 
@@ -117,15 +131,22 @@ namespace Outil_Azur_complet.Bot.Panels
             bagList = MakeList(8.25f, "Objet", "Qté");
             bagList.Name = "craft-bag"; bagList.Columns[0].Width = 300; bagList.Columns[1].Width = 60;
             bagList.SelectedIndexChanged += (s, e) => UpdateButtons();
-            bagList.DoubleClick += async (s, e) => await PlaceSelected();
+            // Double-clic du client : un exemplaire, toute la part libre avec Ctrl ; glisser vers les cases : boîte de quantité.
+            bagList.DoubleClick += async (s, e) =>
+            {
+                InventoryObjects item = InventoryPanel.SelectedItem(Game, bagList);
+                if (item != null) await Place(item.Inventory_ID, (Control.ModifierKeys & Keys.Control) != 0 ? Available(item) : 1, false);
+            };
+            ItemTransfer.MakeBagSource(bagList, id => Game?.character?.Inventory?.GetByInventoryId(id), Available);
+            bagDrop = new ItemDropZone(bagList, payload => ItemTransfer.IsFrom(payload, slotsView) && CanEdit(),
+                payload => _ = Remove(((ExchangeItemDrag)payload).Id, null));
             // Texte propre au bot : CRAFT_SLOT_FILTER du client (« Affiche/Cache les recettes à %1 ingrédient(s) ») filtre les recettes, pas le sac.
             usefulOnly = new CheckBox { Name = "craft-useful", Text = "Ingrédients des recettes seulement", Checked = true, AutoSize = true,
                 Dock = DockStyle.Top, Font = BotFonts.Get(8), ForeColor = BotUi.Ink, BackColor = BotUi.Paper, Padding = new Padding(0, 0, 0, 2) };
             usefulOnly.CheckedChanged += (s, e) => { bagDirty = true; RefreshView(); };
-            placeQuantity = InventoryPanel.Quantity(); placeQuantity.Name = "craft-place-quantity";
             placeButton = MakeButton("Poser", async (s, e) => await PlaceSelected(), false, 90); placeButton.Name = "craft-place";
             tabPage.Controls.Add(bagList); tabPage.Controls.Add(usefulOnly);
-            tabPage.Controls.Add(BotUi.Actions(placeButton, InventoryPanel.QuantityLabel(), placeQuantity));
+            tabPage.Controls.Add(BotUi.Actions(placeButton));
             return tabPage;
         }
 
@@ -368,7 +389,6 @@ namespace Outil_Azur_complet.Bot.Panels
             int placed = slotsView.Items.Count;
             ExchangeItem ingredient = slotsView.SelectedItem;
             InventoryObjects item = InventoryPanel.SelectedItem(Game, bagList);
-            if (item != null) placeQuantity.Maximum = Math.Max(1, item.Qua - craft.PlacedQuantity(item.Inventory_ID));
             removeButton.Enabled = editable && ingredient != null;
             placeButton.Enabled = editable && item != null;
             placeRecipeButton.Enabled = editable && placed == 0 && SelectedRecipe() != null;
@@ -386,23 +406,79 @@ namespace Outil_Azur_complet.Bot.Panels
             return false;
         }
 
-        private Task RemoveSelected()
+        /// <summary>Ingrédients modifiables : atelier ouvert, ni série ni fabrication en cours.</summary>
+        private bool CanEdit()
         {
             CraftExchange craft = Game?.Interactions?.Jobs?.Craft;
+            return Connected && craft != null && craft.IsOpen && !craft.IsLooping && !craft.IsCombinePending;
+        }
+
+        /// <summary>Un ingrédient déjà posé ou une case libre : sinon l'atelier plein refuse l'objet (<c>canDropInGarbage</c>).</summary>
+        private bool HasRoomFor(uint inventoryId)
+        {
+            CraftExchange craft = Game?.Interactions?.Jobs?.Craft;
+            return craft != null && (craft.PlacedQuantity(inventoryId) > 0 || craft.Slots <= 0 || craft.Ingredients.Count < craft.Slots);
+        }
+
+        /// <summary>Part d'un objet du sac pas encore posée sur l'atelier.</summary>
+        private int Available(InventoryObjects item)
+        {
+            CraftExchange craft = Game?.Interactions?.Jobs?.Craft;
+            return item == null ? 0 : Math.Max(0, item.Qua - (craft?.IsOpen == true ? craft.PlacedQuantity(item.Inventory_ID) : 0));
+        }
+
+        private Task RemoveSelected()
+        {
             ExchangeItem ingredient = slotsView?.SelectedItem;
-            if (craft == null || ingredient == null) return Task.CompletedTask;
-            return ReportAsync(() => craft.RemoveIngredientAsync(ingredient.Id, ingredient.Quantity));
+            return ingredient == null ? Task.CompletedTask : Remove(ingredient.Id, null);
         }
 
         private Task PlaceSelected()
         {
-            CraftExchange craft = Game?.Interactions?.Jobs?.Craft;
             InventoryObjects item = InventoryPanel.SelectedItem(Game, bagList);
-            if (craft == null || item == null) return Task.CompletedTask;
-            int available = item.Qua - craft.PlacedQuantity(item.Inventory_ID);
-            int quantity = Math.Max(1, Math.Min((int)placeQuantity.Value, available));
-            return ReportAsync(() => craft.AddIngredientAsync(item.Inventory_ID, quantity));
+            return item == null ? Task.CompletedTask : Place(item.Inventory_ID, null, false);
         }
+
+        /// <summary>
+        /// Pose un objet du sac (<c>Craft.dropItem</c> sur <c>_cgLocal</c>) : un nouvel ingrédient sur un atelier plein est refusé
+        /// (sans message pour un glisser, comme <c>canDropInGarbage</c>) ; <paramref name="fixedQuantity"/> nul ouvre la boîte de
+        /// quantité au-delà de 1 ; puis <c>EMO+&lt;objet&gt;|&lt;quantité&gt;</c> borné à la part libre relue.
+        /// </summary>
+        private Task Place(uint inventoryId, int? fixedQuantity, bool dragged) => gate.RunAsync(async () =>
+        {
+            CraftExchange craft = Game?.Interactions?.Jobs?.Craft;
+            InventoryObjects item = Game?.character?.Inventory?.GetByInventoryId(inventoryId);
+            if (craft == null || !CanEdit() || item == null || item.IsEquipped() || Available(item) <= 0) return;
+            if (!HasRoomFor(inventoryId))
+            {
+                if (!dragged) Feedback("L'atelier n'a que " + craft.Slots + " " + JobCatalog.SlotWord(craft.Slots) + " : retirez d'abord un ingrédient.");
+                return;
+            }
+            int? chosen = fixedQuantity ?? await ItemTransfer.AskAsync(View, Available(item));
+            if (chosen == null || chosen.Value <= 0) return;
+            item = Game?.character?.Inventory?.GetByInventoryId(inventoryId);
+            int available = Available(item);
+            if (!CanEdit() || available <= 0) return;
+            int quantity = Math.Min(chosen.Value, available);
+            await ReportAsync(() => craft.AddIngredientAsync(inventoryId, quantity));
+        });
+
+        /// <summary>
+        /// Retire un ingrédient (<c>Craft.dropItem</c> sur <c>_cgGrid</c>) : <paramref name="fixedQuantity"/> nul ouvre la boîte de
+        /// quantité au-delà de 1, puis <c>EMO-&lt;objet&gt;|&lt;quantité&gt;</c> borné à la quantité posée relue.
+        /// </summary>
+        private Task Remove(uint inventoryId, int? fixedQuantity) => gate.RunAsync(async () =>
+        {
+            CraftExchange craft = Game?.Interactions?.Jobs?.Craft;
+            int placed = craft?.PlacedQuantity(inventoryId) ?? 0;
+            if (craft == null || !CanEdit() || placed <= 0) return;
+            int? chosen = fixedQuantity ?? await ItemTransfer.AskAsync(View, placed);
+            if (chosen == null || chosen.Value <= 0) return;
+            placed = craft.PlacedQuantity(inventoryId);
+            if (!CanEdit() || placed <= 0) return;
+            int quantity = Math.Min(chosen.Value, placed);
+            await ReportAsync(() => craft.RemoveIngredientAsync(inventoryId, quantity));
+        });
 
         /// <summary>
         /// Pose les ingrédients de la recette choisie depuis le sac (piles non équipées, les plus grosses d'abord) : rien n'est envoyé s'il en manque
@@ -507,7 +583,8 @@ namespace Outil_Azur_complet.Bot.Panels
     /// <summary>
     /// Cases de l'atelier au style du client : autant de cases <c>case-inventaire</c> que l'atelier en a (<c>ECK3|&lt;cases&gt;;…</c>), ingrédients
     /// posés avec leur icône et leur quantité, flèche puis case du résultat (objet créé, recette reconnue en transparence, croix après un échec).
-    /// Double-clic sur un ingrédient : retrait.
+    /// Double-clic sur un ingrédient : retrait. Comme <see cref="ExchangeItemGrid"/>, un ingrédient se glisse vers un autre contrôle
+    /// (<see cref="AllowItemDrag"/>) et les cases reçoivent ce que <see cref="DropFilter"/> accepte (cadre olive pendant le survol).
     /// </summary>
     public sealed class CraftSlotsView : Control
     {
@@ -519,6 +596,9 @@ namespace Outil_Azur_complet.Bot.Panels
         private CraftOutcome outcome;
         private int slotCount, previewTemplate, tipIndex = -2;
         private uint? selectedId;
+        private bool dragArmed, dropHighlight;
+        private Point dragOrigin;
+        private Func<object, bool> dropFilter;
 
         public CraftSlotsView()
         {
@@ -531,6 +611,21 @@ namespace Outil_Azur_complet.Bot.Panels
         public event EventHandler SelectionChanged;
         /// <summary>Double-clic (ou Entrée) sur un ingrédient.</summary>
         public event EventHandler ItemActivated;
+        /// <summary>Contenu accepté déposé sur les cases.</summary>
+        public event Action<object> Dropped;
+
+        /// <summary>Vrai : un ingrédient glissé part vers un autre contrôle (<see cref="ExchangeItemDrag"/>).</summary>
+        public bool AllowItemDrag { get; set; }
+
+        /// <summary>Contenus glissés que les cases reçoivent ; <c>null</c> : aucun.</summary>
+        public Func<object, bool> DropFilter
+        {
+            get => dropFilter;
+            set { dropFilter = value; AllowDrop = value != null; if (value == null) SetHighlight(false); }
+        }
+
+        /// <summary>Vrai pendant le survol d'un contenu accepté (cadre olive).</summary>
+        public bool DropHighlighted => dropHighlight;
 
         /// <summary>Nombre de cases dessinées pour les ingrédients (cases de l'atelier, ou ingrédients s'il y en a plus).</summary>
         public int CellCount => Math.Max(slotCount, items.Length);
@@ -608,6 +703,8 @@ namespace Outil_Azur_complet.Bot.Panels
             Graphics graphics = e.Graphics;
             graphics.Clear(BackColor);
             Image cell = ClientAssets.Get("case-inventaire"), glow = ClientAssets.Get("case-surbrillance");
+            if (dropHighlight)
+                using (var pen = new Pen(BotUi.Olive, 3)) graphics.DrawRectangle(pen, 1, 1, Math.Max(1, ClientSize.Width - 3), Math.Max(1, ClientSize.Height - 3));
             if (CellCount == 0)
             {
                 TextRenderer.DrawText(graphics, "Aucun atelier ouvert.", BotFonts.Get(8), new Rectangle(0, 0, SlotsWidth, ClientSize.Height), BotUi.Muted,
@@ -696,17 +793,31 @@ namespace Outil_Azur_complet.Bot.Panels
             Focus();
             int index = IndexAt(e.Location);
             SetSelection(index < 0 ? (uint?)null : items[index].Id);
+            dragArmed = AllowItemDrag && e.Button == MouseButtons.Left && index >= 0; dragOrigin = e.Location;
         }
+
+        protected override void OnMouseUp(MouseEventArgs e) { base.OnMouseUp(e); dragArmed = false; }
 
         protected override void OnDoubleClick(EventArgs e)
         {
             base.OnDoubleClick(e);
+            dragArmed = false;
             if (SelectedItem != null) ItemActivated?.Invoke(this, EventArgs.Empty);
         }
 
         protected override void OnMouseMove(MouseEventArgs e)
         {
             base.OnMouseMove(e);
+            if (dragArmed && e.Button == MouseButtons.Left && SelectedItem != null)
+            {
+                Size threshold = SystemInformation.DragSize;
+                if (Math.Abs(e.X - dragOrigin.X) >= threshold.Width || Math.Abs(e.Y - dragOrigin.Y) >= threshold.Height)
+                {
+                    dragArmed = false;
+                    ItemTransfer.StartDrag(this, SelectedItem);
+                    return;
+                }
+            }
             int index = IndexAt(e.Location);
             if (index < 0 && ResultBounds.Contains(e.Location)) index = -1; else if (index < 0) index = -3;
             if (index == tipIndex) return;
@@ -733,6 +844,34 @@ namespace Outil_Azur_complet.Bot.Panels
             SetSelection(items[index].Id);
             e.Handled = true;
         }
+
+        protected override void OnDragEnter(DragEventArgs e) { base.OnDragEnter(e); Evaluate(e); }
+        protected override void OnDragOver(DragEventArgs e) { base.OnDragOver(e); Evaluate(e); }
+        protected override void OnDragLeave(EventArgs e) { base.OnDragLeave(e); SetHighlight(false); }
+
+        protected override void OnDragDrop(DragEventArgs e)
+        {
+            base.OnDragDrop(e);
+            AcceptDrop(ItemTransfer.Payload(e.Data));
+        }
+
+        /// <summary>Dépôt d'un contenu glissé (gestionnaire de glisser-déposer, tests) : lève <see cref="Dropped"/> s'il est accepté.</summary>
+        public bool AcceptDrop(object payload)
+        {
+            SetHighlight(false);
+            if (payload == null || dropFilter == null || !dropFilter(payload)) return false;
+            Dropped?.Invoke(payload);
+            return true;
+        }
+
+        private void Evaluate(DragEventArgs e)
+        {
+            bool fits = dropFilter != null && dropFilter(ItemTransfer.Payload(e.Data));
+            e.Effect = fits ? DragDropEffects.Move : DragDropEffects.None;
+            SetHighlight(fits);
+        }
+
+        private void SetHighlight(bool value) { if (dropHighlight == value) return; dropHighlight = value; Invalidate(); }
 
         private void OnIconLoaded()
         {
