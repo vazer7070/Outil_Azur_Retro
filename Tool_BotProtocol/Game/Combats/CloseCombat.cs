@@ -53,6 +53,12 @@ namespace Tool_BotProtocol.Game.Combats
         public bool LineOfSight { get; private set; }
         public IReadOnlyList<int> RequiredStates { get; private set; } = None;
         public IReadOnlyList<int> ForbiddenStates { get; private set; } = None;
+        /// <summary>
+        /// Zones d'effet dessinées sous le pointeur (<c>effectZones</c> du sort 0 du client) : zone du type d'arme
+        /// (attribut <c>zone</c> des types de <c>items.xml</c>, <c>I.t[type].z</c>), <c>Pa</c> à mains nues ou sans zone connue.
+        /// </summary>
+        public IReadOnlyList<SpellZoneShape> EffectZones { get; private set; } = DefaultZones;
+        private static readonly IReadOnlyList<SpellZoneShape> DefaultZones = new[] { new SpellZoneShape('P', 0) };
 
         /// <summary>Résumé pour une infobulle : « Épée de Mercenaire · 5 PA · portée 1 ».</summary>
         public string Summary
@@ -95,6 +101,15 @@ namespace Tool_BotProtocol.Game.Combats
                 string name = type.HasValue ? LangData.Item.Name(weapon) : null;
                 stats.Name = !string.IsNullOrEmpty(name) ? name : !string.IsNullOrEmpty(inventoryName) ? inventoryName : "Arme #" + weapon.ToString(CultureInfo.InvariantCulture);
                 stats.ItemType = type ?? 0;
+                if (type.HasValue)
+                {
+                    IReadOnlyDictionary<string, string> typeData = LangData.Raw("items", "type", type.Value.ToString(CultureInfo.InvariantCulture));
+                    if (typeData != null && typeData.TryGetValue("zone", out string zone) && !string.IsNullOrEmpty(zone))
+                    {
+                        IReadOnlyList<SpellZoneShape> zones = SpellAim.ParseZones(zone);
+                        if (zones.Count > 0) stats.EffectZones = zones;
+                    }
+                }
                 string[] e = LangData.Item.WeaponStats(weapon);
                 int ap, min, max;
                 if (e.Length >= 8 && TryInt(e[1], out ap) && TryInt(e[2], out min) && TryInt(e[3], out max) && ap >= 0 && min >= 0 && max >= min)

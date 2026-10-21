@@ -498,6 +498,7 @@ internal static partial class Live
         await Scenario("x6. artisanat sécurisé depuis les menus : EW+ à l'arrivée, clic gauche sur l'artisan, « Demander à » → ER13, ERET (artisan éloigné), ERK 12 → ECK, « Inviter à » → ER12 → ERK 13 → ECK, livre des artisans : Message privé, Localiser (lot X6)", 200, SecureCraftMenuAsync).ConfigureAwait(false);
         await Scenario("x6b. marchand hors ligne : ER6|, EMO+, Eq → Eq1, EQ → marchand -5 ; clic simple → menu « Acheter » sans paquet, Maj + clic → ER4 → ECK4, EB → EBK, GM|- (lot X6)", 150, OfflineMerchantClickAsync).ConfigureAwait(false);
         await Scenario("x7. Sram contre A : prêt et option d'équipe vus par l'autre, pièges GDZ/GDC, invisibilité GA;150, journal dans le chat (lot X7)", 180, FightEventsAsync).ConfigureAwait(false);
+        await Scenario("x8. Iop contre A : portée en cercle et en croix, pointeur en croix et en ligne, croix d'interdiction, GA300 sur la cible, chemin de combat survolé puis GA001 (lot X8)", 180, SpellAimAsync).ConfigureAwait(false);
         await Scenario("x12. glisser-déposer et boîte de quantité : échange entre deux comptes (EMO+, EMO-, EMG), banque (EMO±, EMG±), hôtel de vente réfuté (lot X12)", 200, TransferDragAsync).ConfigureAwait(false);
         // Toujours en dernier : arrête puis redémarre le serveur de jeu (A et B restent déconnectés).
         await Scenario("x3c. serveur de jeu arrêté en pleine partie : boîte de perte de connexion, « Oui » reconnecte A (lot X3)", 360, GameStopAsync).ConfigureAwait(false);
@@ -4829,5 +4830,285 @@ internal static partial class Live
         QuantityPopup box = await QuantityBoxAsync().ConfigureAwait(false);
         Check(box != null, "La boîte de quantité ne s'est pas ouverte");
         return await OnUi(() => { int maximum = box.Maximum; box.InputText = text; box.Confirm(); return maximum; }).ConfigureAwait(false);
+    }
+}
+
+// Scénario x8 (lot X8) : visée des sorts du client (portée en cercle ou en croix, zones sous le pointeur) et chemin de combat survolé.
+internal static partial class Live
+{
+    /// <summary>
+    /// Sorts écrits dans la base pour l'Iop inventé (<c>id;niveau;position</c> de <c>players.spells</c>) : Pression (portée 1 à 2 en
+    /// cercle), Épée de Iop (lancer en ligne de 1 à 3, zone en croix « Xd ») et Flèche Enflammée (lancer en ligne de 1 à 3, zone en
+    /// ligne « Le », 4 PA) ; données de niveau 1 de <c>spells.xml</c> du client.
+    /// </summary>
+    private const short CircleSpell = 141, CrossSpell = 160, LineSpell = 165;
+    private const string AimSpells = "141;1;b,160;1;c,165;1;d";
+    private static readonly MethodInfo MapMouseMove = typeof(UserMapControl).GetMethod("OnMouseMove", BindingFlags.Instance | BindingFlags.NonPublic);
+
+    /// <summary>La souris passe sur la cellule de la vue de la fenêtre (fil d'interface), comme un survol réel.</summary>
+    private static Task HoverAsync(GameClientFullform form, short cellId) => OnUi(() =>
+    {
+        UserMapControl map = UserMapOf(form);
+        Point centre = map.Cells[cellId].Centre;
+        MapMouseMove.Invoke(map, new object[] { new MouseEventArgs(MouseButtons.None, 0, centre.X, centre.Y, 0) });
+    });
+
+    private static short[] Sorted(IEnumerable<short> cells) => cells.OrderBy(id => id).ToArray();
+    private static string CellList(IEnumerable<short> cells) => "[" + string.Join(",", cells) + "]";
+
+    /// <summary>
+    /// Un Iop inventé (Pression, Épée de Iop, Flèche Enflammée écrits dans la base) entre sur la carte de A avec sa fenêtre de jeu ; A le
+    /// défie. Pendant le tour de A, survoler une cellule dans la fenêtre de l'Iop ne montre aucun chemin. À son tour : Pression dessine sa
+    /// portée en cercle (distance 1 à 2), l'Épée de Iop en croix (cellules alignées de 1 à 3, bonus de PO compris) avec son icône à côté
+    /// de la flèche ; sur une cible valable le pointeur pose la croix « Xd » ou, pour la Flèche Enflammée, la ligne « Le » prolongée du
+    /// lanceur vers la cible, chaque forme tirée des coordonnées X et Y ; hors des cibles, croix d'interdiction et aucun pointeur, et un
+    /// clic n'envoie rien. Un clic sur la cible lance la Flèche Enflammée (<c>GA300165;cellule</c> du client → <c>GA;300</c> de
+    /// StarLoco). Sans sort, le survol d'une cellule à deux pas dessine le chemin de combat (formes de sélection) et un clic envoie ce
+    /// chemin (<c>GA001…</c>), accepté par <c>GA;1</c>. L'Iop abandonne ; compte et personnage supprimés de la base.
+    /// </summary>
+    private static async Task<string> SpellAimAsync()
+    {
+        RequireMaps();
+        if (!LangData.IsLoaded("spells")) throw new SkipScenario("textes du client « spells » absents : le bot ne connaît ni la portée ni les zones des sorts");
+        using (MySql.Data.MySqlClient.MySqlConnection db = OpenAccountsDatabase(out string schema))
+        {
+            var created = new List<InventedCharacter>();
+            var evidence = new List<string>();
+            LiveSession s = null;
+            GameClientFullform screen = null;
+            try
+            {
+                Cell place = FreeCellNear(a, 2, 6);
+                Check(place != null, "Aucune cellule libre près de A pour l'Iop");
+                InventedCharacter iop = Invent(db, schema, a.Id, a.MapId, place.CellID, 10000, created);
+                Sql(db, "UPDATE " + schema + ".players SET spells = @spells WHERE id = @id AND account = @account",
+                    "@spells", AimSpells, "@id", iop.Id, "@account", iop.Guid);
+                s = new LiveSession("I", iop.Login, iop.Password);
+                evidence.Add(await EnterExistingAsync(s, iop.Id, iop.Name, a.MapId, started =>
+                    started.Account.Game.character.Player_Selection += () => OnUi(() => { if (screen == null) { screen = OpenScreen(started); screen.Show(); } })).ConfigureAwait(false));
+                LiveSession si = s;
+                Check(await si.Until(() => new[] { CircleSpell, CrossSpell, LineSpell }.All(id => si.Account.Game.character.Spells.Values.Any(x => x.ID == id)), 10).ConfigureAwait(false),
+                    "Le bot ne voit pas les trois sorts de l'Iop : " + string.Join(",", si.Account.Game.character.Spells.Values.Select(x => x.ID)));
+                Check(await WaitOnUi(() => screen != null && screen.IsHandleCreated && screen.Visible && UserMapOf(screen) != null ? screen : null, 20).ConfigureAwait(false) != null,
+                    "La fenêtre de jeu de l'Iop ne s'est pas ouverte");
+                Check(await a.Until(() => a.Map.GetActor(si.Id) != null, 10).ConfigureAwait(false) && await si.Until(() => si.Map.GetActor(a.Id) != null, 10).ConfigureAwait(false),
+                    "A et l'Iop ne se voient pas sur la carte " + a.MapId);
+
+                int markA = a.ReceivedCount, markI = si.ReceivedCount;
+                var challenge = await a.Account.Game.Interactions.MapActions.ChallengeAsync(si.Id).ConfigureAwait(false);
+                Check(challenge.Sent, "Défi refusé par le bot : " + challenge.Message);
+                await si.Expect(p => p.StartsWith("GA;900;" + a.Id + ";", StringComparison.Ordinal), "GA;900 (défi reçu par l'Iop)", 10, markI).ConfigureAwait(false);
+                Check(await si.Until(() => si.Account.Game.Interactions.MapActions.PendingChallenge?.ChallengerId == a.Id, 5).ConfigureAwait(false), "L'Iop n'a pas de défi en attente");
+                var accept = await si.Account.Game.Interactions.MapActions.AcceptChallengeAsync(a.Id).ConfigureAwait(false);
+                Check(accept.Sent, "Acceptation du défi refusée par le bot : " + accept.Message);
+                await a.Expect("GJK", "GJK (entrée en combat, A)", 15, markA).ConfigureAwait(false);
+                await si.Expect("GJK", "GJK (entrée en combat, Iop)", 15, markI).ConfigureAwait(false);
+                Fights fa = a.Account.Game.Fight, fi = si.Account.Game.Fight;
+                Check(await a.Until(() => fa.IsPlacement && fi.IsPlacement && Self(a) != null && Self(si) != null && Enemies(si).Any(e => e.Id == a.Id), 10).ConfigureAwait(false),
+                    "Placement incomplet : " + string.Join(", ", fi.Fighters.Values.Select(f => f.Name + " équipe " + f.Team)));
+                await ReadyAsync(si, markI).ConfigureAwait(false);
+                await ReadyAsync(a, markA).ConfigureAwait(false);
+                await a.Expect("GS", "GS (début du combat)", 30, markA).ConfigureAwait(false);
+
+                bool otherTurnChecked = false, played = false;
+                DateTime until = DateTime.UtcNow.AddSeconds(90);
+                while ((!played || !otherTurnChecked) && DateTime.UtcNow < until && fi.IsInFight)
+                {
+                    int actor = await WaitForTurnOf(new[] { a, si }, 40).ConfigureAwait(false);
+                    if (actor == a.Id)
+                    {
+                        if (!otherTurnChecked) { evidence.Add(await OtherTurnHoverAsync(si, screen).ConfigureAwait(false)); otherTurnChecked = true; }
+                        int mark = a.ReceivedCount;
+                        var passed = await fa.PassTurnAsync().ConfigureAwait(false);
+                        Check(passed.Sent, "Fin de tour de A refusée par le bot : " + passed.Message);
+                        await a.Expect("GTF" + a.Id, "GTF (fin du tour de A)", 10, mark).ConfigureAwait(false);
+                        await a.Until(() => !fa.IsMyTurn, 5).ConfigureAwait(false);
+                    }
+                    else if (actor == si.Id)
+                    {
+                        if (!played) { evidence.AddRange(await AimTurnAsync(si, screen).ConfigureAwait(false)); played = true; }
+                        int mark = si.ReceivedCount;
+                        var passed = await fi.PassTurnAsync().ConfigureAwait(false);
+                        Check(passed.Sent, "Fin de tour de l'Iop refusée par le bot : " + passed.Message);
+                        await si.Expect("GTF" + si.Id, "GTF (fin du tour de l'Iop)", 10, mark).ConfigureAwait(false);
+                        await si.Until(() => !fi.IsMyTurn, 5).ConfigureAwait(false);
+                    }
+                    else break;
+                }
+                Check(played && otherTurnChecked, "Tours incomplets : tour de l'Iop " + (played ? "joué" : "absent") + ", survol pendant le tour de A " + (otherTurnChecked ? "vérifié" : "absent"));
+
+                int endA = a.ReceivedCount, endI = si.ReceivedCount;
+                var giveUp = await fi.GiveUpAsync().ConfigureAwait(false);
+                Check(giveUp.Sent, "Abandon refusé par le bot : " + giveUp.Message);
+                await a.Expect("GE", "GE (fin du combat, A)", 20, endA).ConfigureAwait(false);
+                await si.Expect(p => p.StartsWith("GE", StringComparison.Ordinal) || p.StartsWith("GV", StringComparison.Ordinal), "GE ou GV (fin du combat, Iop)", 20, endI).ConfigureAwait(false);
+                await WaitBackOnMap(a).ConfigureAwait(false); await WaitBackOnMap(si).ConfigureAwait(false);
+                Check(await WaitOnUi(() => !UserMapOf(screen).IsAiming && UserMapOf(screen).SpellRange.Count == 0 && !UserMapOf(screen).PathPreviewUsesSelection ? "rendue" : null, 10).ConfigureAwait(false) != null,
+                    "La visée ou le chemin de combat survit à la fin du combat dans la fenêtre de l'Iop");
+                evidence.Add("abandon de l'Iop → GE : visée et chemin de combat effacés");
+                return string.Join(" ; ", evidence);
+            }
+            finally
+            {
+                if (screen != null) await OnUi(() => { if (!screen.IsDisposed) { screen.Close(); screen.Dispose(); } }).ConfigureAwait(false);
+                await ForgetAsync(db, schema, s == null ? new LiveSession[0] : new[] { s }, created).ConfigureAwait(false);
+            }
+        }
+    }
+
+    /// <summary>Cellules de l'aperçu du chemin dessiné par la vue (fil d'interface).</summary>
+    private static short[] PreviewOf(GameClientFullform form)
+    {
+        UserMapControl map = UserMapOf(form);
+        var shown = typeof(UserMapControl).GetField("pathPreview", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(map) as IEnumerable<short>;
+        return shown == null ? new short[0] : Sorted(shown);
+    }
+
+    /// <summary>Tour de A : le survol d'une cellule accessible dans la fenêtre de l'Iop ne dessine aucun chemin (pas son tour).</summary>
+    private static async Task<string> OtherTurnHoverAsync(LiveSession si, GameClientFullform screen)
+    {
+        Fights fi = si.Account.Game.Fight;
+        Cell own = si.Map.GetCellFromId((short)Self(si).CellId);
+        var occupied = new HashSet<int>(fi.Fighters.Values.Where(f => !f.IsDead).Select(f => (int)f.CellId));
+        Cell near = si.Map.MapCells.FirstOrDefault(c => c != null && c.IsWalkable() && !occupied.Contains(c.CellID) && own.GetDistanceBetweenCells(c) == 2);
+        Check(near != null, "Aucune cellule libre à deux pas de l'Iop");
+        Check(!fi.IsMyTurn && fi.PreviewMovePath(near.CellID) == null, "Le bot calcule un chemin de combat hors du tour de l'Iop");
+        await HoverAsync(screen, own.CellID).ConfigureAwait(false);
+        await HoverAsync(screen, near.CellID).ConfigureAwait(false);
+        await Task.Delay(700).ConfigureAwait(false);
+        bool empty = await OnUi(() => UserMapOf(screen).HoveredCell?.id == near.CellID && PreviewOf(screen).Length == 0).ConfigureAwait(false);
+        Check(empty, "Un chemin est dessiné dans la fenêtre de l'Iop pendant le tour de A : " + CellList(await OnUi(() => PreviewOf(screen)).ConfigureAwait(false)));
+        return "tour de A : survol de " + near.CellID + " dans la fenêtre de l'Iop sans chemin dessiné";
+    }
+
+    /// <summary>
+    /// Tour de l'Iop : portée en cercle puis en croix, pointeur en croix et en ligne, croix d'interdiction, Flèche Enflammée lancée par un
+    /// clic sur la cible, puis chemin de combat survolé et suivi par un clic.
+    /// </summary>
+    private static async Task<List<string>> AimTurnAsync(LiveSession si, GameClientFullform screen)
+    {
+        var evidence = new List<string>();
+        Fights fi = si.Account.Game.Fight;
+        Cell[] cells = si.Map.MapCells;
+        Cell own = si.Map.GetCellFromId((short)Self(si).CellId);
+        Check(own != null && fi.ActionPoints >= 4, "Tour de l'Iop sans cellule ni PA : PA " + fi.ActionPoints);
+        int bonus = fi.RangeBonus;
+        var occupied = new HashSet<int>(fi.Fighters.Values.Where(f => !f.IsDead).Select(f => (int)f.CellId));
+        Func<Cell, Cell, int> distance = (x, y) => Math.Abs(x.X - y.X) + Math.Abs(x.Y - y.Y);
+        Func<Func<Cell, bool>, short[]> where = keep => Sorted(cells.Where(c => c != null && keep(c)).Select(c => c.CellID));
+
+        // Pression : portée « C » de 1 à 2 (non modifiable) ; Épée de Iop : « X » de 1 à 3 + bonus de PO (modifiable), alignée.
+        int crossMax = Math.Max(1, 3 + bonus);
+        var ranges = new[]
+        {
+            new { Spell = CircleSpell, Wanted = where(c => distance(own, c) >= 1 && distance(own, c) <= 2), Shape = "cercle 1-2" },
+            new { Spell = CrossSpell, Wanted = where(c => (c.X == own.X || c.Y == own.Y) && distance(own, c) >= 1 && distance(own, c) <= crossMax), Shape = "croix 1-" + crossMax },
+        };
+        foreach (var range in ranges)
+        {
+            await OnUi(() => screen.Map.SelectSpell(range.Spell)).ConfigureAwait(false);
+            short[] drawn = await WaitOnUi(() =>
+            {
+                UserMapControl map = UserMapOf(screen);
+                return map.IsAiming && map.AimIcon == "Spells/" + range.Spell ? Sorted(map.SpellRange) : null;
+            }, 10).ConfigureAwait(false);
+            Check(drawn != null && drawn.SequenceEqual(range.Wanted), "Portée du sort " + range.Spell + " (" + range.Shape + ") dessinée "
+                + (drawn == null ? "nulle part" : CellList(drawn)) + " au lieu de " + CellList(range.Wanted));
+            evidence.Add("sort " + range.Spell + " : portée en " + range.Shape + " (" + drawn.Length + " cellules), icône Spells/" + range.Spell + " à côté de la flèche");
+        }
+
+        // Pointeur de l'Épée de Iop : croix « Xd » (taille 3) autour d'une cible alignée, deux fois (effets normaux et critiques).
+        Cell cross = cells.Where(c => c != null && (c.X == own.X || c.Y == own.Y) && distance(own, c) >= 2 && distance(own, c) <= crossMax
+                && !occupied.Contains(c.CellID) && fi.GetSpellUnavailableReason(CrossSpell, c.CellID) == null)
+            .OrderBy(c => distance(own, c)).ThenBy(c => c.CellID).FirstOrDefault();
+        Check(cross != null, "Aucune cible valable alignée à deux ou trois pas pour l'Épée de Iop");
+        short[] crossCells = where(c => (c.X == cross.X || c.Y == cross.Y) && distance(cross, c) <= 3);
+        await HoverAsync(screen, cross.CellID).ConfigureAwait(false);
+        IReadOnlyList<IReadOnlyCollection<short>> pointer = await WaitOnUi(() => UserMapOf(screen).PointerCells.Count > 0 ? UserMapOf(screen).PointerCells : null, 10).ConfigureAwait(false);
+        bool forbidden = await OnUi(() => UserMapOf(screen).CursorForbidden).ConfigureAwait(false);
+        Check(pointer != null && pointer.Count == 2 && pointer.All(shape => Sorted(shape).SequenceEqual(crossCells)) && !forbidden,
+            "Pointeur de l'Épée de Iop sur " + cross.CellID + " : " + (pointer == null ? "aucun" : string.Join(" + ", pointer.Select(shape => CellList(Sorted(shape)))))
+            + " au lieu de " + CellList(crossCells) + " (deux fois), interdiction " + forbidden);
+        await Capture("23-reel-x8-croix", screen).ConfigureAwait(false);
+        evidence.Add("Épée de Iop sur " + cross.CellID + " : croix Xd de " + crossCells.Length + " cellules sous le pointeur (effets normaux et critiques)");
+
+        // Hors des cibles (non alignée) : croix d'interdiction, aucun pointeur, un clic n'envoie rien.
+        Cell refused = cells.Where(c => c != null && c.X != own.X && c.Y != own.Y && distance(own, c) == 2 && !occupied.Contains(c.CellID))
+            .OrderBy(c => c.CellID).FirstOrDefault();
+        Check(refused != null && fi.GetSpellUnavailableReason(CrossSpell, refused.CellID) != null, "Aucune cellule non alignée refusée par le bot près de l'Iop");
+        await HoverAsync(screen, refused.CellID).ConfigureAwait(false);
+        Check(await WaitOnUi(() => UserMapOf(screen).CursorForbidden && UserMapOf(screen).PointerCells.Count == 0 ? "interdit" : null, 10).ConfigureAwait(false) != null,
+            "Cellule non alignée " + refused.CellID + " sans croix d'interdiction ou avec un pointeur");
+        int sentMark = si.SentCount, paBefore = fi.ActionPoints;
+        await (await OnUi(() => screen.Map.HandleCellActionAsync(refused.CellID)).ConfigureAwait(false)).ConfigureAwait(false);
+        await Task.Delay(500).ConfigureAwait(false);
+        bool stillAiming = await OnUi(() => screen.Map.SelectedSpellId == CrossSpell).ConfigureAwait(false);
+        Check(!si.SentSince(sentMark).Any(p => p.StartsWith("GA300", StringComparison.Ordinal)) && fi.ActionPoints == paBefore && stillAiming,
+            "Un clic hors portée a envoyé le sort ou désarmé la visée : " + string.Join(" | ", si.SentSince(sentMark)));
+        evidence.Add("cellule non alignée " + refused.CellID + " : croix d'interdiction, pas de pointeur, clic sans paquet");
+
+        // Flèche Enflammée : ligne « Le » prolongée du lanceur vers la cible, puis lancée par un clic sur la cible.
+        await OnUi(() => screen.Map.SelectSpell(LineSpell)).ConfigureAwait(false);
+        Cell line = cells.Where(c => c != null && (c.X == own.X || c.Y == own.Y) && distance(own, c) >= 1 && distance(own, c) <= crossMax
+                && !occupied.Contains(c.CellID) && fi.GetSpellUnavailableReason(LineSpell, c.CellID) == null)
+            .OrderByDescending(c => distance(own, c) == 2).ThenBy(c => c.CellID).FirstOrDefault();
+        Check(line != null, "Aucune cible valable pour la Flèche Enflammée");
+        int stepX = Math.Sign(line.X - own.X), stepY = Math.Sign(line.Y - own.Y);
+        short[] lineCells = where(c => c.CellID == line.CellID
+            || (stepX != 0 && c.Y == line.Y && (c.X - line.X) * stepX >= 1 && (c.X - line.X) * stepX <= 4)
+            || (stepY != 0 && c.X == line.X && (c.Y - line.Y) * stepY >= 1 && (c.Y - line.Y) * stepY <= 4));
+        await HoverAsync(screen, own.CellID).ConfigureAwait(false);
+        await HoverAsync(screen, line.CellID).ConfigureAwait(false);
+        pointer = await WaitOnUi(() => UserMapOf(screen).AimIcon == "Spells/" + LineSpell && UserMapOf(screen).PointerCells.Count > 0 ? UserMapOf(screen).PointerCells : null, 10).ConfigureAwait(false);
+        Check(pointer != null && pointer.Count == 4 && pointer.All(shape => Sorted(shape).SequenceEqual(lineCells)),
+            "Pointeur de la Flèche Enflammée sur " + line.CellID + " : " + (pointer == null ? "aucun" : string.Join(" + ", pointer.Select(shape => CellList(Sorted(shape)))))
+            + " au lieu de " + CellList(lineCells) + " (quatre fois)");
+        await Capture("23-reel-x8-ligne", screen).ConfigureAwait(false);
+        sentMark = si.SentCount; int markI = si.ReceivedCount; paBefore = fi.ActionPoints;
+        await (await OnUi(() => screen.Map.HandleCellActionAsync(line.CellID)).ConfigureAwait(false)).ConfigureAwait(false);
+        string cast = "GA300" + LineSpell + ";" + line.CellID;
+        Check(await si.Until(() => si.SentSince(sentMark).Contains(cast), 5).ConfigureAwait(false), "Le clic sur la cible n'a pas envoyé " + cast + " : " + string.Join(" | ", si.SentSince(sentMark)));
+        string launched = await si.Expect(p => p.StartsWith("GA;300;" + si.Id + ";", StringComparison.Ordinal) || p.StartsWith("GA;302;" + si.Id + ";", StringComparison.Ordinal)
+            || p.StartsWith("GA;0", StringComparison.Ordinal) || p.StartsWith("GAE", StringComparison.Ordinal), "GA;300 de la Flèche Enflammée", 10, markI).ConfigureAwait(false);
+        Check(launched.StartsWith("GA;300;", StringComparison.Ordinal), "StarLoco ne lance pas la Flèche Enflammée en " + line.CellID + " : " + launched);
+        Check(await si.Until(() => !fi.IsActionPending && fi.ActionPoints < paBefore, 10).ConfigureAwait(false), "L'Iop attend encore la fin de la Flèche Enflammée");
+        Check(await WaitOnUi(() => !UserMapOf(screen).IsAiming && UserMapOf(screen).PointerCells.Count == 0 ? "terminée" : null, 10).ConfigureAwait(false) != null,
+            "La visée reste armée après le lancer");
+        evidence.Add("Flèche Enflammée sur " + line.CellID + " : ligne Le de " + lineCells.Length + " cellules, clic → " + cast + " → " + Short(launched, 40));
+
+        // Sans sort : chemin de combat vers une cellule à deux pas, dessiné avec les formes de sélection, puis suivi par un clic.
+        Check(await si.Until(() => fi.MovementPoints >= 2, 5).ConfigureAwait(false), "L'Iop n'a plus deux PM : " + fi.MovementPoints);
+        occupied = new HashSet<int>(fi.Fighters.Values.Where(f => !f.IsDead).Select(f => (int)f.CellId));
+        Func<Cell, bool> nearEnemy = c => Enemies(si).Any(e => si.Map.GetCellFromId((short)e.CellId)?.GetDistanceBetweenCells(c) <= 1);
+        own = si.Map.GetCellFromId((short)Self(si).CellId);
+        Check(!nearEnemy(own), "L'Iop finit son lancer au contact de A : un pas serait taclé");
+        List<Cell> path = null;
+        Cell step = null;
+        foreach (Cell c in cells.Where(c => c != null && c.IsWalkable() && !occupied.Contains(c.CellID) && own.GetDistanceBetweenCells(c) == 2 && !nearEnemy(c)).OrderBy(c => c.CellID))
+        {
+            List<Cell> found = fi.PreviewMovePath(c.CellID);
+            if (found != null && found.Count == 3 && !found.Any(nearEnemy)) { path = found; step = c; break; }
+        }
+        Check(step != null, "Aucun pas de deux cellules loin de A pour l'Iop");
+        short[] expectedPath = path.Skip(1).Select(c => c.CellID).ToArray();
+        await HoverAsync(screen, own.CellID).ConfigureAwait(false);
+        await HoverAsync(screen, step.CellID).ConfigureAwait(false);
+        short[] previewed = await WaitOnUi(() => UserMapOf(screen).PathPreviewUsesSelection && PreviewOf(screen).Length > 0 ? PreviewOf(screen) : null, 10).ConfigureAwait(false);
+        Check(previewed != null && previewed.SequenceEqual(Sorted(expectedPath)), "Chemin de combat survolé : " + (previewed == null ? "aucun" : CellList(previewed))
+            + " au lieu de " + CellList(expectedPath));
+        await Capture("23-reel-x8-chemin", screen).ConfigureAwait(false);
+        sentMark = si.SentCount; markI = si.ReceivedCount; int pmBefore = fi.MovementPoints;
+        await (await OnUi(() => screen.Map.HandleCellActionAsync(step.CellID)).ConfigureAwait(false)).ConfigureAwait(false);
+        string road = Tool_BotProtocol.Game.Maps.Mouvements.PathfinderUtils.GetCleanRoad(path), move = "GA001" + road;
+        Check(await si.Until(() => si.SentSince(sentMark).Contains(move), 5).ConfigureAwait(false), "Le clic n'a pas envoyé le chemin survolé " + move + " : "
+            + string.Join(" | ", si.SentSince(sentMark)));
+        // StarLoco renvoie GA<action>;1;<acteur>;<cellule de départ et direction><chemin du client>, ou GA;0 s'il refuse.
+        string moved = await si.Expect(p => (p.StartsWith("GA", StringComparison.Ordinal) && p.Contains(";1;" + si.Id + ";")) || p.StartsWith("GA;0", StringComparison.Ordinal),
+            "GA;1 (déplacement de l'Iop)", 10, markI).ConfigureAwait(false);
+        Check(!moved.StartsWith("GA;0", StringComparison.Ordinal) && moved.EndsWith(road, StringComparison.Ordinal), "StarLoco refuse ou modifie le chemin survolé " + road + " : " + moved);
+        Check(await si.Until(() => Self(si)?.CellId == step.CellID && fi.MovementPoints == pmBefore - 2 && !fi.IsActionPending, 10).ConfigureAwait(false),
+            "L'Iop n'est pas arrivé en " + step.CellID + " avec deux PM de moins (cellule " + Self(si)?.CellId + ", PM " + fi.MovementPoints + ")");
+        evidence.Add("chemin survolé " + CellList(expectedPath) + " en formes de sélection, clic → " + move + " → " + Short(moved, 40));
+        return evidence;
     }
 }

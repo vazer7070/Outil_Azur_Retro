@@ -201,7 +201,7 @@ namespace Outil_Azur_complet.Bot.Controls
         private WorldMapAreas areas = WorldMapAreas.Empty;
         private int superArea, zoom = DefaultZoom, loadGeneration, pendingLoaded;
         private Point current;
-        private Point? currentMap, waypoint, compass, dragCell, hover;
+        private Point? currentMap, waypoint, compass, dragCell, hover, dragMouse;
         private WorldMapFlag[] highlights = new WorldMapFlag[0];
         private WorldMapHint[] prisms = new WorldMapHint[0];
         private WorldMapMode mode = WorldMapMode.Move;
@@ -225,7 +225,7 @@ namespace Outil_Azur_complet.Bot.Controls
         public int SuperArea => superArea;
         /// <summary>Carte dont le centre est au centre de la vue (<c>currentX</c> / <c>currentY</c>).</summary>
         public Point Current => current;
-        public WorldMapMode Mode { get { return mode; } set { if (mode == value) return; mode = value; dragCell = null; Invalidate(); ModeChanged?.Invoke(this, EventArgs.Empty); } }
+        public WorldMapMode Mode { get { return mode; } set { if (mode == value) return; mode = value; dragCell = null; dragMouse = null; Invalidate(); ModeChanged?.Invoke(this, EventArgs.Empty); } }
         public bool ShowGrid { get { return showGrid; } set { if (showGrid == value) return; showGrid = value; Invalidate(); } }
         /// <summary>Zoom de 10 à 100 (<c>MapNavigator.zoom</c>) ; toute valeur hors bornes est ramenée aux bornes.</summary>
         public int Zoom
@@ -407,9 +407,38 @@ namespace Outil_Azur_complet.Bot.Controls
             using (var pen = new Pen(BotUi.Gold)) graphics.DrawRectangle(pen, 0, 0, size.Width - 1, size.Height - 1);
         }
 
+        /// <summary>
+        /// Cadre du curseur du glisser (lot X8) : <c>MapNavigatorMoveCursor</c> que le navigateur du client attache par
+        /// <c>setCursor</c> avec le cadre par défaut (40 × 40 centré sur la souris), à côté de la flèche ; vide hors glisser.
+        /// </summary>
+        public Rectangle DragCursorBounds => dragMouse.HasValue
+            ? new Rectangle(dragMouse.Value.X + UserMapControl.DefaultCursorBox.X, dragMouse.Value.Y + UserMapControl.DefaultCursorBox.Y,
+                UserMapControl.DefaultCursorBox.Width, UserMapControl.DefaultCursorBox.Height)
+            : Rectangle.Empty;
+
+        private void MoveDragCursor(Point? mouse)
+        {
+            Rectangle before = DragCursorBounds;
+            dragMouse = mouse;
+            Rectangle after = DragCursorBounds;
+            if (!before.IsEmpty) Invalidate(Rectangle.Inflate(before, 2, 2));
+            if (!after.IsEmpty) Invalidate(Rectangle.Inflate(after, 2, 2));
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
-            try { Render(e.Graphics, ClientSize); }
+            try
+            {
+                Render(e.Graphics, ClientSize);
+                Rectangle cursor = DragCursorBounds;
+                Bitmap image = cursor.IsEmpty ? null : ImageFor("cursor/" + UserMapControl.MoveCursor, "Client", UserMapControl.MoveCursor);
+                if (image != null)
+                {
+                    var state = e.Graphics.Save();
+                    try { lock (image) ClientAssets.DrawFit(e.Graphics, image, cursor); }
+                    finally { e.Graphics.Restore(state); }
+                }
+            }
             catch (Exception error) when (error is ArgumentException || error is InvalidOperationException || error is System.Runtime.InteropServices.ExternalException)
             {
                 // Image partagée libérée ou GDI+ occupé : on garde le fond, le prochain dessin reprendra.
@@ -777,7 +806,7 @@ namespace Outil_Azur_complet.Bot.Controls
             base.OnMouseDown(e);
             Focus();
             if (e.Button != MouseButtons.Left) return;
-            if (mode == WorldMapMode.Move && ArrowAt(e.Location) < 0) { dragCell = MapAt(e.Location); Cursor = Cursors.SizeAll; }
+            if (mode == WorldMapMode.Move && ArrowAt(e.Location) < 0) { dragCell = MapAt(e.Location); MoveDragCursor(e.Location); }
         }
 
         protected override void OnMouseMove(MouseEventArgs e)
@@ -786,6 +815,7 @@ namespace Outil_Azur_complet.Bot.Controls
             if (dragCell != null && e.Button == MouseButtons.Left)
             {
                 Point now = MapAt(e.Location);
+                MoveDragCursor(e.Location);
                 if (now != dragCell.Value) MoveMap(dragCell.Value.X - now.X, dragCell.Value.Y - now.Y);
                 return;
             }
@@ -797,7 +827,7 @@ namespace Outil_Azur_complet.Bot.Controls
             base.OnMouseUp(e);
             if (e.Button != MouseButtons.Left) return;
             bool wasDragging = dragCell != null;
-            dragCell = null; Cursor = Cursors.Default;
+            dragCell = null; MoveDragCursor(null);
             if (!wasDragging) ClickAt(e.Location);
         }
 

@@ -55,6 +55,10 @@ namespace Tool_BotProtocol.Game.Perso.Spells
                     type = SpellActionZone.TLIGNE;
                     break;
 
+                case 'D':
+                    type = SpellActionZone.DAMIER;
+                    break;
+
                 default:
                     type = SpellActionZone.SOLO;
                     break;

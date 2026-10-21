@@ -25,7 +25,8 @@ using Tool_BotProtocol.Game.Maps;
 // Carte du monde (lot F11) avec des tuiles, des contours, des icônes et des textes synthétiques écrits dans un dossier
 // temporaire : composition des tuiles 2 × 2 au zoom 100 (pixel témoin par quadrant), indice dessiné puis filtré, pastille
 // pour une icône absente, repère rouge de la carte actuelle, fond uni sans tuiles, survol → « Zone (Sous-zone) », sous-zone
-// « // » et contour teinté, drapeaux de la boussole et du groupe, géométrie MapAt / CellBounds, bornes du zoom, modes de clic ;
+// « // » et contour teinté, drapeaux de la boussole et du groupe, géométrie MapAt / CellBounds, bornes du zoom, modes de clic,
+// glisser avec le curseur MapNavigatorMoveCursor du lot X8 ;
 // puis le volet dans la fenêtre de jeu contre un serveur fictif local : bouton du bandeau, CWJ / CWV, IC, IH, repère et
 // super-zone sur GDM, mode Repère → boussole du bandeau sans paquet, prismes posés par SetPrisms. Aucune capture de fenêtre.
 internal static class BotWorldMapSmoke
@@ -49,7 +50,7 @@ internal static class BotWorldMapSmoke
         {
             Application.EnableVisualStyles(); Run();
             Check(uiErrors.Count == 0, "Interface errors: " + string.Join(" / ", uiErrors.Select(e => e.GetType().Name + " " + e.Message)));
-            Console.WriteLine("OK: tuiles 2 × 2, indices et filtres, repère, fond uni, survol des zones, drapeaux, géométrie et zoom, volet (CWJ/CWV, IC, IH, GDM, Repère, prismes)");
+            Console.WriteLine("OK: tuiles 2 × 2, indices et filtres, repère, fond uni, survol des zones, drapeaux, géométrie et zoom, glisser (lot X8), volet (CWJ/CWV, IC, IH, GDM, Repère, prismes)");
         }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
@@ -117,6 +118,13 @@ internal static class BotWorldMapSmoke
                 for (int dy = -radius; dy <= radius; dy++)
                     if (Same(image.GetPixel(x + dx, y + dy), color)) return true;
         return false;
+    }
+
+    /// <summary>Bouton gauche de la souris sur la carte du monde (lot X8 : glisser).</summary>
+    private static void Mouse(WorldMapView view, string handler, Point point)
+    {
+        typeof(WorldMapView).GetMethod(handler, Any).Invoke(view, new object[] { new MouseEventArgs(MouseButtons.Left, 1, point.X, point.Y, 0) });
+        Application.DoEvents();
     }
 
     private static Point Centre(WorldMapView view, int x, int y)
@@ -276,6 +284,17 @@ internal static class BotWorldMapSmoke
                 Check(!view.ClickAt(Centre(view, 0, 0)) && view.Current == new Point(0, 0), "Move mode click on the map moved it");
                 Check(view.ClickAt(new Point(ViewSize.Width / 2, 10)) && view.Current == new Point(0, -1), "North arrow did not move the map by one");
                 view.MoveMap(2, 1); Check(view.Current == new Point(2, 0), "MoveMap differs");
+                // Lot X8 : glisser de la carte, flèche du système gardée et MapNavigatorMoveCursor dans le cadre 40 × 40 centré.
+                Point grab = Centre(view, 2, 0), drop = Centre(view, 1, 0);
+                Mouse(view, "OnMouseDown", grab);
+                Check(view.DragCursorBounds == new Rectangle(grab.X - 20, grab.Y - 20, 40, 40) && view.Cursor == Cursors.Default,
+                    "World map drag cursor is not the client's 40 x 40 box beside the arrow: " + view.DragCursorBounds);
+                Mouse(view, "OnMouseMove", drop);
+                Check(view.DragCursorBounds.Location == new Point(drop.X - 20, drop.Y - 20) && view.Current == new Point(3, 0),
+                    "World map drag cursor did not follow the mouse or the map did not move: " + view.Current);
+                Mouse(view, "OnMouseUp", drop);
+                Check(view.DragCursorBounds.IsEmpty && view.Cursor == Cursors.Default && view.Current == new Point(3, 0), "World map drag cursor kept after release");
+                view.MoveMap(-1, 0);
 
                 // Sans tuiles (super-zone 3) : fond uni et repère toujours dessiné.
                 view.SetSuperArea(3); view.Zoom = 100; view.SetMapPosition(5, 5); view.SetCurrentMap(new Point(5, 5));
