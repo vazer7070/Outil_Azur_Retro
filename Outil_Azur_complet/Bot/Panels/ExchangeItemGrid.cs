@@ -111,6 +111,9 @@ namespace Outil_Azur_complet.Bot.Panels
     /// <summary>
     /// Grille d'objets au style du client (cases <c>case-inventaire</c>, surbrillance <c>case-surbrillance</c>) : icône
     /// ou initiales, quantité en pastille, cadre olive quand le côté est « prêt ». La molette fait défiler les lignes.
+    /// Sur demande du volet (lot X12), une case se glisse vers un autre contrôle (<see cref="AllowItemDrag"/>, format
+    /// <see cref="ItemTransfer.DragFormat"/>) et la grille reçoit les contenus que <see cref="DropFilter"/> accepte : cadre
+    /// olive pendant le survol, puis <see cref="Dropped"/>. La grille ne parle jamais au serveur.
     /// </summary>
     public sealed class ExchangeItemGrid : Control
     {
@@ -120,7 +123,9 @@ namespace Outil_Azur_complet.Bot.Panels
         private IReadOnlyList<ExchangeItem> items = new ExchangeItem[0];
         private uint? selectedId;
         private int scrollRow, tipIndex = -1;
-        private bool ready;
+        private bool ready, dragArmed, dropHighlight;
+        private Point dragOrigin;
+        private Func<object, bool> dropFilter;
         private string emptyText = string.Empty;
 
         public ExchangeItemGrid()
@@ -141,6 +146,22 @@ namespace Outil_Azur_complet.Bot.Panels
         public bool Ready { get => ready; set { if (ready == value) return; ready = value; Invalidate(); } }
         /// <summary>Texte affiché dans une grille vide.</summary>
         public string EmptyText { get => emptyText; set { emptyText = value ?? string.Empty; if (items.Count == 0) Invalidate(); } }
+
+        /// <summary>Vrai : une case glissée part vers un autre contrôle (<see cref="ExchangeItemDrag"/>).</summary>
+        public bool AllowItemDrag { get; set; }
+
+        /// <summary>Contenus glissés que la grille reçoit (<see cref="ItemTransfer.Payload"/>) ; <c>null</c> : aucun.</summary>
+        public Func<object, bool> DropFilter
+        {
+            get => dropFilter;
+            set { dropFilter = value; AllowDrop = value != null; if (value == null) SetHighlight(false); }
+        }
+
+        /// <summary>Contenu accepté déposé sur la grille.</summary>
+        public event Action<object> Dropped;
+
+        /// <summary>Vrai pendant le survol d'un contenu accepté (cadre olive).</summary>
+        public bool DropHighlighted => dropHighlight;
 
         /// <summary>Remplace les objets ; la sélection est conservée si l'objet est toujours là.</summary>
         public void SetItems(IEnumerable<ExchangeItem> values)
@@ -192,8 +213,9 @@ namespace Outil_Azur_complet.Bot.Panels
             Graphics graphics = e.Graphics;
             graphics.Clear(BackColor);
             Rectangle frame = new Rectangle(0, 0, ClientSize.Width - 1, ClientSize.Height - 1);
-            using (var pen = new Pen(ready ? BotUi.Olive : BotUi.Gold, ready ? 3 : 1))
-                graphics.DrawRectangle(pen, ready ? Rectangle.Inflate(frame, -1, -1) : frame);
+            bool thick = ready || dropHighlight;
+            using (var pen = new Pen(thick ? BotUi.Olive : BotUi.Gold, thick ? 3 : 1))
+                graphics.DrawRectangle(pen, thick ? Rectangle.Inflate(frame, -1, -1) : frame);
             if (items.Count == 0)
             {
                 TextRenderer.DrawText(graphics, emptyText, BotFonts.Get(8), Rectangle.Inflate(ClientRectangle, -6, -6), BotUi.Muted,
@@ -252,12 +274,25 @@ namespace Outil_Azur_complet.Bot.Panels
             Focus();
             int index = IndexAt(e.Location);
             SetSelection(index < 0 ? (uint?)null : items[index].Id);
+            dragArmed = AllowItemDrag && e.Button == MouseButtons.Left && index >= 0; dragOrigin = e.Location;
         }
+
+        protected override void OnMouseUp(MouseEventArgs e) { base.OnMouseUp(e); dragArmed = false; }
 
         protected override void OnMouseMove(MouseEventArgs e)
         {
             base.OnMouseMove(e);
             int index = IndexAt(e.Location);
+            if (dragArmed && e.Button == MouseButtons.Left && SelectedItem != null)
+            {
+                Size threshold = SystemInformation.DragSize;
+                if (Math.Abs(e.X - dragOrigin.X) >= threshold.Width || Math.Abs(e.Y - dragOrigin.Y) >= threshold.Height)
+                {
+                    dragArmed = false;
+                    ItemTransfer.StartDrag(this, SelectedItem);
+                    return;
+                }
+            }
             if (index == tipIndex) return;
             tipIndex = index;
             tips.SetToolTip(this, index < 0 ? null : items[index].Name + " × " + items[index].Quantity.ToString(CultureInfo.CurrentCulture));
@@ -287,6 +322,34 @@ namespace Outil_Azur_complet.Bot.Panels
             SetSelection(items[index].Id);
             e.Handled = true;
         }
+
+        protected override void OnDragEnter(DragEventArgs e) { base.OnDragEnter(e); Evaluate(e); }
+        protected override void OnDragOver(DragEventArgs e) { base.OnDragOver(e); Evaluate(e); }
+        protected override void OnDragLeave(EventArgs e) { base.OnDragLeave(e); SetHighlight(false); }
+
+        protected override void OnDragDrop(DragEventArgs e)
+        {
+            base.OnDragDrop(e);
+            AcceptDrop(ItemTransfer.Payload(e.Data));
+        }
+
+        /// <summary>Dépôt d'un contenu glissé (gestionnaire de glisser-déposer, tests) : lève <see cref="Dropped"/> s'il est accepté.</summary>
+        public bool AcceptDrop(object payload)
+        {
+            SetHighlight(false);
+            if (payload == null || dropFilter == null || !dropFilter(payload)) return false;
+            Dropped?.Invoke(payload);
+            return true;
+        }
+
+        private void Evaluate(DragEventArgs e)
+        {
+            bool fits = dropFilter != null && dropFilter(ItemTransfer.Payload(e.Data));
+            e.Effect = fits ? DragDropEffects.Move : DragDropEffects.None;
+            SetHighlight(fits);
+        }
+
+        private void SetHighlight(bool value) { if (dropHighlight == value) return; dropHighlight = value; Invalidate(); }
 
         private void OnIconLoaded()
         {

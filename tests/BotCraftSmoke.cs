@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Outil_Azur_complet.Bot;
 using Outil_Azur_complet.Bot.Controls;
+using Outil_Azur_complet.Bot.Controls.Banner;
 using Outil_Azur_complet.Bot.Menus;
 using Outil_Azur_complet.Bot.Panels;
 using Tool_BotProtocol.Config;
@@ -108,6 +109,12 @@ internal static class BotCraftSmoke
     private static void Click(object button) => ((Button)button).PerformClick();
     private static void Answer(Form dialog, string choice) => All(dialog).OfType<Button>().First(button => button.Text == choice).PerformClick();
     private static string DialogMessage(Form dialog) => All(dialog).FirstOrDefault(control => control.Name == "dialog-message")?.Text ?? string.Empty;
+    /// <summary>Seule boîte de quantité ouverte (lot X12).</summary>
+    private static QuantityPopup Quantity()
+    {
+        PumpUntil(() => QuantityPopup.OpenPopups.Count == 1);
+        return QuantityPopup.OpenPopups[0];
+    }
     private static string Join<T>(IEnumerable<T> values) => string.Join(",", values);
     private static void WriteLang(string folder, string file, string family, string body) =>
         File.WriteAllText(Path.Combine(folder, file), "<?xml version='1.0' encoding='utf-8'?>\n<BotLang famille=\"" + family + "\" langue=\"fr\" version=\"1\" source=\"" + family
@@ -863,7 +870,8 @@ internal static class BotCraftSmoke
             PumpUntil(() => craftPanel.RecipesReady);
             CraftSlotsView slots = craftPanel.SlotsView;
             var bagList = (ListView)Get(craftPanel, "bagList"); var recipeList = (ListView)Get(craftPanel, "recipeList"); var useful = (CheckBox)Get(craftPanel, "usefulOnly");
-            var place = (Control)Get(craftPanel, "placeButton"); var placeQuantity = (NumericUpDown)Get(craftPanel, "placeQuantity"); var remove = (Control)Get(craftPanel, "removeButton");
+            var place = (Control)Get(craftPanel, "placeButton"); var remove = (Control)Get(craftPanel, "removeButton");
+            Check(typeof(CraftPanel).GetField("placeQuantity", BindingFlags.Instance | BindingFlags.NonPublic) == null, "The workshop still has a fixed quantity field");
             var combine = (Control)Get(craftPanel, "combineButton"); var repeat = (NumericUpDown)Get(craftPanel, "repeatCount"); var stop = (Control)Get(craftPanel, "stopButton");
             var replay = (Control)Get(craftPanel, "replayButton"); var placeRecipe = (Control)Get(craftPanel, "placeRecipeButton"); var leave = (Control)Get(craftPanel, "leaveButton");
             Check(slots.SlotCount == 8 && slots.CellCount == 8 && slots.Items.Count == 0 && ((Label)Get(craftPanel, "heading")).Text.Contains("Cuire fictif")
@@ -879,7 +887,9 @@ internal static class BotCraftSmoke
 
             // Poser → EMO+ ; ingrédient seul : aucune recette, Combiner demande confirmation (Non n'envoie rien).
             RowWithTag(bagList, 1000u).Selected = true; Application.DoEvents();
-            placeQuantity.Value = 2; Click(place); Expect(peer, "EMO+1000|2", "Place button does not send EMO+<objet>|<quantité>");
+            // Lot X12 : boîte de quantité (valeur 1, maximum la part libre) au lieu d'un champ fixe.
+            Click(place); var craftBox = Quantity(); Check(craftBox.Maximum == 10 && craftBox.InputText == "1", "Place box differs (max " + craftBox.Maximum + ")");
+            craftBox.InputText = "2"; craftBox.Confirm(); Expect(peer, "EMO+1000|2", "Place button does not send EMO+<objet>|<quantité>");
             FeedFromNetwork(account, "EMKO+1000|2");
             PumpUntil(() => slots.Items.Count == 1);
             Check(((Label)Get(craftPanel, "expectedText")).Text.Contains("Aucune recette connue") && combine.Enabled && !replay.Enabled && slots.PreviewTemplateId == 0
@@ -891,8 +901,35 @@ internal static class BotCraftSmoke
             NoPacket(peer, "« Non » sent EK");
 
             // Retirer → EMO- ; Poser la recette → un EMO+ par ingrédient ; recette reconnue en transparence.
-            Check(slots.SelectItem(1000) && remove.Enabled); Click(remove); Expect(peer, "EMO-1000|2", "Remove button does not send EMO-<objet>|<quantité>");
+            Check(slots.SelectItem(1000) && remove.Enabled); Click(remove); craftBox = Quantity(); Check(craftBox.Maximum == 2, "Remove box maximum is not the placed stack");
+            craftBox.InputText = "2"; craftBox.Confirm(); Expect(peer, "EMO-1000|2", "Remove button does not send EMO-<objet>|<quantité>");
             FeedFromNetwork(account, "EMKO-1000");
+            PumpUntil(() => slots.Items.Count == 0);
+            // Glisser-déposer (Craft.dropItem) : du sac sur les cases avec la boîte, d'une case sur le sac (EMO-) ; double-clic : un exemplaire.
+            Check(!slots.AcceptDrop(new ShortcutPayload(ShortcutSlotKind.Item, 1000, 10, 1)) && !craftPanel.DropOnBag(new ShortcutPayload(ShortcutSlotKind.Item, 1000, 10, -1)),
+                "The workshop accepted an equipped item or a bag item on the bag");
+            Check(slots.AcceptDrop(new ShortcutPayload(ShortcutSlotKind.Item, 1000, 10, -1)), "Bag item drop on the workshop was refused");
+            craftBox = Quantity(); craftBox.InputText = "3"; craftBox.Confirm(); Expect(peer, "EMO+1000|3", "Dropped ingredient does not send EMO+<objet>|<quantité>");
+            FeedFromNetwork(account, "EMKO+1000|3"); PumpUntil(() => slots.Items.Count == 1);
+            Check(!slots.AcceptDrop(new ExchangeItemDrag(slots, 1000, 2301, 3)), "A workshop cell was accepted back by the workshop");
+            Check(craftPanel.DropOnBag(new ExchangeItemDrag(slots, 1000, 2301, 3)), "Workshop cell drop on the bag was refused");
+            craftBox = Quantity(); Check(craftBox.Maximum == 3, "Dropped remove box is not the placed stack");
+            craftBox.InputText = "3"; craftBox.Confirm(); Expect(peer, "EMO-1000|3", "Dropped cell does not send EMO-<objet>|<quantité>");
+            FeedFromNetwork(account, "EMKO-1000"); PumpUntil(() => slots.Items.Count == 0);
+            MethodInfo doubleClick = typeof(Control).GetMethod("OnDoubleClick", BindingFlags.Instance | BindingFlags.NonPublic);
+            RowWithTag(bagList, 1000u).Selected = true; Application.DoEvents();
+            doubleClick.Invoke(bagList, new object[] { EventArgs.Empty }); Expect(peer, "EMO+1000|1", "Double-click on the bag does not place one item");
+            Check(QuantityPopup.OpenPopups.Count == 0, "Double-click opened the quantity box");
+            FeedFromNetwork(account, "EMKO+1000|1"); PumpUntil(() => slots.Items.Count == 1);
+            Check(slots.SelectItem(1000)); doubleClick.Invoke(slots, new object[] { EventArgs.Empty }); Expect(peer, "EMO-1000|1", "Double-click on a cell does not remove one item");
+            FeedFromNetwork(account, "EMKO-1000"); PumpUntil(() => slots.Items.Count == 0);
+            // Atelier plein : un nouvel ingrédient glissé est refusé (canDropInGarbage), le bouton n'envoie rien.
+            for (int extra = 0; extra < 8; extra++) FeedFromNetwork(account, "EMKO+" + (5000 + extra) + "|1");
+            PumpUntil(() => slots.Items.Count == 8);
+            Check(!slots.AcceptDrop(new ShortcutPayload(ShortcutSlotKind.Item, 1000, 10, -1)), "A full workshop accepted a new ingredient");
+            RowWithTag(bagList, 1000u).Selected = true; Application.DoEvents(); Click(place);
+            NoPacket(peer, "A full workshop still sent EMO+"); Check(QuantityPopup.OpenPopups.Count == 0, "A full workshop opened the quantity box");
+            for (int extra = 0; extra < 8; extra++) FeedFromNetwork(account, "EMKO-" + (5000 + extra));
             PumpUntil(() => slots.Items.Count == 0);
             craftPanel.ShowTab(CraftPanel.RecipesTab);
             recipeList.Items.Cast<ListViewItem>().First(row => row.Text == "Pain fictif").Selected = true; Application.DoEvents();

@@ -13,6 +13,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Outil_Azur_complet.Bot;
+using Outil_Azur_complet.Bot.Controls;
+using Outil_Azur_complet.Bot.Controls.Banner;
 using Outil_Azur_complet.Bot.Panels;
 using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Frames.Messages;
@@ -113,6 +115,12 @@ internal static class BotExchangeSmoke
     private static ListViewItem RowWithTag(ListView list, object tag) => list.Items.Cast<ListViewItem>().FirstOrDefault(row => Equals(row.Tag, tag));
     private static void Click(object button) => ((Button)button).PerformClick();
     private static void Answer(Form dialog, string choice) => All(dialog).OfType<Button>().First(button => button.Text == choice).PerformClick();
+    /// <summary>Seule boîte de quantité ouverte (lot X12).</summary>
+    private static QuantityPopup Quantity()
+    {
+        PumpUntil(() => QuantityPopup.OpenPopups.Count == 1);
+        return QuantityPopup.OpenPopups[0];
+    }
     private static bool Throws<T>(Action action) where T : Exception
     {
         try { action(); return false; }
@@ -406,7 +414,7 @@ internal static class BotExchangeSmoke
 
                     // Textes du client et icônes d'objets synthétiques, dans un dossier temporaire.
                     string lang = Path.Combine(folder, "BotLang"); Directory.CreateDirectory(lang);
-                    Write(lang, "items.xml", "items", "<objet id=\"2001\" nom=\"Potion fictive\" type=\"12\" gfx=\"7\" niveau=\"1\" description=\"\" />");
+                    Write(lang, "items.xml", "items", "<objet id=\"2001\" nom=\"Potion fictive\" type=\"12\" gfx=\"7\" niveau=\"1\" pods=\"3\" description=\"\" />");
                     Write(lang, "lang.xml", "lang", "<texte cle=\"EXCHANGE\" valeur=\"Échange fictif\" />\n<texte cle=\"A_WANT_EXCHANGE\" valeur=\"%1 te propose un échange (texte de test).\" />");
                     Check(LangData.Load(lang) == 2, "Synthetic texts were not loaded");
                     string icons = Path.Combine(folder, "Items"); Directory.CreateDirectory(Path.Combine(icons, "12"));
@@ -449,17 +457,43 @@ internal static class BotExchangeSmoke
                         Check(bagList.Items.Count == 2 && RowWithTag(bagList, 3u) != null && RowWithTag(bagList, 1001u) == null, "Bag list must show only unequipped items");
                         Check(!add.Enabled && !remove.Enabled, "Offer buttons enabled without a selection");
                         RowWithTag(bagList, 3u).Selected = true; Application.DoEvents(); Check(add.Enabled, "Offer button disabled for a bag item");
-                        ((NumericUpDown)Get(panel, "exchangeQuantity")).Value = 2;
-                        Click(add); Check(Read(peer) == "EMO+3|2", "Offer button does not send EMO+<id>|<qty>");
+                        // Lot X12 : boîte de quantité du client (valeur 1, maximum la part libre) au lieu des champs fixes.
+                        Check(!All(panel.View).OfType<NumericUpDown>().Any(), "Exchange panel still has fixed quantity fields");
+                        Click(add); var quantityBox = Quantity();
+                        Check(quantityBox.Maximum == 5 && quantityBox.Minimum == 1 && quantityBox.InputText == "1", "Offer box differs (max " + quantityBox.Maximum + ", value " + quantityBox.InputText + ")");
+                        quantityBox.InputText = "2"; quantityBox.Confirm(); Check(Read(peer) == "EMO+3|2", "Offer button does not send EMO+<id>|<qty>");
                         Feed(account, "EMKO+3|2"); Application.DoEvents();
                         Check(localGrid.Items.Count == 1 && localGrid.Items[0].Id == 3 && RowWithTag(bagList, 3u).SubItems[1].Text == "3", "Local grid or remaining quantity not refreshed");
+                        // Glisser-déposer (Exchange.dropItem) : un objet du sac sur la grille locale, jamais un objet équipé, une case de
+                        // l'autre joueur ni une case déjà proposée ; la boîte est bornée à la part encore libre.
+                        Check(!localGrid.AcceptDrop(new ShortcutPayload(ShortcutSlotKind.Item, 1001, 1, 1)), "An equipped item was accepted by the offer");
+                        Check(!localGrid.AcceptDrop(new ExchangeItemDrag(distantGrid, 77, 2002, 1)) && !localGrid.AcceptDrop(new ExchangeItemDrag(localGrid, 3, 2001, 2)),
+                            "An exchange cell was accepted back by the offer");
+                        Check(!distantGrid.AcceptDrop(new ShortcutPayload(ShortcutSlotKind.Item, 3, 5, -1)), "The distant grid accepted a drop");
+                        Check(!panel.DropOnBag(new ShortcutPayload(ShortcutSlotKind.Item, 3, 5, -1)) && !panel.DropOnBag(new ExchangeItemDrag(distantGrid, 77, 2002, 1)),
+                            "The bag list accepted a bag item or a distant cell");
+                        Check(localGrid.AcceptDrop(new ShortcutPayload(ShortcutSlotKind.Item, 3, 5, -1)), "Bag item drop on the offer was refused");
+                        quantityBox = Quantity(); Check(quantityBox.Maximum == 3, "Dropped offer box is not bounded by the part still free");
+                        typeof(QuantityPopup).GetMethod("OnKeyDown", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(quantityBox, new object[] { new KeyEventArgs(Keys.Escape) });
+                        PumpUntil(() => QuantityPopup.OpenPopups.Count == 0); NoPacket(peer, "Escape on the drop box sent a packet");
+                        Check(localGrid.AcceptDrop(new ShortcutPayload(ShortcutSlotKind.Item, 3, 5, -1)), "Second drop on the offer was refused");
+                        quantityBox = Quantity(); quantityBox.InputText = "40"; quantityBox.Confirm(); Check(Read(peer) == "EMO+3|3", "Dropped offer is not clamped to the part still free");
+                        Feed(account, "EMKO+3|5"); Application.DoEvents();
+                        Check(RowWithTag(bagList, 3u) == null, "A fully offered item stayed in the bag list");
+                        Check(localGrid.AcceptDrop(new ShortcutPayload(ShortcutSlotKind.Item, 3, 5, -1)), "Drop of a fully offered item was refused before the check");
+                        NoPacket(peer, "A fully offered item was offered again"); Check(QuantityPopup.OpenPopups.Count == 0, "A box opened for a fully offered item");
                         Feed(account, "EmKO+77|1|2002|"); Feed(account, "EmKG40"); Application.DoEvents();
                         Check(distantGrid.Items.Count == 1 && ((Label)Get(panel, "distantKamas")).Text.StartsWith("40 ") && ((Label)Get(panel, "distantTitle")).Text.StartsWith("Partenaire fictif"),
                             "Distant column not refreshed");
-                        ((NumericUpDown)Get(panel, "exchangeKamas")).Value = 150;
-                        Click(Get(panel, "exchangeKamasSend")); Check(Read(peer) == "EMG150", "Kamas button does not send EMG<kamas>");
+                        // Kamas (Exchange.askKamaQuantity) : valeur la somme proposée, maximum sa bourse, minimum 0.
+                        Click(Get(panel, "exchangeKamasSend")); quantityBox = Quantity();
+                        Check(quantityBox.InputText == "0" && quantityBox.Maximum == 1000 && quantityBox.Minimum == 0, "Kamas box differs (value " + quantityBox.InputText + ", max " + quantityBox.Maximum + ")");
+                        quantityBox.InputText = "150"; quantityBox.Confirm(); Check(Read(peer) == "EMG150", "Kamas button does not send EMG<kamas>");
                         Feed(account, "EMKG150"); Application.DoEvents();
                         Check(((Label)Get(panel, "localKamas")).Text.StartsWith("150 "), "Local kamas not shown");
+                        Click(Get(panel, "exchangeKamasSend")); quantityBox = Quantity(); Check(quantityBox.InputText == "150", "Kamas box does not start from the offered sum");
+                        quantityBox.InputText = "5000"; quantityBox.Confirm(); Check(Read(peer) == "EMG1000", "Kamas offer is not clamped to the purse");
+                        Feed(account, "EMKG150"); Application.DoEvents();
                         Check(!validate.Enabled && validate.Text.StartsWith("Valider ("), "Validate button not delayed after a change");
                         PumpUntil(() => validate.Enabled, 5); Check(validate.Text == "Valider", "Countdown text was not cleared");
                         Click(validate); Check(Read(peer) == "EK", "Validate button does not send EK");
@@ -472,8 +506,11 @@ internal static class BotExchangeSmoke
                             Check(Near(image.GetPixel(4 + ExchangeItemGrid.CellSize / 2, 4 + ExchangeItemGrid.CellSize / 2), iconColor), "Item icon is not drawn in its cell");
                         }
                         Check(localGrid.SelectItem(3) && remove.Enabled, "Selecting an offered item does not enable Retirer");
-                        ((NumericUpDown)Get(panel, "exchangeQuantity")).Value = 1;
-                        Click(remove); Check(Read(peer) == "EMO-3|1", "Remove button does not send EMO-<id>|<qty>");
+                        Click(remove); quantityBox = Quantity(); Check(quantityBox.Maximum == 5, "Remove box maximum is not the offered stack");
+                        quantityBox.InputText = "1"; quantityBox.Confirm(); Check(Read(peer) == "EMO-3|1", "Remove button does not send EMO-<id>|<qty>");
+                        // Case proposée glissée sur le sac : EMO- avec la quantité choisie.
+                        Check(panel.DropOnBag(new ExchangeItemDrag(localGrid, 3, 2001, 5)), "Offered cell drop on the bag was refused");
+                        quantityBox = Quantity(); quantityBox.InputText = "2"; quantityBox.Confirm(); Check(Read(peer) == "EMO-3|2", "Dropped withdraw does not send EMO-<id>|<qty>");
                         Click(Get(panel, "exchangeCancel")); Check(Read(peer) == "EV" && drawer.Current == panel, "Cancel does not send EV or closed before the server");
                         Feed(account, "EV"); Application.DoEvents();
                         Check(!drawer.IsOpen(panel) && localGrid.Items.Count == 0 && distantGrid.Items.Count == 0, "Exchange panel stayed open after EV");
@@ -505,13 +542,40 @@ internal static class BotExchangeSmoke
                             "Storage panel does not show the storage and the bag");
                         var withdraw = (Control)Get(chest, "storageWithdraw"); var deposit = (Control)Get(chest, "storageDeposit");
                         Check(!withdraw.Enabled && !deposit.Enabled, "Storage buttons enabled without a selection");
+                        Check(!All(chest.View).OfType<NumericUpDown>().Any(), "Storage panel still has fixed quantity fields");
                         RowWithTag(chestBag, 3u).Selected = true; Application.DoEvents();
-                        Click(deposit); Check(Read(peer) == "EMO+3|1", "Deposit button does not send EMO+");
+                        Click(deposit); var chestBox = Quantity(); Check(chestBox.Maximum == 5 && chestBox.InputText == "1", "Deposit box differs");
+                        chestBox.Confirm(); Check(Read(peer) == "EMO+3|1", "Deposit button does not send EMO+");
                         Check(chestGrid.SelectItem(1004), "Storage item cannot be selected"); Application.DoEvents();
-                        Click(withdraw); Check(Read(peer) == "EMO-1004|1", "Withdraw button does not send EMO-");
-                        ((NumericUpDown)Get(chest, "storageKamasAmount")).Value = 5;
-                        Click(Get(chest, "storageKamasDeposit")); Check(Read(peer) == "EMG5", "Kamas deposit button does not send EMG");
-                        Click(Get(chest, "storageKamasWithdraw")); Check(Read(peer) == "EMG-5", "Kamas withdraw button does not send EMG-");
+                        // Un seul exemplaire : 1 sans boîte, comme dropItem.
+                        Click(withdraw); Check(Read(peer) == "EMO-1004|1" && QuantityPopup.OpenPopups.Count == 0, "Withdraw button does not send EMO- without a box");
+                        // Glisser-déposer : sac → coffre (EMO+), coffre → sac (EMO-) borné aux pods libres (Ow, poids de LangData).
+                        Check(!chestGrid.AcceptDrop(new ShortcutPayload(ShortcutSlotKind.Item, 1001, 1, 1)) && !chest.DropOnBag(new ShortcutPayload(ShortcutSlotKind.Item, 3, 5, -1))
+                            && !chestGrid.AcceptDrop(new ExchangeItemDrag(chestGrid, 1003, 2001, 10)), "Storage accepted an equipped item or a drop in the wrong direction");
+                        Check(chestGrid.AcceptDrop(new ShortcutPayload(ShortcutSlotKind.Item, 3, 5, -1)), "Bag item drop on the storage was refused");
+                        chestBox = Quantity(); chestBox.InputText = "2"; chestBox.Confirm(); Check(Read(peer) == "EMO+3|2", "Dropped deposit does not send EMO+<id>|<qty>");
+                        FeedFromNetwork(account, "Ow100|106"); Application.DoEvents();
+                        Check(chest.DropOnBag(new ExchangeItemDrag(chestGrid, 1003, 2001, 10)), "Storage cell drop on the bag was refused");
+                        chestBox = Quantity(); Check(chestBox.Maximum == 2, "Withdraw box is not bounded by the free pods (max " + chestBox.Maximum + ")");
+                        chestBox.InputText = "9"; chestBox.Confirm(); Check(Read(peer) == "EMO-1003|2", "Dropped withdraw is not clamped to the free pods");
+                        FeedFromNetwork(account, "Ow106|106"); Application.DoEvents();
+                        Check(chest.DropOnBag(new ExchangeItemDrag(chestGrid, 1003, 2001, 10)), "Drop with a full bag was refused before the check");
+                        PumpUntil(() => BotDialogs.OpenDialogs.Count == 1); Form fullBag = BotDialogs.OpenDialogs[0];
+                        Check(QuantityPopup.OpenPopups.Count == 0 && All(fullBag).Any(control => control.Name == "dialog-message" && control.Text.Contains("maximum")),
+                            "A full bag did not show SRV_MSG_6");
+                        Answer(fullBag, "OK"); PumpUntil(() => BotDialogs.OpenDialogs.Count == 0); NoPacket(peer, "A full bag still sent EMO-");
+                        FeedFromNetwork(account, "Ow0|1000");
+                        // Kamas (GridInventoryViewer.askKamaQuantity) : valeur et maximum tous les kamas du côté d'où ils partent.
+                        Click(Get(chest, "storageKamasDeposit")); chestBox = Quantity();
+                        Check(chestBox.InputText == "1000" && chestBox.Maximum == 1000, "Kamas deposit box differs (value " + chestBox.InputText + ")");
+                        chestBox.InputText = "5"; chestBox.Confirm(); Check(Read(peer) == "EMG5", "Kamas deposit button does not send EMG");
+                        Click(Get(chest, "storageKamasWithdraw")); chestBox = Quantity();
+                        Check(chestBox.InputText == "250" && chestBox.Maximum == 250, "Kamas withdraw box differs (value " + chestBox.InputText + ")");
+                        chestBox.InputText = "5"; chestBox.Confirm(); Check(Read(peer) == "EMG-5", "Kamas withdraw button does not send EMG-");
+                        Click(Get(chest, "storageKamasWithdraw")); chestBox = Quantity(); chestBox.InputText = "999"; chestBox.Confirm();
+                        Check(Read(peer) == "EMG-250", "Kamas withdraw is not clamped to the storage");
+                        Click(Get(chest, "storageKamasDeposit")); chestBox = Quantity(); chestBox.InputText = "0"; chestBox.Confirm();
+                        PumpUntil(() => QuantityPopup.OpenPopups.Count == 0); NoPacket(peer, "Zero kamas sent EMG");
                         Feed(account, "EsKO-1004"); Application.DoEvents(); Check(chestGrid.Items.Count == 1, "EsKO- not shown");
                         Click(Get(chest, "storageLeave")); Check(Read(peer) == "EV" && drawer.Current == chest, "Close does not send EV");
                         Feed(account, "EV"); Application.DoEvents();
