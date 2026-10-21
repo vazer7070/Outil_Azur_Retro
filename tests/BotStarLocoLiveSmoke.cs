@@ -1748,7 +1748,8 @@ internal static partial class Live
         string id = s.Id.ToString(CultureInfo.InvariantCulture), answer;
         if (weapon.IsArmed)
         {
-            answer = await s.Expect(p => p.StartsWith("GA;303;" + id + ";") || p.StartsWith("GA;305;" + id + ";") || p.StartsWith("Im1170") || p.StartsWith("Im1171"),
+            // Échec critique : StarLoco envoie GA;305;<id> sans argument (vu le 21 octobre 2026, Épée de Mercenaire de B).
+            answer = await s.Expect(p => p.StartsWith("GA;303;" + id + ";") || p == "GA;305;" + id || p.StartsWith("GA;305;" + id + ";") || p.StartsWith("Im1170") || p.StartsWith("Im1171"),
                 "GA;303 (attaque au corps à corps)", 10, mark).ConfigureAwait(false);
             Check(!answer.StartsWith("Im"), s.Label + " : StarLoco refuse une attaque que le bot autorisait (" + weapon.Summary + ", distance " + distance + ", " + paStart + " PA) : " + answer);
             if (answer.StartsWith("GA;305"))
@@ -2468,6 +2469,23 @@ internal static partial class Live
     }
 
     /// <summary>Lance une commande de la machine (sh -c, cmd /c sous Windows) ; sa sortie va au journal. Code de sortie, -1 après le délai.</summary>
+    /// <summary>
+    /// Sous Mono, SIGQUIT au processus du test : le runtime écrit les piles de tous les fils dans la sortie standard, sans s'arrêter.
+    /// Rien sous Windows (.NET Framework n'a pas d'équivalent).
+    /// </summary>
+    private static void DumpThreads(string reason)
+    {
+        if (Type.GetType("Mono.Runtime") == null) return;
+        Journal("!! [test] piles des fils (SIGQUIT, sortie du test) : " + reason);
+        try
+        {
+            using (var kill = Process.Start(new ProcessStartInfo("kill", "-QUIT " + Process.GetCurrentProcess().Id) { UseShellExecute = false, CreateNoWindow = true }))
+                kill?.WaitForExit(5000);
+            Thread.Sleep(2000);
+        }
+        catch (Exception error) { Journal("!! [test] SIGQUIT impossible : " + error.Message); }
+    }
+
     private static async Task<int> RunCommandAsync(string label, string command, int seconds)
     {
         bool windows = Environment.OSVersion.Platform == PlatformID.Win32NT;
@@ -2560,7 +2578,12 @@ internal static partial class Live
             {
                 // Journal de l'écran du choix du serveur (abonné avant la connexion) : dit jusqu'où la connexion est allée.
                 string shownLog = await OnUi(() => ((RichTextBox)Field(screen, "journal")).Text.Replace("\n", " | ")).ConfigureAwait(false);
-                throw new Exception("Après « Oui », la liste des serveurs n'a pas de serveur en ligne : " + again.ConnectionStatus + " ; journal de l'écran : "
+                // Paquets du Login déjà traités par le bot : Ad → Name, AH → Servers, AQ → SecretQuestion (puis Ax). Vu le 21 octobre 2026 :
+                // Af traité, rien après, Ax jamais envoyé ; sous Mono, les piles de tous les fils vont dans la sortie du test (SIGQUIT).
+                string read = "Name « " + again.Name + " », serveurs " + string.Join(",", again.Game.Server.Servers.Select(x => x.Key + " " + x.Value))
+                    + ", question « " + again.SecretQuestion + " », connecté " + (again.Connexion != null && again.Connexion.IsConnected());
+                DumpThreads("x3c : reconnexion bloquée après « Oui »");
+                throw new Exception("Après « Oui », la liste des serveurs n'a pas de serveur en ligne : " + again.ConnectionStatus + " ; " + read + " ; journal de l'écran : "
                     + (shownLog.Length > 800 ? "…" + shownLog.Substring(shownLog.Length - 800) : shownLog));
             }
             string[] listed = await OnUi(() => new[] { ((Label)Field(screen, "status")).Text,
