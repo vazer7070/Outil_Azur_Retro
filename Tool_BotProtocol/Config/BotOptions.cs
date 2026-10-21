@@ -55,6 +55,7 @@ namespace Tool_BotProtocol.Config
             Pair("Grid", false), Pair("Transparency", false), Pair("SpriteInfos", true), Pair("SpriteMove", true),
             Pair("MapInfos", true), Pair("ChatEffects", true), Pair("PointsOverHead", true), Pair("Aura", true), Pair("ViewAllMonsterInGroup", true),
             Pair("TimestampInChat", true), Pair("BannerShortcuts", true), Pair("CensorshipFilter", true), Pair("ConfirmDropItem", true),
+            Pair("AdvancedLineOfSight", true),
             Pair("DefaultQuality", "high"), Pair("BannerGaugeMode", "xp"), Pair("BannerIllustrationMode", "artwork"),
         };
 
@@ -123,6 +124,13 @@ namespace Tool_BotProtocol.Config
         /// <c>CONFIRM_DROP_ITEM</c> (<c>CAUTION_YESNO</c>) avant <c>OD&lt;objet&gt;|&lt;quantité&gt;</c>, comme <c>Inventory.dropDownItem</c>.
         /// </summary>
         public bool ConfirmDropItem { get => GetBool("ConfirmDropItem"); set => Set("ConfirmDropItem", value); }
+        /// <summary>
+        /// Option <c>AdvancedLineOfSight</c> du client (vraie par défaut, lot X33) : en visée, les cellules où le sort peut
+        /// partir (portée, ligne, cellule libre, ligne de vue, limites) sont mises en valeur sur la portée, comme
+        /// <c>drawAllowedZone</c> (<c>select(cellule, 0x0066CC, "spell", 50)</c>). Sans elle, seule la portée est dessinée ; la
+        /// ligne de vue est vérifiée dans les deux cas avant d'envoyer le sort.
+        /// </summary>
+        public bool AdvancedLineOfSight { get => GetBool("AdvancedLineOfSight"); set => Set("AdvancedLineOfSight", value); }
         public string DefaultQuality { get => GetString("DefaultQuality"); set => Set("DefaultQuality", value); }
         public string BannerGaugeMode { get => GetString("BannerGaugeMode"); set => Set("BannerGaugeMode", value); }
         public string BannerIllustrationMode { get => GetString("BannerIllustrationMode"); set => Set("BannerIllustrationMode", value); }

@@ -8,6 +8,7 @@ using System.Windows.Forms;
 using Outil_Azur_complet.Bot.Controls;
 using Outil_Azur_complet.Bot.Interfaces;
 using Tool_BotProtocol.Config;
+using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Game.Combats;
 using Tool_BotProtocol.Game.Maps;
@@ -26,7 +27,8 @@ internal static class BotMapViewSmoke
             return File.Exists(file) ? Assembly.LoadFrom(file) : null;
         };
         try { Run(); Console.WriteLine("OK: client map PNG layers, asset diagnostics, GDC redrawn then restored (lot X7), zoom/pan/resize hit testing and click isolation, "
-            + "spell range, pointer shapes, combat path selection and client cursors (lot X8)"); }
+            + "spell range, pointer shapes, combat path selection and client cursors (lot X8), tactic mode on and back with the #29261F flat colour "
+            + "and valid targets in #0066CC at 50 % (lot X33)"); }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
 
@@ -95,6 +97,12 @@ internal static class BotMapViewSmoke
     }
     private static bool Near(Color actual, Color expected, int tolerance) =>
         Math.Abs(actual.R - expected.R) <= tolerance && Math.Abs(actual.G - expected.G) <= tolerance && Math.Abs(actual.B - expected.B) <= tolerance;
+    /// <summary><paramref name="rgb"/> posé à l'alpha <paramref name="alpha"/> (0 à 255) sur <paramref name="under"/>.</summary>
+    private static Color Over(Color under, int rgb, int alpha)
+    {
+        Func<int, int, int> mix = (below, over) => (int)Math.Round(below + (over - below) * alpha / 255.0);
+        return Color.FromArgb(mix(under.R, (rgb >> 16) & 255), mix(under.G, (rgb >> 8) & 255), mix(under.B, rgb & 255));
+    }
 
     /// <summary>
     /// Lot X8 : formes posées sous le pointeur (<c>PointerHandler.draw</c> du client) sur une carte 15 × 17 synthétique ; les
@@ -233,11 +241,152 @@ internal static class BotMapViewSmoke
         Check(Near(tinted, Color.FromArgb(UserMapControl.SpellRangeRgb), 1), "Selection shape colour mismatch: " + tinted);
     }
 
+    /// <summary>Cellule active ou non, avec ou sans ligne de vue et de mouvement <paramref name="movement"/> (bits de <c>Cell.decompress</c>).</summary>
+    private static string TacticCell(int ground, int object1, int object2, bool active, bool lineOfSight, int movement)
+    {
+        char[] chars = EncodedCell(ground, object1, object2, false, 0).ToCharArray();
+        int first = Hash.get_Hash(chars[0]), third = Hash.get_Hash(chars[2]);
+        chars[0] = Hash.caracteres_array[(first & ~33) | (active ? 32 : 0) | (lineOfSight ? 1 : 0)];
+        chars[2] = Hash.caracteres_array[(third & ~56) | ((movement & 7) << 3)];
+        return new string(chars);
+    }
+
+    private static void Diamond(string path, int width, int height, Color color)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path));
+        using (var bitmap = new Bitmap(width, height))
+        {
+            using (Graphics graphics = Graphics.FromImage(bitmap))
+            using (var brush = new SolidBrush(color))
+            {
+                graphics.Clear(Color.Transparent);
+                graphics.FillPolygon(brush, new[] { new PointF(width / 2f, 0), new PointF(width, height / 2f), new PointF(width / 2f, height), new PointF(0, height / 2f) });
+            }
+            bitmap.Save(path, ImageFormat.Png);
+        }
+    }
+
+    /// <summary>Pixel au point d'enregistrement d'une cellule : fond, sols, objets 1 puis objets 2 du décor affiché.</summary>
+    private static Color CentrePixel(BotMapArtwork scenery, int cellId)
+    {
+        using (var bitmap = new Bitmap(200, 160))
+        using (Graphics graphics = Graphics.FromImage(bitmap))
+        {
+            graphics.Clear(Color.White);
+            scenery.DrawGround(graphics); scenery.DrawObjects(graphics, null);
+            PointF center = scenery.DisplayedCells[cellId].Center;
+            return bitmap.GetPixel((int)center.X, (int)center.Y);
+        }
+    }
+
+    /// <summary>
+    /// Lot X33 : mode tactique du décor (<c>mapHandler.tacticMode</c> et <c>CellData.turnTactic</c> du client) sur une bibliothèque
+    /// temporaire : objet 1 10000 sans ligne de vue, 10002 pour un mouvement 0 ou 1, 10001 sinon, objet 2 1030 sur une cellule de
+    /// changement de carte, 25 gardé, autres objets 2 retirés, sol retiré, aplat #29261F à la place du fond ; cellule inactive
+    /// inchangée ; un GDC de ligne de vue refait la cellule tactique ; retour au décor normal.
+    /// </summary>
+    private static void CheckTacticMode()
+    {
+        string folder = Path.Combine(TestPaths.Work, "tactic-" + Guid.NewGuid().ToString("N"));
+        Color ground = Color.FromArgb(180, 150, 75), back = Color.FromArgb(240, 230, 140), trigger = Color.FromArgb(230, 200, 0);
+        Color walkable = Color.FromArgb(142, 134, 94), obstacle = Color.FromArgb(153, 153, 153), hole = Color.FromArgb(51, 51, 51);
+        Action<string, bool> library = (directory, withHole) =>
+        {
+            Diamond(Path.Combine(directory, "sols", "11.png"), 53, 27, ground);
+            Image(Path.Combine(directory, "objets", "12.png"), 13, 35, Color.ForestGreen);
+            Image(Path.Combine(directory, "objets", "13.png"), 15, 28, Color.SteelBlue);
+            Image(Path.Combine(directory, "objets", "1029.png"), 20, 12, Color.Magenta);
+            Image(Path.Combine(directory, "objets", "25.png"), 1, 1, Color.Transparent);
+            Diamond(Path.Combine(directory, "objets", "10000.png"), 54, 36, obstacle);
+            Diamond(Path.Combine(directory, "objets", "10001.png"), 54, 29, walkable);
+            if (withHole) Diamond(Path.Combine(directory, "objets", "10002.png"), 54, 28, hole);
+            Diamond(Path.Combine(directory, "objets", "1030.png"), 27, 15, trigger);
+            Image(Path.Combine(directory, "backgrounds", "81.png"), 120, 70, back);
+            File.WriteAllLines(Path.Combine(directory, BotMapArtwork.AnchorFileName), new[]
+            {
+                "sol\t11\t-27\t-14\t53\t27\t1", "objet\t12\t-6\t-20\t13\t35\t1", "objet\t13\t-7\t-20\t15\t28\t1", "objet\t1029\t-10\t-6\t20\t12\t1",
+                "objet\t25\t0\t0\t1\t1\t1", "objet\t10000\t-27\t-21\t54\t36\t1", "objet\t10001\t-27\t-14\t54\t29\t1", "objet\t10002\t-27\t-14\t54\t28\t1",
+                "objet\t1030\t-13\t-7\t27\t15\t1"
+            });
+        };
+        library(folder, true);
+        // 5 : arbre sans ligne de vue ; 6 et 13 : mouvement 1 et 0 ; 7 et 10 : objet 2 puis objet 1 de changement de carte (1029) ;
+        // 8 : objet 2 ordinaire ; 9 : objet 25 ; 12 : cellule inactive.
+        string[] cells = Enumerable.Range(0, 18).Select(id => TacticCell(11, 0, 0, true, true, 4)).ToArray();
+        cells[5] = TacticCell(11, 12, 0, true, false, 0); cells[6] = TacticCell(11, 0, 0, true, true, 1); cells[7] = TacticCell(11, 0, 1029, true, true, 4);
+        cells[8] = TacticCell(11, 0, 13, true, true, 4); cells[9] = TacticCell(11, 0, 25, true, true, 4); cells[10] = TacticCell(11, 1029, 0, true, true, 4);
+        cells[12] = TacticCell(11, 12, 13, false, true, 4); cells[13] = TacticCell(11, 0, 0, true, true, 0);
+        string data = string.Concat(cells);
+        using (var map = new Map { MapID = 990003, MapWidth = 3, MapHeight = 4, MapData = data, Back_ID = 81 })
+        {
+            map.DecompressMap(data);
+            using (var scenery = new BotMapArtwork(map, folder))
+            {
+                Check(scenery.WaitForAssets(10000), "Tactic fixture PNG loading did not finish");
+                Check(!scenery.TacticMode && ReferenceEquals(scenery.DisplayedCells, scenery.Cells), "Map artwork started in tactic mode");
+                Check(scenery.MissingAssetCount == 0 && scenery.LoadedAssetCount == 6 && scenery.LoadedTacticAssetCount == 5,
+                    "Tactic pictures were not loaded apart from the scenery: " + scenery.LoadedAssetCount + " / " + scenery.LoadedTacticAssetCount + " · " + scenery.Status);
+                Check(scenery.Status == "Décor chargé · 6 visuels", "Tactic pictures were counted as scenery: " + scenery.Status);
+                Check(Near(CentrePixel(scenery, 0), ground, 1) && CentrePixel(scenery, 5).G == Color.ForestGreen.G && Near(CentrePixel(scenery, 12), back, 1),
+                    "Normal scenery is not drawn before the tactic mode: " + CentrePixel(scenery, 0) + " " + CentrePixel(scenery, 12));
+
+                scenery.TacticMode = true;
+                BotMapArtwork.ArtworkCell[] shown = scenery.DisplayedCells;
+                Check(scenery.TacticMode && !ReferenceEquals(shown, scenery.Cells) && shown.Length == 18, "Tactic mode did not switch the drawn cells");
+                Check(shown.Where(cell => cell.Active).All(cell => cell.GroundId == 0 && cell.Slope == 1 && cell.Object1Rotation == 0),
+                    "Tactic cells kept a ground, a slope or an object rotation");
+                Check(shown[0].Object1Id == 10001 && shown[5].Object1Id == 10000 && shown[6].Object1Id == 10002 && shown[13].Object1Id == 10002
+                    && shown[7].Object1Id == 10001 && shown[10].Object1Id == 10001, "turnTactic object 1 mismatch (line of sight, then movement 0 or 1)");
+                Check(shown[7].Object2Id == 1030 && shown[10].Object2Id == 1030 && shown[8].Object2Id == 0 && shown[9].Object2Id == 25 && shown[5].Object2Id == 0,
+                    "turnTactic object 2 mismatch (1030 on a map change cell, 25 kept, others removed)");
+                Check(ReferenceEquals(shown[12], scenery.Cells[12]) && !shown[12].Active, "Inactive cell was rebuilt by the tactic mode");
+                Check(scenery.Cells[0].GroundId == 11 && scenery.Cells[5].Object1Id == 12 && scenery.Cells[7].Object2Id == 1029, "Tactic mode changed the map cells");
+                Check(Near(CentrePixel(scenery, 0), walkable, 1) && Near(CentrePixel(scenery, 8), walkable, 1) && Near(CentrePixel(scenery, 5), obstacle, 1)
+                    && Near(CentrePixel(scenery, 6), hole, 1) && Near(CentrePixel(scenery, 13), hole, 1)
+                    && Near(CentrePixel(scenery, 7), trigger, 1) && Near(CentrePixel(scenery, 10), trigger, 1),
+                    "Tactic objects are not drawn on their cells: " + CentrePixel(scenery, 0) + " " + CentrePixel(scenery, 5) + " " + CentrePixel(scenery, 7));
+                Check(Near(CentrePixel(scenery, 12), BotMapArtwork.TacticBackground, 1) && BotMapArtwork.TacticBackground.ToArgb() == Color.FromArgb(0x29, 0x26, 0x1F).ToArgb(),
+                    "Tactic flat colour #29261F did not replace the background: " + CentrePixel(scenery, 12));
+                Check(scenery.HasGroundArtwork(0) && scenery.HasGroundArtwork(12) && scenery.Status == "Mode tactique", "Tactic mode diagnostics mismatch: " + scenery.Status);
+                Check(scenery.LoadedAssetCount == 6 && scenery.MissingAssetCount == 0, "Tactic mode changed the scenery counts");
+
+                // GDC ne touchant que la ligne de vue (masque 0x1000) : le décor normal ne change pas, la cellule tactique devient 10000.
+                var changed = new System.Collections.Concurrent.ConcurrentQueue<int>();
+                scenery.CellChanged += id => changed.Enqueue(id);
+                Check(map.ApplyCellUpdate(GmParser.ParseCellUpdates("0;" + TacticCell(11, 0, 0, true, false, 4) + "1000;0")[0]), "GDC0 line of sight was refused");
+                Check(scenery.UpdateCell(0, map.CellDataOf(0)), "Line of sight GDC was not a tactic change");
+                WaitFor(() => changed.Contains(0), "tactic cell 0 redrawn");
+                Check(scenery.DisplayedCells[0].Object1Id == 10000 && scenery.Cells[0].GroundId == 11 && Near(CentrePixel(scenery, 0), obstacle, 1),
+                    "Cell without line of sight is not 10000 in tactic mode: " + CentrePixel(scenery, 0));
+                Check(map.ApplyCellUpdate(GmParser.ParseCellUpdates("0")[0]) && scenery.UpdateCell(0, map.CellDataOf(0)), "GDC0 did not restore the line of sight");
+                WaitFor(() => scenery.DisplayedCells[0].Object1Id == 10001, "tactic cell 0 restored");
+
+                scenery.TacticMode = false;
+                Check(ReferenceEquals(scenery.DisplayedCells, scenery.Cells) && Near(CentrePixel(scenery, 0), ground, 1)
+                    && CentrePixel(scenery, 5).G == Color.ForestGreen.G && Near(CentrePixel(scenery, 12), back, 1) && scenery.Status == "Décor chargé · 6 visuels",
+                    "Normal scenery did not come back after the tactic mode: " + CentrePixel(scenery, 0) + " " + CentrePixel(scenery, 12));
+            }
+            // Visuel tactique absent : signalé en mode tactique seulement, jamais parmi les visuels du décor.
+            string partial = Path.Combine(TestPaths.Work, "tactic-partial-" + Guid.NewGuid().ToString("N"));
+            library(partial, false);
+            using (var scenery = new BotMapArtwork(map, partial))
+            {
+                Check(scenery.WaitForAssets(10000) && scenery.MissingAssetCount == 0 && scenery.LoadedTacticAssetCount == 4, "Missing tactic picture polluted the scenery");
+                scenery.TacticMode = true;
+                Check(scenery.Status.StartsWith("Mode tactique · 1 visuel(s) absent(s)", StringComparison.Ordinal) && scenery.Status.Contains("objet 10002")
+                    && scenery.HasGroundArtwork(0) && !scenery.HasGroundArtwork(6), "Missing tactic picture was not reported: " + scenery.Status);
+                scenery.TacticMode = false;
+                Check(scenery.Status == "Décor chargé · 6 visuels", "Tactic diagnostics stayed after the tactic mode: " + scenery.Status);
+            }
+        }
+    }
+
     private static void Run()
     {
         CheckAimShapes();
         CheckZoneLayer();
         CheckSelectionShapes();
+        CheckTacticMode();
         string directory = Path.Combine(TestPaths.Work, "map-view-assets");
         string groundPath = Path.Combine(directory, "sols", "fixtures", "11.png");
         Image(groundPath, 53, 27, Color.FromArgb(180, 150, 75));
@@ -359,6 +508,9 @@ internal static class BotMapViewSmoke
                     (typeof(UserMapControl).GetField("artwork", Any).GetValue(view) as BotMapArtwork)?.WaitForAssets(10000);
                     Point target = view.Cells[10].Centre, refused = view.Cells[11].Centre, step = view.Cells[12].Centre;
                     Color ground = PixelAt(view, refused), targetGround = PixelAt(view, target);
+                    // Portée et pointeur seuls : la mise en valeur des cibles (lot X33) est vérifiée plus bas, option activée.
+                    var displayOptions = new BotOptions(Path.Combine(TestPaths.Work, "map-view-options", "BotOptions.json")) { AutoSave = false, AdvancedLineOfSight = false };
+                    view.Options = displayOptions;
                     view.SetSpellTargets(new short[] { 10 });
                     view.SetSpellRange(new short[] { 10, 11 });
                     Check(view.IsAiming && view.Cursor == Cursors.Default && view.SpellRange.Count == 2, "Spell aim did not keep the arrow or lost its range");
@@ -395,6 +547,52 @@ internal static class BotMapViewSmoke
                     view.SetPathPreview(new short[] { 12 });
                     Check(!view.PathPreviewUsesSelection, "Out-of-fight preview kept the combat selection");
                     view.SetPathPreview(null);
+
+                    // Lot X33 : drawAllowedZone du client (option AdvancedLineOfSight) : forme de sélection #0066CC à 50 % sur
+                    // chaque cible valide, au-dessus de la portée ; rien sur une cellule de la portée hors des cibles.
+                    Check(!view.AllowedZoneShown && Near(PixelAt(view, target), Blend(targetGround, UserMapControl.SpellRangeRgb), 3),
+                        "Valid target was highlighted with the option off: " + PixelAt(view, target));
+                    displayOptions.AdvancedLineOfSight = true;
+                    Check(view.AllowedZoneShown, "AdvancedLineOfSight did not show the valid targets");
+                    BotMapArtwork viewArtwork = typeof(UserMapControl).GetField("artwork", Any).GetValue(view) as BotMapArtwork;
+                    SelectionShapes viewShapes = SelectionShapes.For(viewArtwork.ResourceDirectory);
+                    PixelAt(view, target);
+                    WaitFor(() => viewShapes.Idle, "selection shape in #0066CC");
+                    Check(viewShapes.TryGet(viewArtwork.DisplayedCells[10].Slope, UserMapControl.AllowedTargetRgb, out Bitmap allowedShape, out RectangleF allowedAnchor),
+                        "Selection shape in #0066CC was not built from the scenery");
+                    int shapeAlpha; lock (allowedShape) shapeAlpha = allowedShape.GetPixel(allowedShape.Width / 2, allowedShape.Height / 2).A;
+                    Color expectedAllowed = Over(Blend(targetGround, UserMapControl.SpellRangeRgb), UserMapControl.AllowedTargetRgb, shapeAlpha * 127 / 255);
+                    Color allowed = PixelAt(view, target);
+                    Check(Near(allowed, expectedAllowed, 4), "Valid target is not #0066CC at 50 % over the range: " + allowed + ", expected " + expectedAllowed);
+                    Check(Near(PixelAt(view, refused), range, 1), "Cell of the range outside the targets was highlighted");
+                    displayOptions.AdvancedLineOfSight = false;
+                    Check(!view.AllowedZoneShown && Near(PixelAt(view, target), Blend(targetGround, UserMapControl.SpellRangeRgb), 3), "Valid targets stayed highlighted");
+                    displayOptions.AdvancedLineOfSight = true;
+
+                    // Lot X33 : mode tactique (Fights.TacticMode, local) dessiné seulement en combat, puis retour au décor normal.
+                    Fights fight = account.Game.Fight;
+                    Check(!view.TacticView, "Tactic view outside a fight");
+                    MessagesReception.Init();
+                    MessagesReception.ReceptionAsync(account.Connexion, "GJK2|1|1|0|30000|0").GetAwaiter().GetResult();
+                    Check(fight.IsInFight && !fight.TacticMode && !view.TacticView, "GJK did not open the fight or turned the tactic mode on");
+                    Color normalRefused = PixelAt(view, refused), normalTarget = PixelAt(view, target);
+                    fight.TacticMode = true;
+                    Check(view.TacticView, "Fights.TacticMode is not followed by the map");
+                    Color tacticRefused = PixelAt(view, refused);
+                    Check(viewArtwork.TacticMode && !ReferenceEquals(viewArtwork.DisplayedCells, viewArtwork.Cells)
+                        && viewArtwork.DisplayedCells[11].Object1Id == BotMapArtwork.TacticWalkableObject && viewArtwork.DisplayedCells[11].GroundId == 0,
+                        "Map scenery was not drawn in tactic mode");
+                    Check(!Near(tacticRefused, normalRefused, 6), "Tactic mode did not change the drawn cell: " + tacticRefused);
+                    Check(viewArtwork.Status.StartsWith("Mode tactique", StringComparison.Ordinal), "Tactic mode status mismatch: " + viewArtwork.Status);
+                    fight.TacticMode = false;
+                    Check(!view.TacticView && Near(PixelAt(view, refused), normalRefused, 1) && Near(PixelAt(view, target), normalTarget, 1)
+                        && !viewArtwork.TacticMode && ReferenceEquals(viewArtwork.DisplayedCells, viewArtwork.Cells), "Normal scenery did not come back after the tactic mode");
+                    // Game.isTacticMode du client persiste d'un combat à l'autre : hors combat, le décor reste normal.
+                    fight.TacticMode = true;
+                    fight.Clear();
+                    Check(fight.TacticMode && !fight.IsInFight && !view.TacticView && Near(PixelAt(view, refused), normalRefused, 1),
+                        "Tactic mode was drawn outside a fight or was reset with it");
+                    fight.TacticMode = false;
 
                     // Glisser de la vue : quatre flèches 40 × 40 centrées sur la souris (cadre par défaut des curseurs du client).
                     view.Down(step, MouseButtons.Middle);

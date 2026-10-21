@@ -52,6 +52,49 @@ internal static class BotCombatSmoke
     private static Task Feed(Accounts account, string packet) { return MessagesReception.ReceptionAsync(account.Connexion, packet); }
     private static void AddSpell(short id, SpellStats stats)
     { var spell = new Spell(id, "Sort test " + id); if (stats != null) spell.GetSpellsStats(1, stats); }
+    // Lot X33 : cellules de la carte synthétique de ligne de vue (7 colonnes, 78 cellules). « H » active avec ligne de vue,
+    // « G » active sans ligne de vue, « b » inactive ; niveau « h » 7, « i » 8, « j » 9 ; pente « e » 1, « i » 2.
+    private const string Flat = "HhGaeaaaaa", Wall = "GhGaeaaaaa", Step = "HiGaeaaaaa", High = "HjGaeaaaaa", Hole = "bhGaeaaaaa", Sloped = "HhGaiaaaaa";
+    private static Map LosMap(params object[] cells)
+    {
+        var overrides = new Dictionary<int, string>();
+        for (int i = 0; i + 1 < cells.Length; i += 2) overrides[(int)cells[i]] = (string)cells[i + 1];
+        string data = string.Concat(Enumerable.Range(0, 78).Select(id => overrides.TryGetValue(id, out string value) ? value : Flat));
+        var map = new Map { MapID = 900091, MapWidth = 7, MapHeight = 6, MapData = data };
+        map.DecompressMap(data);
+        return map;
+    }
+    private static bool Sees(Map map, int from, int to, params int[] occupants)
+    {
+        var count = new Dictionary<int, int>();
+        for (int i = 0; i + 1 < occupants.Length; i += 2) count[occupants[i]] = occupants[i + 1];
+        return LineOfSight.Check(map, from, to, cell => count.TryGetValue(cell, out int n) ? n : 0);
+    }
+    /// <summary>
+    /// Ligne de vue du client (<c>checkView</c>) sur la carte de 7 colonnes : de (1,1) = 13 vers (5,1) = 41 en passant par
+    /// (3,1) = 27, et en diagonale vers (4,2) = 40. Les résultats attendus viennent d'un portage indépendant du client.
+    /// </summary>
+    private static void LineOfSightCases()
+    {
+        Check(Sees(LosMap(), 13, 41) && Sees(LosMap(), 41, 13), "Flat line of sight blocked");
+        Check(!Sees(LosMap(27, Wall), 13, 41) && !Sees(LosMap(41, Wall), 13, 41) && Sees(LosMap(34, Wall), 13, 27),
+            "A cell without line of sight between or on the target does not block, or one behind the target does");
+        Check(!Sees(LosMap(27, High), 13, 41) && Sees(LosMap(13, High, 27, High, 41, High), 13, 41) && !Sees(LosMap(27, Sloped), 13, 41),
+            "Cell heights (level − 7, +0.5 on a slope) are not compared with the segment");
+        Check(!Sees(LosMap(27, Step), 13, 41) && Sees(LosMap(27, Step), 13, 41, 13, 1, 41, 1) && !Sees(LosMap(27, Step), 13, 41, 13, 1),
+            "Fighters on the ends do not raise the segment by 1.5 like the client");
+        Check(!Sees(LosMap(), 13, 41, 27, 1) && Sees(LosMap(), 13, 41, 41, 1) && Sees(LosMap(), 13, 41, 13, 2),
+            "A fighter between does not block, or the target/caster's own sprite blocks");
+        Check(!Sees(LosMap(27, Hole), 13, 41), "An inactive cell does not block");
+        Check(!Sees(LosMap(20, Wall), 13, 40) && Sees(LosMap(26, Wall), 13, 40) && Sees(LosMap(27, Wall), 13, 40) && !Sees(LosMap(33, Wall), 13, 40),
+            "Diagonal traversal (column by column, Flash rounding) differs from checkView");
+        Check(LineOfSight.FlashRound(2.5) == 3 && LineOfSight.FlashRound(-0.5) == 0 && LineOfSight.FlashRound(-1.5) == -1, "Rounding is not Flash's Math.round");
+        Map changed = LosMap();
+        Check(changed.ApplyCellUpdate(GmParser.ParseCellUpdates("27;" + High + "400;0")[0]) && !Sees(changed, 13, 41),
+            "A GDC raising the ground level (mask 0x400) is ignored by the line of sight");
+        Check(changed.ApplyCellUpdate(GmParser.ParseCellUpdates("27")[0]) && Sees(changed, 13, 41), "Restoring the cell (GDC without data) keeps the raised level");
+        Check(!LineOfSight.Check(null, 0, 1, null) && !Sees(LosMap(), 13, 500), "A missing map or an unknown target is seen");
+    }
     private static async Task Run()
     {
         MessagesReception.Init(); Spell.AllSpells.Clear();
@@ -61,7 +104,15 @@ internal static class BotCombatSmoke
         File.WriteAllText(Path.Combine(lang, "effects.xml"), "<?xml version='1.0' encoding='utf-8'?>\n<BotLang famille=\"effects\" langue=\"fr\" version=\"1\" source=\"effects_fr_1.swf\">\n"
             + "<entree table=\"E\" id=\"116\" c=\"19\" d=\"Portée réduite (test)\" o=\"-\" />\n<entree table=\"E\" id=\"117\" c=\"19\" d=\"Portée accrue (test)\" o=\"+\" />\n"
             + "<entree table=\"E\" id=\"118\" c=\"10\" d=\"Force (test)\" o=\"+\" />\n</BotLang>\n", new UTF8Encoding(false));
-        LangData.Clear(); Check(LangData.Load(lang) == 1 && LangData.Effect.Characteristic(117) == 19 && LangData.Effect.Operator(116) == "-", "Synthetic effects.xml not loaded");
+        // Lot X33 : un niveau de spells.xml avec ses états requis (index 16) et interdits (index 17), sort 30 seulement.
+        File.WriteAllText(Path.Combine(lang, "spells.xml"), "<?xml version='1.0' encoding='utf-8'?>\n<BotLang famille=\"spells\" langue=\"fr\" version=\"1\" source=\"spells_fr_1.swf\">\n"
+            + "<sort id=\"30\" nom=\"Sort à états (test)\" description=\"Test.\" niveau1=\"[[],[],2,1,3,0,0,false,true,false,false,0,0,1,0,&quot;Pa&quot;,[7],[11,12],1,false]\" />\n</BotLang>\n",
+            new UTF8Encoding(false));
+        LangData.Clear(); Check(LangData.Load(lang) == 2 && LangData.Effect.Characteristic(117) == 19 && LangData.Effect.Operator(116) == "-", "Synthetic effects.xml not loaded");
+        SpellLevelInfo stated = SpellLevelInfo.Get(30, 1); SpellStats statedStats = Spell.LangStats(30, 1);
+        Check(stated != null && stated.RequiredStates.SequenceEqual(new[] { 7 }) && stated.ForbiddenStates.SequenceEqual(new[] { 11, 12 }) && stated.PerTarget == 1
+            && statedStats != null && statedStats.RequiredStates.SequenceEqual(new[] { 7 }) && statedStats.ForbiddenStates.SequenceEqual(new[] { 11, 12 })
+            && statedStats.AvecLigneDeVue && statedStats.PerObjective == 1, "Spell level states (indices 16 and 17) or line of sight not read from spells.xml");
         AddSpell(10, new SpellStats { PA = 3, Min_portee = 1, Max_portee = 3, PerTurn = 1 });
         AddSpell(11, new SpellStats { PA = 2, Min_portee = 1, Max_portee = 3, Interval = 2 });
         AddSpell(12, new SpellStats { PA = 1, Min_portee = 0, Max_portee = 3, EmptyCell = true });
@@ -70,6 +121,11 @@ internal static class BotCombatSmoke
         AddSpell(15, new SpellStats { PA = 1, Min_portee = 1, Max_portee = 3, IsInLine = true });
         AddSpell(16, null);
         AddSpell(17, new SpellStats { PA = 1, Min_portee = 1, Max_portee = 1, portee_modifiable = true });
+        // Lot X33 : ligne de vue (18), un lancer par cible et par tour (19), état 7 requis et état 11 interdit (20).
+        AddSpell(18, new SpellStats { PA = 1, Min_portee = 1, Max_portee = 4, AvecLigneDeVue = true });
+        AddSpell(19, new SpellStats { PA = 1, Min_portee = 1, Max_portee = 3, PerObjective = 1 });
+        AddSpell(20, new SpellStats { PA = 1, Min_portee = 1, Max_portee = 3, RequiredStates = new[] { 7 }, ForbiddenStates = new[] { 11 } });
+        LineOfSightCases();
         Map.AllBotMaps[900090] = new Map { MapID = 900090, MapWidth = 3, MapHeight = 4,
             MapData = string.Concat(Enumerable.Repeat("HhGaeaaaaa", 18)) };
         var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
@@ -152,11 +208,44 @@ internal static class BotCombatSmoke
                     await Feed(account, "GA;116;42;42,3,1");
                     Check(fight.RangeBonus == -1 && fight.GetSpellAim(17).MaxRange == 1 && fight.GetSpellUnavailableReason(17, 6) == "Cible hors portée (1–1).",
                         "GA;116 range malus not subtracted or range fell below the minimum");
+                    // Lot X33 : ligne de vue locale depuis 0 (0,0). Le monstre -7 en 9 (3,0) masque 12 (4,0) mais reste visable.
+                    Check(fight.GetSpellUnavailableReason(18, 12) == "Cible hors de la ligne de vue." && fight.GetSpellUnavailableReason(18, 9) == null
+                        && !fight.IsInLineOfSight(12) && fight.IsInLineOfSight(9), "A fighter in the way does not block the line of sight: " + fight.GetSpellUnavailableReason(18, 12));
+                    CombatActionResult hidden = await fight.CastSpellAsync(18, 12);
+                    Check(!hidden.Sent && hidden.Message == "Cible hors de la ligne de vue." && peer.Available == 0, "A spell on a cell behind a fighter was sent");
+                    // GDC : la cellule 6 (2,0) perd sa ligne de vue (masque 0x1000) ; 9 devient cachée, 6 elle-même ne se vise plus, 3 reste vue.
+                    await Feed(account, "GDC6;GhGaeaaaaa1000;0");
+                    Check(fight.GetSpellUnavailableReason(18, 9) == "Cible hors de la ligne de vue." && fight.GetSpellUnavailableReason(18, 6) == "Cible hors de la ligne de vue."
+                        && fight.GetSpellUnavailableReason(18, 3) == null, "The cell behind an obstacle (GDC) is not excluded");
+                    await Feed(account, "GDC6"); Check(fight.GetSpellUnavailableReason(18, 9) == null, "Restored GDC cell still blocks");
+                    // Bonus d'objet de classe SB 289 (ACTION_BOOST_SPELL_NOLINEOFSIGHT) : plus de ligne de vue pour ce sort ; 0 le retire.
+                    await Feed(account, "SB289;18;1"); Check(fight.GetSpellUnavailableReason(18, 12) == null, "SB 289 does not lift the line of sight like the client");
+                    await Feed(account, "SB289;18;0"); Check(fight.GetSpellUnavailableReason(18, 12) == "Cible hors de la ligne de vue.", "Removed SB 289 still lifts the line of sight");
+                    // freeCell du client : une case où l'on ne marche pas (mouvement 1, masque 0x800) n'est pas libre.
+                    Check(fight.GetSpellUnavailableReason(12, 5) == null, "Free cell refused");
+                    await Feed(account, "GDC5;Hhiaeaaaaa800;0");
+                    Check(fight.GetSpellUnavailableReason(12, 5) == "Ce sort nécessite une cellule vide.", "A non-walkable cell counts as free");
+                    await Feed(account, "GDC5");
+                    // États du lanceur (index 16 et 17 du niveau) : GA;950 ajoute puis retire l'état.
+                    Check(fight.GetSpellUnavailableReason(20, 3) == "Ce sort demande l’état « n° 7 ».", "Required state ignored: " + fight.GetSpellUnavailableReason(20, 3));
+                    await Feed(account, "GA;950;42;42,7,1"); Check(fight.GetSpellUnavailableReason(20, 3) == null, "Required state not recognised");
+                    await Feed(account, "GA;950;42;42,11,1");
+                    Check(fight.GetSpellUnavailableReason(20, 3) == "Ce sort ne se lance pas dans l’état « n° 11 ».", "Forbidden state ignored: " + fight.GetSpellUnavailableReason(20, 3));
+                    await Feed(account, "GA;950;42;42,11,0"); Check(fight.GetSpellUnavailableReason(20, 3) == null, "Leaving the forbidden state keeps the spell refused");
+                    // Un lancer par cible (launchCountByPlayerTurn) : compté au GA;300 sur le monstre posé en 9, pas sur une case vide.
+                    Check((await fight.CastSpellAsync(19, 9)).Sent && await Within(Read(peer)) == "GA30019;9", "Per-target spell wire incorrect");
+                    await Feed(account, "GA;300;42;19,9,0,1"); await Feed(account, "GA;102;42;42,-1"); await Feed(account, "GA;102;42;42,-0");
+                    Check(fight.GetSpellCastsOnTarget(19, -7) == 1 && fight.GetSpellUnavailableReason(19, 9) == "Nombre de lancers de ce sort sur cette cible atteint pour ce tour."
+                        && fight.GetSpellUnavailableReason(19, 3) == null, "Per-target limit not checked like the client: " + fight.GetSpellUnavailableReason(19, 9));
+                    // SB 291 (ACTION_BOOST_SPELL_MAXPERTARGET) ajoute un lancer par cible, comme launchCountByPlayerTurn du client.
+                    await Feed(account, "SB291;19;1"); Check(fight.GetSpellUnavailableReason(19, 9) == null, "SB 291 does not raise the per-target limit");
+                    await Feed(account, "SB291;19;0"); Check(fight.GetSpellUnavailableReason(19, 9) != null, "Removed SB 291 still raises the per-target limit");
                     Check((await fight.PassTurnAsync()).Sent && await Within(Read(peer)) == "Gt", "Pass turn wire incorrect");
                     await Feed(account, "GTF42"); Check(!fight.IsMyTurn && !(await fight.CastSpellAsync(12, 3)).Sent, "GTF leaves actions available");
                     await Feed(account, "GTM|42;0;100;8;3;0;;100"); await Feed(account, "GTS43|30000"); await Feed(account, "GTF43"); await Feed(account, "GTS42|30000");
                     Check(fight.ActionPoints == 8 && fight.MovementPoints == 3 && fight.GetSpellCooldownRemaining(11) == 1 && fight.GetSpellUnavailableReason(10, 3) == null,
                         "Next turn uses exhausted PA/PM or fails to clear per-turn history");
+                    Check(fight.GetSpellCastsOnTarget(19, -7) == 0 && fight.GetSpellUnavailableReason(19, 9) == null, "Per-target counts survive the next turn");
                     Check(fight.RangeBonus == 0 && fight.GetSpellAim(17).MaxRange == 1, "One-turn range effects did not end on the bearer's next turn");
                     Check((await fight.MoveAsync(3)).Sent && await Within(Read(peer)) == "GA001bad" && fight.MovementPoints == 3, "Movement wire or predicted PM incorrect");
                     await Feed(account, "GAS42"); await Feed(account, "GA301;1;42;aaabad");
@@ -188,6 +277,6 @@ internal static class BotCombatSmoke
         }
         finally { listener.Stop(); }
         LangData.Clear();
-        Console.WriteLine("OK: StarLoco placement/ready/turns, spell wire and targeting, client range with GA;117/116 bonus (lot X8), server PA/PM/refusal/ACK, confirmed limits, fight movement, spectator/end/reset");
+        Console.WriteLine("OK: StarLoco placement/ready/turns, spell wire and targeting, client range with GA;117/116 bonus (lot X8), local line of sight, caster states and per-target limit (lot X33), server PA/PM/refusal/ACK, confirmed limits, fight movement, spectator/end/reset");
     }
 }

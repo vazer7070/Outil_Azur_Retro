@@ -39,6 +39,12 @@ namespace Outil_Azur_complet.Bot.Controls
         private const int MaxSlopeFrame = 15;
         // GDF frames of an object2 drawn from objets/<id>_<n>.png when that file exists (the client accepts any frame ≥ 1).
         private const int MaxObjectFrame = 15;
+        /// <summary>Objets 1 du mode tactique (<c>turnTactic</c> du client) : cellule sans ligne de vue, case de marche, trou.</summary>
+        public const int TacticObstacleObject = 10000, TacticWalkableObject = 10001, TacticHoleObject = 10002;
+        /// <summary>Objet 2 du mode tactique sur une cellule de changement de carte ; l'objet 2 n° 25 est gardé tel quel.</summary>
+        public const int TacticTriggerObject = 1030, TacticKeptObject = 25;
+        /// <summary><c>MAP_TRIGGER_LAYEROBJECTS</c> du client : objets (1 ou 2) d'une cellule de changement de carte.</summary>
+        public static readonly IReadOnlyList<int> TriggerObjects = new[] { 1030, 1029, 4088 };
 
         private static readonly ConcurrentDictionary<string, Lazy<AssetLibrary>> libraries =
             new ConcurrentDictionary<string, Lazy<AssetLibrary>>(StringComparer.OrdinalIgnoreCase);
@@ -60,6 +66,12 @@ namespace Outil_Azur_complet.Bot.Controls
         private Request[] requests = new Request[0];
         // Object2 pictures of frames 2 and up, loaded with the others but not counted as map visuals.
         private Request[] stateRequests = new Request[0];
+        // Lot X33 : images du mode tactique (10000-10002, 1030, 25), lues avec les autres sans compter parmi les visuels de la carte.
+        private Request[] tacticRequests = new Request[0];
+        private readonly HashSet<string> tacticMissing = new HashSet<string>();
+        private ArtworkCell[] tacticCells = new ArtworkCell[0];
+        private DepthLayer[] tacticDepthLayers = new DepthLayer[0];
+        private volatile bool tacticMode;
         private Request background;
         private RectangleF gridBounds;
         private LoadResult result;
@@ -72,7 +84,22 @@ namespace Outil_Azur_complet.Bot.Controls
         private AssetLibrary owner;
         private DepthLayer[] depthLayers = new DepthLayer[0];
 
+        /// <summary>Cellules du décor de la carte (dix caractères effectifs, <c>GDC</c> compris), quel que soit le mode dessiné.</summary>
         public ArtworkCell[] Cells { get; private set; } = new ArtworkCell[0];
+        /// <summary>Cellules dessinées : celles de <see cref="Cells"/>, ou leur version tactique quand <see cref="TacticMode"/> est actif.</summary>
+        public ArtworkCell[] DisplayedCells => tacticMode ? tacticCells : Cells;
+        /// <summary>
+        /// Mode tactique du client (<c>mapHandler.tacticMode</c>, lot X33), purement local : un aplat <see cref="TacticBackground"/>
+        /// à la place du fond, aucun sol, et sur chaque cellule active l'objet 1 <see cref="TacticObstacleObject"/> (sans ligne de
+        /// vue), <see cref="TacticHoleObject"/> (mouvement 0 ou 1) ou <see cref="TacticWalkableObject"/>, sans rotation, et l'objet 2
+        /// <see cref="TacticTriggerObject"/> sur une cellule de changement de carte (aucun sinon, <see cref="TacticKeptObject"/>
+        /// gardé). Niveau et miroirs restent ceux de la cellule ; les cellules inactives ne changent pas. Fil du créateur.
+        /// </summary>
+        public bool TacticMode { get => tacticMode; set => tacticMode = value; }
+        /// <summary>Aplat du mode tactique : les fonds 631 et 632 du client ne sont pas dans les fichiers exportés (cadre #29261F).</summary>
+        public static Color TacticBackground => BotUi.Frame;
+        /// <summary>Images du mode tactique lues (non comptées dans <see cref="LoadedAssetCount"/>).</summary>
+        public int LoadedTacticAssetCount => ready ? tacticRequests.Count(request => request.Picture != null) : 0;
         public RectangleF WorldBounds { get; private set; }
         /// <summary>Dossier du décor (<c>ressources/maps</c> par défaut) ; les formes de sélection du lot X8 y sont lues.</summary>
         public string ResourceDirectory { get; }
@@ -100,6 +127,9 @@ namespace Outil_Azur_complet.Bot.Controls
                 if (!ready) return "Chargement du décor…";
                 lock (gate)
                 {
+                    if (tacticMode && tacticMissing.Count > 0)
+                        return "Mode tactique · " + tacticMissing.Count + " visuel(s) absent(s) · " + string.Join(", ", tacticMissing.Take(4));
+                    if (tacticMode) return "Mode tactique";
                     if (missing.Count == 0)
                         return LoadedAssetCount == 0 ? "Aucun visuel dans cette carte · vue des cellules" : "Décor chargé · " + LoadedAssetCount + " visuels";
                     return missing.Count + " visuel(s) absent(s) · " + string.Join(", ", missing.Take(4)) + (missing.Count > 4 ? "…" : "");
@@ -111,6 +141,9 @@ namespace Outil_Azur_complet.Bot.Controls
         {
             public int Id, GroundId, Object1Id, Object2Id, GroundRotation, Object1Rotation, Level, Slope;
             public bool Active, GroundFlip, Object1Flip, Object2Flip;
+            /// <summary>Ligne de vue (bit 1 du premier caractère) et mouvement (0 à 7) : ils choisissent l'objet du mode tactique.</summary>
+            public bool LineOfSight;
+            public int Movement;
             /// <summary>Client cell position (registration point of its ground and objects), shifted by <see cref="ClientOrigin"/>.</summary>
             public PointF Center;
             public PointF[] Polygon;
@@ -133,6 +166,8 @@ namespace Outil_Azur_complet.Bot.Controls
             public DecorKind Kind;
             public string Label, Path, CacheKey;
             public bool Anchored, Flip;
+            /// <summary>Image du mode tactique : son absence n'est signalée que dans ce mode.</summary>
+            public bool Tactic;
             public int Rotation;
             public RectangleF Anchor;
             public TilePicture Picture;
@@ -155,6 +190,7 @@ namespace Outil_Azur_complet.Bot.Controls
         private sealed class LoadResult
         {
             public readonly List<string> Missing = new List<string>();
+            public readonly List<string> TacticMissing = new List<string>();
             public readonly Dictionary<Request, PictureCache.Entry> Entries = new Dictionary<Request, PictureCache.Entry>();
         }
 
@@ -387,7 +423,7 @@ namespace Outil_Azur_complet.Bot.Controls
             {
                 Resolve(library.Value);
                 resolved = true;
-                WorldBounds = Bounds(Cells);
+                WorldBounds = Bounds(Cells.Concat(tacticCells));
             }
             loader = Task.Run(() => LoadAssets(library));
         }
@@ -402,8 +438,30 @@ namespace Outil_Azur_complet.Bot.Controls
             float gridHeight = (2 * ((cells.Length - 1) / period) + ((cells.Length - 1) % period >= map.MapWidth ? 2 : 1) + 1) * CellHeight / 2;
             gridBounds = new RectangleF(0, 0, map.MapWidth * CellWidth, gridHeight);
             Cells = cells;
+            tacticCells = cells.Select(Tactic).ToArray();
             WorldBounds = Bounds(cells);
             depthLayers = DepthLayersOf(cells);
+            tacticDepthLayers = DepthLayersOf(tacticCells);
+        }
+
+        /// <summary>
+        /// Cellule du mode tactique (<c>CellData.turnTactic</c> du client) : sol retiré et à plat, objet 1 sans rotation choisi par
+        /// la ligne de vue puis le mouvement, objet 2 remplacé par 1030 sur une cellule de changement de carte (objet 1 ou 2 parmi
+        /// <see cref="TriggerObjects"/>) ou retiré, sauf l'objet 25. Une cellule inactive est laissée telle quelle
+        /// (<c>tacticModeRefreshCell</c>).
+        /// </summary>
+        private static ArtworkCell Tactic(ArtworkCell cell)
+        {
+            if (!cell.Active) return cell;
+            bool trigger = TriggerObjects.Contains(cell.Object1Id) || TriggerObjects.Contains(cell.Object2Id);
+            return new ArtworkCell
+            {
+                Id = cell.Id, Active = true, Level = cell.Level, Slope = 1, GroundId = 0, GroundRotation = cell.GroundRotation, GroundFlip = cell.GroundFlip,
+                Object1Id = !cell.LineOfSight ? TacticObstacleObject : cell.Movement <= 1 ? TacticHoleObject : TacticWalkableObject,
+                Object1Rotation = 0, Object1Flip = cell.Object1Flip,
+                Object2Id = cell.Object2Id == TacticKeptObject ? TacticKeptObject : trigger ? TacticTriggerObject : 0, Object2Flip = cell.Object2Flip,
+                LineOfSight = cell.LineOfSight, Movement = cell.Movement, Center = cell.Center, Polygon = cell.Polygon
+            };
         }
 
         /// <summary>Une cellule d'après ses dix caractères (<c>Cell.decompress</c> du client), avec sa position dans la grille.</summary>
@@ -419,7 +477,8 @@ namespace Outil_Azur_complet.Bot.Controls
                 Object1Id = ((value[0] & 4) << 11) + ((value[4] & 1) << 12) + (value[5] << 6) + value[6],
                 Object1Rotation = (value[7] & 48) >> 4, Object1Flip = (value[7] & 8) != 0,
                 Object2Id = ((value[0] & 2) << 12) + ((value[7] & 1) << 12) + (value[8] << 6) + value[9],
-                Object2Flip = (value[7] & 4) != 0
+                Object2Flip = (value[7] & 4) != 0,
+                LineOfSight = (value[0] & 1) != 0, Movement = (value[2] & 56) >> 3
             };
             int period = 2 * width - 1;
             int within = id % period, row = 2 * (id / period) + (within >= width ? 1 : 0);
@@ -458,7 +517,10 @@ namespace Outil_Azur_complet.Bot.Controls
             if (disposed || cellId < 0 || cellId >= cells.Length || data == null || data.Length != 10 || data.Any(character => Array.IndexOf(Hash.caracteres_array, character) < 0)) return false;
             ArtworkCell previous = cells[cellId];
             ArtworkCell cell = DecodeCell(data, cellId, mapWidth);
-            if (SameVisual(previous, cell)) return false;
+            // Ligne de vue et mouvement ne changent que la cellule tactique (objet 10000, 10001 ou 10002).
+            ArtworkCell tactic = Tactic(cell);
+            ArtworkCell[] tactics = tacticCells;
+            if (SameVisual(previous, cell) && (cellId >= tactics.Length || SameVisual(tactics[cellId], tactic))) return false;
             lock (gate)
             {
                 if (!ready)
@@ -478,16 +540,27 @@ namespace Outil_Azur_complet.Bot.Controls
             foreach (Request request in requests) unique[request.CacheKey] = request;
             foreach (Request request in stateRequests) states[request.CacheKey] = request;
             ResolveCell(cell, library, unique, states, absent);
-            var known = new HashSet<Request>(requests.Concat(stateRequests));
-            Request[] added = unique.Values.Concat(states.Values).Where(request => !known.Contains(request)).ToArray();
+            var tacticUnique = new Dictionary<string, Request>(StringComparer.Ordinal);
+            var tacticAbsent = new List<string>();
+            foreach (Request request in tacticRequests) tacticUnique[request.CacheKey] = request;
+            ResolveTacticCell(tactic, library, tacticUnique, tacticAbsent);
+            var known = new HashSet<Request>(requests.Concat(stateRequests).Concat(tacticRequests));
+            Request[] added = unique.Values.Concat(states.Values).Concat(tacticUnique.Values).Where(request => !known.Contains(request)).ToArray();
             lock (gate)
             {
                 if (disposed) return false;
                 foreach (string label in absent) missing.Add(label);
+                foreach (string label in tacticAbsent) tacticMissing.Add(label);
                 requests = unique.Values.ToArray();
                 stateRequests = states.Values.ToArray();
+                tacticRequests = tacticUnique.Values.ToArray();
                 cells[cellId] = cell;
                 depthLayers = DepthLayersOf(cells);
+                if (cellId < tactics.Length && ReferenceEquals(tactics, tacticCells))
+                {
+                    tactics[cellId] = tactic;
+                    tacticDepthLayers = DepthLayersOf(tactics);
+                }
             }
             if (added.Length == 0) { CellChanged?.Invoke(cellId); return true; }
             Task.Run(() => LoadCellPictures(library, cellId, added));
@@ -503,6 +576,7 @@ namespace Outil_Azur_complet.Bot.Controls
         {
             var loaded = new Dictionary<Request, PictureCache.Entry>();
             var failed = new List<string>();
+            var tacticFailed = new List<string>();
             try
             {
                 foreach (Request request in added)
@@ -516,7 +590,7 @@ namespace Outil_Azur_complet.Bot.Controls
                         acquired.Add(entry);
                     }
                     loaded[request] = entry;
-                    if (entry.Picture == null) failed.Add(request.Label + " illisible");
+                    if (entry.Picture == null) (request.Tactic ? tacticFailed : failed).Add(request.Label + " illisible");
                 }
             }
             catch (Exception error) { failed.Add("décor illisible (" + error.GetType().Name + ")"); }
@@ -527,6 +601,7 @@ namespace Outil_Azur_complet.Bot.Controls
                     if (disposed) return;
                     foreach (KeyValuePair<Request, PictureCache.Entry> pair in loaded) pair.Key.Picture = pair.Value.Picture;
                     foreach (string label in failed) missing.Add(label);
+                    foreach (string label in tacticFailed) tacticMissing.Add(label);
                 }
                 CellChanged?.Invoke(cellId);
             };
@@ -547,14 +622,19 @@ namespace Outil_Azur_complet.Bot.Controls
             var states = new Dictionary<string, Request>(StringComparer.Ordinal);
             var absent = new List<string>();
             foreach (ArtworkCell cell in Cells) ResolveCell(cell, library, unique, states, absent);
+            var tacticUnique = new Dictionary<string, Request>(StringComparer.Ordinal);
+            var tacticAbsent = new List<string>();
+            foreach (ArtworkCell cell in tacticCells) ResolveTacticCell(cell, library, tacticUnique, tacticAbsent);
             Request backgroundRequest = backgroundId > 0 ? Make(library, unique, absent, DecorKind.Background, backgroundId, 1, false, 0) : null;
             lock (gate)
             {
                 rejectedAnchorLines = library.RejectedAnchorLines;
                 requests = unique.Values.ToArray();
                 stateRequests = states.Values.ToArray();
+                tacticRequests = tacticUnique.Values.ToArray();
                 background = backgroundRequest;
                 foreach (string label in absent) missing.Add(label);
+                foreach (string label in tacticAbsent) tacticMissing.Add(label);
             }
         }
 
@@ -597,6 +677,21 @@ namespace Outil_Azur_complet.Bot.Controls
             }
         }
 
+        /// <summary>
+        /// Images d'une cellule tactique (<see cref="Tactic"/>) : objets 1 et 2 seulement, à plat (sans rotation) et sans les images
+        /// d'état de <c>GDF</c> ; une cellule inactive (partagée avec <see cref="Cells"/>) n'est pas touchée.
+        /// </summary>
+        private static void ResolveTacticCell(ArtworkCell cell, AssetLibrary library, Dictionary<string, Request> into, List<string> absent)
+        {
+            if (!cell.Active) return;
+            cell.Ground = null;
+            cell.Object1 = Make(library, into, absent, DecorKind.Object, cell.Object1Id, 1, cell.Object1Flip, 0);
+            cell.Object2 = Make(library, into, absent, DecorKind.Object, cell.Object2Id, 1, cell.Object2Flip, 0);
+            cell.Object2States = null;
+            if (cell.Object1 != null) cell.Object1.Tactic = true;
+            if (cell.Object2 != null) cell.Object2.Tactic = true;
+        }
+
         // ---- background loading ----
 
         private void LoadAssets(Lazy<AssetLibrary> libraryEntry)
@@ -608,7 +703,7 @@ namespace Outil_Azur_complet.Bot.Controls
                 AssetLibrary library = libraryEntry.Value;
                 lock (gate) owner = library;
                 if (!resolved && !disposed) Resolve(library);
-                foreach (Request request in requests.Concat(stateRequests))
+                foreach (Request request in requests.Concat(stateRequests).Concat(tacticRequests))
                 {
                     if (disposed) break;
                     string cacheKey = request.CacheKey + "|" + Stamp(request.Path);
@@ -619,7 +714,7 @@ namespace Outil_Azur_complet.Bot.Controls
                         acquired.Add(entry);
                     }
                     loaded.Entries[request] = entry;
-                    if (entry.Picture == null) loaded.Missing.Add(request.Label + " illisible");
+                    if (entry.Picture == null) (request.Tactic ? loaded.TacticMissing : loaded.Missing).Add(request.Label + " illisible");
                 }
             }
             catch (Exception error)
@@ -779,7 +874,8 @@ namespace Outil_Azur_complet.Bot.Controls
                 {
                     foreach (KeyValuePair<Request, PictureCache.Entry> pair in result.Entries) pair.Key.Picture = pair.Value.Picture;
                     foreach (string label in result.Missing) missing.Add(label);
-                    WorldBounds = Bounds(Cells);
+                    foreach (string label in result.TacticMissing) tacticMissing.Add(label);
+                    WorldBounds = Bounds(Cells.Concat(tacticCells));
                 }
                 ready = true;
             }
@@ -806,7 +902,7 @@ namespace Outil_Azur_complet.Bot.Controls
 
         // A loaded picture knows its visible pixels (and whether its anchor still matched the PNG); before loading,
         // only anchored pictures contribute, from ancres.tsv.
-        private RectangleF Bounds(ArtworkCell[] cells)
+        private RectangleF Bounds(IEnumerable<ArtworkCell> cells)
         {
             RectangleF bounds = gridBounds;
             foreach (ArtworkCell cell in cells)
@@ -837,20 +933,26 @@ namespace Outil_Azur_complet.Bot.Controls
         /// <summary>Background, grounds and object1 layers: in the client these containers lie under the grid and every sprite.</summary>
         public void DrawGround(Graphics graphics)
         {
+            ArtworkCell[] shown = DisplayedCells;
             TilePicture back = background?.Picture;
-            if (back?.Image != null)
+            if (tacticMode)
+            {
+                // Mode tactique : aplat sur tout le décor (fonds 631 / 632 absents des fichiers du client).
+                using (var fill = new SolidBrush(TacticBackground)) graphics.FillRectangle(fill, RectangleF.Union(WorldBounds, gridBounds));
+            }
+            else if (back?.Image != null)
             {
                 if (back.Stretch) graphics.DrawImage(back.Image, gridBounds);
                 else DrawPicture(graphics, back, ClientOrigin);
             }
-            foreach (ArtworkCell cell in Cells) DrawPicture(graphics, cell.Ground?.Picture, cell.Center);
-            foreach (ArtworkCell cell in Cells) DrawPicture(graphics, cell.Object1?.Picture, cell.Center);
+            foreach (ArtworkCell cell in shown) DrawPicture(graphics, cell.Ground?.Picture, cell.Center);
+            foreach (ArtworkCell cell in shown) DrawPicture(graphics, cell.Object1?.Picture, cell.Center);
         }
 
         /// <summary>Object2 layer in cell order, with an optional callback before each cell's object.</summary>
         public void DrawObjects(Graphics graphics, Action<ArtworkCell> drawEntity)
         {
-            foreach (ArtworkCell cell in Cells)
+            foreach (ArtworkCell cell in DisplayedCells)
             {
                 drawEntity?.Invoke(cell);
                 DrawPicture(graphics, Object2Picture(cell), cell.Center);
@@ -861,7 +963,7 @@ namespace Outil_Azur_complet.Bot.Controls
         {
             DepthLayer[] dynamicLayers = (actors ?? Enumerable.Empty<DepthLayer>()).OrderBy(layer => layer.Depth).ThenBy(layer => layer.Order).ToArray();
             int actorIndex = 0;
-            foreach (DepthLayer layer in depthLayers)
+            foreach (DepthLayer layer in tacticMode ? tacticDepthLayers : depthLayers)
             {
                 while (actorIndex < dynamicLayers.Length && (dynamicLayers[actorIndex].Depth < layer.Depth
                     || (dynamicLayers[actorIndex].Depth == layer.Depth && dynamicLayers[actorIndex].Order < layer.Order)))
@@ -910,8 +1012,17 @@ namespace Outil_Azur_complet.Bot.Controls
         /// <summary>Loaded object2 pictures of frames 2 and up (not counted in <see cref="LoadedAssetCount"/>).</summary>
         public int LoadedStateAssetCount => ready ? stateRequests.Count(request => request.Picture != null) : 0;
 
-        public bool HasGroundArtwork(int id) => id >= 0 && id < Cells.Length
-            && (Cells[id].Ground?.Picture != null || Cells[id].Object1?.Picture != null || background?.Picture != null);
+        /// <summary>
+        /// Vrai si la cellule est couverte par une image du décor dessiné ; en mode tactique, par son objet 1 (une cellule inactive
+        /// ne montre que l'aplat), sinon par son sol, son objet 1 ou le fond de la carte.
+        /// </summary>
+        public bool HasGroundArtwork(int id)
+        {
+            ArtworkCell[] shown = DisplayedCells;
+            if (id < 0 || id >= shown.Length) return false;
+            if (tacticMode) return !shown[id].Active || shown[id].Object1?.Picture != null;
+            return shown[id].Ground?.Picture != null || shown[id].Object1?.Picture != null || background?.Picture != null;
+        }
 
         public void Dispose()
         {
@@ -923,9 +1034,10 @@ namespace Outil_Azur_complet.Bot.Controls
                 disposed = true;
                 release = acquired.ToArray();
                 acquired.Clear();
-                foreach (Request request in requests.Concat(stateRequests)) request.Picture = null;
+                foreach (Request request in requests.Concat(stateRequests).Concat(tacticRequests)) request.Picture = null;
                 stateSource = null;
                 Cells = new ArtworkCell[0]; depthLayers = new DepthLayer[0];
+                tacticCells = new ArtworkCell[0]; tacticDepthLayers = new DepthLayer[0];
                 pendingUpdates.Clear();
                 library = owner;
             }

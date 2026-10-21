@@ -70,11 +70,13 @@ namespace Outil_Azur_complet.Bot.Controls.Fight
     /// <summary>
     /// Options d'équipe du combat (<c>FightOptionButtons</c> du client 1.34), en haut à gauche de la carte sous les coordonnées :
     /// interdire aux joueurs de rejoindre (<c>fN</c>), seulement au groupe (<c>fP</c>, présent si un groupe est actif), demander de
-    /// l'aide (<c>fH</c>), interdire les spectateurs (<c>fS</c>), drapeau (signaler une cellule : <c>Gf</c>) et mode tactique
-    /// (à venir). Pendant le placement tous sont proposés ; une fois le combat lancé (<c>GS</c>), seuls les spectateurs et le
-    /// drapeau restent, comme dans le client. Rien n'est affiché à un spectateur. L'état « actif » suit <c>Go±</c> pour l'équipe
-    /// du personnage (<see cref="Fights.OwnTeamOptions"/>). Le serveur n'accepte ces demandes que de l'initiateur : la réponse
-    /// (ou son absence) fait foi, le bouton ne change pas d'état tout seul.
+    /// l'aide (<c>fH</c>), interdire les spectateurs (<c>fS</c>), drapeau (signaler une cellule : <c>Gf</c>) et mode tactique.
+    /// Pendant le placement tous sont proposés ; une fois le combat lancé (<c>GS</c>), seuls les spectateurs, le drapeau et le
+    /// mode tactique restent, comme dans le client. Un spectateur n'a que le mode tactique (<c>initData</c> du client).
+    /// L'état « actif » suit <c>Go±</c> pour l'équipe du personnage (<see cref="Fights.OwnTeamOptions"/>). Le serveur n'accepte
+    /// ces demandes que de l'initiateur : la réponse (ou son absence) fait foi, le bouton ne change pas d'état tout seul.
+    /// Le mode tactique (lot X33) est purement local : le clic bascule <see cref="Fights.TacticMode"/> sans rien envoyer et le
+    /// bouton reste enfoncé tant qu'il est actif.
     /// </summary>
     public sealed class FightOptionButtons : Panel
     {
@@ -99,8 +101,10 @@ namespace Outil_Azur_complet.Bot.Controls.Fight
             FlagButton.Click += (s, e) => FlagRequested?.Invoke(this, EventArgs.Empty);
             tips.SetToolTip(FlagButton, "Signaler une cellule à votre équipe (Gf)");
             flow.Controls.Add(FlagButton);
-            TacticButton = new FightOptionButton("UI_FightOptionTacticMode", "T") { Margin = new Padding(1), Enabled = false, AccessibleName = BannerArt.Text("TACTIC_MODE", "Mode Tactique") };
-            tips.SetToolTip(TacticButton, BannerArt.Text("TACTIC_MODE", "Mode Tactique") + "\nÀ venir : la carte ne dessine pas encore le mode tactique.");
+            TacticButton = new FightOptionButton("UI_FightOptionTacticMode", "T") { Margin = new Padding(1), AccessibleName = BannerArt.Text("TACTIC_MODE", "Mode Tactique") };
+            // Aucun paquet : la vue de la carte suit Fights.TacticModeChanged.
+            TacticButton.Click += (s, e) => account?.Game?.Fight?.ToggleTacticMode();
+            tips.SetToolTip(TacticButton, BannerArt.Text("TACTIC_MODE", "Mode Tactique"));
             flow.Controls.Add(TacticButton);
         }
 
@@ -129,7 +133,7 @@ namespace Outil_Azur_complet.Bot.Controls.Fight
             Release();
             account = value;
             var fight = account?.Game?.Fight;
-            if (fight != null) { fight.CombatChanged += OnCombatChanged; fight.FightOptionChanged += OnOptionChanged; released = false; }
+            if (fight != null) { fight.CombatChanged += OnCombatChanged; fight.FightOptionChanged += OnOptionChanged; fight.TacticModeChanged += OnTacticModeChanged; released = false; }
             RefreshFromFight();
         }
 
@@ -138,12 +142,13 @@ namespace Outil_Azur_complet.Bot.Controls.Fight
             if (released) return;
             released = true;
             var fight = account?.Game?.Fight;
-            if (fight != null) { fight.CombatChanged -= OnCombatChanged; fight.FightOptionChanged -= OnOptionChanged; }
+            if (fight != null) { fight.CombatChanged -= OnCombatChanged; fight.FightOptionChanged -= OnOptionChanged; fight.TacticModeChanged -= OnTacticModeChanged; }
             account = null;
         }
 
         private void OnCombatChanged() => BotUi.OnUi(this, RefreshFromFight);
         private void OnOptionChanged(long team, FightOptions options) => BotUi.OnUi(this, RefreshFromFight);
+        private void OnTacticModeChanged(bool active) => BotUi.OnUi(this, RefreshFromFight);
 
         /// <summary>Vrai quand le personnage appartient à un groupe actif (bouton <c>fP</c>, comme <c>Party.isActive</c> du client).</summary>
         private bool HasParty => account?.Game?.Interactions?.Party?.Group?.IsActive == true;
@@ -153,8 +158,18 @@ namespace Outil_Azur_complet.Bot.Controls.Fight
         {
             if (IsDisposed || Disposing) return;
             var fight = account?.Game?.Fight;
-            bool shown = fight != null && fight.IsInFight && !fight.IsSpectator;
+            bool shown = fight != null && fight.IsInFight;
             if (!shown) { Visible = false; return; }
+            TacticButton.Checked = fight.TacticMode;
+            TacticButton.Visible = true;
+            if (fight.IsSpectator)
+            {
+                // Spectateur : seul le mode tactique reste (initData du client), sans drapeau ni option d'équipe.
+                foreach (FightOptionButton button in buttons.Values) button.Visible = false;
+                FlagButton.Visible = false;
+                Visible = true;
+                return;
+            }
             bool placement = fight.IsPlacement;
             FightOptions active = fight.OwnTeamOptions;
             if (active == FightOptions.None)
@@ -172,7 +187,6 @@ namespace Outil_Azur_complet.Bot.Controls.Fight
                 entry.Value.Checked = (active & entry.Key) != 0;
             }
             FlagButton.Visible = true;
-            TacticButton.Visible = !placement;
             Visible = true;
         }
 

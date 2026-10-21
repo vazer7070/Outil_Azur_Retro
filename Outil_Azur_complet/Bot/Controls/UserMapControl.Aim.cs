@@ -2,8 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.Linq;
 using System.Threading.Tasks;
+using Tool_BotProtocol.Config;
+using Tool_BotProtocol.Game.Combats;
 using Tool_BotProtocol.Game.Maps;
 
 namespace Outil_Azur_complet.Bot.Controls
@@ -180,34 +183,191 @@ namespace Outil_Azur_complet.Bot.Controls
         private bool InObjectLayer(short cellId)
         {
             Cell cell = Account?.Game?.Map?.GetCellFromId(cellId);
-            return cell != null && (int)cell.C_Types > 1 && cell.layer_object_2_num != 0;
+            if (cell == null || (int)cell.C_Types <= 1) return false;
+            // Mode tactique (lot X33) : le client lit l'objet 2 de la cellule tactique (turnTactic ne garde que 25 ou 1030).
+            BotMapArtwork.ArtworkCell[] shown = artwork != null && artwork.TacticMode ? artwork.DisplayedCells : null;
+            if (shown != null && cellId < shown.Length) return shown[cellId].Object2Id != 0;
+            return cell.layer_object_2_num != 0;
         }
 
         private IEnumerable<BotMapArtwork.DepthLayer> SelectionDepthLayers()
         {
-            if (!pathSelection || pathPreview == null) yield break;
-            foreach (short cell in pathPreview.ToArray())
+            if (pathSelection && pathPreview != null)
+                foreach (short cell in pathPreview.ToArray())
+                    if (InObjectLayer(cell))
+                    {
+                        short id = cell;
+                        yield return new BotMapArtwork.DepthLayer { Depth = id * 100f + 2, Order = 0, Draw = graphics => DrawSelectionShape(graphics, id) };
+                    }
+            if (!AllowedZoneShown) yield break;
+            foreach (short cell in spellTargets.ToArray())
                 if (InObjectLayer(cell))
                 {
                     short id = cell;
-                    yield return new BotMapArtwork.DepthLayer { Depth = id * 100f + 2, Order = 0, Draw = graphics => DrawSelectionShape(graphics, id) };
+                    yield return new BotMapArtwork.DepthLayer { Depth = id * 100f + 2, Order = 0,
+                        Draw = graphics => DrawSelectionShape(graphics, id, AllowedTargetRgb, AllowedTargetAlphaPercent) };
                 }
         }
 
-        private void DrawSelectionShape(Graphics graphics, short cellId)
+        private void DrawSelectionShape(Graphics graphics, short cellId) => DrawSelectionShape(graphics, cellId, SpellEffectRgb, 100);
+
+        /// <summary>
+        /// Forme de sélection de la cellule (<c>selectionHandler.select</c>) teinte de <paramref name="rgb"/> à l'opacité
+        /// <paramref name="alphaPercent"/> ; la pente est celle du décor dessiné (à plat en mode tactique).
+        /// </summary>
+        private void DrawSelectionShape(Graphics graphics, short cellId, int rgb, int alphaPercent)
         {
             if (cellId < 0 || worldPolygons == null || cellId >= worldPolygons.Length) return;
-            BotMapArtwork.ArtworkCell decor = artwork != null && artwork.Cells.Length == worldPolygons.Length ? artwork.Cells[cellId] : null;
+            BotMapArtwork.ArtworkCell[] shown = artwork?.DisplayedCells;
+            BotMapArtwork.ArtworkCell decor = shown != null && shown.Length == worldPolygons.Length ? shown[cellId] : null;
+            int alpha = Math.Max(0, Math.Min(255, alphaPercent * 255 / 100));
             if (decor != null)
             {
                 SelectionShapes shapes = SelectionShapesOf(artwork);
-                if (shapes != null && shapes.TryGet(decor.Slope, SpellEffectRgb, out Bitmap image, out RectangleF anchor))
+                if (shapes != null && shapes.TryGet(decor.Slope, rgb, out Bitmap image, out RectangleF anchor))
                 {
-                    lock (image) graphics.DrawImage(image, new RectangleF(decor.Center.X + anchor.X, decor.Center.Y + anchor.Y, anchor.Width, anchor.Height));
-                    return;
+                    var target = new RectangleF(decor.Center.X + anchor.X, decor.Center.Y + anchor.Y, anchor.Width, anchor.Height);
+                    Bitmap drawn = alpha >= 255 ? image : Faded(image, alpha);
+                    if (drawn != null) { lock (drawn) graphics.DrawImage(drawn, target); return; }
                 }
             }
-            using (var brush = new SolidBrush(Color.FromArgb(255, Color.FromArgb(SpellEffectRgb)))) graphics.FillPolygon(brush, worldPolygons[cellId]);
+            using (var brush = new SolidBrush(Color.FromArgb(alpha, Color.FromArgb(rgb)))) graphics.FillPolygon(brush, worldPolygons[cellId]);
+        }
+
+        // Formes teintes à l'opacité d'un clip (_alpha du client), par forme partagée puis par alpha. Le calcul est fait une fois
+        // (une forme fait 52 × 26 pixels) : sous Mono, DrawImage avec une ColorMatrix d'ImageAttributes ne dessinait rien ici.
+        private static readonly Dictionary<Bitmap, Dictionary<int, Bitmap>> fadedShapes = new Dictionary<Bitmap, Dictionary<int, Bitmap>>();
+
+        /// <summary>Copie de <paramref name="shape"/> dont l'alpha de chaque pixel est multiplié par <paramref name="alpha"/> / 255.</summary>
+        private static Bitmap Faded(Bitmap shape, int alpha)
+        {
+            lock (fadedShapes)
+                if (fadedShapes.TryGetValue(shape, out Dictionary<int, Bitmap> byAlpha) && byAlpha.TryGetValue(alpha, out Bitmap done)) return done;
+            Bitmap copy = null;
+            try
+            {
+                lock (shape) copy = new Bitmap(Math.Max(1, shape.Width), Math.Max(1, shape.Height), PixelFormat.Format32bppArgb);
+                using (Graphics graphics = Graphics.FromImage(copy))
+                {
+                    graphics.CompositingMode = CompositingMode.SourceCopy;
+                    lock (shape) graphics.DrawImage(shape, 0, 0, copy.Width, copy.Height);
+                }
+                BitmapData data = copy.LockBits(new Rectangle(0, 0, copy.Width, copy.Height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+                try
+                {
+                    var row = new int[copy.Width];
+                    for (int y = 0; y < copy.Height; y++)
+                    {
+                        IntPtr line = IntPtr.Add(data.Scan0, y * data.Stride);
+                        System.Runtime.InteropServices.Marshal.Copy(line, row, 0, row.Length);
+                        for (int x = 0; x < row.Length; x++)
+                            row[x] = (((int)((uint)row[x] >> 24) * alpha / 255) << 24) | (row[x] & 0xFFFFFF);
+                        System.Runtime.InteropServices.Marshal.Copy(row, 0, line, row.Length);
+                    }
+                }
+                finally { copy.UnlockBits(data); }
+            }
+            catch (Exception error) when (error is ArgumentException || error is System.Runtime.InteropServices.ExternalException
+                || error is InvalidOperationException || error is OutOfMemoryException)
+            {
+                copy?.Dispose();
+                return null;
+            }
+            lock (fadedShapes)
+            {
+                if (!fadedShapes.TryGetValue(shape, out Dictionary<int, Bitmap> byAlpha)) fadedShapes[shape] = byAlpha = new Dictionary<int, Bitmap>();
+                if (byAlpha.TryGetValue(alpha, out Bitmap other)) { copy.Dispose(); return other; }
+                byAlpha[alpha] = copy;
+                return copy;
+            }
+        }
+
+        // ---------------------------------------------------------------- lot X33 : cases ciblables et mode tactique
+
+        /// <summary>Couleur de <c>drawAllowedZone</c> du client (<c>select(cellule, 26316, "spell", 50)</c>) : #0066CC.</summary>
+        public const int AllowedTargetRgb = 0x0066CC;
+        /// <summary>Opacité de <c>drawAllowedZone</c>, en pour cent.</summary>
+        public const int AllowedTargetAlphaPercent = 50;
+        private BotOptions displayOptions, hookedOptions;
+        private Fights hookedFight;
+        private volatile bool drawnTactic;
+
+        /// <summary>Options lues pour la mise en valeur des cases ciblables ; <c>null</c> : <see cref="BotOptions.Current"/>.</summary>
+        public BotOptions Options
+        {
+            get => displayOptions ?? BotOptions.Current;
+            set { displayOptions = value; HookFight(); Invalidate(); }
+        }
+
+        /// <summary>
+        /// Les cibles valides du sort armé sont mises en valeur (option <c>AdvancedLineOfSight</c> du client, vraie par défaut) :
+        /// sinon seule la portée est dessinée et une cible refusée (hors de vue…) n'est signalée que par le curseur.
+        /// </summary>
+        public bool AllowedZoneShown => spellTargets != null && Options?.AdvancedLineOfSight == true;
+
+        /// <summary>Le décor est dessiné en mode tactique : <see cref="Fights.TacticMode"/> pendant un combat (placement compris).</summary>
+        public bool TacticView
+        {
+            get
+            {
+                Fights fight = Account?.Game?.Fight;
+                return fight != null && fight.TacticMode && fight.IsInFight;
+            }
+        }
+
+        /// <summary>
+        /// <c>drawAllowedZone</c> : chaque cible valide reçoit la forme de sélection de sa pente, #0066CC à 50 %, au-dessus de la
+        /// portée ; une cellule praticable qui porte un objet 2 la reçoit dans la scène (<see cref="SelectionDepthLayers"/>).
+        /// </summary>
+        private void DrawAllowedZone(Graphics graphics)
+        {
+            if (!AllowedZoneShown || worldPolygons == null) return;
+            foreach (short cell in spellTargets)
+                if (!InObjectLayer(cell)) DrawSelectionShape(graphics, cell, AllowedTargetRgb, AllowedTargetAlphaPercent);
+        }
+
+        /// <summary>Suit le mode tactique du combat et l'option des cases ciblables du compte affiché (fil de l'interface).</summary>
+        private void HookFight()
+        {
+            Fights fight = Account?.Game?.Fight;
+            if (!ReferenceEquals(fight, hookedFight))
+            {
+                if (hookedFight != null) { hookedFight.TacticModeChanged -= OnTacticModeChanged; hookedFight.CombatChanged -= OnFightStateChanged; }
+                hookedFight = fight;
+                if (fight != null) { fight.TacticModeChanged += OnTacticModeChanged; fight.CombatChanged += OnFightStateChanged; }
+            }
+            BotOptions options = Account == null ? null : Options;
+            if (!ReferenceEquals(options, hookedOptions))
+            {
+                if (hookedOptions != null) hookedOptions.OptionChanged -= OnDisplayOptionChanged;
+                hookedOptions = options;
+                if (options != null) options.OptionChanged += OnDisplayOptionChanged;
+            }
+        }
+
+        private void UnhookFight()
+        {
+            if (hookedFight != null) { hookedFight.TacticModeChanged -= OnTacticModeChanged; hookedFight.CombatChanged -= OnFightStateChanged; }
+            if (hookedOptions != null) hookedOptions.OptionChanged -= OnDisplayOptionChanged;
+            hookedFight = null; hookedOptions = null;
+        }
+
+        private void OnTacticModeChanged(bool active) => RequestRepaint();
+
+        // Début ou fin du combat : le décor tactique n'est dessiné qu'en combat.
+        private void OnFightStateChanged() { if (TacticView != drawnTactic) RequestRepaint(); }
+
+        private void OnDisplayOptionChanged(object sender, BotOptionChangedEventArgs e)
+        {
+            if (e != null && e.Name == "AdvancedLineOfSight" && spellTargets != null) RequestRepaint();
+        }
+
+        /// <summary>Applique le mode tactique au décor avant de le dessiner (fil de l'interface).</summary>
+        private void ApplyTacticView()
+        {
+            bool tactic = TacticView;
+            drawnTactic = tactic;
+            if (artwork != null) artwork.TacticMode = tactic;
         }
 
         private void SelectionArrived() => RequestRepaint();
