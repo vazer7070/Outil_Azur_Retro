@@ -492,7 +492,7 @@ internal static partial class Live
         await Scenario("x32a. potion de changement de nom : AlEr, fenêtre du nom sur la fenêtre de jeu, refus, AlEs, nom accepté par GM|~ (lot X32)", 90, RenameAsync).ConfigureAwait(false);
         await Scenario("x32b. roulette du Bouftou : 100 kamas, TC → TV envoyé, boîte « mini-jeu », joueur libéré (lot X32)", 90, RouletteAsync).ConfigureAwait(false);
         await Scenario("x5. artisanat sécurisé : ER13 du client, ERK 12, ECK12 / ECK13, ingrédients, paiement, EK des deux, EcK, EV (lot X5)", 150, SecureCraftAsync).ConfigureAwait(false);
-        await Scenario("x6. artisanat sécurisé depuis les menus : EW+ à l'arrivée, clic gauche sur l'artisan, « Demander à » → ER13, ERET (artisan éloigné), ERK 12 → ECK, « Inviter à » → ER12 → ERK 13 → ECK (lot X6)", 200, SecureCraftMenuAsync).ConfigureAwait(false);
+        await Scenario("x6. artisanat sécurisé depuis les menus : EW+ à l'arrivée, clic gauche sur l'artisan, « Demander à » → ER13, ERET (artisan éloigné), ERK 12 → ECK, « Inviter à » → ER12 → ERK 13 → ECK, livre des artisans : Message privé, Localiser (lot X6)", 200, SecureCraftMenuAsync).ConfigureAwait(false);
         await Scenario("x6b. marchand hors ligne : ER6|, EMO+, Eq → Eq1, EQ → marchand -5 ; clic simple → menu « Acheter » sans paquet, Maj + clic → ER4 → ECK4, EB → EBK, GM|- (lot X6)", 150, OfflineMerchantClickAsync).ConfigureAwait(false);
         // Toujours en dernier : arrête puis redémarre le serveur de jeu (A et B restent déconnectés).
         await Scenario("x3c. serveur de jeu arrêté en pleine partie : boîte de perte de connexion, « Oui » reconnecte A (lot X3)", 360, GameStopAsync).ConfigureAwait(false);
@@ -3834,8 +3834,9 @@ internal static partial class Live
     /// aucune demande en attente). L'artisan revient : <c>ER13</c> → <c>ERK&lt;client&gt;|&lt;artisan&gt;|12</c> aux deux, <c>EA</c> de l'artisan →
     /// <c>ECK12</c> / <c>ECK13</c>, <c>EV</c>. Puis « Inviter à &lt;compétence&gt; » de l'artisan (d'après ses propres <c>EW+</c>) : <c>ER12|&lt;client&gt;|20</c>
     /// → <c>ERK&lt;artisan&gt;|&lt;client&gt;|12</c> à l'artisan et <c>…|13</c> au client (<c>A_WANT_CRAFT_ARTISAN</c>), <c>EA</c> du client → <c>ECK13</c> /
-    /// <c>ECK12</c>, <c>EV</c> du client. Marchand hors ligne, percepteur et livre des artisans n'existent pas sur ce serveur de test : ces clics
-    /// et la carte de l'artisan restent couverts par les tests Mono (BotMapActionsSmoke, BotCraftSmoke).
+    /// <c>ECK12</c>, <c>EV</c> du client. Enfin le client consulte le livre des artisans de la carte (<see cref="CrafterBookAsync"/>). Le marchand
+    /// hors ligne est le scénario x6b ; un percepteur demande une guilde de dix membres, absente de ce serveur de test : ce clic reste couvert
+    /// par BotMapActionsSmoke.
     /// </summary>
     private static async Task<string> SecureCraftMenuAsync()
     {
