@@ -65,6 +65,8 @@ internal static class BotShopSmoke
         Check(socket.Available == 0, message);
     }
     private static ListViewItem RowWithTag(ListView list, object tag) => list.Items.Cast<ListViewItem>().FirstOrDefault(row => Equals(row.Tag, tag));
+    private static IEnumerable<Control> All(Control value) { yield return value; foreach (Control child in value.Controls) foreach (var nested in All(child)) yield return nested; }
+    private static void Answer(Form dialog, string choice) => All(dialog).OfType<Button>().First(button => button.Text == choice).PerformClick();
 
     private static void Run()
     {
@@ -208,10 +210,14 @@ internal static class BotShopSmoke
                         Check(inventory.SelectItem(1000u), "Potion cell cannot be selected"); Application.DoEvents();
                         Check(!equip.Enabled && !unequip.Enabled && use.Enabled && drop.Enabled, "Potion actions are wrong (equip/unequip must stay disabled)");
                         ((Button)use).PerformClick(); Check(Read(peer) == "OU1000|", "Use button does not send OU");
-                        ((NumericUpDown)Get(bagPanel, "inventoryQuantity")).Value = 2;
-                        ((Button)drop).PerformClick(); Application.DoEvents();
-                        NoPacket(peer, "Drop sent without confirmation"); Check(drop.Text == "Confirmer", "Drop does not ask for confirmation");
-                        ((Button)drop).PerformClick(); Check(Read(peer) == "OD1000|2" && drop.Text == "Jeter", "Confirmed drop does not send OD<id>|<quantity>");
+                        // Lot X12 : Jeter une pile passe par la boîte de quantité du client, puis la question CONFIRM_DROP_ITEM (ConfirmDropItem).
+                        form.Options.ConfirmDropItem = true;
+                        ((Button)drop).PerformClick(); PumpUntil(() => QuantityPopup.OpenPopups.Count == 1);
+                        QuantityPopup dropBox = QuantityPopup.OpenPopups[0];
+                        Check(dropBox.InputText == "1" && dropBox.Maximum == 5, "Drop quantity box must start at 1 with the stack as maximum");
+                        dropBox.InputText = "2"; dropBox.Confirm(); PumpUntil(() => QuantityPopup.OpenPopups.Count == 0 && BotDialogs.OpenDialogs.Count == 1);
+                        NoPacket(peer, "Drop sent without confirmation");
+                        Answer(BotDialogs.OpenDialogs[0], "Oui"); Check(Read(peer) == "OD1000|2" && drop.Text == "Jeter", "Confirmed drop does not send OD<id>|<quantity>");
                         plateau[1].Activate(); Application.DoEvents();
                         Check(inventory.SelectedItem == null && plateau[1].Selected && unequip.Enabled && !equip.Enabled && !drop.Enabled, "Equipped sword actions are wrong");
                         ((Button)unequip).PerformClick(); Check(Read(peer) == "OM1001|-1", "Unequip button does not send OM<id>|-1");

@@ -38,6 +38,9 @@ using Tool_BotProtocol.Game.Session;
 // messages du repas survivent aux mises à jour d'inventaire (Im119|44 s'efface au OQ suivant, et à l'OR qui retire l'objet), bouton
 // « OK » de la boîte de quantité non rogné, boîte gardée malgré une perte d'activation ou une boîte Oui / Non, abandonnée par un clic
 // dans la fenêtre de jeu, filtre « chiffres seuls » exercé sur le champ lui-même, croix _mcMountCross sur la case 16 sans monture.
+// Lot X12 : six tris du bouton « plus de choix » (date, nom, type, niveau, poids, quantité), Détruire par la boîte de quantité
+// (pile : Od sans question, borné à la pile ; un exemplaire : DO_U_DESTROY), Jeter avec ConfirmDropItem (CONFIRM_DROP_ITEM,
+// case de la fenêtre d'options) ou sans, CANT_MOVE_ITEM pendant un échange ; plus de champ « Quantité » fixe dans le volet.
 // Aucune capture de fenêtre : passe sous Mono avec xvfb-run.
 internal static class BotInventoryGridSmoke
 {
@@ -60,7 +63,7 @@ internal static class BotInventoryGridSmoke
         {
             Application.EnableVisualStyles(); Run();
             Check(uiErrors.Count == 0, "Interface errors: " + string.Join(" / ", uiErrors.Select(e => e.GetType().Name + " " + e.Message)));
-            Console.WriteLine("OK: grille du sac et plateau, filtres, fiche d'objet (effets, conditions, arme, panoplie OS+), OM sans quantité, glisser-déposer, Od après DO_U_DESTROY, OdE/OAE/Im, icône et repli, infobulle boutique, repas du familier et de la monture (OM|8, boîte de quantité, OM|16|n)");
+            Console.WriteLine("OK: grille du sac et plateau, filtres, fiche d'objet (effets, conditions, arme, panoplie OS+), OM sans quantité, glisser-déposer, Od après DO_U_DESTROY, OdE/OAE/Im, icône et repli, infobulle boutique, repas du familier et de la monture (OM|8, boîte de quantité, OM|16|n), six tris, Jeter/Détruire par la boîte (ConfirmDropItem, DO_U_DESTROY)");
         }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
@@ -190,7 +193,11 @@ internal static class BotInventoryGridSmoke
                 + "<texte cle=\"MIN_WORD\" valeur=\"mini (test)\" />\n<texte cle=\"MAX_WORD\" valeur=\"maxi (test)\" />\n"
                 + "<texte cle=\"INFOS_32\" valeur=\"Repas du familier apprécié (test).\" />\n<texte cle=\"INFOS_105\" valeur=\"Repas de la monture apprécié (test).\" />\n"
                 + "<texte cle=\"ERROR_53\" valeur=\"Le familier ne mange pas cela (test).\" />\n<texte cle=\"ERROR_90\" valeur=\"La monture ne mange pas cela (test).\" />\n"
-                + "<texte cle=\"ERROR_54\" valeur=\"Le familier est mort (test).\" />\n<texte cle=\"CANT_MOVE_ITEM\" valeur=\"Impossible de déplacer un objet pendant un échange (test).\" />");
+                + "<texte cle=\"ERROR_54\" valeur=\"Le familier est mort (test).\" />\n<texte cle=\"CANT_MOVE_ITEM\" valeur=\"Impossible de déplacer un objet pendant un échange (test).\" />\n"
+                + "<texte cle=\"SEARCH_AND_SORT\" valeur=\"Tri et recherche (test)\" />\n<texte cle=\"INVENTORY_DATE_SORT\" valeur=\"Date (test)\" />\n<texte cle=\"INVENTORY_NAME_SORT\" valeur=\"Nom (test)\" />\n"
+                + "<texte cle=\"INVENTORY_TYPE_SORT\" valeur=\"Type (test)\" />\n<texte cle=\"INVENTORY_LEVEL_SORT\" valeur=\"Niveau (test)\" />\n<texte cle=\"INVENTORY_POD_SORT\" valeur=\"Poids (test)\" />\n"
+                + "<texte cle=\"INVENTORY_QTY_SORT\" valeur=\"Quantité (test) \" />\n<texte cle=\"OPTION_CONFIRM_DROPITEM\" valeur=\"Popup de confirmation (test)\" />\n<texte cle=\"CAUTION\" valeur=\"Attention (test)\" />\n"
+                + "<texte cle=\"CONFIRM_DROP_ITEM\" valeur=\"Poser à terre ? (test)\" />\n<texte cle=\"INFORMATIONS\" valeur=\"Informations (test)\" />");
             LangData.Clear();
             Check(LangData.Load(lang) == 4 && LangData.IsLoaded("items") && LangData.IsLoaded("effects") && LangData.IsLoaded("itemsets") && LangData.IsLoaded("lang"), "Synthetic lang XML not loaded");
             ServerMessages.Resolver = (type, id, args) => { string text = LangData.Text.Im(type, id, args); return string.IsNullOrEmpty(text) || (text.StartsWith("!") && text.EndsWith("!")) ? null : text; };
@@ -261,7 +268,6 @@ internal static class BotInventoryGridSmoke
                         drawer.Show(panel); PumpUntil(() => drawer.Visible && drawer.Current == panel, "inventory panel");
                         var grid = (ItemGrid)Get(panel, "inventory"); var plateau = (EquipmentPlateau)Get(panel, "plateau"); var sheet = (ItemTooltip)Get(panel, "sheet");
                         var help = (Label)Get(panel, "inventoryHelp"); var kamas = (Label)Get(panel, "kamasLabel"); var pods = (Label)Get(panel, "podsLabel");
-                        var quantity = (NumericUpDown)Get(panel, "inventoryQuantity");
                         var equip = (Control)Get(panel, "equipItem"); var unequip = (Control)Get(panel, "unequipItem"); var use = (Control)Get(panel, "useItem");
                         var drop = (Control)Get(panel, "dropItem"); var destroy = (Control)Get(panel, "destroyItem");
                         Check(grid.Items.Count == 6 && plateau.Slots.Count == 17 && plateau.Slots.All(slot => slot.Item == null), "Grid must show the six bag items and the plateau be empty");
@@ -279,6 +285,29 @@ internal static class BotInventoryGridSmoke
                         panel.Filter = ItemCategory.Resources; Check(grid.Items.Count == 1 && grid.Items[0].Inventory_ID == 1004u, "Resources filter is wrong");
                         panel.Filter = ItemCategory.Quest; Check(grid.Items.Count == 1 && grid.Items[0].Inventory_ID == 1005u, "Quest filter is wrong");
                         panel.Filter = null; Check(grid.Items.Count == 6, "Clearing the filter did not restore the bag");
+
+                        // Lot X12 : six tris du bouton « plus de choix » d'InventoryViewer (sortOn croissant, tri stable sur l'ordre du bot).
+                        Func<uint[]> order = () => grid.Items.Select(item => item.Inventory_ID).ToArray();
+                        Check(panel.Sort == InventorySortKey.None && order().SequenceEqual(new uint[] { 1002, 1003, 1001, 1000, 1004, 1005 }), "Default order is not category then name");
+                        var more = (Control)Get(panel, "sortButton"); var sortMenu = (ContextMenuStrip)Get(panel, "sortMenu");
+                        Check(ReferenceEquals(more.Parent, Get(panel, "filters")) && more.AccessibleName == "Tri et recherche (test)", "The more-choice button is missing or has no SEARCH_AND_SORT text");
+                        typeof(InventoryPanel).GetMethod("ShowSortMenu", Any).Invoke(panel, null); Application.DoEvents();
+                        Check(sortMenu.Items.Cast<ToolStripItem>().Select(entry => entry.Text).SequenceEqual(new[] { "Date (test)", "Nom (test)", "Type (test)", "Niveau (test)", "Poids (test)", "Quantité (test)" })
+                            && sortMenu.Items.Cast<ToolStripMenuItem>().All(entry => !entry.Checked), "Sort menu does not list the six client sorts in order: " + string.Join(", ", sortMenu.Items.Cast<ToolStripItem>().Select(entry => entry.Text)));
+                        sortMenu.Items[0].PerformClick(); sortMenu.Close(); Application.DoEvents();
+                        // Date : compteur décroissant à chaque fiche lue (Item.DATE_ID), la dernière fiche d'OAK arrive en tête.
+                        Check(panel.Sort == InventorySortKey.Date && order().SequenceEqual(new uint[] { 1005, 1004, 1003, 1002, 1001, 1000 }), "Date sort is wrong: " + string.Join(",", order()));
+                        panel.Sort = InventorySortKey.Name; Check(order().SequenceEqual(new uint[] { 1002, 1003, 1004, 1005, 1001, 1000 }), "Name sort is wrong: " + string.Join(",", order()));
+                        panel.Sort = InventorySortKey.Type; Check(order().SequenceEqual(new uint[] { 1003, 1001, 1002, 1000, 1005, 1004 }), "Type sort is wrong: " + string.Join(",", order()));
+                        panel.Sort = InventorySortKey.Level; Check(order().SequenceEqual(new uint[] { 1002, 1000, 1004, 1005, 1003, 1001 }), "Level sort is wrong: " + string.Join(",", order()));
+                        panel.Sort = InventorySortKey.Weight; Check(order().SequenceEqual(new uint[] { 1005, 1002, 1000, 1004, 1003, 1001 }), "Weight sort is wrong: " + string.Join(",", order()));
+                        panel.Sort = InventorySortKey.Quantity; Check(order().SequenceEqual(new uint[] { 1002, 1003, 1001, 1005, 1000, 1004 }), "Quantity sort is wrong: " + string.Join(",", order()));
+                        panel.Filter = ItemCategory.Equipment; Check(order().SequenceEqual(new uint[] { 1002, 1003, 1001 }), "The sort is not kept with a filter");
+                        panel.Filter = null; Feed(account, "OQ1000|5"); Check(order().SequenceEqual(new uint[] { 1002, 1003, 1001, 1005, 1000, 1004 }), "The sort is not kept after an inventory update");
+                        typeof(InventoryPanel).GetMethod("ShowSortMenu", Any).Invoke(panel, null); Application.DoEvents();
+                        Check(((ToolStripMenuItem)sortMenu.Items[5]).Checked && sortMenu.Items.Cast<ToolStripMenuItem>().Count(entry => entry.Checked) == 1, "The current sort is not checked in the menu");
+                        sortMenu.Close(); panel.Sort = InventorySortKey.None; Check(order().SequenceEqual(new uint[] { 1002, 1003, 1001, 1000, 1004, 1005 }), "Default order did not come back");
+                        Check(typeof(InventoryPanel).GetField("inventoryQuantity", Any) == null &&!All(panel.View).OfType<NumericUpDown>().Any(), "The fixed quantity field is still in the inventory panel");
 
                         // Sélection de l'épée : fiche sous la grille, boutons, puis Équiper → OM<id>|1 sans quantité, état local inchangé avant OM.
                         Check(grid.SelectItem(1001u), "Sword cell cannot be selected"); Application.DoEvents();
@@ -329,20 +358,55 @@ internal static class BotInventoryGridSmoke
                         Feed(account, "OM1001|"); PumpUntil(() => grid.IndexOf(1001u) >= 0, "sword unequipped");
                         Check(grid.SelectedItem == sword && equip.Enabled, "Selection did not follow the sword back to the grid");
 
-                        // Détruire : question DO_U_DESTROY, Non n'envoie rien, Oui envoie Od<id>|<quantité> ; OQ puis OdE.
-                        Check(grid.SelectItem(1000u), "Potion cell cannot be selected again"); Application.DoEvents();
-                        quantity.Value = 2; Click(destroy);
-                        PumpUntil(() => BotDialogs.OpenDialogs.Count == 1, "destroy dialog");
+                        // Détruire (lot X12, destroyItem et askDestroy du client) : un exemplaire seul passe par DO_U_DESTROY (Non n'envoie
+                        // rien, Oui envoie Od<id>|1) ; une pile ouvre la boîte de quantité (valeur 1, maximum la pile) puis part sans question.
+                        Check(grid.SelectItem(1002u), "Ring cell cannot be selected"); Application.DoEvents();
+                        Click(destroy); PumpUntil(() => BotDialogs.OpenDialogs.Count == 1, "destroy dialog");
+                        Check(QuantityPopup.OpenPopups.Count == 0, "A single item opened the quantity box before DO_U_DESTROY");
                         Form box = BotDialogs.OpenDialogs[0];
-                        Check(box.Text == "Question" && All(box).Any(control => control.Name == "dialog-message" && control.Text == "Voulez-vous vraiment détruire 2 Potion fictive ?"),
+                        Check(box.Text == "Question" && All(box).Any(control => control.Name == "dialog-message" && control.Text == "Voulez-vous vraiment détruire 1 Anneau fictif ?"),
                             "DO_U_DESTROY question is wrong: " + string.Join(" / ", All(box).Select(control => control.Text)));
                         NoPacket(peer, "Od was sent before the answer");
                         Answer(box, "Non"); PumpUntil(() => BotDialogs.OpenDialogs.Count == 0, "dialog closed");
-                        NoPacket(peer, "Od was sent after Non"); Check(potion.Qua == 5, "Non changed the quantity");
+                        NoPacket(peer, "Od was sent after Non");
                         Click(destroy); PumpUntil(() => BotDialogs.OpenDialogs.Count == 1, "second destroy dialog");
-                        Answer(BotDialogs.OpenDialogs[0], "Oui"); Check(Read(peer) == "Od1000|2", "Oui does not send Od<id>|<quantity>");
+                        Answer(BotDialogs.OpenDialogs[0], "Oui"); Check(Read(peer) == "Od1002|1", "Oui does not send Od<id>|1");
+                        Check(grid.SelectItem(1000u), "Potion cell cannot be selected again"); Application.DoEvents();
+                        Click(destroy); PumpUntil(() => QuantityPopup.OpenPopups.Count == 1, "destroy quantity box");
+                        QuantityPopup destroyBox = QuantityPopup.OpenPopups[0];
+                        Check(destroyBox.InputText == "1" && destroyBox.Maximum == 5 && BotDialogs.OpenDialogs.Count == 0, "Destroy quantity box must start at 1 with the stack as maximum");
+                        typeof(QuantityPopup).GetMethod("OnKeyDown", Any).Invoke(destroyBox, new object[] { new KeyEventArgs(Keys.Escape) });
+                        PumpUntil(() => QuantityPopup.OpenPopups.Count == 0, "Escape closed the destroy box"); NoPacket(peer, "Od was sent after Escape");
+                        Click(destroy); PumpUntil(() => QuantityPopup.OpenPopups.Count == 1, "second destroy quantity box");
+                        destroyBox = QuantityPopup.OpenPopups[0]; destroyBox.InputText = "0"; destroyBox.Confirm();
+                        PumpUntil(() => QuantityPopup.OpenPopups.Count == 0, "zero closed the destroy box"); NoPacket(peer, "Od was sent for a zero quantity");
+                        Click(destroy); PumpUntil(() => QuantityPopup.OpenPopups.Count == 1, "third destroy quantity box");
+                        destroyBox = QuantityPopup.OpenPopups[0]; destroyBox.InputText = "2"; destroyBox.Confirm();
+                        Check(Read(peer) == "Od1000|2" && BotDialogs.OpenDialogs.Count == 0, "A stack must send Od<id>|<quantity> after the box, without DO_U_DESTROY");
                         Check(potion.Qua == 5 && grid.IndexOf(1000u) >= 0, "Destroy changed the local quantity before the server answer");
+                        Click(destroy); PumpUntil(() => QuantityPopup.OpenPopups.Count == 1, "fourth destroy quantity box");
+                        destroyBox = QuantityPopup.OpenPopups[0]; destroyBox.InputText = "40"; destroyBox.Confirm();
+                        Check(Read(peer) == "Od1000|5", "The destroy quantity is not bounded by the stack (Math.min(value, Quantity))");
                         Feed(account, "OQ1000|3"); PumpUntil(() => potion.Qua == 3, "OQ after Od");
+
+                        // Jeter (lot X12, dropDownItem du client) : ConfirmDropItem faux → OD<id>|1 sans question pour un exemplaire ;
+                        // vrai (défaut du client) → question CONFIRM_DROP_ITEM (titre CAUTION), Non n'envoie rien.
+                        Check(BotOptions.DefaultValue("ConfirmDropItem") is bool confirmDefault && confirmDefault && BotOptions.BooleanNames.Contains("ConfirmDropItem"), "ConfirmDropItem must be a boolean option, true by default");
+                        using (var window = new OptionsForm(form.Options))
+                        {
+                            CheckBox confirmBox = window.CheckOf("ConfirmDropItem");
+                            Check(confirmBox != null && confirmBox.Text == "Popup de confirmation (test)", "ConfirmDropItem has no checkbox with OPTION_CONFIRM_DROPITEM");
+                            confirmBox.Checked = false; Check(!form.Options.ConfirmDropItem, "The checkbox does not change ConfirmDropItem");
+                        }
+                        Check(grid.SelectItem(1003u), "Bow cell cannot be selected"); Application.DoEvents();
+                        Click(drop); Check(Read(peer) == "OD1003|1" && QuantityPopup.OpenPopups.Count == 0 && BotDialogs.OpenDialogs.Count == 0, "Without ConfirmDropItem a single item must send OD<id>|1 at once");
+                        form.Options.ConfirmDropItem = true;
+                        Click(drop); PumpUntil(() => BotDialogs.OpenDialogs.Count == 1, "drop caution dialog");
+                        box = BotDialogs.OpenDialogs[0];
+                        Check(box.Text == "Attention (test)" && All(box).Any(control => control.Name == "dialog-message" && control.Text == "Poser à terre ? (test)"), "CONFIRM_DROP_ITEM question is wrong");
+                        NoPacket(peer, "OD was sent before the answer");
+                        Answer(box, "Non"); PumpUntil(() => BotDialogs.OpenDialogs.Count == 0, "caution closed"); NoPacket(peer, "OD was sent after Non");
+                        Check(grid.SelectItem(1000u), "Potion cell cannot be selected for the drop"); Application.DoEvents();
                         // Refus du serveur gardés sous l'objet malgré les rafraîchissements de la fenêtre, effacés au changement de sélection.
                         Feed(account, "OdE"); PumpUntil(() => help.Text.Contains("détruire"), "OdE message");
                         Check(help.Text.StartsWith("Potion fictive · 3 · dans le sac"), "Server notice replaced the item line: " + help.Text);
@@ -486,6 +550,14 @@ internal static class BotInventoryGridSmoke
                         string blocked; bool forbidden = bag.MoveForbiddenByExchange(out blocked);
                         Check(reports.LastOrDefault() == "Déplacement refusé : voir le journal." && forbidden && blocked == "Impossible de déplacer un objet pendant un échange (test).",
                             "The refusal does not carry CANT_MOVE_ITEM: " + blocked + " / " + reports.LastOrDefault());
+                        // Lot X12 : Jeter pendant l'échange ouvre la boîte INFORMATIONS / CANT_MOVE_ITEM (canMoveItem de dropDownItem), sans OD.
+                        Check(grid.SelectItem(1004u), "Wood cell cannot be selected during the exchange"); Application.DoEvents();
+                        Task dropping = (Task)typeof(InventoryPanel).GetMethod("DropSelected", Any).Invoke(panel, null);
+                        PumpUntil(() => BotDialogs.OpenDialogs.Count == 1, "CANT_MOVE_ITEM box");
+                        Check(BotDialogs.OpenDialogs[0].Text == "Informations (test)" && QuantityPopup.OpenPopups.Count == 0
+                            && All(BotDialogs.OpenDialogs[0]).Any(control => control.Name == "dialog-message" && control.Text == "Impossible de déplacer un objet pendant un échange (test)."),
+                            "Dropping during an exchange does not show CANT_MOVE_ITEM");
+                        Answer(BotDialogs.OpenDialogs[0], "OK"); Complete(dropping); NoPacket(peer, "OD was sent during the exchange");
                         Check(Result(bag.Destroy(wood, 1)) && Read(peer) == "Od1004|1", "Od must stay allowed during an exchange (the client does not pass destroyItem through canMoveItem)");
                         Feed(account, "EV"); PumpUntil(() => account.Game.Interactions.Exchanges.Current == null, "pets exchange closed");
                         Check(!bag.MoveForbiddenByExchange(out blocked) && Result(bag.MoveToSlot(ring, 2)) && Read(peer) == "OM1002|2", "OM is not sent again once the exchange is closed");

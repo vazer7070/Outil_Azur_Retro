@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Outil_Azur_complet.Bot.Controls;
 using Outil_Azur_complet.Bot.Controls.Banner;
 using Outil_Azur_complet.Bot.Controls.Chat;
+using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Game;
 using Tool_BotProtocol.Game.Montures;
 using Tool_BotProtocol.Game.Perso;
@@ -21,8 +21,10 @@ namespace Outil_Azur_complet.Bot.Panels
     /// plateau d'équipement à dix-sept emplacements (<c>_ctr0.._ctr16</c>), filtres Équipement / Divers / Ressources / Quête,
     /// grille du sac avec les icônes du client, fiche d'objet (<c>ItemViewer</c>) avec effets, conditions et panoplie portée.
     /// Envois du client 1.34 : glisser ou Équiper/Déséquiper <c>OM&lt;objet&gt;|&lt;position&gt;</c> (sans quantité, comme
-    /// <c>Items.movement</c> à deux paramètres), Utiliser <c>OU&lt;objet&gt;|</c>, Jeter <c>OD&lt;objet&gt;|&lt;quantité&gt;</c>
-    /// après un second clic, Détruire <c>Od&lt;objet&gt;|&lt;quantité&gt;</c> après la question <c>DO_U_DESTROY</c>.
+    /// <c>Items.movement</c> à deux paramètres), Utiliser <c>OU&lt;objet&gt;|</c>, Jeter <c>OD&lt;objet&gt;|&lt;quantité&gt;</c> et Détruire
+    /// <c>Od&lt;objet&gt;|&lt;quantité&gt;</c> par la boîte de quantité et les questions du client (lot X12 : <see cref="DropSelected"/>,
+    /// <see cref="DestroySelected"/>, option <c>ConfirmDropItem</c>). Bouton « plus de choix » : les six tris d'<c>InventoryViewer</c>
+    /// (<see cref="InventorySort"/>), gardés tant que le volet existe.
     /// L'état local attend toujours la réponse du serveur (<c>OM</c>, <c>OR</c>, <c>OQ</c>, <c>OAE</c>, <c>OdE</c>, <c>ODE</c>, <c>Im</c>).
     /// Nourrir (lot X4) : une ressource glissée sur le familier porté envoie <c>OM&lt;objet&gt;|8</c> ; sur la monture annoncée
     /// (<c>Re+</c>), une pile passe d'abord par la boîte de quantité du client (<see cref="QuantityPopup"/>) puis
@@ -42,10 +44,12 @@ namespace Outil_Azur_complet.Bot.Panels
         // pour les étiquettes texte que les tests de l'habillage lisent sur tous les boutons de la fenêtre).
         private readonly List<KeyValuePair<ItemCategory?, ClientButton>> filterButtons = new List<KeyValuePair<ItemCategory?, ClientButton>>();
         private ItemCategory? filter;
-        private NumericUpDown inventoryQuantity;
         private Control equipItem, unequipItem, useItem, dropItem, destroyItem;
-        private ContextMenuStrip itemMenu;
-        private bool dropArmed, refreshing, destroyPending;
+        private ContextMenuStrip itemMenu, sortMenu;
+        private ClientButton sortButton;
+        private ToolTip sortTips;
+        private InventorySortKey sort;
+        private bool refreshing, dropPending, destroyPending;
         private uint? selectedId;
         // Dernier refus du serveur (OAE, ODE, OdE, Im1…) : gardé sous l'objet jusqu'au prochain changement de sélection ou
         // d'inventaire, car la fenêtre de jeu rafraîchit les volets visibles à chaque mise à jour d'état.
@@ -72,6 +76,13 @@ namespace Outil_Azur_complet.Bot.Panels
         {
             get { return filter; }
             set { if (filter == value) return; filter = value; UpdateFilterButtons(); RefreshView(); }
+        }
+
+        /// <summary>Tri du menu « plus de choix » (<see cref="InventorySortKey.None"/> : catégorie puis nom), gardé tant que le volet existe.</summary>
+        public InventorySortKey Sort
+        {
+            get { return sort; }
+            set { if (sort == value) return; sort = value; RefreshView(); }
         }
 
         /// <summary>Objet sélectionné (sac ou plateau), ou null.</summary>
@@ -107,6 +118,13 @@ namespace Outil_Azur_complet.Bot.Panels
             AddFilter(ItemCategory.Resources, Lang("RESSOURECES", "Ressources"), 84);
             AddFilter(ItemCategory.Quest, "Quête", 56);
             UpdateFilterButtons();
+            // « Plus de choix » d'InventoryViewer (_btnMoreChoice, infobulle SEARCH_AND_SORT) : menu des six tris sous le bouton.
+            sortButton = (ClientButton)MakeButton("…", (s, e) => ShowSortMenu(), false, 34);
+            sortButton.Height = 24; sortButton.Margin = new Padding(12, 0, 0, 0); sortButton.Font = BotFonts.Get(8, FontStyle.Bold);
+            sortButton.Name = "inventory-more-choice"; sortButton.AccessibleName = InventorySort.ButtonTip;
+            filters.Controls.Add(sortButton);
+            sortTips = new ToolTip(); sortTips.SetToolTip(sortButton, InventorySort.ButtonTip);
+            sortMenu = new ContextMenuStrip { Renderer = new RetroMenuRenderer(), BackColor = BotUi.Paper, Font = BotFonts.Get(9), ShowImageMargin = false, Name = "inventory-sort-menu" };
 
             inventory = new ItemGrid { Dock = DockStyle.Fill, Margin = Padding.Empty, EmptyText = "Votre sac est vide." };
             inventory.SelectionChanged += (s, e) => { if (!refreshing) Select(inventory.SelectedItem?.Inventory_ID, false); };
@@ -119,7 +137,6 @@ namespace Outil_Azur_complet.Bot.Panels
             sheetArea.Controls.Add(sheet);
 
             inventoryHelp = MakeStatus(SelectText); inventoryHelp.Height = 46;
-            inventoryQuantity = Quantity();
             equipItem = MakeButton("Équiper", async (s, e) => await EquipSelected(true), true, 88);
             unequipItem = MakeButton("Déséquiper", async (s, e) => await EquipSelected(false), false, 100);
             useItem = MakeButton("Utiliser", async (s, e) => await UseSelected(), false, 84);
@@ -130,7 +147,7 @@ namespace Outil_Azur_complet.Bot.Panels
             // Ordre d'ancrage : le dernier ajouté prend le bord en premier.
             page.Controls.Add(inventory); page.Controls.Add(filters); page.Controls.Add(plateau); page.Controls.Add(header);
             page.Controls.Add(sheetArea); page.Controls.Add(inventoryHelp);
-            page.Controls.Add(BotUi.Actions(equipItem, unequipItem, useItem, dropItem, destroyItem, QuantityLabel(), inventoryQuantity));
+            page.Controls.Add(BotUi.Actions(equipItem, unequipItem, useItem, dropItem, destroyItem));
             return page;
         }
 
@@ -140,6 +157,15 @@ namespace Outil_Azur_complet.Bot.Panels
             button.Height = 24; button.Margin = new Padding(0, 0, 3, 0); button.Font = BotFonts.Get(8);
             filterButtons.Add(new KeyValuePair<ItemCategory?, ClientButton>(category, button));
             filters.Controls.Add(button);
+        }
+
+        /// <summary>Menu « plus de choix » sous le bouton : les six tris du client, le tri courant coché.</summary>
+        private void ShowSortMenu()
+        {
+            if (sortMenu == null || sortButton == null) return;
+            InventorySort.Fill(sortMenu, sort, key => Sort = key);
+            try { sortMenu.Show(sortButton, new Point(0, sortButton.Height)); }
+            catch (Exception error) when (error is InvalidOperationException || error is ArgumentException) { /* Contrôle en cours de fermeture. */ }
         }
 
         private void UpdateFilterButtons()
@@ -221,8 +247,7 @@ namespace Outil_Azur_complet.Bot.Panels
                 plateau.SetItems(all.Where(IsWorn));
                 plateau.HasMount = items.HasMount;
                 plateau.Selected = selectedId;
-                inventory.SetItems(all.Where(item => !IsWorn(item) && (filter == null || ItemSlots.CategoryOf(item.Type) == filter.Value))
-                    .OrderBy(item => ItemSlots.CategoryOf(item.Type)).ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase));
+                inventory.SetItems(InventorySort.Apply(all.Where(item => !IsWorn(item) && (filter == null || ItemSlots.CategoryOf(item.Type) == filter.Value)), sort));
                 inventory.EmptyText = filter == null ? "Votre sac est vide." : "Aucun objet de cette catégorie dans le sac.";
                 if (selectedId.HasValue) { if (!inventory.SelectItem(selectedId.Value)) inventory.ClearSelection(); }
                 else inventory.ClearSelection();
@@ -264,7 +289,7 @@ namespace Outil_Azur_complet.Bot.Panels
 
         private void Select(uint? id, bool fromPlateau)
         {
-            if (selectedId != id) { DisarmDrop(); serverNotice = null; noticeFromIm = false; }
+            if (selectedId != id) { serverNotice = null; noticeFromIm = false; }
             selectedId = id;
             refreshing = true;
             try
@@ -301,10 +326,7 @@ namespace Outil_Azur_complet.Bot.Panels
             useItem.Enabled = ready && !worn;
             dropItem.Enabled = ready && !worn && (card == null || card.CanDrop);
             destroyItem.Enabled = ready && !worn && (card == null || card.CanDestroy);
-            if (item != null) inventoryQuantity.Maximum = Math.Max(1, item.Qua);
             useItem.Text = SpecialItems.IsDocument(item) ? "Lire" : "Utiliser";
-            if (dropArmed) return;
-            dropItem.Text = "Jeter";
             // Pierres d'âme et documents (lot F14) : règle du serveur rappelée sous l'objet ; dernier refus du serveur en dessous.
             string note = item == null ? null : SpecialItems.Note(item, Game.Map?.MapID ?? 0);
             string text = item == null ? SelectText
@@ -315,8 +337,6 @@ namespace Outil_Azur_complet.Bot.Panels
             inventoryHelp.Text = text;
             inventoryHelp.Height = note == null && (item == null || string.IsNullOrEmpty(serverNotice)) ? 46 : 80;
         }
-
-        private void DisarmDrop() { dropArmed = false; if (dropItem != null) dropItem.Text = "Jeter"; }
 
         /// <summary>Double-clic ou Entrée sur un objet du sac : utiliser s'il est utilisable, sinon équiper (<c>DOUBLE_CLICK_TO_EQUIP</c>).</summary>
         private Task ActivateSelected()
@@ -331,7 +351,6 @@ namespace Outil_Azur_complet.Bot.Panels
         {
             InventoryObjects item = CurrentItem;
             if (item == null) return;
-            DisarmDrop();
             try
             {
                 bool sent = equip ? await Game.character.Inventory.Equip_item(item) : await Game.character.Inventory.Desequip_Item(item);
@@ -344,7 +363,6 @@ namespace Outil_Azur_complet.Bot.Panels
         {
             InventoryObjects item = CurrentItem;
             if (item == null) return;
-            DisarmDrop();
             try
             {
                 ItemUseResult result = await SpecialItems.UseAsync(Game, item);
@@ -353,39 +371,73 @@ namespace Outil_Azur_complet.Bot.Panels
             catch (Exception error) { Feedback(error.Message); }
         }
 
+        /// <summary>
+        /// Jeter au sol comme <c>Inventory.dropDownItem</c> du client : pendant un échange, <c>CANT_MOVE_ITEM</c> (<c>canMoveItem</c>)
+        /// et rien ne part ; une pile ouvre la boîte de quantité (valeur 1, maximum la pile) ; avec l'option <c>ConfirmDropItem</c>
+        /// (vraie par défaut), la question <c>CONFIRM_DROP_ITEM</c> (<c>CAUTION_YESNO</c>, titre <c>CAUTION</c>) précède
+        /// <c>OD&lt;objet&gt;|&lt;quantité&gt;</c>, la quantité étant bornée à la pile relue (<c>Math.min</c>). Le serveur confirme par OR/OQ.
+        /// </summary>
         private async Task DropSelected()
         {
             InventoryObjects item = CurrentItem;
-            if (item == null) return;
-            int quantity = (int)inventoryQuantity.Value;
-            if (!dropArmed)
-            {
-                dropArmed = true; dropItem.Text = "Confirmer";
-                inventoryHelp.Text = "Jeter " + quantity + " × " + item.Name + " au sol ? Cliquez de nouveau sur Confirmer ; changer de sélection annule.";
-                return;
-            }
-            DisarmDrop();
+            if (item == null || dropPending) return;
+            dropPending = true;
             try
             {
-                bool sent = await Game.character.Inventory.Drop_Item(item, quantity);
+                InventoryClass items = Game?.character?.Inventory;
+                if (items == null) return;
+                if (items.MoveForbiddenByExchange(out string exchange))
+                {
+                    await BotDialogs.InfoAsync(View, Lang("INFORMATIONS", "Informations"), Lang("CANT_MOVE_ITEM", exchange));
+                    return;
+                }
+                int quantity = 1;
+                if (item.Qua > 1)
+                {
+                    int? chosen = await BotDialogs.AskQuantityAsync(View, 1, item.Qua);
+                    if (chosen == null) { Feedback("Rien n'a été jeté."); return; }
+                    quantity = chosen.Value;
+                }
+                if (Options.ConfirmDropItem)
+                {
+                    BotDialogResult answer = await BotDialogs.AskYesNoAsync(View, Lang("CAUTION", "Attention"),
+                        Lang("CONFIRM_DROP_ITEM", "Êtes-vous certain de vouloir poser à terre cet objet ?"));
+                    if (answer != BotDialogResult.Yes) { Feedback("Rien n'a été jeté."); return; }
+                }
+                InventoryObjects current = Game?.character?.Inventory?.GetByInventoryId(item.Inventory_ID);
+                if (current == null) { Feedback("L'objet n'est plus dans l'inventaire."); return; }
+                bool sent = await Game.character.Inventory.Drop_Item(current, Math.Min(quantity, current.Qua));
                 Feedback(sent ? "Objet jeté ; le serveur confirme par OR ou OQ." : "Demande refusée : voir le journal.");
             }
             catch (Exception error) { Feedback(error.Message); }
+            finally { dropPending = false; }
         }
 
-        /// <summary>Détruire : question <c>DO_U_DESTROY</c> du client (« Voulez-vous vraiment détruire %1 %2 ? »), puis <c>Od&lt;objet&gt;|&lt;quantité&gt;</c>.</summary>
+        /// <summary>
+        /// Détruire comme <c>Inventory.destroyItem</c> et <c>askDestroy</c> du client : une pile ouvre la boîte de quantité (valeur 1,
+        /// maximum la pile) puis part sans autre question ; un exemplaire seul passe par <c>DO_U_DESTROY</c> (« Voulez-vous vraiment
+        /// détruire %1 %2 ? », titre <c>QUESTION</c>). Envoi <c>Od&lt;objet&gt;|&lt;quantité&gt;</c> borné à la pile relue.
+        /// </summary>
         private async Task DestroySelected()
         {
             InventoryObjects item = CurrentItem;
             if (item == null || destroyPending) return;
-            int quantity = (int)inventoryQuantity.Value;
-            DisarmDrop();
             destroyPending = true;
             try
             {
-                string question = Lang("DO_U_DESTROY", "Voulez-vous vraiment détruire %1 %2 ?", quantity.ToString(CultureInfo.InvariantCulture), item.Name);
-                BotDialogResult answer = await BotDialogs.AskYesNoAsync(View, Lang("QUESTION", "Question"), question);
-                if (answer != BotDialogResult.Yes) { Feedback("Destruction annulée."); return; }
+                int quantity = 1;
+                if (item.Qua > 1)
+                {
+                    int? chosen = await BotDialogs.AskQuantityAsync(View, 1, item.Qua);
+                    if (chosen == null) { Feedback("Destruction annulée."); return; }
+                    quantity = chosen.Value;
+                }
+                else
+                {
+                    string question = Lang("DO_U_DESTROY", "Voulez-vous vraiment détruire %1 %2 ?", "1", item.Name);
+                    BotDialogResult answer = await BotDialogs.AskYesNoAsync(View, Lang("QUESTION", "Question"), question);
+                    if (answer != BotDialogResult.Yes) { Feedback("Destruction annulée."); return; }
+                }
                 InventoryObjects current = Game?.character?.Inventory?.GetByInventoryId(item.Inventory_ID);
                 if (current == null) { Feedback("L'objet n'est plus dans l'inventaire."); return; }
                 bool sent = await Game.character.Inventory.Destroy(current, Math.Min(quantity, current.Qua));
@@ -394,6 +446,9 @@ namespace Outil_Azur_complet.Bot.Panels
             catch (Exception error) { Feedback(error.Message); }
             finally { destroyPending = false; }
         }
+
+        /// <summary>Options de la fenêtre de jeu (<c>ConfirmDropItem</c>), sinon celles du dossier de configuration.</summary>
+        private BotOptions Options => (View?.FindForm() as GameClientFullform)?.Options ?? BotOptions.Current;
 
         /// <summary>
         /// Dépôt d'un objet glissé : vers un emplacement (<c>OM&lt;objet&gt;|&lt;position&gt;</c>) ou vers le sac (<c>-1</c>). Comme
@@ -458,7 +513,7 @@ namespace Outil_Azur_complet.Bot.Panels
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) itemMenu?.Dispose();
+            if (disposing) { itemMenu?.Dispose(); sortMenu?.Dispose(); sortTips?.Dispose(); }
             base.Dispose(disposing);
         }
 

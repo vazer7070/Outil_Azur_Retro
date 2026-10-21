@@ -369,6 +369,7 @@
     <Compile Include="Bot\Panels\QuestsPanel.cs" />
     <Compile Include="Bot\Panels\PetsExchangePanel.cs" />
     <Compile Include="Bot\Panels\CraftSecurePanel.cs" />
+    <Compile Include="Bot\Controls\InventorySort.cs" />
     <Compile Include="Bot\Controls\QuantityPopup.cs">
       <SubType>Form</SubType>
     </Compile>
