@@ -96,7 +96,7 @@ namespace Outil_Azur_complet.Bot.Controls
 
         [Browsable(false)]
         public UserMapCell[] Cells { get; set; }
-        public void SetAccount(Accounts A) => Account = A;
+        public void SetAccount(Accounts A) { Account = A; HookFight(); }
         public bool ShowAnimations
         {
             get => ShowAnim;
@@ -178,6 +178,7 @@ namespace Outil_Azur_complet.Bot.Controls
                 hoverTip.Dispose();
                 artwork?.Dispose();
                 DisposeAimLayers();
+                UnhookFight();
                 // Après le dernier Paint, sur le fil de l'interface : les images ne sont plus dessinées.
                 sprites.SheetsLoaded -= AssetsArrived;
                 sprites.Dispose();
@@ -535,6 +536,8 @@ namespace Outil_Azur_complet.Bot.Controls
             }
             GraphicsState saved = G.Save();
             using (var transform = new Matrix(viewScale, 0, 0, viewScale, origin.X, origin.Y)) G.Transform = transform;
+            // Lot X33 : décor tactique pendant un combat quand Fights.TacticMode est actif.
+            ApplyTacticView();
             if (artwork != null) artwork.DrawGround(G);
             // Placement d'un combat : cellules de départ de l'équipe 0 en rouge, de l'équipe 1 en bleu, comme le client.
             var fight = Account?.Game?.Fight;
@@ -565,6 +568,7 @@ namespace Outil_Azur_complet.Bot.Controls
             if (fight != null && fight.IsInFight) FightZoneLayer.Draw(G, fight.Zones, map.MapCells, worldPolygons, 1 / Math.Max(.01f, viewScale));
             // Portée du sort armé (lot X8) : même calque Zone du client, puis sélection (chemin) et pointeur au-dessus.
             DrawSpellRange(G);
+            DrawAllowedZone(G); // lot X33 : cases ciblables (option AdvancedLineOfSight)
             // Couche Ground des effets (lot AN1) : après les cellules, sous tout le reste.
             effects.Draw(G, effectView, EffectLayer.Ground);
             DrawPathPreview(G);
