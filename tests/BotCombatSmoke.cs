@@ -218,6 +218,9 @@ internal static class BotCombatSmoke
                     Check(fight.GetSpellUnavailableReason(18, 9) == "Cible hors de la ligne de vue." && fight.GetSpellUnavailableReason(18, 6) == "Cible hors de la ligne de vue."
                         && fight.GetSpellUnavailableReason(18, 3) == null, "The cell behind an obstacle (GDC) is not excluded");
                     await Feed(account, "GDC6"); Check(fight.GetSpellUnavailableReason(18, 9) == null, "Restored GDC cell still blocks");
+                    // Bonus d'objet de classe SB 289 (ACTION_BOOST_SPELL_NOLINEOFSIGHT) : plus de ligne de vue pour ce sort ; 0 le retire.
+                    await Feed(account, "SB289;18;1"); Check(fight.GetSpellUnavailableReason(18, 12) == null, "SB 289 does not lift the line of sight like the client");
+                    await Feed(account, "SB289;18;0"); Check(fight.GetSpellUnavailableReason(18, 12) == "Cible hors de la ligne de vue.", "Removed SB 289 still lifts the line of sight");
                     // freeCell du client : une case où l'on ne marche pas (mouvement 1, masque 0x800) n'est pas libre.
                     Check(fight.GetSpellUnavailableReason(12, 5) == null, "Free cell refused");
                     await Feed(account, "GDC5;Hhiaeaaaaa800;0");
@@ -234,6 +237,9 @@ internal static class BotCombatSmoke
                     await Feed(account, "GA;300;42;19,9,0,1"); await Feed(account, "GA;102;42;42,-1"); await Feed(account, "GA;102;42;42,-0");
                     Check(fight.GetSpellCastsOnTarget(19, -7) == 1 && fight.GetSpellUnavailableReason(19, 9) == "Nombre de lancers de ce sort sur cette cible atteint pour ce tour."
                         && fight.GetSpellUnavailableReason(19, 3) == null, "Per-target limit not checked like the client: " + fight.GetSpellUnavailableReason(19, 9));
+                    // SB 291 (ACTION_BOOST_SPELL_MAXPERTARGET) ajoute un lancer par cible, comme launchCountByPlayerTurn du client.
+                    await Feed(account, "SB291;19;1"); Check(fight.GetSpellUnavailableReason(19, 9) == null, "SB 291 does not raise the per-target limit");
+                    await Feed(account, "SB291;19;0"); Check(fight.GetSpellUnavailableReason(19, 9) != null, "Removed SB 291 still raises the per-target limit");
                     Check((await fight.PassTurnAsync()).Sent && await Within(Read(peer)) == "Gt", "Pass turn wire incorrect");
                     await Feed(account, "GTF42"); Check(!fight.IsMyTurn && !(await fight.CastSpellAsync(12, 3)).Sent, "GTF leaves actions available");
                     await Feed(account, "GTM|42;0;100;8;3;0;;100"); await Feed(account, "GTS43|30000"); await Feed(account, "GTF43"); await Feed(account, "GTS42|30000");

@@ -188,7 +188,10 @@ namespace Tool_BotProtocol.Game.Combats
                 TacticModeChanged?.Invoke(value);
             }
         }
-        /// <summary>Inverse <see cref="TacticMode"/> (bouton du combat, commande <c>/tactic</c>) et rend la nouvelle valeur.</summary>
+        /// <summary>
+        /// Inverse <see cref="TacticMode"/> (bouton du combat) et rend la nouvelle valeur. La commande <c>/tactic</c> du client reste
+        /// dans <c>ChatCommands.ClientOnly</c> : le bot la signale comme commande de l'interface du client.
+        /// </summary>
         public bool ToggleTacticMode()
         {
             bool value;
@@ -314,13 +317,28 @@ namespace Tool_BotProtocol.Game.Combats
             CombatFighter occupant = OccupantLocked(target.CellID);
             // freeCell du client : ni combattant, ni case où l'on ne marche pas (mouvement ≤ 1).
             if (stats.EmptyCell && (occupant != null || (int)target.C_Types <= 1)) return "Ce sort nécessite une cellule vide.";
-            if (stats.AvecLigneDeVue && !LineOfSight.Check(account.Game.Map, origin.CellID, target.CellID, OccupantsLocked))
+            // Bonus d'objets de classe (SB, SpellsBoostsManager du client) : 289 retire la ligne de vue, 291 ajoute des lancers par cible.
+            if (stats.AvecLigneDeVue && SpellBoost(spellId, NoLineOfSightBoost) <= 0
+                && !LineOfSight.Check(account.Game.Map, origin.CellID, target.CellID, OccupantsLocked))
                 return "Cible hors de la ligne de vue.";
-            int launched;
-            if (stats.PerObjective > 0 && occupant != null && castsOnTarget.TryGetValue(TargetKey(spellId, occupant.Id), out launched) && launched >= stats.PerObjective)
+            int perTarget = stats.PerObjective + Math.Max(0, SpellBoost(spellId, PerTargetBoost)), launched;
+            if (perTarget > 0 && occupant != null && castsOnTarget.TryGetValue(TargetKey(spellId, occupant.Id), out launched) && launched >= perTarget)
                 return "Nombre de lancers de ce sort sur cette cible atteint pour ce tour.";
-            // Les bonus d'équipement sur les sorts et la limite d'invocations restent décidés par le serveur.
+            // Les autres bonus d'objets de classe et la limite d'invocations restent décidés par le serveur.
             return null;
+        }
+
+        // Effets SB du client (ACTION_BOOST_SPELL_NOLINEOFSIGHT, ACTION_BOOST_SPELL_MAXPERTARGET).
+        private const int NoLineOfSightBoost = 289, PerTargetBoost = 291;
+
+        /// <summary>Bonus <c>SB</c> d'un objet de classe sur le sort (<c>getSpellModificator</c>) ; -1 sans bonus, comme le client.</summary>
+        private int SpellBoost(short spellId, int effect)
+        {
+            SpellBook book = account.Game?.character?.SpellBook;
+            if (book == null) return -1;
+            foreach (KeyValuePair<int, int> boost in book.ModificatorsOf(spellId))
+                if (boost.Key == effect) return boost.Value;
+            return -1;
         }
 
         /// <summary>
