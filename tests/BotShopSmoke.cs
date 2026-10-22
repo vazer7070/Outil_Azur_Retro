@@ -35,7 +35,7 @@ internal static class BotShopSmoke
             if (!File.Exists(path)) path = Path.ChangeExtension(path, "exe");
             return File.Exists(path) ? Assembly.LoadFrom(path) : null;
         };
-        try { Application.EnableVisualStyles(); Run(); Console.WriteLine("OK: inventaire OAK/OAE/OQ/OR/OM/OC/OS/OT/OK hexadécimal, envois OM/OU/OD, boutique ER0/ECK0/EL/EB/ES/EV, volets Inventaire (grille et plateau) et Boutique"); }
+        try { Application.EnableVisualStyles(); Run(); Console.WriteLine("OK: inventaire OAK/OAE/OQ/OR/OM/OC/OS/OT/OK hexadécimal, envois OM/OU/OD, boutique ER0/ECK0/EL/EB/ES/EV, volets Inventaire (grille et plateau) et Boutique, BotUi.OnUi pendant la création d'un handle"); }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
     private static void Check(bool value, string message) { if (!value) throw new Exception(message); }
@@ -256,6 +256,33 @@ internal static class BotShopSmoke
                         ((Button)Get(shopPanel, "shopLeave")).PerformClick(); Check(Read(peer) == "EV", "Close button does not send EV");
                         Feed(account, "EV"); Application.DoEvents();
                         Check(drawer.Current == bagPanel && !drawer.IsOpen(shopPanel) && shopList.Items.Count == 0 && !buy.Enabled, "Shop panel stayed open after EV (or the inventory panel below it was lost)");
+
+                        // Mono : pendant la création d'un handle, IsHandleCreated est déjà vrai et le fil créateur encore nul, donc
+                        // InvokeRequired faux depuis tout fil (vu le 22 octobre 2026 : la boutique remplie sur le fil réseau pendant
+                        // l'affichage du tiroir). BotUi.OnUi doit quand même passer par le fil de l'interface, et l'exception d'un
+                        // délégué BeginInvoke, qu'avale Mono, doit arriver à Application.ThreadException.
+                        MethodInfo onUi = typeof(GameClientFullform).Assembly.GetType("Outil_Azur_complet.Bot.BotUi").GetMethod("OnUi", BindingFlags.Static | BindingFlags.NonPublic);
+                        FieldInfo creator = typeof(Control).GetField("creator_thread", BindingFlags.Instance | BindingFlags.NonPublic);
+                        object savedCreator = creator?.GetValue(form);
+                        int uiThread = Thread.CurrentThread.ManagedThreadId, ranOn = 0;
+                        try
+                        {
+                            creator?.SetValue(form, null);
+                            Task.Run(() => onUi.Invoke(null, new object[] { shopList, (Action)(() => ranOn = Thread.CurrentThread.ManagedThreadId) })).Wait();
+                            PumpUntil(() => ranOn != 0);
+                        }
+                        finally { creator?.SetValue(form, savedCreator); }
+                        Check(ranOn == uiThread, "BotUi.OnUi ran a panel update off the UI thread while the window handle had no creator thread yet");
+                        Exception reported = null;
+                        ThreadExceptionEventHandler onError = (sender, e) => reported = e.Exception;
+                        Application.ThreadException += onError;
+                        try
+                        {
+                            Task.Run(() => onUi.Invoke(null, new object[] { shopList, (Action)(() => throw new InvalidOperationException("essai de BotUi.Report")) })).Wait();
+                            PumpUntil(() => reported != null);
+                        }
+                        finally { Application.ThreadException -= onError; }
+                        Check(reported is InvalidOperationException && reported.Message == "essai de BotUi.Report", "An exception thrown by a BeginInvoke'd UI update was lost: " + reported);
                         form.Close();
                     }
                 }

@@ -678,6 +678,23 @@ internal static partial class Live
         return null;
     }
 
+    /// <summary>
+    /// Groupe de monstres posé sur un déclencheur : le personnage qui marche jusqu'à sa cellule est téléporté (<c>GA;2</c>, <c>GDM</c>)
+    /// au lieu d'engager le combat (vu le 22 octobre 2026, B renvoyé de la carte 765 sur la carte 164). Retour sur la carte du combat
+    /// par un déclencheur qui y mène, puis attente d'un groupe visible ; faux si aucun groupe n'y reparaît.
+    /// </summary>
+    private static async Task<bool> BackToGroupsAsync(LiveSession s, int fightMap)
+    {
+        if (s.MapId != fightMap)
+        {
+            Trigger reverse = Triggers.ForMap(s.MapId).Values.Where(t => t.IsTeleport && t.TargetMapId == fightMap).OrderBy(t => t.CellId).FirstOrDefault();
+            Check(reverse != null, s.Label + " téléporté sur la carte " + s.MapId + " en marchant vers le groupe, sans déclencheur vers la carte " + fightMap);
+            Journal(s.Label + " [test] téléporté sur la carte " + s.MapId + " en marchant vers le groupe : retour par la cellule " + reverse.CellId);
+            await WalkThroughTrigger(s, reverse).ConfigureAwait(false);
+        }
+        return await s.Until(() => s.Map.MonsterGroups.Count > 0, 10).ConfigureAwait(false);
+    }
+
     private static async Task<int> WalkThroughTrigger(LiveSession s, Trigger trigger)
     {
         int mark = s.ReceivedCount;
@@ -1225,10 +1242,11 @@ internal static partial class Live
         }
         if (a.Map.MonsterGroups.Count == 0) throw new SkipScenario("aucun groupe de monstres sur la carte " + home + " ni sur ses voisines (" + string.Join(", ", visited) + ")");
         var evidence = new List<string>();
-        int mark = a.ReceivedCount;
+        int mark = a.ReceivedCount, fightMap = a.MapId;
         string gjk = null;
         for (int attempt = 0; attempt < 4 && gjk == null; attempt++)
         {
+            if (!await BackToGroupsAsync(a, fightMap).ConfigureAwait(false)) break;
             MonsterGroupActor group = a.Map.MonsterGroups.OrderBy(g => g.TotalLevel).First();
             evidence.Add("carte " + a.MapId + " : groupe " + group.Id + " niveau " + group.TotalLevel + " (" + string.Join(", ", group.Members.Select(m => m.TemplateId + " niv. " + m.Level)) + ") cellule " + group.CellId);
             int before = a.ReceivedCount;
@@ -1416,11 +1434,35 @@ internal static partial class Live
         await GoHome(b).ConfigureAwait(false);
         Check(a.MapId == b.MapId, "A et B ne sont pas sur la même carte : " + a.MapId + " et " + b.MapId);
         var evidence = new List<string>();
-        // Achats en même temps chez le même marchand : l'arc pour A (Crâ, fenêtre de jeu), l'épée pour B (Iop).
-        Task<string> bow = BuyAndWieldAsync(a, BowTemplate), sword = BuyAndWieldAsync(b, SwordTemplate);
-        evidence.AddRange(await Task.WhenAll(bow, sword).ConfigureAwait(false));
+        // Achats l'un après l'autre chez le même marchand : l'arc pour A (Crâ, fenêtre de jeu), l'épée pour B (Iop). StarLoco demande
+        // l'identifiant de chaque objet créé au Login par une table non synchronisée (DataQueue.queues) : deux achats simultanés y
+        // perdaient une entrée et le fil réseau du Game attendait sans fin (vu le 22 octobre 2026, B sans EBK puis sans connexion).
+        evidence.Add(await BuyAndWieldAsync(a, BowTemplate).ConfigureAwait(false));
+        evidence.Add(await BuyAndWieldAsync(b, SwordTemplate).ConfigureAwait(false));
         // A et B ont toute leur vie (remise en état : « .vie » après la défaite du scénario f).
-        evidence.Add(await TeamMonsterFightAsync(evidence).ConfigureAwait(false));
+        var proofs = new Dictionary<int, string>();
+        var killed = new List<string>();
+        string fought = await TeamMonsterFightAsync(evidence, proofs, killed).ConfigureAwait(false);
+        int fights = 1;
+        if ((!proofs.ContainsKey(a.Id) || !proofs.ContainsKey(b.Id)) && killed.Count > 0)
+        {
+            // Personnage tué avant d'avoir frappé (vu le 22 octobre 2026 : B tué par un monstre avant son premier tour) : un second
+            // combat, vie rendue, pour l'arme qui n'a pas encore frappé.
+            evidence.Add(fought + " ; " + string.Join(", ", killed) + " tué avant d'avoir frappé : second combat");
+            foreach (LiveSession s in new[] { a, b })
+            {
+                string restored = await RestoreLifeAsync(s).ConfigureAwait(false);
+                if (restored != null) evidence.Add(restored);
+            }
+            string separated = await SeparateAsync().ConfigureAwait(false);
+            if (separated != null) evidence.Add(separated);
+            killed.Clear();
+            fought = await TeamMonsterFightAsync(evidence, proofs, killed).ConfigureAwait(false);
+            fights++;
+        }
+        Check(proofs.ContainsKey(b.Id), "B n'a pas frappé avec l'épée en " + fights + " combat(s) : " + fought);
+        Check(proofs.ContainsKey(a.Id), "A n'a pas tiré à l'arc en " + fights + " combat(s) : " + fought);
+        evidence.Add(fought + " ; " + proofs[b.Id] + " ; " + proofs[a.Id]);
         evidence.Add(await WieldAsync(a, 0).ConfigureAwait(false));
         // Après le combat, A et B peuvent partager une cellule (point de sauvegarde après la défaite, ou même déclencheur au retour) :
         // le défi se joue depuis deux cellules, ses deux fins de combat ajoutant chacun à sa cellule en même temps (voir SeparateAsync).
@@ -1500,9 +1542,10 @@ internal static partial class Live
     /// <summary>
     /// B lance un combat contre le groupe le plus faible de la carte ou d'une voisine, A le rejoint pendant le placement
     /// (<c>GA903&lt;combat&gt;;&lt;id de B&gt;</c>, comme le clic sur l'épée du combat) ; chacun se met à portée et frappe à son tour
-    /// (<see cref="CloseCombatTurnAsync"/>), puis les deux abandonnent.
+    /// (<see cref="CloseCombatTurnAsync"/>), puis les deux abandonnent. Les preuves s'ajoutent à <paramref name="proofs"/> (un
+    /// personnage qui a déjà frappé passe ses tours) ; <paramref name="killed"/> reçoit ceux tués avant d'avoir frappé (<c>GA;103</c>).
     /// </summary>
-    private static async Task<string> TeamMonsterFightAsync(List<string> evidence)
+    private static async Task<string> TeamMonsterFightAsync(List<string> evidence, Dictionary<int, string> proofs, List<string> killed)
     {
         int home = b.MapId;
         Trigger back = null;
@@ -1521,10 +1564,11 @@ internal static partial class Live
             }
         if (b.Map.MonsterGroups.Count == 0) throw new SkipScenario("aucun groupe de monstres sur la carte " + home + " ni sur ses voisines");
         Check(a.MapId == b.MapId, "A n'a pas suivi B sur la carte " + b.MapId);
-        int markA = a.ReceivedCount, markB = b.ReceivedCount;
+        int markA = a.ReceivedCount, markB = b.ReceivedCount, fightMap = b.MapId;
         string gjk = null, group = null;
         for (int attempt = 0; attempt < 4 && gjk == null; attempt++)
         {
+            if (!await BackToGroupsAsync(b, fightMap).ConfigureAwait(false)) break;
             MonsterGroupActor target = b.Map.MonsterGroups.OrderBy(g => g.TotalLevel).First();
             group = "carte " + b.MapId + ", groupe niveau " + target.TotalLevel + " (" + target.Members.Count + " monstres)";
             int before = b.ReceivedCount;
@@ -1550,7 +1594,6 @@ internal static partial class Live
         evidence.Add(await PlaceForWeaponAndReady(a, joinMark).ConfigureAwait(false));
         await PlaceAndReady(b, markB, false).ConfigureAwait(false);
         await b.Expect("GS", "GS (début du combat)", 30, markB).ConfigureAwait(false);
-        var proofs = new Dictionary<int, string>();
         int turns = 0;
         DateTime until = DateTime.UtcNow.AddSeconds(90);
         while (proofs.Count < 2 && DateTime.UtcNow < until && b.Account.Game.Fight.IsInFight)
@@ -1569,6 +1612,7 @@ internal static partial class Live
             if (proofs.Count == 2) break;
             await PassIfStillMyTurn(s).ConfigureAwait(false);
         }
+        string[] fightLog = b.ReceivedSince(markB);
         // Abandon (GQ) des deux personnages : StarLoco les compte comme morts et termine le combat. L'un après l'autre, A revenu sur
         // la carte avant l'abandon de B : leurs retours (GC1) ajoutent sinon les deux joueurs en même temps à la même cellule.
         if (a.Account.Game.Fight.IsInFight)
@@ -1588,9 +1632,11 @@ internal static partial class Live
             string returned = await ReturnAfterFightAsync(s, home, back).ConfigureAwait(false);
             if (returned != null) evidence.Add(returned);
         }
-        Check(proofs.ContainsKey(b.Id), "B n'a pas frappé avec l'épée en " + turns + " tour(s) de joueur");
-        Check(proofs.ContainsKey(a.Id), "A n'a pas tiré à l'arc en " + turns + " tour(s) de joueur");
-        return group + " : " + gjk + ", A rejoint B (" + Short(joined, 20) + "), " + turns + " tour(s) de joueur ; " + proofs[b.Id] + " ; " + proofs[a.Id] + " ; " + Short(ge, 30);
+        // Morts lues dans le combat (GA;103;<auteur>;<mort>) avant l'abandon : l'abandon (GQ) ne passe pas par GA;103.
+        foreach (LiveSession s in new[] { a, b })
+            if (!proofs.ContainsKey(s.Id) && fightLog.Any(p => p.StartsWith("GA;103;", StringComparison.Ordinal) && p.Split(';').Last() == s.Id.ToString(CultureInfo.InvariantCulture)))
+                killed.Add(s.Label);
+        return group + " : " + gjk + ", A rejoint B (" + Short(joined, 20) + "), " + turns + " tour(s) de joueur, " + Short(ge, 30);
     }
 
     /// <summary>
@@ -1791,7 +1837,9 @@ internal static partial class Live
         Check(await s.Until(() => !fight.IsActionPending || !fight.IsInFight, 5).ConfigureAwait(false), s.Label + " : l'attaque reste en attente dans le bot");
         if (!fight.IsInFight || s.ReceivedSince(mark).Any(p => p.StartsWith("GE"))) return proof + ", " + paid + ", combat terminé par ce coup";
         string gaf = s.ReceivedSince(mark).FirstOrDefault(p => p.StartsWith("GAF"));
-        Check(gaf != null && s.SentSince(sentMark).Any(p => p.StartsWith("GKK")), s.Label + " : GAF du corps à corps sans GKK du bot (" + gaf + ")");
+        // Le bot libère l'attente en traitant GAF puis envoie GKK : le paquet envoyé peut être noté une milliseconde plus tard.
+        Check(gaf != null && await s.Until(() => s.SentSince(sentMark).Any(p => p.StartsWith("GKK")), 5).ConfigureAwait(false),
+            s.Label + " : GAF du corps à corps sans GKK du bot (" + gaf + ")");
         Check(await s.Until(() => fight.ActionPoints == paStart - cost, 5).ConfigureAwait(false), s.Label + " : PA du bot " + fight.ActionPoints + ", attendu " + (paStart - cost));
         return proof + ", " + paid + ", " + gaf + " → GKK, PA " + paStart + "→" + fight.ActionPoints;
     }

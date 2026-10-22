@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Reflection;
 using System.Windows.Forms;
 
 namespace Outil_Azur_complet.Bot
@@ -138,18 +139,42 @@ namespace Outil_Azur_complet.Bot
         }
         /// <summary>
         /// Exécute <paramref name="action"/> sur le fil de l'interface. Un contrôle créé masqué (ligne de temps, menu de placement,
-        /// options de combat) n'a pas encore de handle : le fil se juge alors sur le premier parent qui en a un. Sinon l'événement
+        /// options de combat) n'a pas encore de handle : le fil se juge sur le plus haut parent qui en a un. Sinon l'événement
         /// du fil réseau était perdu (Windows) ou exécuté sur ce fil (Mono, où le handle naissait sur un fil sans boucle de
         /// messages et le contrôle ne se dessinait plus).
         /// </summary>
         internal static void OnUi(Control control, Action action)
         {
             if (control.IsDisposed || control.Disposing) return;
-            Control target = control;
-            while (target != null && !target.IsHandleCreated) target = target.Parent;
-            if (target == null || !target.InvokeRequired) { action(); return; }
-            try { target.BeginInvoke((Action)(() => { if (!control.IsDisposed && !control.Disposing) action(); })); }
+            // La fenêtre (plus haut contrôle qui a un handle) a fini de créer le sien bien avant que ses volets ne s'affichent.
+            Control target = null;
+            for (Control parent = control; parent != null; parent = parent.Parent) if (parent.IsHandleCreated) target = parent;
+            if (target == null || !InvokeNeeded(target)) { action(); return; }
+            try { target.BeginInvoke((Action)(() => { if (!control.IsDisposed && !control.Disposing) Report(action); })); }
             catch (InvalidOperationException) { }
+        }
+
+        /// <summary>Champ privé de Mono : fil qui a créé le handle (absent sous .NET, qui lit le fil de la fenêtre native).</summary>
+        private static readonly FieldInfo MonoCreatorThread = typeof(Control).GetField("creator_thread", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        /// <summary>
+        /// <see cref="Control.InvokeRequired"/>, plus le cas Mono d'un handle en cours de création : <c>IsHandleCreated</c> est
+        /// déjà vrai mais le fil créateur pas encore noté, et <c>InvokeRequired</c> répond faux depuis n'importe quel fil (vu le
+        /// 22 octobre 2026 : le tiroir s'affichait pour la boutique pendant que le fil réseau la remplissait). <c>BeginInvoke</c>
+        /// vise alors la file du fil qui crée le handle.
+        /// </summary>
+        internal static bool InvokeNeeded(Control target) =>
+            target.InvokeRequired || (MonoCreatorThread != null && MonoCreatorThread.GetValue(target) == null);
+
+        /// <summary>
+        /// Mono avale l'exception d'un délégué passé à <c>BeginInvoke</c> (vérifié le 22 octobre 2026) : un rafraîchissement
+        /// interrompu entre <c>BeginUpdate</c> et <c>EndUpdate</c> laissait la liste figée sans trace, puis son dessin échouait.
+        /// L'exception est remise à <see cref="Application.ThreadException"/>, comme sous .NET.
+        /// </summary>
+        internal static void Report(Action action)
+        {
+            try { action(); }
+            catch (Exception error) { Application.OnThreadException(error); }
         }
         internal static void Append(RichTextBox box, string message, string color = null)
         {

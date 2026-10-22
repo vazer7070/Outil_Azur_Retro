@@ -118,22 +118,31 @@ namespace Outil_Azur_complet.Bot.Panels
             if (Game == null || shopList == null) return;
             NpcShop shop = Game.Interactions.Shop;
             int selectedArticle = shopList.SelectedItems.Count == 0 ? -1 : (int)shopList.SelectedItems[0].Tag;
-            shopList.BeginUpdate(); shopList.Items.Clear();
-            foreach (ShopArticle article in shop.Articles)
+            // EndUpdate en finally : une liste restée en BeginUpdate ne recalcule plus ses lignes et son dessin échoue sous Mono.
+            shopList.BeginUpdate();
+            try
             {
-                var row = shopList.Items.Add(article.Name);
-                row.SubItems.Add(article.Price.HasValue ? article.Price.Value + " kamas" : "prix non transmis"); row.Tag = article.TemplateId;
-                if (article.TemplateId == selectedArticle) row.Selected = true;
+                shopList.Items.Clear();
+                foreach (ShopArticle article in shop.Articles)
+                {
+                    var row = shopList.Items.Add(article.Name);
+                    row.SubItems.Add(article.Price.HasValue ? article.Price.Value + " kamas" : "prix non transmis"); row.Tag = article.TemplateId;
+                    if (article.TemplateId == selectedArticle) row.Selected = true;
+                }
             }
-            shopList.EndUpdate();
+            finally { shopList.EndUpdate(); }
             uint selectedSale = shopInventory.SelectedItems.Count == 0 ? 0u : (uint)shopInventory.SelectedItems[0].Tag;
-            shopInventory.BeginUpdate(); shopInventory.Items.Clear();
-            foreach (InventoryObjects item in Game.character.Inventory.Objets.Where(entry => !entry.IsEquipped()).OrderBy(entry => entry.Name, StringComparer.CurrentCultureIgnoreCase))
+            shopInventory.BeginUpdate();
+            try
             {
-                var row = shopInventory.Items.Add(item.Name); row.SubItems.Add(item.Qua.ToString()); row.Tag = item.Inventory_ID;
-                if (item.Inventory_ID == selectedSale) row.Selected = true;
+                shopInventory.Items.Clear();
+                foreach (InventoryObjects item in Game.character.Inventory.Objets.Where(entry => !entry.IsEquipped()).OrderBy(entry => entry.Name, StringComparer.CurrentCultureIgnoreCase))
+                {
+                    var row = shopInventory.Items.Add(item.Name); row.SubItems.Add(item.Qua.ToString()); row.Tag = item.Inventory_ID;
+                    if (item.Inventory_ID == selectedSale) row.Selected = true;
+                }
             }
-            shopInventory.EndUpdate();
+            finally { shopInventory.EndUpdate(); }
             shopStatus.Text = shop.IsOpen ? "Boutique de " + shop.NpcName + " · " + shop.Articles.Count + " article(s). " + shop.LastMessage
                 : NoShopText + (shop.LastMessage.Length > 0 ? " " + shop.LastMessage : string.Empty);
             UpdateButtons();
