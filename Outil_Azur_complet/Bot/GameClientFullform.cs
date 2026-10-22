@@ -58,6 +58,7 @@ namespace Outil_Azur_complet.Bot
         private TimelineControl timeline;
         private FightOptionButtons fightOptions;
         private ChallengeMenu challengeMenu;
+        private ChallengePanel challengePanel;
         private OptionsForm optionsWindow;
         private string actionFeedback;
         private DateTime actionFeedbackUntil;
@@ -83,6 +84,8 @@ namespace Outil_Azur_complet.Bot
         public FightOptionButtons FightOptions => fightOptions;
         /// <summary>Menu de placement (Prêt / Annuler) en bas de la carte ; <c>null</c> avant la première carte.</summary>
         public ChallengeMenu PlacementMenu => challengeMenu;
+        /// <summary>Colonne des défis du combat (lot X9, <c>Gd</c>).</summary>
+        public ChallengePanel Challenges => challengePanel;
         /// <summary>Carte de la fenêtre ; <c>null</c> avant la première carte.</summary>
         public MapControl Map => mapControl;
         /// <summary>Hauteur du bandeau bas quand le chat est réduit.</summary>
@@ -511,17 +514,18 @@ namespace Outil_Azur_complet.Bot
             timeline = new TimelineControl();
             fightOptions = new FightOptionButtons();
             challengeMenu = new ChallengeMenu();
+            challengePanel = new ChallengePanel(); challengePanel.Feedback += ShowActionFeedback; mapArea.Controls.Add(challengePanel); challengePanel.BringToFront();
             fightOptions.Feedback += ShowActionFeedback; challengeMenu.Feedback += ShowActionFeedback;
             fightOptions.FlagRequested += OnFlagRequested;
             mapArea.Controls.Add(timeline); mapArea.Controls.Add(fightOptions); mapArea.Controls.Add(challengeMenu);
             timeline.BringToFront(); fightOptions.BringToFront(); challengeMenu.BringToFront();
             fightOptions.Place();
             mapArea.Resize += LayoutFightControls;
-            timeline.Bind(ActualCompte); fightOptions.Bind(ActualCompte); challengeMenu.Bind(ActualCompte);
+            timeline.Bind(ActualCompte); fightOptions.Bind(ActualCompte); challengeMenu.Bind(ActualCompte); challengePanel.Bind(ActualCompte);
             var fight = ActualCompte.Game?.Fight;
             if (fight != null) fight.FlagReceived += OnFlagReceived;
         }
-        private void LayoutFightControls(object sender, EventArgs e) { timeline?.Center(); challengeMenu?.Place(); }
+        private void LayoutFightControls(object sender, EventArgs e) { timeline?.Center(); challengeMenu?.Place(); challengePanel?.Place(); }
         private void ToggleFullScreen()
         {
             if (WindowState == FormWindowState.Maximized && FormBorderStyle == FormBorderStyle.None) {
@@ -659,6 +663,7 @@ namespace Outil_Azur_complet.Bot
             if (timeline != null) { mapArea.Resize -= LayoutFightControls; timeline.Release(); }
             if (fightOptions != null) { fightOptions.Feedback -= ShowActionFeedback; fightOptions.FlagRequested -= OnFlagRequested; fightOptions.Release(); }
             if (challengeMenu != null) { challengeMenu.Feedback -= ShowActionFeedback; challengeMenu.Release(); }
+            if (challengePanel != null) { challengePanel.Feedback -= ShowActionFeedback; challengePanel.Release(); }
             if (banner != null)
             {
                 banner.Feedback -= ShowActionFeedback; banner.Shortcuts.SpellClicked -= SelectQuickSpell; banner.Shortcuts.SpellDetailsRequested -= OpenSpellDetails;
