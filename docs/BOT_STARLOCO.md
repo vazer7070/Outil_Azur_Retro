@@ -1239,4 +1239,6 @@ Un premier passage du même jour n'avait tiré aucun défi à cible en trois com
 
 Un troisième passage a eu besoin de cinq combats. Les trois premiers ont donné `GdOK8`, `GdOK42` et `GdOK38` en défaite. Au quatrième, A abandonne au premier tour d'un monstre : seul de son équipe, il reçoit quand même `GdOK43` avant `GE`. Le cinquième tire `Gd32;1;-5;52;0;52;0;` (« Elitiste », cible « Crabe (Niv. 6) ») : `Gf-5|278` arrive avant `Gd`, `Gdi32` reçoit `Gf-5|278` (drapeau), puis `GdKO32` arrive avec `Im0188` quand A lance le sort 161 sur un autre monstre (`GA300161;413`, monstre -1).
 
+Un quatrième passage a eu besoin de sept combats : `GdOK` pour les défis 18, 21, 24 et 34, trois abandons, puis `Gdi25` → `Gf-1|262` et `GdOK25`. Aucun échec n'a été tiré cette fois. Le scénario passe quand même : il rapporte ce qu'il a vu, puisque le tirage décide.
+
 Les captures `25-reel-x9-defi-cible` et `26-reel-x9-resultat` vont dans le dossier que donne `AZUR_STARLOCO_CAPTURES`. Elles ne sont pas versionnées, et ces passages, lancés sans cette variable, n'en ont pas pris.
