@@ -88,6 +88,29 @@ internal static class BotPartySmoke
     private static IEnumerable<string> Texts(ToolStripItemCollection items) => items.Cast<ToolStripItem>().Select(item => item is ToolStripSeparator ? "-" : item.Text);
     private static ToolStripItem Item(ContextMenuStrip menu, string text) => menu.Items.Cast<ToolStripItem>().First(item => item.Text == text);
 
+    // Lot X14 : bande 10_staticR uniforme (50, 60, 70) de 24 × 32, masque entier à l'index 1 (rouge 255 = part, vert 1 = index),
+    // index 1 rattaché à la zone 2 de référence c8c8c8 : la couleur 2 blanche d'un membre donne (105, 115, 125).
+    private static readonly Color ColumnBase = Color.FromArgb(255, 50, 60, 70), ColumnRecolored = Color.FromArgb(255, 105, 115, 125), ColumnOlive = Color.FromArgb(255, 106, 118, 67);
+    private static string ColumnSprites(string folder)
+    {
+        string sprites = Path.Combine(folder, "sprites-colonne"); Directory.CreateDirectory(sprites);
+        foreach (var file in new[] { new { Name = "10_staticR.png", Color = ColumnBase }, new { Name = "10_staticR.couleurs.png", Color = Color.FromArgb(255, 255, 1, 0) } })
+            using (var image = new Bitmap(24, 32, PixelFormat.Format32bppArgb))
+            {
+                using (var graphics = Graphics.FromImage(image)) graphics.Clear(file.Color);
+                image.Save(Path.Combine(sprites, file.Name), ImageFormat.Png);
+            }
+        File.WriteAllLines(Path.Combine(sprites, "ancres.tsv"), new[] { "gfx\tanim\txmin\tymin\tlargeur\thauteur\timages\tips\tfin", "10\tstaticR\t-12\t-32\t24\t32\t1\t40\tarret" });
+        File.WriteAllLines(Path.Combine(sprites, "couleurs.tsv"), new[] { "gfx\tanim\tindex\tzone\tcouleur", "10\tstaticR\t1\t2\tc8c8c8" });
+        return sprites;
+    }
+    private static Bitmap DrawColumn(PartyColumn column)
+    {
+        var image = new Bitmap(column.Width, column.Height);
+        column.DrawToBitmap(image, new Rectangle(Point.Empty, column.Size));
+        return image;
+    }
+
     // Membres synthétiques au format de Player.parseToPM : id;nom;gfx;c1;c2;c3;accessoires;pdv,pdvMax;niveau;initiative;prospection;côté.
     private const string Friend = "77;Ami fictif;10;-1;-1;-1;;300,400;50;120;100;0";
     private const string Self = "42;Personnage de test;10;-1;16777215;-1;,,,,;150,200;25;150;110;0";
@@ -179,6 +202,12 @@ internal static class BotPartySmoke
                     Feed(account, "IC|"); Feed(account, "PF-");
                     Check(group.FollowedId == null && party.Compass == null && compass.Last() == null, "IC|/PF- did not clear the follow");
                     Feed(account, "PFE"); Check(party.LastMessage.Length > 0 && group.FollowedId == null, "PFE was not reported");
+                    // Lot X14 (m-37) : comme Party.removeMember du client, le départ du membre suivi efface la boussole (updateCompass sur la
+                    // cible en cours) ; le client ne garde aucune cible précédente à remettre.
+                    Feed(account, "IC3|-5"); Feed(account, "PF+77"); Feed(account, "PM-77");
+                    Check(group.FollowedId == null && party.Compass == null && compass.Last() == null && group.Count == 1, "Removing the followed member did not clear the compass");
+                    Feed(account, "PM+" + Friend);
+                    Check(group.Count == 2 && group.LeaderId == 77 && party.Compass == null, "The friend did not come back");
 
                     // Actions de chef refusées localement tant que le personnage n'est pas chef.
                     Check(!Sent(party.KickAsync(77)) && !Sent(party.FollowAllAsync(77)) && !Sent(party.StopFollowAllAsync(77)), "Leader actions were accepted for a member");
@@ -325,6 +354,28 @@ internal static class BotPartySmoke
                             Check(Near(image.GetPixel(friendTile.X + friendTile.Width / 2, friendTile.Y - 1), Color.FromArgb(250, 200, 0)), "Leader crown is not drawn");
                         }
 
+                        // Lot X14 : colonne du groupe (UI_Party) posée sur la carte, visible de PCK à PV quel que soit le volet, à gauche du
+                        // volet ouvert (bord droit de la carte sinon) ; clic sur un membre → son menu ; bouton Afficher / Cacher.
+                        PartyColumn column = form.PartyColumn;
+                        PumpUntil(() => column.Visible && column.Members.Count == 2);
+                        Check(column.Parent != null && column.Width == PartyColumn.ColumnWidth && column.LeaderId == 77 && column.Members[0].Id == 42 && column.Members[1].Id == 77,
+                            "The party column does not show the party");
+                        Check(column.Top == PartyColumn.StageTop && column.Right == drawer.Left - 4, "The party column is not left of the open panel: " + column.Bounds + " / " + drawer.Bounds);
+                        drawer.CloseAll(); Application.DoEvents();
+                        Check(column.Visible && column.Right == column.Parent.ClientSize.Width - 6, "The party column is not on the right edge of the map: " + column.Bounds);
+                        drawer.Show(panel); Application.DoEvents();
+                        Check(column.Right == drawer.Left - 4, "The party column did not move back left of the panel");
+                        Check(column.MemberAt(new Point(10, PartyColumn.TileBounds(1).Y + 5))?.Id == 77 && column.MemberAt(new Point(10, 5)) == null, "Column hit test is wrong");
+                        Check(column.ClickMember(77) && panel.LastMenu != null && Texts(panel.LastMenu.Items).First() == "Ami fictif" && Texts(panel.LastMenu.Items).Contains("Suivre (test)"),
+                            "Clicking a member of the column does not open its menu");
+                        panel.LastMenu.Close(); Application.DoEvents();
+                        int fullHeight = column.Height;
+                        column.ToggleCollapsed();
+                        Check(column.Collapsed && column.Height < fullHeight && column.MemberAt(new Point(10, PartyColumn.TileBounds(0).Y + 5)) == null && !column.ClickMember(77),
+                            "The show / hide button did not fold the members");
+                        column.ToggleCollapsed(); Check(!column.Collapsed && column.Height == fullHeight, "The members did not come back");
+                        Check(column.InfoText.Contains("75") && column.InfoText.Contains("210"), "Column information (total level, prospecting) is wrong: " + column.InfoText);
+
                         // Menu d'un autre membre (non chef) : Groupe, Localiser, Suivre ; Suivre envoie PF+<id>.
                         ContextMenuStrip menu = panel.ShowMemberMenu(77);
                         Check(menu != null && string.Join("|", Texts(menu.Items)).StartsWith("Ami fictif|Groupe fictif|") && Texts(menu.Items).Contains("Suivre (test)")
@@ -333,6 +384,34 @@ internal static class BotPartySmoke
                         menu.Close(); Application.DoEvents();
                         FeedFromNetwork(account, "IC7|-2"); FeedFromNetwork(account, "PF+77");
                         PumpUntil(() => ((Label)Get(panel, "compassLabel")).Text.Contains("[7,-2]") && list.FollowedId == 77);
+                        // Lot X14 : cases de la colonne au pixel, sprites synthétiques d'un dossier temporaire. Le personnage (couleur 2 blanche)
+                        // a son staticR recoloré, l'ami sans couleur garde la bande d'origine ; jauge 150/200 depuis le bas ; couronne du chef (77)
+                        // au-dessus de sa case, flèche du membre suivi (77) au-dessous.
+                        using (var host = new Form { ShowInTaskbar = false, Opacity = 0, FormBorderStyle = FormBorderStyle.None, StartPosition = FormStartPosition.Manual,
+                            Location = new Point(-4000, -4000), Size = new Size(80, 320) })
+                        using (var probe = new PartyColumn(ColumnSprites(folder)))
+                        {
+                            host.Controls.Add(probe); host.Show(); probe.Bind(account); Application.DoEvents();
+                            Check(probe.Visible && probe.Members.Count == 2 && probe.FollowedId == 77 && probe.LeaderId == 77, "The standalone column does not show the party");
+                            for (int pass = 0; pass < 4; pass++) { using (DrawColumn(probe)) { } Check(probe.WaitForSprites(10000), "Column sprites did not load"); }
+                            using (Bitmap image = DrawColumn(probe))
+                            {
+                                image.Save(Path.Combine(TestPaths.Work, "bot-party-column.png"), ImageFormat.Png);
+                                Rectangle selfTile = PartyColumn.TileBounds(0), friendTile = PartyColumn.TileBounds(1);
+                                Rectangle selfSprite = PartyColumn.SpriteArea(selfTile), friendSprite = PartyColumn.SpriteArea(friendTile), health = PartyColumn.HealthArea(selfTile);
+                                Color selfPixel = image.GetPixel(selfSprite.X + 9, selfSprite.Y + 10), friendPixel = image.GetPixel(friendSprite.X + 9, friendSprite.Y + 10);
+                                Check(Near(selfPixel, ColumnRecolored), "The member sprite is not recoloured by its PM colours: " + selfPixel);
+                                Check(Near(friendPixel, ColumnBase), "A member without colours does not keep the original strip: " + friendPixel);
+                                Check(Near(image.GetPixel(health.X + 1, health.Bottom - 2), PartyColumn.HealthColor) && !Near(image.GetPixel(health.X + 1, health.Y + 1), PartyColumn.HealthColor),
+                                    "The life gauge does not follow 150/200 from the bottom");
+                                Check(Near(image.GetPixel(friendTile.X + 13, friendTile.Y - 2), Color.FromArgb(250, 200, 0)) && !Near(image.GetPixel(selfTile.X + 13, selfTile.Y - 2), Color.FromArgb(250, 200, 0)),
+                                    "The leader crown is not drawn above the leader only");
+                                Check(Near(image.GetPixel(friendTile.X + 13, friendTile.Bottom + 3), ColumnOlive) || PartyArtworks.Ui(PartyArtworks.Follow) != null,
+                                    "The follow arrow is not drawn under the followed member");
+                                Check(!Near(image.GetPixel(selfTile.X + 13, selfTile.Bottom + 3), ColumnOlive), "The follow arrow is drawn under a member not followed");
+                            }
+                        }
+
                         // Boussole du volet : flèche à atan2(Δy, Δx) depuis la carte actuelle [0,0], comme ank.gapi.controls.Compass.
                         var dial = (PartyCompass)Get(panel, "compass");
                         Check(dial.Target == new Point(7, -2) && dial.Current == Point.Empty && dial.Angle.HasValue
@@ -385,6 +464,7 @@ internal static class BotPartySmoke
 
                         // PV : le volet se ferme comme le bandeau du client ; le menu du personnage n'a plus d'entrée de groupe.
                         FeedFromNetwork(account, "PV"); PumpUntil(() => !drawer.IsOpen(panel));
+                        PumpUntil(() => !column.Visible); Check(column.Members.Count == 0, "The party column survived PV");
                         Check(((Label)Get(panel, "heading")).Text == "Aucun groupe" && list.Members.Count == 0, "Party panel was not cleared by PV");
                         Check(!provider.Entries(account.Game.character, account.Game).Any(), "Own menu still offers the party panel");
                         form.Close();

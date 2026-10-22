@@ -145,6 +145,9 @@ try {
     # Lot X9 (défis Gd/GdOK/GdKO, colonne et détail de la fenêtre de jeu, Gdi → Gf en drapeau, chat, bonus du résultat) : couvert par
     # BotFightProtocolSmoke, BotFightUiSmoke et le scénario x9 de BotStarLocoLiveSmoke (jusqu'à dix combats contre des monstres, le tirage
     # des défis étant aléatoire) ; AZUR_STARLOCO_SCENARIOS=x9 ne joue que celui-là après la connexion.
+    # Lot X14 (gh/gf des onglets Maisons et Enclos de la guilde, colonne du groupe UI_Party, Entrée → zone de saisie du chat, Échap → carte) :
+    # couvert par BotGuildSmoke, BotChatUiSmoke, BotPartySmoke et le scénario x14 de BotStarLocoLiveSmoke (guilde créée au temple, groupe de
+    # deux comptes inventés) ; AZUR_STARLOCO_SCENARIOS=x14 ne joue que celui-là après la connexion.
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'

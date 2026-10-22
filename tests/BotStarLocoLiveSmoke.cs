@@ -503,6 +503,7 @@ internal static partial class Live
         await Scenario("x13. objet vivant de la base nourri, apparence changée et dissocié par le volet de l'inventaire ; pain donné à l'autre joueur par la visée de la carte (lot X13)", 150, LivingItemAsync).ConfigureAwait(false);
         await Scenario("x33. Flèche Magique contre A : mode tactique au placement sans paquet, cible derrière un mur exclue et refusée, cible visible lancée (GA;300), retour au décor normal (lot X33)", 180, TacticSightAsync).ConfigureAwait(false);
         await Scenario("x9. défis d'un combat contre des monstres : Gd lus et dans la colonne de la fenêtre, « Voir la cible » → Gdi → Gf en drapeau, GdOK / GdKO dans le chat, bonus de challenges du résultat (lot X9)", 600, ChallengeFightsAsync).ConfigureAwait(false);
+        await Scenario("x14. temple des guildes : Entrée → focus du chat puis ligne envoyée, Échap → carte ; plot → gn, « Créer » → gCK, onglets Maisons (gIH+) et Enclos (gIF0) sans « Rejoindre », gh / gf refusés sur place, départ gKK ; groupe : colonne, portraits, menu, suivi IC / PF+, PV → boussole effacée (lot X14)", 150, GuildColumnChatAsync).ConfigureAwait(false);
         // Toujours en dernier : arrête puis redémarre le serveur de jeu (A et B restent déconnectés).
         await Scenario("x3c. serveur de jeu arrêté en pleine partie : boîte de perte de connexion, « Oui » reconnecte A (lot X3)", 360, GameStopAsync).ConfigureAwait(false);
     }
@@ -5988,5 +5989,336 @@ internal static partial class Live
         string returned = await ReturnAfterFightAsync(a, home, back).ConfigureAwait(false);
         if (returned != null) evidence.Add(returned);
         return report;
+// Scénario x14 (lot X14) : Entrée du chat, guilde créée au temple (onglets Maisons et Enclos), colonne du groupe et boussole.
+internal static partial class Live
+{
+    /// <summary>
+    /// Temple des guildes de StarLoco : sur la carte 2196, marcher sur le plot rouge des émotes (objet interactif 1324,
+    /// <c>InteractiveObject.getActionIO</c>) ouvre le panneau de création (<c>gn</c>) et <c>createGuild</c> y retire une Guildalogemme
+    /// (1575). La cellule 328 est l'arrivée du passage depuis la carte 2195 (<c>scripted_cells</c>).
+    /// </summary>
+    private const int GuildTempleMap = 2196, GuildTempleCell = 328, GuildPlotObject = 1324, GuildalogemmeTemplate = 1575;
+
+    /// <summary>Nom de guilde accepté par <c>createGuild</c> : lettres seulement, sans « m », « f » ni « j » (ni « mj », « modo », « admin », « fuck »).</summary>
+    private static string NewGuildName()
+    {
+        const string letters = "bcdeghiklnoprstuvwxyz";
+        var name = new StringBuilder("Essai");
+        for (int i = 0; i < 9; i++) name.Append(letters[random.Next(letters.Length)]);
+        return name.ToString();
+    }
+
+    /// <summary>Contrôle nommé de la fenêtre (fil d'interface).</summary>
+    private static Control NamedControl(Control root, string name) => AllControls(root).FirstOrDefault(control => control.Name == name);
+
+    /// <summary>Table <c>guild_members</c> du serveur (base du jeu de StarLoco), ou <c>null</c>.</summary>
+    private static string GuildMembersTable(MySql.Data.MySqlClient.MySqlConnection db)
+    {
+        object found = Scalar(db, "SELECT table_schema FROM information_schema.tables WHERE table_name = 'guild_members' LIMIT 1");
+        return found == null || found is DBNull ? null : Convert.ToString(found, CultureInfo.InvariantCulture) + ".guild_members";
+    }
+
+    /// <summary>
+    /// x14. Deux comptes inventés au temple des guildes (carte 2196) ; le meneur a sa fenêtre de jeu et une Guildalogemme écrite dans
+    /// la base. Chat (V-29) : hors saisie, Entrée donne le focus à la zone de saisie sans paquet ; dans la zone, la fenêtre laisse Entrée
+    /// à <c>ChatInput</c>, qui envoie la ligne (<c>cMK|</c> chez l'autre) ; Échap rend le focus à la carte. Guilde (V-27) : la marche sur le
+    /// plot rouge → <c>gn</c>, le volet montre le panneau de création, « Créer » → <c>gC…</c> → <c>gCK</c>, Guildalogemme retirée ; onglet
+    /// Maisons → <c>gIH</c> → <c>gIH+</c> sans maison ni « Rejoindre », onglet Enclos → <c>gIF</c> → <c>gIF0</c> sans enclos, « Rejoindre »
+    /// grisé ; <c>gh</c> et <c>gf</c> hors liste refusés sur place (aucun paquet) ; départ → <c>gKK</c>, guilde supprimée de la base. La
+    /// téléportation elle-même n'est pas rejouable ici (voir docs/BOT_STARLOCO.md, lot X14). Groupe (V-28, m-37) : invitation acceptée →
+    /// colonne de deux membres posée sur la carte, portraits <c>staticR</c> chargés, clic → menu du membre ; suivi → <c>IC</c> et
+    /// <c>PF+</c>, boussole et flèche ; départ de l'autre → <c>PV</c>, boussole effacée, colonne cachée. Comptes supprimés à la fin.
+    /// </summary>
+    private static async Task<string> GuildColumnChatAsync()
+    {
+        if (!Map.AllBotMaps.ContainsKey(GuildTempleMap)) throw new SkipScenario("carte " + GuildTempleMap + " (temple des guildes) absente des cartes du bot");
+        Cell mateCell = LivingTargetCell(GuildTempleMap, GuildTempleCell);
+        if (mateCell == null) throw new SkipScenario("aucune cellule praticable à 2 à 4 cases de la cellule " + GuildTempleCell + " sur la carte " + GuildTempleMap);
+        using (MySql.Data.MySqlClient.MySqlConnection db = OpenAccountsDatabase(out string schema))
+        {
+            var leader = new PetOwner { Label = "Gui" }; var mate = new PetOwner { Label = "Grp" };
+            var evidence = new List<string>();
+            GameClientFullform screen = null;
+            string guildName = null;
+            bool guildLeft = false;
+            string guildTable = schema + ".`world.entity.guilds`", membersTable = GuildMembersTable(db);
+            EventHandler<InvitationEventArgs> keep = (sender, e) => e.Handled = true;
+            try
+            {
+                int gemId = 630000000 + random.Next(1, 100000) * 10 + 7;
+                leader.Seen.Add((uint)gemId);
+                leader.Character = Invent(db, schema, a.Id, GuildTempleMap, GuildTempleCell, 10000, leader.Created);
+                Sql(db, "INSERT INTO " + schema + ".`world.entity.objects` (id, template, quantity, position, stats, puit) VALUES (@id, @template, 1, -1, '', 0)",
+                    "@id", gemId, "@template", GuildalogemmeTemplate);
+                Sql(db, "UPDATE " + schema + ".players SET objets = @objets WHERE id = @id AND account = @account",
+                    "@objets", gemId.ToString(CultureInfo.InvariantCulture) + "|", "@id", leader.Character.Id, "@account", leader.Character.Guid);
+                mate.Character = Invent(db, schema, b.Id, GuildTempleMap, mateCell.CellID, 10000, mate.Created);
+                Journal("[test] " + leader.Character.Name + " : Guildalogemme " + gemId + " ; " + mate.Character.Name + " en " + mateCell.CellID + " (carte " + GuildTempleMap + ")");
+
+                // Entrées en jeu l'une après l'autre ; le meneur a sa fenêtre, l'autre compte garde l'invitation de groupe pour le test (d1).
+                LiveSession g = leader.Session = new LiveSession(leader.Label, leader.Character.Login, leader.Character.Password);
+                evidence.Add(await EnterExistingAsync(g, leader.Character.Id, leader.Character.Name, GuildTempleMap, s =>
+                    s.Account.Game.character.Player_Selection += () => OnUi(() =>
+                    {
+                        if (screen != null) return;
+                        screen = new GameClientFullform(s.Account) { StartPosition = FormStartPosition.Manual, Location = new Point(60, 60), ShowInTaskbar = false };
+                        screen.Show();
+                    })).ConfigureAwait(false));
+                Check(await g.Until(() => leader.Bag.GetByInventoryId((uint)gemId) != null, 10).ConfigureAwait(false), "Guildalogemme absente de l'inventaire lu par le bot (ASK)");
+                leader.Remember();
+                LiveSession m = mate.Session = new LiveSession(mate.Label, mate.Character.Login, mate.Character.Password);
+                evidence.Add(await EnterExistingAsync(m, mate.Character.Id, mate.Character.Name, GuildTempleMap, s => s.Account.Game.Session.PartyInviteReceived += keep).ConfigureAwait(false));
+                mate.Remember();
+                Check(await g.Until(() => g.Map.GetActor(m.Id) != null, 10).ConfigureAwait(false) && await m.Until(() => m.Map.GetActor(g.Id) != null, 10).ConfigureAwait(false),
+                    "Les deux personnages ne se voient pas sur la carte " + GuildTempleMap);
+                Check(await WaitOnUi(() => screen != null && screen.IsHandleCreated && screen.Visible ? screen : null, 20).ConfigureAwait(false) != null, "La fenêtre de jeu du meneur ne s'est pas ouverte");
+
+                // 1. Entrée du chat (V-29).
+                Outil_Azur_complet.Bot.Controls.Chat.ChatPanel chat = await OnUi(() => screen.Chat).ConfigureAwait(false);
+                string line = "Entree x14 " + DateTime.UtcNow.ToString("HHmmss", CultureInfo.InvariantCulture);
+                int sent = g.SentCount, mMark = m.ReceivedCount;
+                bool[] focus = await OnUi(() =>
+                {
+                    screen.ReturnFocusToMap();
+                    bool before = screen.ChatHasFocus, taken = screen.ProcessShortcut(Keys.Enter);
+                    return new[] { before, taken, screen.ChatHasFocus };
+                }).ConfigureAwait(false);
+                Check(!focus[0] && focus[1] && focus[2], "Entrée hors saisie n'a pas donné le focus à la zone de saisie (avant/pris/après : " + string.Join("/", focus) + ")");
+                await Task.Delay(300).ConfigureAwait(false);
+                Check(g.SentSince(sent).Length == 0, "Entrée hors saisie a envoyé : " + string.Join(" ", g.SentSince(sent)));
+                bool[] typed = await OnUi(() =>
+                {
+                    chat.Input.SetText(line);
+                    bool window = screen.ProcessShortcut(Keys.Enter), input = !window && chat.Input.HandleKey(Keys.Enter);
+                    return new[] { window, input, chat.Input.TextLength == 0, screen.ChatHasFocus };
+                }).ConfigureAwait(false);
+                Check(!typed[0] && typed[1] && typed[2] && typed[3], "Entrée dans la zone de saisie (fenêtre/ChatInput/saisie vidée/focus gardé) : " + string.Join("/", typed));
+                string bm = null;
+                Check(await g.Until(() => (bm = g.SentSince(sent).FirstOrDefault(p => p.StartsWith("BM", StringComparison.Ordinal) && p.Contains(line))) != null, 5).ConfigureAwait(false),
+                    "Entrée dans la zone de saisie n'a pas envoyé la ligne : " + string.Join(" ", g.SentSince(sent)));
+                string heard = await m.Expect(p => p.StartsWith("cMK|", StringComparison.Ordinal) && p.Contains("|" + g.Id + "|") && p.Contains(line), "cMK| de la ligne envoyée par Entrée", 10, mMark).ConfigureAwait(false);
+                bool[] escape = await OnUi(() =>
+                {
+                    object panelBefore = screen.Panels.Current;
+                    bool taken = screen.ProcessShortcut(Keys.Escape);
+                    return new[] { taken, screen.ChatHasFocus, ReferenceEquals(panelBefore, screen.Panels.Current) };
+                }).ConfigureAwait(false);
+                Check(escape[0] && !escape[1] && escape[2], "Échap dans la zone de saisie (pris/focus gardé/volet inchangé) : " + string.Join("/", escape));
+                evidence.Add("Entrée hors saisie → focus, aucun paquet ; Entrée dans la zone → " + Short(bm, 40) + " → " + Short(heard, 60) + " ; Échap → focus à la carte");
+
+                // 2. Guilde (V-27) : création au temple, onglets Maisons et Enclos d'une guilde neuve.
+                var guild = g.Account.Game.Interactions.Guild;
+                Tool_BotProtocol.Game.Maps.Interactives.Interactives plot = g.Map.Interactives.Values.FirstOrDefault(i => i != null && i.gfx == GuildPlotObject);
+                Check(plot?.Cell != null, "Pas de plot rouge (objet " + GuildPlotObject + ") sur la carte " + GuildTempleMap);
+                int mark = g.ReceivedCount;
+                var walked = await g.Account.Game.Manager.Mouvements.MoveToAsync(plot.Cell).ConfigureAwait(false);
+                Check(walked == Tool_BotProtocol.Game.Managers.Mouvements.MoveResults.EXIT, "Marche vers le plot " + plot.Cell.CellID + " refusée : " + walked);
+                await g.Expect(p => p == "gn", "gn (panneau de création de guilde)", 25, mark).ConfigureAwait(false);
+                Check(await g.Until(() => guild.CreationWindowOpen, 5).ConfigureAwait(false), "gn reçu sans panneau de création côté bot");
+                var guildPanel = await OnUi(() =>
+                {
+                    var found = screen.Panels.Get<Outil_Azur_complet.Bot.Panels.GuildPanel>();
+                    if (found != null) screen.Panels.Show(found);
+                    return found;
+                }).ConfigureAwait(false);
+                Check(guildPanel != null, "Pas de volet de guilde dans la fenêtre de jeu");
+                Check(await WaitOnUi(() => NamedControl(screen, "guild-creation") is Control bar && bar.Visible ? bar : null, 10).ConfigureAwait(false) != null,
+                    "Le volet de guilde ne montre pas le panneau de création après gn");
+                guildName = NewGuildName();
+                int backColor = random.Next(0, 0x1000000), upColor = random.Next(0, 0x1000000), backPick = random.Next(), upPick = random.Next();
+                int sentGuild = g.SentCount, backId = 0, upId = 0; mark = g.ReceivedCount;
+                string blocked = await OnUi(() =>
+                {
+                    var back = (NumericUpDown)NamedControl(screen, "guild-create-back"); var up = (NumericUpDown)NamedControl(screen, "guild-create-up");
+                    back.Value = back.Minimum + backPick % (int)(back.Maximum - back.Minimum + 1);
+                    up.Value = up.Minimum + upPick % (int)(up.Maximum - up.Minimum + 1);
+                    backId = (int)back.Value; upId = (int)up.Value;
+                    NamedControl(screen, "guild-create-name").Text = guildName;
+                    NamedControl(screen, "guild-create-back-color").Text = backColor.ToString("X6", CultureInfo.InvariantCulture);
+                    NamedControl(screen, "guild-create-up-color").Text = upColor.ToString("X6", CultureInfo.InvariantCulture);
+                    var create = (Button)NamedControl(screen, "guild-create");
+                    if (!create.Enabled || !create.Visible) return "bouton « Créer » grisé ou caché";
+                    create.PerformClick();
+                    return null;
+                }).ConfigureAwait(false);
+                Check(blocked == null, "Création impossible depuis le volet : " + blocked);
+                string gc = null;
+                Check(await g.Until(() => (gc = g.SentSince(sentGuild).FirstOrDefault(p => p.StartsWith("gC", StringComparison.Ordinal))) != null, 5).ConfigureAwait(false),
+                    "« Créer » n'a pas envoyé gC : " + string.Join(" ", g.SentSince(sentGuild)));
+                // Guild.create du client : identifiants et couleurs en décimal, puis le nom.
+                string expected = "gC" + string.Join("|", new[] { backId, backColor, upId, upColor }.Select(x => x.ToString(CultureInfo.InvariantCulture))) + "|" + guildName;
+                Check(gc == expected, "gC inattendu : " + gc + " au lieu de " + expected);
+                string created = await g.Expect(p => p.StartsWith("gC", StringComparison.Ordinal), "gCK (guilde créée)", 15, mark).ConfigureAwait(false);
+                Check(created == "gCK", "Création refusée par StarLoco : " + created);
+                Check(await g.Until(() => guild.Guild.HasGuild && guild.Guild.Name == guildName, 5).ConfigureAwait(false), "Le bot ne voit pas la guilde créée (gS) : « " + guild.Guild.Name + " »");
+                Check(await g.Until(() => leader.Bag.GetByInventoryId((uint)gemId) == null, 5).ConfigureAwait(false), "La Guildalogemme reste dans le sac après la création");
+                string creation = "plot " + plot.Cell.CellID + " → gn ; « Créer » → " + Short(gc, 50) + " → gCK, Guildalogemme retirée";
+
+                // Onglet Maisons : gIH → aucune maison de guilde, « Rejoindre » caché.
+                mark = g.ReceivedCount; sentGuild = g.SentCount;
+                await OnUi(() => guildPanel.SelectTab(Tool_BotProtocol.Game.Guildes.GuildTab.Houses)).ConfigureAwait(false);
+                Check(await g.Until(() => g.SentSince(sentGuild).Contains("gIH"), 5).ConfigureAwait(false), "L'onglet Maisons n'a pas demandé gIH : " + string.Join(" ", g.SentSince(sentGuild)));
+                string gih = await g.Expect(p => p.StartsWith("gIH", StringComparison.Ordinal), "gIH (maisons de la guilde)", 10, mark).ConfigureAwait(false);
+                Check(await g.Until(() => guild.Guild.HousesReceived, 5).ConfigureAwait(false) && guild.Guild.Houses.Count == 0, "Maisons lues pour une guilde neuve : " + guild.Guild.Houses.Count);
+                string houses = await WaitOnUi(() =>
+                {
+                    var rows = (ListView)NamedControl(screen, "guild-houses"); Control join = NamedControl(screen, "guild-house-teleport");
+                    return rows != null && join != null && rows.Visible && rows.Items.Count == 0 && !join.Visible ? "liste vide, « Rejoindre » caché" : null;
+                }, 5).ConfigureAwait(false);
+                Check(houses != null, "Onglet Maisons d'une guilde neuve mal affiché");
+
+                // Onglet Enclos : gIF → 0 enclos permis (niveau 1) et aucun enclos, « Rejoindre » grisé.
+                mark = g.ReceivedCount; sentGuild = g.SentCount;
+                await OnUi(() => guildPanel.SelectTab(Tool_BotProtocol.Game.Guildes.GuildTab.Paddocks)).ConfigureAwait(false);
+                Check(await g.Until(() => g.SentSince(sentGuild).Contains("gIF"), 5).ConfigureAwait(false), "L'onglet Enclos n'a pas demandé gIF : " + string.Join(" ", g.SentSince(sentGuild)));
+                string gif = await g.Expect(p => p.StartsWith("gIF", StringComparison.Ordinal), "gIF (enclos de la guilde)", 10, mark).ConfigureAwait(false);
+                Check(await g.Until(() => guild.Guild.PaddocksReceived, 5).ConfigureAwait(false) && guild.Guild.Paddocks.Count == 0 && guild.Guild.MaxPaddocks == 0,
+                    "Enclos lus pour une guilde neuve : " + guild.Guild.Paddocks.Count + " sur " + guild.Guild.MaxPaddocks);
+                string paddocks = await WaitOnUi(() =>
+                {
+                    var rows = (ListView)NamedControl(screen, "guild-paddocks"); Control join = NamedControl(screen, "guild-paddock-teleport");
+                    return rows != null && join != null && rows.Visible && rows.Items.Count == 0 && join.Visible && !join.Enabled ? "liste vide, « Rejoindre » grisé" : null;
+                }, 5).ConfigureAwait(false);
+                Check(paddocks != null, "Onglet Enclos d'une guilde neuve mal affiché");
+
+                // Téléportations hors liste : refusées sur place. Un gf vers une carte sans enclos ferait lever à StarLoco une
+                // NullPointerException (teleportToGuildFarm lit getMountPark() sans le tester).
+                sentGuild = g.SentCount;
+                var farm = await guild.TeleportToPaddockAsync(GuildTempleMap).ConfigureAwait(false);
+                var home = await guild.TeleportToHouseAsync(1).ConfigureAwait(false);
+                Check(!farm.Sent && farm.Message.Contains("gIF") && !home.Sent && home.Message.Contains("gIH"), "Téléportation hors liste acceptée : « " + farm.Message + " » / « " + home.Message + " »");
+                await Task.Delay(300).ConfigureAwait(false);
+                Check(!g.SentSince(sentGuild).Any(p => p.StartsWith("gh", StringComparison.Ordinal) || p.StartsWith("gf", StringComparison.Ordinal)),
+                    "Une téléportation refusée est partie : " + string.Join(" ", g.SentSince(sentGuild)));
+
+                // Départ : gK<soi> → gKK ; StarLoco supprime la guilde vide (removeGuild) de la base.
+                mark = g.ReceivedCount;
+                var left = await guild.LeaveAsync().ConfigureAwait(false);
+                Check(left.Sent, "Départ de la guilde refusé par le bot : " + left.Message);
+                string gkk = await g.Expect(p => p.StartsWith("gKK", StringComparison.Ordinal), "gKK (guilde quittée)", 10, mark).ConfigureAwait(false);
+                Check(await g.Until(() => !guild.Guild.HasGuild, 5).ConfigureAwait(false), "Le bot se croit encore dans la guilde après " + gkk);
+                guildLeft = true;
+                long rows = Convert.ToInt64(Scalar(db, "SELECT COUNT(*) FROM " + guildTable + " WHERE name = @name", "@name", guildName), CultureInfo.InvariantCulture);
+                Check(rows == 0, "La guilde " + guildName + " reste dans " + guildTable + " après " + gkk);
+                evidence.Add(creation + " ; Maisons : " + gih + " → " + houses + " ; Enclos : " + gif + " → " + paddocks + " ; gh / gf hors liste refusés (« " + Short(farm.Message, 60)
+                    + " ») ; départ → " + gkk + ", guilde supprimée de la base");
+
+                // 3. Groupe (V-28, m-37) : colonne de la fenêtre, portraits, menu, suivi, départ.
+                var party = g.Account.Game.Interactions.Party;
+                int gMark = g.ReceivedCount; mMark = m.ReceivedCount;
+                var invite = await party.InviteAsync(mate.Character.Name).ConfigureAwait(false);
+                Check(invite.Sent, "Invitation refusée par le bot : " + invite.Message);
+                await m.Expect("PIK", "PIK (invitation reçue)", 10, mMark).ConfigureAwait(false);
+                Check(await m.Until(() => m.Account.Game.Interactions.Party.PendingInviter == leader.Character.Name, 5).ConfigureAwait(false), "Invitation de groupe non retenue par l'autre compte");
+                var accept = await m.Account.Game.Interactions.Party.AcceptAsync().ConfigureAwait(false);
+                Check(accept.Sent, "Acceptation refusée par le bot : " + accept.Message);
+                await g.Expect("PCK", "PCK (groupe créé)", 10, gMark).ConfigureAwait(false);
+                Check(await g.Until(() => party.Group.Members.Count == 2 && party.Group.LeaderId == g.Id, 10).ConfigureAwait(false),
+                    "Groupe incomplet : " + party.Group.Members.Count + " membres, chef " + party.Group.LeaderId);
+                PartyColumn column = await OnUi(() => screen.PartyColumn).ConfigureAwait(false);
+                string placed = await WaitOnUi(() =>
+                {
+                    if (column == null || !column.Visible || column.Parent == null || column.Members.Count != 2) return null;
+                    Control drawer = screen.Panels;
+                    bool open = screen.Panels.Current != null && drawer.Visible;
+                    int right = open ? drawer.Left - 4 : column.Parent.ClientSize.Width - 6;
+                    if (column.Right != right || column.Top < PartyColumn.StageTop || column.LeaderId != g.Id || !column.Members.Any(x => x.Id == m.Id)) return null;
+                    return column.Bounds + (open ? " à gauche du volet " + screen.Panels.Current.GetType().Name : " au bord droit de la carte");
+                }, 10).ConfigureAwait(false);
+                Check(placed != null, "Colonne du groupe absente ou mal posée : " + await OnUi(() => column == null ? "aucune" : column.Visible + ", " + column.Members.Count + " membres, " + column.Bounds).ConfigureAwait(false));
+
+                // Portraits : staticR de chaque membre avec les couleurs du PM, chargés sur le pool puis dessinés dans la case.
+                await OnUi(() => { using (var image = new Bitmap(column.Width, column.Height)) column.DrawToBitmap(image, new Rectangle(Point.Empty, column.Size)); }).ConfigureAwait(false);
+                Check(column.WaitForSprites(15000), "Sprites de la colonne non chargés");
+                string[] portraits = await OnUi(() =>
+                {
+                    var sprites = (ActorSprites)Field(column, "sprites");
+                    var parts = new List<string>(); bool drawn = true;
+                    using (var image = new Bitmap(column.Width, column.Height))
+                    {
+                        column.DrawToBitmap(image, new Rectangle(Point.Empty, column.Size));
+                        for (int i = 0; i < column.Members.Count; i++)
+                        {
+                            var member = column.Members[i];
+                            Rectangle area = PartyColumn.SpriteArea(PartyColumn.TileBounds(i));
+                            var colors = new HashSet<int>();
+                            for (int x = area.Left; x < area.Right; x++) for (int y = area.Top; y < area.Bottom; y++) colors.Add(image.GetPixel(x, y).ToArgb());
+                            SpritePose pose = sprites.Resolve(member.Gfx, 1, false, "static", new ActorColors(member.Color1, member.Color2, member.Color3));
+                            drawn &= colors.Count >= 4;
+                            parts.Add(member.Name + " (gfx " + member.Gfx + ", " + (pose?.Sheet != null ? "planche staticR" : "sans planche") + ", " + colors.Count + " couleurs)");
+                        }
+                        if (!string.IsNullOrWhiteSpace(captures)) { Directory.CreateDirectory(captures); image.Save(Path.Combine(captures, "x14-colonne.png"), System.Drawing.Imaging.ImageFormat.Png); }
+                    }
+                    return new[] { drawn.ToString(), string.Join(", ", parts) };
+                }).ConfigureAwait(false);
+                Check(portraits[0] == bool.TrueString, "Case de la colonne sans portrait : " + portraits[1]);
+
+                // Clic sur l'autre membre : son menu (titre = son nom) ; information : niveau total des membres.
+                string menu = await OnUi(() =>
+                {
+                    var partyPanel = screen.Panels.Get<Outil_Azur_complet.Bot.Panels.PartyPanel>();
+                    if (partyPanel == null || !column.ClickMember(m.Id) || partyPanel.LastMenu == null) return "!aucun menu";
+                    string[] items = partyPanel.LastMenu.Items.Cast<ToolStripItem>().Select(x => x.Text).ToArray();
+                    partyPanel.LastMenu.Close();
+                    return (items.Length > 0 && items[0] == mate.Character.Name ? string.Empty : "!") + string.Join(", ", items);
+                }).ConfigureAwait(false);
+                Check(!menu.StartsWith("!", StringComparison.Ordinal), "Clic sur le membre de la colonne : menu inattendu « " + menu + " »");
+                int levels = party.Group.Members.Sum(x => x.Level);
+                string info = await OnUi(() => column.InfoText).ConfigureAwait(false);
+                Check(info.Contains(levels.ToString(CultureInfo.InvariantCulture)), "Information de la colonne sans le niveau total " + levels + " : " + info);
+
+                // Suivi : PF+<id> → IC<x>|<y> et PF+<id> ; boussole sur la carte du membre, flèche de la colonne.
+                gMark = g.ReceivedCount;
+                var follow = await party.FollowAsync(m.Id).ConfigureAwait(false);
+                Check(follow.Sent, "Suivi refusé par le bot : " + follow.Message);
+                string ic = await g.Expect(p => p.StartsWith("IC", StringComparison.Ordinal), "IC (boussole sur le membre suivi)", 10, gMark).ConfigureAwait(false);
+                await g.Expect("PF+" + m.Id, "PF+ (suivi accepté)", 10, gMark).ConfigureAwait(false);
+                Check(await g.Until(() => party.Group.FollowedId == m.Id && party.Compass != null, 5).ConfigureAwait(false), "Boussole ou suivi absents après " + ic);
+                Point compass = party.Compass.Value;
+                Check(await WaitOnUi(() => column.FollowedId == m.Id ? "suivi" : null, 5).ConfigureAwait(false) != null, "La colonne ne marque pas le membre suivi");
+
+                // Départ de l'autre : groupe de deux dissous (PV aux deux) ; comme Party.onLeave du client, la boussole est effacée et aucune
+                // cible précédente n'est remise ; la colonne disparaît.
+                gMark = g.ReceivedCount; mMark = m.ReceivedCount;
+                var leave = await m.Account.Game.Interactions.Party.LeaveAsync().ConfigureAwait(false);
+                Check(leave.Sent, "Départ du groupe refusé par le bot : " + leave.Message);
+                await m.Expect("PV", "PV (groupe quitté)", 10, mMark).ConfigureAwait(false);
+                string pv = await g.Expect("PV", "PV (groupe dissous)", 10, gMark).ConfigureAwait(false);
+                Check(await g.Until(() => party.Group.Members.Count == 0 && party.Group.FollowedId == null && party.Compass == null, 5).ConfigureAwait(false),
+                    "Boussole ou groupe gardés après " + pv + " : boussole " + party.Compass + ", suivi " + party.Group.FollowedId);
+                Check(await WaitOnUi(() => !column.Visible && column.Members.Count == 0 ? "cachée" : null, 5).ConfigureAwait(false) != null, "La colonne reste affichée après " + pv);
+                evidence.Add("groupe : colonne " + placed + ", portraits " + portraits[1] + ", clic → menu « " + Short(menu, 60) + " », niveau total " + levels
+                    + " ; suivi → " + ic + " (boussole " + compass.X + "," + compass.Y + "), flèche ; départ de l'autre → " + pv + ", boussole effacée, colonne cachée");
+                return string.Join(" | ", evidence);
+            }
+            finally
+            {
+                // Guilde laissée par un scénario interrompu : départ en jeu, sinon lignes de la base (le Game la garde en mémoire jusqu'à son redémarrage).
+                Tool_BotProtocol.Game.Guildes.GuildActions open = leader.Session?.Account?.Game?.Interactions?.Guild;
+                if (guildName != null && !guildLeft && open != null && open.Guild.HasGuild)
+                {
+                    try { await open.LeaveAsync().ConfigureAwait(false); await Task.Delay(1000).ConfigureAwait(false); }
+                    catch (Exception error) { Journal("!! [test] départ de la guilde " + guildName + " impossible : " + error.Message); }
+                }
+                await ClosePetOwnerAsync(db, schema, leader, () => CloseScreenAsync(screen)).ConfigureAwait(false);
+                await ClosePetOwnerAsync(db, schema, mate).ConfigureAwait(false);
+                if (guildName != null)
+                {
+                    try
+                    {
+                        object id = Scalar(db, "SELECT id FROM " + guildTable + " WHERE name = @name", "@name", guildName);
+                        if (id != null && !(id is DBNull))
+                        {
+                            int guildRows = Sql(db, "DELETE FROM " + guildTable + " WHERE id = @id", "@id", id);
+                            int memberRows = membersTable == null ? 0 : Sql(db, "DELETE FROM " + membersTable + " WHERE guild = @id", "@id", id);
+                            Journal("!! [test] guilde " + guildName + " (" + id + ") restée en base : " + guildRows + " ligne(s) de guilde et " + memberRows
+                                + " membre(s) supprimés ; le Game la garde en mémoire jusqu'à son redémarrage");
+                        }
+                        else Journal("[test] guilde " + guildName + " absente de la base (supprimée par StarLoco au départ du dernier membre)");
+                    }
+                    catch (Exception error) { Journal("!! [test] nettoyage de la guilde " + guildName + " impossible : " + error.Message); }
+                }
+            }
+        }
     }
 }

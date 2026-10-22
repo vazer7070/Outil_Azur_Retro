@@ -1075,6 +1075,7 @@ Limites :
 - sans formes de sélection exportées, la cellule du chemin reste un losange opaque.
 
 Passage réel (21 octobre 2026, StarLoco local, scénario x8 de `BotStarLocoLiveSmoke`, `AZUR_STARLOCO_SCENARIOS=x8`) : carte 164, un Iop inventé (Pression, Épée de Iop et Flèche Enflammée écrits dans la base) défié par A ; pendant le tour de A, le survol d'une cellule dans la fenêtre de l'Iop ne dessine aucun chemin ; à son tour, Pression dessine 12 cellules en cercle (1 à 2) et l'Épée de Iop 12 cellules en croix (1 à 3), chacune avec son icône à côté de la flèche ; sur une cible alignée, la croix `Xd` de 13 cellules est posée deux fois (effets normaux et critiques) ; sur une cellule non alignée, croix d'interdiction, pas de pointeur et un clic n'envoie rien ; la Flèche Enflammée pose quatre fois la ligne `Le` de 5 cellules, et le clic sur la cible envoie `GA300165;263`, accepté par `GA;300;<Iop>;165,263,…` ; sans sort, le chemin survolé de deux cellules est dessiné avec les formes de sélection et le clic envoie `GA001feh`, que StarLoco renvoie avec la cellule de départ (`GA0;1;<Iop>;aeLfeh`) ; l'abandon de l'Iop (`GE`) efface visée et chemin. Compte et personnage supprimés ensuite ; captures `23-reel-x8-croix`, `-ligne` et `-chemin` prises dans le dossier de travail du test, non versionnées.
+
 ## Objets vivants et objets à cible (lot X13)
 
 Le client 1.34 lit un objet vivant dans les effets de sa fiche (`Item.updateDataFromEffect`). Il ne lit que le quatrième champ, en hexadécimal :
@@ -1242,3 +1243,93 @@ Un troisième passage a eu besoin de cinq combats. Les trois premiers ont donné
 Un quatrième passage a eu besoin de sept combats : `GdOK` pour les défis 18, 21, 24 et 34, trois abandons, puis `Gdi25` → `Gf-1|262` et `GdOK25`. Aucun échec n'a été tiré cette fois. Le scénario passe quand même : il rapporte ce qu'il a vu, puisque le tirage décide.
 
 Les captures `25-reel-x9-defi-cible` et `26-reel-x9-resultat` vont dans le dossier que donne `AZUR_STARLOCO_CAPTURES`. Elles ne sont pas versionnées, et ces passages, lancés sans cette variable, n'en ont pas pris.
+
+## Téléportation de guilde, colonne du groupe et Entrée du chat (lot X14)
+
+Ce lot reprend trois éléments du client 1.34 :
+
+- les boutons de téléportation des onglets Maisons et Enclos de la guilde (`GuildHousesViewer`, `MountParksViewerItem`, `Guild.teleportToGuildHouse` et `teleportToGuildFarm`) ;
+- la colonne du groupe posée sur la carte (`UI_Party`, `UI_PartyItem`) ;
+- le raccourci Entrée du bandeau (`Banner.onShortcut`, `setChatFocus`).
+
+Les seuls paquets nouveaux sont ceux du client, `gh<maison>` et `gf<carte>`. La colonne et le focus du chat n'envoient rien.
+
+- **Téléportation vers une maison de guilde** (`GuildActions.TeleportToHouseAsync`, bouton « Rejoindre » `guild-house-teleport` de l'onglet Maisons).
+  - Le bouton n'apparaît que pour une maison sélectionnée de la liste `gIH` qui partage la téléportation, c'est-à-dire avec le droit 128 (`GUILDSHARE_TELEPORT` du client, `H_GTELE` de StarLoco). Il envoie `gh<maison>`.
+  - Le bot refuse sur place, sans paquet : pas de guilde (`UI_ONLY_FOR_GUILD`), maison absente de la liste `gIH`, droit 128 absent, combat en cours (StarLoco ignorerait la demande).
+  - Réponses de StarLoco (`teleportToGuildHouse`) : il retire une potion 8883 (`Im022;1~8883`) et place le personnage dans la maison. Sinon il renvoie `Im1135` (maison d'une autre guilde), `Im1136` (droit retiré) ou `Im1137` (pas de potion).
+  - Comme le client, le bot ne cherche pas la potion dans le sac : le serveur décide.
+- **Téléportation vers un enclos de guilde** (`TeleportToPaddockAsync`, bouton « Rejoindre » `guild-paddock-teleport` de l'onglet Enclos, grisé tant qu'aucun enclos n'est sélectionné).
+  - Le bouton envoie `gf<carte>` pour un enclos de la liste `gIF`.
+  - Réponses de StarLoco (`teleportToGuildFarm`) : il retire une potion 9035 (`Im022;1~9035`) et place le personnage sur la case de l'enclos. Sinon il renvoie `Im1135` ou `Im1159`.
+  - Une carte hors de la liste n'est jamais envoyée : `teleportToGuildFarm` lit `getMountPark()` sans le tester et lèverait une `NullPointerException` pour une carte sans enclos.
+  - Les deux listes se rafraîchissent sans perdre la ligne sélectionnée.
+- **Création et départ d'une guilde sur StarLoco**, relevés au passage réel :
+  - Sur la carte 2196, c'est la marche sur la cellule du plot qui envoie `gn` (objet interactif 1324, `InteractiveObject.getActionIO`).
+  - `createGuild` exige la Guildalogemme 1575 et la retire (`OR<objet>`), puis répond `gS`, `gCK` et `gV`.
+  - Une guilde neuve reçoit `gIH+` (aucune maison) et `gIF0` : `floor(niveau / 10)` enclos permis, donc zéro, et aucun enclos.
+  - Le départ du dernier membre (`gK<soi>` → `gKK<nom>|<nom>`) fait supprimer la guilde par `World.removeGuild` : maisons et enclos sont rendus, les lignes de `guild_members` et de `world.entity.guilds` sont effacées.
+- **Pourquoi `gh` et `gf` n'ont pas été rejoués sur StarLoco** :
+  - Pour partager une maison avec la guilde (`hG+`), il faut une guilde de niveau 10 au moins (`HouseMaxOnGuild`, sinon `Im1151`). `House.load` retire en plus la maison de guilde sous 10 membres.
+  - Le serveur local de test n'a aucune maison ni aucun enclos : les tables statiques `houses` et `mountpark_data` de sa base de connexion sont vides. L'export complet du kit en contient, mais il n'a pas été chargé.
+  - La téléportation elle-même, la potion retirée et les `Im` de refus ne sont donc vérifiés que contre le serveur fictif.
+- **Colonne du groupe** (`Bot/Controls/PartyColumn.cs`, `GameClientFullform.PartyColumn`).
+  - **Position.** Dans le client, la fenêtre `Party` (`UI_Party`, 30 × 291 px) est posée en x 713, y 41 de la scène de 742 px, donc à droite de la carte. Le bot la pose au même endroit : au bord droit de la carte, à gauche du volet ouvert, et sous la ligne de temps du combat quand celle-ci passe au même endroit. La fiche du lot disait « à gauche » ; le client fait foi.
+  - **Visibilité.** La colonne est visible de `PCK` à `PV`, quel que soit le volet ouvert. Le volet Groupe s'ouvre toujours à `PCK`.
+  - **Contenu.** En haut, le bouton Afficher / Cacher (`PARTY_OPEN_CLOSE`) et la pastille d'informations (niveau total, prospection totale). Puis une case tous les 30 px par membre, par initiative décroissante, avec :
+    - le sprite `staticR` du membre, recoloré par ses trois couleurs de `PM` (`SpriteRecolor`, comme `api.colors.addSprite`), retourné et réduit à 65 % ;
+    - la jauge de vie rouge ;
+    - la couronne du chef et la flèche du membre suivi ;
+    - une infobulle avec le nom, le niveau et les points de vie.
+  - **Clic.** Le clic sur une case ouvre le menu du membre du volet Groupe (`PartyPanel.ShowMemberMenu`) sans ouvrir le volet.
+  - **Fond.** Il prend le brun du cadre : un contrôle WinForms ne laisse pas voir la carte.
+  - **Sans sprite.** La case montre l'illustration de classe, à défaut l'initiale du nom.
+  - **Mono.** Avec libgdiplus, un sprite retourné (échelle négative de `SpritePainter`) ne s'affiche pas quand une découpe est posée sur le `Graphics`. Le portrait est donc dessiné dans une image de la taille de la case, puis posé.
+- **Boussole après un suivi (m-37)** : le client 1.34 ne garde aucune cible précédente, et le bot fait de même : rien n'est remis après un suivi.
+  - `IC<x>|<y>` remplace la cible et `IC|` l'efface.
+  - `Party.removeMember` (pour le membre suivi) et `onLeave` l'effacent aussi (`updateCompass`).
+  - Sur StarLoco, le départ d'un des deux membres dissout le groupe (`PV` aux deux) sans envoyer `IC|` : c'est ce `PV` qui efface la boussole.
+- **Entrée du chat (V-29)** : la table `Shortcuts` gagne trois raccourcis du jeu, actifs même pendant la saisie : `ACCEPT_CURRENT_DIALOG` (Entrée), `TEAM_MESSAGE` (Maj + Entrée) et `GUILD_MESSAGE` (Ctrl + Entrée).
+  - **Hors de toute saisie**, ils donnent le focus à la zone de saisie du chat, curseur en fin de ligne, sans paquet (`setChatFocus`).
+  - **Dans la zone de saisie**, la fenêtre les laisse à `ChatInput`, qui envoie la ligne (`/t` avec Maj, `/g` avec Ctrl, comme avant).
+  - **Exceptions.** Une autre zone de saisie (nom de guilde, quantité) garde son Entrée. Le pavé de code d'une porte (`KeyCode`, qui met `chatAutoFocus` à faux) coupe ce focus automatique.
+  - **Échap.** Dans la zone de saisie, Échap retire le focus, que la carte reprend, sans fermer le volet ouvert. Hors saisie, il garde son rôle (visée, volet, menu principal).
+  - **Bouton ou carte.** WinForms traite Entrée comme une touche de dialogue avant `KeyDown`. `GameClientFullform.ProcessDialogKey` la passe donc d'abord au raccourci : comme dans le client, Entrée ne clique pas le bouton qui a le focus.
+
+Tests sous Mono, tous réussis :
+
+- `BotGuildSmoke` :
+  - `gh9` part pour une maison aux droits 131 (128 compris) ;
+  - le bot refuse la maison 7 (droits 3), la maison 8 absente de la liste, un enclos hors liste, et les deux téléportations sans guilde ;
+  - `gf900092` part pour un enclos de la liste ;
+  - dans le volet, les deux « Rejoindre » sont visibles ou grisés selon la sélection, et la sélection survit au rafraîchissement de la liste.
+- `BotChatUiSmoke` :
+  - Entrée hors saisie donne le focus, avec le curseur en fin de ligne et sans paquet ;
+  - Entrée et Maj + Entrée tapées dans la zone restent à `ChatInput` ;
+  - Échap rend la carte sans fermer le volet, puis un second Échap ferme le volet ;
+  - Maj + Entrée et Ctrl + Entrée donnent le focus hors saisie ;
+  - Entrée passée en touche de dialogue fait de même ;
+  - le pavé de code bloque le focus automatique.
+- `BotPartySmoke` :
+  - la colonne se place à gauche du volet, puis au bord droit de la carte sans volet ;
+  - repérage de la case sous la souris, clic → menu du membre, bouton Afficher / Cacher, informations (niveau total, prospection) ;
+  - au pixel, avec des sprites synthétiques d'un dossier temporaire : sprite recoloré par la couleur 2, membre sans couleur qui garde la bande d'origine, jauge 150 / 200 remplie depuis le bas, couronne du chef seul, flèche du membre suivi ;
+  - colonne cachée à `PV` ;
+  - `PM-` du membre suivi efface la boussole.
+
+Passage réel du 22 octobre 2026 (StarLoco local, scénario x14 de `BotStarLocoLiveSmoke`, `AZUR_STARLOCO_SCENARIOS=x14`). Deux comptes inventés sont posés sur la carte 2196 ; le meneur a une Guildalogemme écrite dans la base et sa fenêtre de jeu.
+
+- **Chat.** Entrée hors saisie donne le focus sans paquet. La ligne tapée part sur Entrée (`BM*|<ligne>|`) et l'autre compte la reçoit (`cMK|<id>|<nom>|<ligne>|`). Échap rend la carte.
+- **Création de la guilde.** La marche sur le plot de la cellule 253 donne `gn`. Le volet montre la création, et « Créer » envoie `gC<fond>|<couleur>|<motif>|<couleur>|<nom>` en décimal. Réponse `gCK`, Guildalogemme retirée.
+- **Onglets de la guilde.**
+  - Maisons : `gIH+`, liste vide, « Rejoindre » caché.
+  - Enclos : `gIF0`, liste vide, « Rejoindre » grisé.
+  - `gh` et `gf` hors liste sont refusés sur place.
+  - Le départ donne `gKK` et la guilde disparaît de la base.
+- **Groupe.**
+  - `PIK` → `PA` → `PCK`.
+  - La colonne se pose à gauche du volet Groupe ouvert, avec les portraits `staticR` des deux membres (171 et 179 couleurs) ; le clic ouvre le menu du membre ; niveau total 2.
+  - Le suivi donne `IC1|-9` et `PF+<id>` (et `Im052` au membre suivi), avec boussole et flèche.
+  - Le départ de l'autre donne `PV` aux deux : boussole effacée, colonne cachée.
+
+Comptes, personnages, Guildalogemme et guilde ont été supprimés ensuite ; la base a été relue vide.

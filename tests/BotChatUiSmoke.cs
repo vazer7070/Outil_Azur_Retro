@@ -383,6 +383,38 @@ internal static class BotChatUiSmoke
                         Feed(account, "GV"); Expect(peer, "GC1", "GV is not answered by GC1");
                         PumpUntil(() => !account.Game.Fight.IsInFight, "fight left by GV");
 
+                        // Lot X14 (Banner.onShortcut) : hors saisie, Entrée (ACCEPT_CURRENT_DIALOG), Maj + Entrée et Ctrl + Entrée donnent le
+                        // focus à la zone de saisie (setChatFocus) sans rien envoyer ; dans la zone, la fenêtre laisse Entrée à ChatInput ;
+                        // Échap l'en retire sans fermer le volet ouvert ; le pavé de code d'une porte coupe ce focus automatique. Entrée sur
+                        // un bouton passe par ProcessDialogKey avant KeyDown : la fenêtre la traite aussi à cet endroit.
+                        MethodInfo dialogKey = typeof(Form).GetMethod("ProcessDialogKey", BindingFlags.Instance | BindingFlags.NonPublic);
+                        form.ReturnFocusToMap(); Application.DoEvents();
+                        Check(!form.ChatHasFocus, "The chat input kept the focus after ReturnFocusToMap");
+                        chat.Input.SetText("brouillon"); chat.Input.SelectionStart = 0;
+                        Check(form.ProcessShortcut(Keys.Enter) && form.ChatHasFocus && chat.Input.SelectionStart == chat.Input.TextLength,
+                            "Enter outside the input did not focus the chat input with the caret at the end");
+                        NoPacket(peer, "Enter outside the input sent the line");
+                        Check(!form.ProcessShortcut(Keys.Enter) && !form.ProcessShortcut(Keys.Enter | Keys.Shift) && chat.Input.Text == "brouillon",
+                            "Enter in the chat input was taken by the window");
+                        Check(form.Panels.Open("Stats") && form.Panels.Current != null, "The Stats panel did not open");
+                        Check(form.ProcessShortcut(Keys.Escape) && !form.ChatHasFocus && form.Panels.Current != null && chat.Input.Text == "brouillon",
+                            "Escape in the chat input did not give the focus back to the map, or closed the panel");
+                        Check(form.ProcessShortcut(Keys.Escape) && form.Panels.Current == null, "Escape outside the input did not close the panel");
+                        foreach (Keys keys in new[] { Keys.Enter | Keys.Shift, Keys.Enter | Keys.Control })
+                        {
+                            form.ReturnFocusToMap();
+                            Check(form.ProcessShortcut(keys) && form.ChatHasFocus, "Shortcut " + keys + " did not focus the chat input");
+                        }
+                        form.ReturnFocusToMap();
+                        Check((bool)dialogKey.Invoke(form, new object[] { Keys.Enter }) && form.ChatHasFocus, "Enter as a dialog key did not focus the chat input");
+                        form.ReturnFocusToMap();
+                        var keyCode = form.Panels.Find("KeyCode");
+                        form.Panels.Show(keyCode);
+                        Check(ReferenceEquals(form.Panels.Current, keyCode) && !form.FocusChatInput() && !form.ChatHasFocus, "The door code panel did not block the chat focus");
+                        form.Panels.Close(keyCode);
+                        NoPacket(peer, "The chat focus shortcuts sent a packet");
+                        chat.Input.Clear(); form.ReturnFocusToMap();
+
                         // Volet détaché de la session : les paquets suivants ne le touchent plus.
                         using (var detached = new ChatPanel(account, null))
                         {

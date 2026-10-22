@@ -132,6 +132,8 @@ internal static class BotGuildSmoke
     private const string Collectors = "gITM+1z;a,b,Poseur fictif,1700000000,Récolteur fictif,1700003600,1700007200;5d,2,-4;0;3600;7200;5|2a;c,d;5e,3,-5;1;0;7200;5";
     private const string Paddocks = "gIF3|900092;5;3;20,Dragodinde fictive,Propriétaire fictif|900093;0;0|x";
     private const string Houses = "gIH+7;Propriétaire fictif;2,-4;1,2;3|8;;0,0;;";
+    // X14 : maison 9 avec le droit 128 (téléportation partagée) à côté de la maison 7 (droits 3).
+    private const string TeleportHouses = "gIH+7;Propriétaire fictif;2,-4;1,2;3|9;Propriétaire fictif;3,5;;131";
     private const string LeaveSelf = "gKKPersonnage de test|Personnage de test";
 
     private static void Run()
@@ -357,6 +359,16 @@ internal static class BotGuildSmoke
                     Check(Sent(guild.KickAsync("Absent fictif")) && Read(peer) == "gKAbsent fictif" && Sent(guild.SetProfileAsync(43, 1, 0, 1)) && Read(peer) == "gP43|1|0|1", "Boss actions were refused");
                     Feed(account, Stats(Rights));
 
+                    // X14 : « Rejoindre » d'une maison (gh<id>, droit 128 seulement) et d'un enclos (gf<carte>) de la liste reçue.
+                    Feed(account, TeleportHouses); Feed(account, Paddocks);
+                    Check(GuildActions.CanTeleportTo(model.Houses.Single(house => house.Id == 9)) && !GuildActions.CanTeleportTo(model.Houses.Single(house => house.Id == 7)) && !GuildActions.CanTeleportTo(null),
+                        "The teleport right (128) is not read from gIH");
+                    Check(Sent(guild.TeleportToHouseAsync(9)) && Read(peer) == "gh9" && guild.LastMessage.Contains("8883"), "Teleport to a house does not send gh<id>");
+                    Check(!Sent(guild.TeleportToHouseAsync(7)) && guild.LastMessage.Contains("128") && !Sent(guild.TeleportToHouseAsync(8)) && guild.LastMessage.Contains("gIH"),
+                        "A house without the right or outside the list was accepted");
+                    Check(Sent(guild.TeleportToPaddockAsync(900092)) && Read(peer) == "gf900092" && guild.LastMessage.Contains("9035"), "Teleport to a paddock does not send gf<map>");
+                    Check(!Sent(guild.TeleportToPaddockAsync(900094)) && guild.LastMessage.Contains("gIF"), "A paddock outside the list was accepted");
+                    NoPacket(peer, "A refused teleport reached the server");
                     // Paquets mal formés : journalisés comme illisibles au besoin, jamais propagés (le handler n'attrape aucune exception).
                     int before = logs.Count(entry => entry.Contains("illisible ignoré :"));
                     foreach (string broken in new[] { "gS", "gS|", "gIG", "gIG1|2", "gIM", "gIMx", "gIB1|2", "gIT", "gITM", "gITMx", "gITp", "gITp+zz", "gITP+", "gIF", "gIH", "gJ", "gJE", "gJEz",
@@ -472,8 +484,25 @@ internal static class BotGuildSmoke
                         Click(Find(form, "guild-collector-remove")); Answer(Dialog(), "Oui"); Check(Read(peer) == "gF71", "Remove does not send gF<id>");
                         panel.Tabs.ClickTab(GuildTab.Paddocks); Check(Read(peer) == "gIF", "Paddocks tab does not send gIF");
                         FeedFromNetwork(account, Paddocks); PumpUntil(() => ((ListView)Get(panel, "paddocks")).Items.Count == 2);
+                        // X14 : bouton de téléportation de l'enclos sélectionné → gf<carte>.
+                        Check(!Find(form, "guild-paddock-teleport").Enabled, "Paddock teleport is enabled without a selection");
+                        ((ListView)Get(panel, "paddocks")).Items[0].Selected = true; Application.DoEvents();
+                        Check(Find(form, "guild-paddock-teleport").Enabled, "Paddock teleport is not enabled for a selected paddock");
+                        Click(Find(form, "guild-paddock-teleport")); Check(Read(peer) == "gf900092", "Paddock teleport does not send gf<map>");
                         panel.Tabs.ClickTab(GuildTab.Houses); Check(Read(peer) == "gIH", "Houses tab does not send gIH");
                         FeedFromNetwork(account, Houses); PumpUntil(() => ((ListView)Get(panel, "houses")).Items.Count == 2);
+                        // X14 : « Rejoindre » visible seulement pour une maison qui partage la téléportation (droit 128) → gh<id>.
+                        FeedFromNetwork(account, TeleportHouses);
+                        var houseRows = (ListView)Get(panel, "houses");
+                        PumpUntil(() => houseRows.Items.Count == 2 && houseRows.Items.Cast<ListViewItem>().Any(row => ((GuildHouse)row.Tag).Id == 9));
+                        Check(!Find(form, "guild-house-teleport").Visible, "House teleport is shown without a selection");
+                        houseRows.Items.Cast<ListViewItem>().First(row => ((GuildHouse)row.Tag).Id == 7).Selected = true; Application.DoEvents();
+                        Check(!Find(form, "guild-house-teleport").Visible, "House teleport is shown for a house without the right 128");
+                        houseRows.SelectedItems.Clear(); houseRows.Items.Cast<ListViewItem>().First(row => ((GuildHouse)row.Tag).Id == 9).Selected = true; Application.DoEvents();
+                        Check(Find(form, "guild-house-teleport").Visible && Find(form, "guild-house-teleport").Enabled, "House teleport is not offered for a house with the right 128");
+                        Click(Find(form, "guild-house-teleport")); Check(Read(peer) == "gh9", "House teleport does not send gh<id>");
+                        FeedFromNetwork(account, TeleportHouses);
+                        Check(houseRows.SelectedItems.Count == 1 && ((GuildHouse)houseRows.SelectedItems[0].Tag).Id == 9, "A refreshed house list lost the selection");
                         drawer.CloseAll(); Check(Read(peer) == "gITV" && !guild.WindowOpen && !drawer.IsOpen(panel), "Closing the panel does not send gITV");
                         // gUT (objet de maison) : le volet s'ouvre sur l'onglet Maisons (gIG puis gIH) ; gCE depuis le réseau : boîte d'information.
                         FeedFromNetwork(account, "gUT"); PumpUntil(() => drawer.Current == panel);
@@ -538,6 +567,7 @@ internal static class BotGuildSmoke
                         entries = collectorProvider.Entries(own, account.Game).ToList();
                         Check(entries.Select(entry => entry.Texte).SequenceEqual(new[] { "Parler (test)", "Attaquer (test)" }) && entries[1].Activé && !guildProvider.Entries(player, account.Game).Any(),
                             "Menus still offer guild actions without a guild");
+                        Check(!Sent(guild.TeleportToHouseAsync(9)) && !Sent(guild.TeleportToPaddockAsync(900092)), "Teleports were accepted without a guild");
                         NoPacket(peer, "A refused action reached the server");
                         form.Close();
                     }

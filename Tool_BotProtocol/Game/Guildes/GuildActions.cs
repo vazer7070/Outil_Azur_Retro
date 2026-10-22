@@ -32,6 +32,12 @@ namespace Tool_BotProtocol.Game.Guildes
         public const int CreationMapId = 2196;
         /// <summary>Pourcentage d'expérience donné à la guilde : 0 à 90 (octet lu par StarLoco, curseur du client).</summary>
         public const int MaxXpPercent = 90;
+        /// <summary>Droit de maison partagé avec la guilde « se téléporter » (<c>GUILDSHARE_TELEPORT</c> du client, <c>H_GTELE</c> de StarLoco).</summary>
+        public const int HouseTeleportRight = 128;
+        /// <summary>Potion que StarLoco consomme pour <c>gh</c> (<c>Im022;1~8883</c>, sinon <c>Im1137</c>).</summary>
+        public const int HouseTeleportPotionId = 8883;
+        /// <summary>Potion que StarLoco consomme pour <c>gf</c> (<c>Im022;1~9035</c>, sinon <c>Im1159</c>).</summary>
+        public const int PaddockTeleportPotionId = 9035;
         private readonly Accounts.Accounts account;
         private readonly object sync = new object();
         private readonly HashSet<string> ignored = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -251,6 +257,41 @@ namespace Tool_BotProtocol.Game.Guildes
         {
             if (!HasGuild) return Refused("Aucune guilde.");
             return SendAsync("gITV", "Fermeture de la fenêtre de guilde signalée.");
+        }
+
+        /// <summary>Vrai si la maison partage la téléportation avec la guilde : le client ne montre « Rejoindre » qu'à cette condition.</summary>
+        public static bool CanTeleportTo(GuildHouse house) => house != null && (house.Rights & HouseTeleportRight) == HouseTeleportRight;
+
+        /// <summary>
+        /// « Rejoindre » de l'onglet Maisons (<c>GuildHousesViewer</c>, <c>Guild.teleportToGuildHouse</c>) : <c>gh&lt;maison&gt;</c>, pour une
+        /// maison de la liste <c>gIH</c> qui partage la téléportation (droit 128). StarLoco retire une potion 8883 (<c>Im022;1~8883</c>) et
+        /// téléporte le personnage dans la maison ; sinon <c>Im1135</c> (autre guilde), <c>Im1136</c> (droit retiré), <c>Im1137</c> (pas de
+        /// potion). Il ignore la demande en combat : le bot ne l'envoie pas.
+        /// </summary>
+        public Task<InteractionResult> TeleportToHouseAsync(int houseId)
+        {
+            if (!HasGuild) return Refused(GuildTexts.Get("UI_ONLY_FOR_GUILD", "Pour accéder à cette interface, il faut que tu fasses partie d'une guilde."));
+            GuildHouse house = Guild.Houses.FirstOrDefault(entry => entry.Id == houseId);
+            if (house == null) return Refused("Cette maison n'est pas dans la liste de la guilde (gIH).");
+            if (!CanTeleportTo(house)) return Refused("Cette maison ne partage pas la téléportation avec la guilde (droit " + HouseTeleportRight.ToString(CultureInfo.InvariantCulture) + ").");
+            if (account?.IsFighting() == true) return Refused("Action impossible pendant un combat.");
+            string id = houseId.ToString(CultureInfo.InvariantCulture);
+            return SendAsync("gh" + id, "Téléportation vers la maison " + id + " demandée (potion " + HouseTeleportPotionId.ToString(CultureInfo.InvariantCulture) + ").");
+        }
+
+        /// <summary>
+        /// Bouton de téléportation d'une ligne de l'onglet Enclos (<c>MountParksViewerItem</c>, <c>Guild.teleportToGuildFarm</c>) :
+        /// <c>gf&lt;carte&gt;</c>, pour un enclos de la liste <c>gIF</c>. StarLoco retire une potion 9035 (<c>Im022;1~9035</c>) et place le
+        /// personnage sur la case de l'enclos ; sinon <c>Im1135</c> (enclos d'une autre guilde) ou <c>Im1159</c> (pas de potion). Ignoré en combat.
+        /// </summary>
+        public Task<InteractionResult> TeleportToPaddockAsync(int mapId)
+        {
+            if (!HasGuild) return Refused(GuildTexts.Get("UI_ONLY_FOR_GUILD", "Pour accéder à cette interface, il faut que tu fasses partie d'une guilde."));
+            GuildPaddock paddock = Guild.Paddocks.FirstOrDefault(entry => entry.MapId == mapId);
+            if (paddock == null) return Refused("Cet enclos n'est pas dans la liste de la guilde (gIF).");
+            if (account?.IsFighting() == true) return Refused("Action impossible pendant un combat.");
+            return SendAsync("gf" + mapId.ToString(CultureInfo.InvariantCulture),
+                "Téléportation vers l'enclos " + paddock.Position + " demandée (potion " + PaddockTeleportPotionId.ToString(CultureInfo.InvariantCulture) + ").");
         }
 
         /// <summary>

@@ -44,7 +44,7 @@ namespace Outil_Azur_complet.Bot.Panels
         private readonly Dictionary<GuildBoostKind, Label> boostValues = new Dictionary<GuildBoostKind, Label>();
         private readonly Dictionary<GuildBoostKind, Control> boostButtons = new Dictionary<GuildBoostKind, Control>();
         private ListView spells, collectors, paddocks, houses;
-        private Control spellBoost, hire, removeCollector, createButton, cancelCreate;
+        private Control spellBoost, hire, removeCollector, createButton, cancelCreate, paddockTeleport, houseTeleport;
         private Panel creationBar;
         private TextBox createName, createBackColor, createUpColor;
         private NumericUpDown createBack, createUp;
@@ -185,7 +185,14 @@ namespace Outil_Azur_complet.Bot.Panels
             paddocksInfo = MakeLabel(string.Empty, 8.25f); paddocksInfo.Dock = DockStyle.Top; paddocksInfo.Height = 20; paddocksInfo.ForeColor = BotUi.Muted; paddocksInfo.Name = "guild-paddocks-info";
             paddocks = MakeList(8.25f, GuildTexts.Get("MOUNT_PARK", "Enclos"), "Taille", "Objets", "Montures");
             paddocks.Columns[0].Width = 150; paddocks.Columns[1].Width = 50; paddocks.Columns[2].Width = 50; paddocks.Columns[3].Width = 130; paddocks.Name = "guild-paddocks";
-            panel.Controls.Add(paddocks); panel.Controls.Add(paddocksInfo);
+            paddocks.SelectedIndexChanged += (s, e) => UpdateButtons();
+            // Bouton de téléportation des lignes de MountParksViewerItem (gf<carte>), ici pour l'enclos sélectionné.
+            paddockTeleport = MakeButton(GuildTexts.Get("JOIN_SMALL", "Rejoindre"), async (s, e) => await TeleportToSelectedPaddock(), false, 120);
+            paddockTeleport.Name = "guild-paddock-teleport";
+            tips.SetToolTip(paddockTeleport, GuildTexts.Get("GUILD_FARM_TELEPORT_TOOLTIP", "Se téléporter à cet enclos")
+                + " (potion " + GuildActions.PaddockTeleportPotionId.ToString(CultureInfo.InvariantCulture) + " consommée par le serveur)");
+            var actions = BotUi.Actions(paddockTeleport); actions.Dock = DockStyle.Bottom;
+            panel.Controls.Add(paddocks); panel.Controls.Add(actions); panel.Controls.Add(paddocksInfo);
             return panel;
         }
 
@@ -195,7 +202,14 @@ namespace Outil_Azur_complet.Bot.Panels
             housesInfo = MakeLabel(string.Empty, 8.25f); housesInfo.Dock = DockStyle.Top; housesInfo.Height = 20; housesInfo.ForeColor = BotUi.Muted; housesInfo.Name = "guild-houses-info";
             houses = MakeList(8.25f, GuildTexts.Get("HOUSES_WORD", "Maisons"), "Propriétaire", "Position", GuildTexts.Get("RIGHTS", "Droits"));
             houses.Columns[0].Width = 70; houses.Columns[1].Width = 120; houses.Columns[2].Width = 80; houses.Columns[3].Width = 100; houses.Name = "guild-houses";
-            panel.Controls.Add(houses); panel.Controls.Add(housesInfo);
+            houses.SelectedIndexChanged += (s, e) => UpdateButtons();
+            // _btnTeleport de GuildHousesViewer : « Rejoindre », visible seulement pour une maison qui partage la téléportation (droit 128).
+            houseTeleport = MakeButton(GuildTexts.Get("JOIN_SMALL", "Rejoindre"), async (s, e) => await TeleportToSelectedHouse(), false, 120);
+            houseTeleport.Name = "guild-house-teleport"; houseTeleport.Visible = false;
+            tips.SetToolTip(houseTeleport, GuildTexts.Get("GUILD_HOUSE_TELEPORT_TOOLTIP", "Se téléporter dans cette maison")
+                + " (potion " + GuildActions.HouseTeleportPotionId.ToString(CultureInfo.InvariantCulture) + " consommée par le serveur)");
+            var actions = BotUi.Actions(houseTeleport); actions.Dock = DockStyle.Bottom;
+            panel.Controls.Add(houses); panel.Controls.Add(actions); panel.Controls.Add(housesInfo);
             return panel;
         }
 
@@ -482,6 +496,7 @@ namespace Outil_Azur_complet.Bot.Panels
                 : GuildTexts.Get("GUILD_MOUNTPARKS_COUNT", "Actuellement {0} sur {1} enclos", list.Count.ToString(CultureInfo.CurrentCulture), model.MaxPaddocks.ToString(CultureInfo.CurrentCulture));
             if (ReferenceEquals(list, shownPaddocks)) return;
             shownPaddocks = list;
+            int? selectedMap = SelectedPaddock()?.MapId;
             paddocks.BeginUpdate(); paddocks.Items.Clear();
             foreach (GuildPaddock paddock in list)
             {
@@ -490,6 +505,7 @@ namespace Outil_Azur_complet.Bot.Panels
                 row.SubItems.Add(paddock.MaxObjects.ToString(CultureInfo.CurrentCulture));
                 row.SubItems.Add(paddock.Mounts.Count == 0 ? "–" : string.Join(", ", paddock.Mounts.Select(mount => mount.Name + " (" + mount.OwnerName + ")")));
                 row.Tag = paddock;
+                if (paddock.MapId == selectedMap) row.Selected = true;
             }
             paddocks.EndUpdate();
         }
@@ -500,6 +516,7 @@ namespace Outil_Azur_complet.Bot.Panels
             housesInfo.Text = !model.HousesReceived ? "Liste des maisons en attente (gIH)." : list.Count.ToString(CultureInfo.CurrentCulture) + " maison(s) de guilde.";
             if (ReferenceEquals(list, shownHouses)) return;
             shownHouses = list;
+            int? selectedHouse = SelectedHouse()?.Id;
             houses.BeginUpdate(); houses.Items.Clear();
             foreach (GuildHouse house in list)
             {
@@ -508,6 +525,7 @@ namespace Outil_Azur_complet.Bot.Panels
                 row.SubItems.Add("[" + house.X.ToString(CultureInfo.InvariantCulture) + "," + house.Y.ToString(CultureInfo.InvariantCulture) + "]");
                 row.SubItems.Add(house.RightsRaw.Length > 0 ? house.RightsRaw : "–");
                 row.Tag = house;
+                if (house.Id == selectedHouse) row.Selected = true;
             }
             houses.EndUpdate();
         }
@@ -554,7 +572,14 @@ namespace Outil_Azur_complet.Bot.Panels
             removeCollector.Enabled = Connected && model.CanDo(GuildRight.HireCollector) && collectors.SelectedItems.Count == 1;
             createButton.Enabled = Connected && guild.CreationWindowOpen && !model.HasGuild;
             cancelCreate.Enabled = Connected && guild.CreationWindowOpen;
+            GuildHouse house = SelectedHouse();
+            houseTeleport.Visible = GuildActions.CanTeleportTo(house);
+            houseTeleport.Enabled = Connected && model.HasGuild && houseTeleport.Visible;
+            paddockTeleport.Enabled = Connected && model.HasGuild && SelectedPaddock() != null;
         }
+
+        private GuildHouse SelectedHouse() => houses != null && houses.SelectedItems.Count == 1 ? houses.SelectedItems[0].Tag as GuildHouse : null;
+        private GuildPaddock SelectedPaddock() => paddocks != null && paddocks.SelectedItems.Count == 1 ? paddocks.SelectedItems[0].Tag as GuildPaddock : null;
 
         // ----- Actions -----
 
@@ -616,6 +641,24 @@ namespace Outil_Azur_complet.Bot.Panels
                 GuildTexts.Get("DO_YOU_HIRE_TAXCOLLECTOR", "Pour placer un percepteur sur cette carte, vous devez dépenser {0} kamas. Voulez-vous continuer ?", cost));
             if (answer != BotDialogResult.Yes) return;
             await ReportAsync(guild.HireCollectorAsync);
+        }
+
+        /// <summary>« Rejoindre » de l'onglet Maisons : <c>gh&lt;maison&gt;</c> (le client revérifie la sélection et le droit 128 au clic).</summary>
+        private Task TeleportToSelectedHouse()
+        {
+            GuildHouse house = SelectedHouse();
+            if (house == null || !GuildActions.CanTeleportTo(house)) return Task.CompletedTask;
+            int id = house.Id;
+            return Run(guild => guild.TeleportToHouseAsync(id));
+        }
+
+        /// <summary>Téléportation vers l'enclos sélectionné : <c>gf&lt;carte&gt;</c>.</summary>
+        private Task TeleportToSelectedPaddock()
+        {
+            GuildPaddock paddock = SelectedPaddock();
+            if (paddock == null) return Task.CompletedTask;
+            int map = paddock.MapId;
+            return Run(guild => guild.TeleportToPaddockAsync(map));
         }
 
         private async Task RemoveSelectedCollector()

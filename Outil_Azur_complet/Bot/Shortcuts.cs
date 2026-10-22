@@ -83,13 +83,17 @@ namespace Outil_Azur_complet.Bot
     {
         public const int KeySet = 1;
 
-        /// <summary>Raccourcis exécutés par la fenêtre de jeu ; ceux de la discussion restent à la zone de saisie.</summary>
+        /// <summary>
+        /// Raccourcis exécutés par la fenêtre de jeu. Entrée, Maj + Entrée et Ctrl + Entrée (<c>ACCEPT_CURRENT_DIALOG</c>,
+        /// <c>TEAM_MESSAGE</c>, <c>GUILD_MESSAGE</c>) ne servent la fenêtre qu'hors saisie (focus donné à la zone de saisie du chat) ;
+        /// dans la zone de saisie, c'est elle qui envoie la ligne. Les autres raccourcis de la discussion restent à la zone de saisie.
+        /// </summary>
         public static readonly IReadOnlyCollection<string> HandledNames = new HashSet<string>(StringComparer.Ordinal)
         {
             "CHARAC", "SPELLS", "INVENTORY", "QUESTS", "MAP", "FRIENDS", "GUILD", "MOUNT", "MOUNTING",
             "SH0", "SH1", "SH2", "SH3", "SH4", "SH5", "SH6", "SH7", "SH8", "SH9", "SH10", "SH11", "SH12", "SH13", "SH14",
             "GRID", "TRANSPARENCY", "SPRITEINFOS", "COORDS", "TOGGLE_FIGHT_INFOS", "FULLSCREEN", "NEXTTURN", "ESCAPE", "SWAP",
-            "MAXI", "MINI",
+            "MAXI", "MINI", "ACCEPT_CURRENT_DIALOG", "TEAM_MESSAGE", "GUILD_MESSAGE",
         };
 
         /// <summary>Raccourcis du bandeau, soumis à l'option <c>BannerShortcuts</c> comme <c>Banner.onShortcut</c>.</summary>
@@ -119,10 +123,14 @@ namespace Outil_Azur_complet.Bot
             ("MAXI", 107, 0, "Interface", "Agrandir le chat"), ("MINI", 109, 0, "Interface", "Réduire le chat"),
             ("NEXTTURN", 35, 1, "Combat", "Passer son tour"), ("FULLSCREEN", 70, 1, "Autres raccourcis", "Plein écran"),
             ("ESCAPE", 27, 0, "Autres raccourcis", "Fermer l'interface ouverte"),
+            ("ACCEPT_CURRENT_DIALOG", 13, 0, "Autres raccourcis", "Écrire dans le chat ou envoyer la ligne"),
+            ("TEAM_MESSAGE", 13, 2, "Discussion", "Écrire ou envoyer sur le canal d'équipe"),
+            ("GUILD_MESSAGE", 13, 1, "Discussion", "Écrire ou envoyer sur le canal de guilde"),
         };
 
         // Raccourcis du jeu 1 marqués o="false" (actifs pendant la saisie) dans shortcuts_fr.
-        private static readonly HashSet<string> AnyTime = new HashSet<string>(StringComparer.Ordinal) { "NEXTTURN", "FULLSCREEN", "ESCAPE" };
+        private static readonly HashSet<string> AnyTime = new HashSet<string>(StringComparer.Ordinal)
+            { "NEXTTURN", "FULLSCREEN", "ESCAPE", "ACCEPT_CURRENT_DIALOG", "TEAM_MESSAGE", "GUILD_MESSAGE" };
 
         /// <summary>Table en vigueur : <c>shortcuts.xml</c> si chargé, sinon la table intégrée ; touches de l'utilisateur appliquées.</summary>
         public static ShortcutTable Build(BotOptions options)

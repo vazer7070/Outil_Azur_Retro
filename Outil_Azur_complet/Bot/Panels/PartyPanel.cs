@@ -316,9 +316,19 @@ namespace Outil_Azur_complet.Bot.Panels
         /// </summary>
         public ContextMenuStrip ShowMemberMenu(long memberId, Point? location = null)
         {
+            if (members == null || members.IsDisposed) return null;
+            return ShowMemberMenu(memberId, members, location ?? members.PointToClient(Cursor.Position));
+        }
+
+        /// <summary>
+        /// Menu d'un membre ouvert depuis un autre contrôle (colonne du groupe posée sur la carte), sans que le volet soit affiché :
+        /// <paramref name="location"/> est dans le repère de <paramref name="owner"/>.
+        /// </summary>
+        public ContextMenuStrip ShowMemberMenu(long memberId, Control owner, Point location)
+        {
             PartyActions party = Game?.Interactions?.Party;
             PartyMember member = party?.Group.Find(memberId);
-            if (member == null || members == null || members.IsDisposed) return null;
+            if (member == null || owner == null || owner.IsDisposed) return null;
             var context = new ActorMenuContext(null, null, -1, Account, null, Host, Keys.None);
             var strip = new ContextMenuStrip { Renderer = new RetroMenuRenderer(), Font = BotFonts.Get(8.25f), BackColor = BotUi.Paper,
                 ForeColor = BotUi.Ink, ShowImageMargin = false, AccessibleName = "Menu du membre " + member.Name, Name = "party-member-menu" };
@@ -339,9 +349,8 @@ namespace Outil_Azur_complet.Bot.Panels
                 strip.Items.Add(item);
             }
             LastMenu = strip;
-            Point where = location ?? members.PointToClient(Cursor.Position);
-            strip.Closed += (s, e) => DisposeMenuLater(strip);
-            strip.Show(members, where);
+            strip.Closed += (s, e) => DisposeMenuLater(strip, owner);
+            strip.Show(owner, location);
             return strip;
         }
 
@@ -351,10 +360,9 @@ namespace Outil_Azur_complet.Bot.Panels
             catch (Exception error) { Feedback(error.Message); Account?.Logger?.LogException(Reference, error); }
         }
 
-        private void DisposeMenuLater(ContextMenuStrip strip)
+        private static void DisposeMenuLater(ContextMenuStrip strip, Control owner)
         {
             // L'entrée cliquée reçoit son Click après la fermeture : la libération attend la fin du message en cours.
-            Control owner = members;
             if (owner != null && !owner.IsDisposed && owner.IsHandleCreated)
                 try { owner.BeginInvoke((Action)strip.Dispose); return; }
                 catch (InvalidOperationException) { }
