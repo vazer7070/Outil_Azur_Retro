@@ -193,3 +193,22 @@ Il passe sous Mono.
 `AZUR_STARLOCO_SCENARIOS=x13` ne joue que celui-là après la connexion.
 
 Lot X33 : `BotCombatSmoke` vérifie en plus la ligne de vue du client sur une carte synthétique de 7 colonnes (cellule sans ligne de vue entre ou sur la cible, hauteurs, pente, combattants aux extrémités ou entre elles, cellule inactive, diagonale, arrondis de Flash, `GDC` du niveau) puis, sur le serveur fictif, la cellule cachée par un monstre refusée sans paquet, un `GDC` qui retire la ligne de vue puis la rend, la case de mouvement 1 refusée à un sort à cellule libre, les états 16 et 17 lus dans `spells.xml` et suivis par `GA;950`, la limite par cible comptée au `GA;300` et vidée au tour suivant, `SB289` et `SB291` posés puis retirés ; `BotMapViewSmoke` le décor tactique au pixel (aplat #29261F, objets 10000, 10001, 10002 et 1030 d'un dossier temporaire, objet 25 gardé, cellule inactive, `GDC` de la ligne de vue, visuel absent signalé, retour au décor normal), les cases ciblables en #0066CC à 50 % et l'option `AdvancedLineOfSight` coupée, la vue tactique suivie depuis `Fights.TacticMode` et gardée sans être dessinée hors combat ; `BotFightUiSmoke` le bouton du mode tactique (aucun paquet, bouton enfoncé, seul bouton du spectateur). Le scénario x33 de `BotStarLocoLiveSmoke` rejoue le mode tactique et une cible cachée par un mur sur StarLoco (`AZUR_STARLOCO_SCENARIOS=x33`). Le scénario h accepte aussi l'échec critique `GA;305;<id>` sans point-virgule final, tel que StarLoco l'envoie.
+
+Lot X14 : trois tests existants vérifient en plus, sur le serveur fictif :
+
+- `BotGuildSmoke` : `gh9` pour une maison de `gIH` aux droits 131 (128 compris) et `gf900092` pour un enclos de `gIF`, avec la potion nommée dans le journal ; refus sans paquet d'une maison sans le droit 128, d'une maison ou d'un enclos hors liste et des deux téléportations sans guilde ; dans le volet, « Rejoindre » de l'onglet Maisons visible pour la seule maison au droit 128, celui de l'onglet Enclos grisé sans sélection, clics → `gh9` et `gf900092`, sélection gardée au rafraîchissement ;
+- `BotChatUiSmoke` : Entrée hors saisie → focus à la zone de saisie, curseur en fin de ligne, aucun paquet ; Entrée et Maj + Entrée laissées à la zone de saisie ; Échap dans la zone → focus à la carte sans fermer le volet, puis Échap ferme le volet ; Maj + Entrée et Ctrl + Entrée ; Entrée reçue comme touche de dialogue (`ProcessDialogKey`) ; pavé de code d'une porte qui bloque le focus automatique ;
+- `BotPartySmoke` : colonne du groupe posée à gauche du volet ouvert puis au bord droit de la carte, case sous la souris, clic → menu du membre, Afficher / Cacher, niveau et prospection totaux ; au pixel, avec des sprites synthétiques d'un dossier temporaire, sprite recoloré par la couleur 2 du `PM`, bande d'origine sans couleur, jauge 150 / 200, couronne du chef, flèche du membre suivi ; colonne cachée à `PV` ; boussole effacée par `PM-` du membre suivi (aucune cible précédente, comme le client).
+
+Ils passent sous Mono.
+
+`BotStarLocoLiveSmoke` ajoute x14 sur la carte 2196 (temple des guildes), avec deux personnages inventés :
+
+- le meneur a une Guildalogemme écrite dans la base et sa fenêtre de jeu ;
+- Entrée hors saisie → focus sans paquet ; Entrée dans la zone → `BM*|<ligne>|`, `cMK|` chez l'autre ; Échap → carte ;
+- la marche sur le plot rouge → `gn` ; « Créer » du volet → `gC<fond>|<couleur>|<motif>|<couleur>|<nom>` en décimal → `gCK`, Guildalogemme retirée ;
+- onglet Maisons → `gIH+`, liste vide, « Rejoindre » caché ; onglet Enclos → `gIF0`, liste vide, « Rejoindre » grisé ; `gh` et `gf` hors liste refusés sans paquet ; départ → `gKK`, guilde supprimée de la base par StarLoco ;
+- groupe : `PIK`, `PA`, `PCK` ; colonne posée à gauche du volet Groupe, portraits `staticR` dessinés, clic → menu du membre, niveau total ; suivi → `IC` et `PF+` ; départ de l'autre → `PV`, boussole effacée, colonne cachée ;
+- comptes, personnages, objet et guilde sont supprimés à la fin.
+
+La téléportation elle-même n'y est pas rejouée : le StarLoco de test n'a ni maison ni enclos dans sa base. `AZUR_STARLOCO_SCENARIOS=x14` ne joue que celui-là après la connexion.

@@ -142,6 +142,9 @@ try {
     # Lot X33 (ligne de vue, états du lanceur et lancers par cible vérifiés avant un sort, cases ciblables en #0066CC, mode tactique local) :
     # couvert par BotCombatSmoke, BotMapViewSmoke, BotFightUiSmoke et le scénario x33 de BotStarLocoLiveSmoke (Flèche Magique contre A) ;
     # AZUR_STARLOCO_SCENARIOS=x33 ne joue que celui-là après la connexion.
+    # Lot X14 (gh/gf des onglets Maisons et Enclos de la guilde, colonne du groupe UI_Party, Entrée → zone de saisie du chat, Échap → carte) :
+    # couvert par BotGuildSmoke, BotChatUiSmoke, BotPartySmoke et le scénario x14 de BotStarLocoLiveSmoke (guilde créée au temple, groupe de
+    # deux comptes inventés) ; AZUR_STARLOCO_SCENARIOS=x14 ne joue que celui-là après la connexion.
 
     if ($Integration) {
         $azurMysqld = Join-Path $MySqlBin 'mysqld.exe'

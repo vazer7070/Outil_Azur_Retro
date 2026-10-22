@@ -171,6 +171,8 @@ Après la relecture, le bot a été joué sur une copie locale du StarLoco du ki
 
 **X33 — Combat : ligne de vue locale et mode tactique.** Ligne de vue du client (`checkView` : hauteurs des cellules et des combattants, cellules sans ligne de vue ou inactives, combattants entre le lanceur et la cible, `GDC` compris) vérifiée avant l'envoi d'un sort, avec les états requis et interdits du lanceur (index 16 et 17 du niveau), la cellule libre (`freeCell`), les lancers par cible (compteur de `addLaunchedSpell`) et les bonus `SB` 289 et 291 ; option `AdvancedLineOfSight` (« Mettre en valeur les cases ciblables », vraie par défaut) qui pose sur chaque cible valable la forme de sélection en #0066CC à 50 % (`drawAllowedZone`) ; bouton du mode tactique actif au placement, en combat et seul pour un spectateur, sans paquet : aplat #29261F à la place des fonds 631 et 632 absents, sols retirés, objets 10000, 10001, 10002 et 1030 du décor exporté (`turnTactic`), choix gardé d'un combat à l'autre, second clic pour le décor normal. Écarts avec StarLoco (ligne de vue des joueurs et états non vérifiés par le serveur) décrits dans le guide. Tests : `BotCombatSmoke`, `BotMapViewSmoke`, `BotFightUiSmoke`, scénario x33 de `BotStarLocoLiveSmoke`.
 
+**X14 — Social (a) : téléportation de guilde, colonne du groupe, Entrée du chat (V-27, V-28, V-29, m-37).** Boutons « Rejoindre » des onglets Maisons (`gh<maison>`, seulement pour une maison qui partage le droit 128) et Enclos (`gf<carte>`), refusés sur place hors des listes `gIH` / `gIF` (StarLoco lèverait une exception pour un `gf` vers une carte sans enclos) ; colonne du groupe `UI_Party` posée sur la carte, au bord droit comme dans le client, de `PCK` à `PV` : portraits `staticR` recolorés par les couleurs de `PM`, vie, chef, suivi, menu du membre au clic, bouton Afficher / Cacher ; Entrée, Maj + Entrée et Ctrl + Entrée hors saisie donnent le focus à la zone de saisie du chat (`setChatFocus`), Échap le rend à la carte. La boussole n'est pas remise sur une cible précédente : le client n'en garde pas. Tests : `BotGuildSmoke`, `BotChatUiSmoke`, `BotPartySmoke`, scénario x14 de `BotStarLocoLiveSmoke`.
+
 ## Couverture des fonctions
 
 Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par le test cité contre un serveur fictif local), **partiel** (une partie seulement), **absent**. Les fonctions rejouées par `BotStarLocoLiveSmoke` sont aussi vérifiées sur un vrai StarLoco local ; les autres lignes ne le sont pas encore. La colonne « Client 1.34 » nomme la fenêtre ou les paquets du client ; la colonne « StarLoco » dit ce que le serveur du kit en fait.
@@ -242,6 +244,7 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | C9 | Historique, complétion, agrandissement | local | — | fait | `BotChatUiSmoke` |
 | C10 | Messages du serveur | `Im`, `cs`, `M1` | traité | fait | `BotSessionSmoke`, `BotChatUiSmoke` |
 | C11 | Journal de combat (lot X7) | `INFO_FIGHT_CHAT`, option `ChatEffects` | — | partiel : textes du journal du bot, pas ceux de langue du client | `BotChatUiSmoke`, `BotFightUiSmoke`, x7 |
+| — | Entrée → zone de saisie, Échap → carte (lot X14) | `ACCEPT_CURRENT_DIALOG`, `TEAM_MESSAGE`, `GUILD_MESSAGE`, `setChatFocus` | — | fait | `BotChatUiSmoke`, x14 |
 
 ### D. Bandeau, fiches et petits menus
 
@@ -266,6 +269,7 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | E1 | Groupe | `PI`, `PA`, `PR`, `PV`, `PF`, `PW` | n’envoie ni `PA`, ni `PCE`, ni `PFE` | fait | `BotPartySmoke` |
 | E2 | Amis, ennemis, conjoint | `FA`, `FD`, `FL`, `iA`, `iD`, `FJS`, `FJC` | état des amis toujours « ? » | fait (onglet Ignorés absent) | `BotFriendsSmoke` |
 | E3 | Guilde | `g…` | défense de percepteur inopérante | partiel : défense non proposée, enclos sans actions | `BotGuildSmoke` |
+| — | Téléportation de guilde, colonne du groupe (lot X14) | `gh<maison>`, `gf<carte>`, `UI_Party` | potion 8883 / 9035 retirée ; `gf` hors enclos : exception | fait (téléportation non rejouée sur StarLoco, faute de maison et d'enclos dans sa base) | `BotGuildSmoke`, `BotPartySmoke`, x14 |
 
 ### F. Économie, objets, habitat
 
@@ -335,6 +339,8 @@ Lot X13 : sont rejoués (scénario x13) un chapeau vivant écrit dans la base, n
 
 Lot X33 : le mode tactique basculé au placement sans paquet (aplat et objets 10000 à 10002), la cellule cachée par le décor exclue des cibles en #0066CC et refusée sans envoi, la Flèche Magique lancée sur une cible visible (`GA300161;<cellule>` accepté) et le retour au décor normal sont rejoués (scénario x33). Restent un bonus `SB` reçu de StarLoco, un lanceur qui porte un autre combattant, les limites par cible et les états sur le vrai serveur, et la comparaison des captures avec le client en jeu.
 
+Lot X14 : sont rejoués (scénario x14) l'Entrée hors saisie puis dans la zone de saisie (`BM*` → `cMK` chez l'autre compte) et Échap, la création d'une guilde au temple (plot de la carte 2196 → `gn`, « Créer » → `gC…` → `gCK`, Guildalogemme retirée), ses onglets Maisons (`gIH+`) et Enclos (`gIF0`) avec leurs boutons, `gh` et `gf` hors liste refusés sur place, le départ (`gKK`, guilde supprimée par StarLoco), puis un groupe de deux comptes : colonne, portraits, menu, suivi (`IC`, `PF+`) et `PV` qui efface la boussole. Restent la téléportation elle-même et la potion retirée : le StarLoco de test n'a ni maison ni enclos dans sa base, et partager une maison demande une guilde de niveau 10 et de 10 membres.
+
 ### Carte et acteurs
 
 - Images des sols en pente : `swfsvg` sait rendre une image choisie, mais le décor versionné a été exporté sans les pentes.
@@ -390,6 +396,7 @@ Lot X33 : le mode tactique basculé au placement sans paquet (aplat et objets 10
 - Maison : emblème de guilde dans le volet, fenêtres de vente et d’intérieur flottantes.
 - Montures : ancêtres, recoloration et animation, certificat consulté depuis l’inventaire.
 - Lot X12 : l'artisanat sécurisé, le marchand, le percepteur et les familiers gardent leurs champs de quantité au lieu de la boîte et du glisser-déposer des autres volets d'échange.
+- Lot X14 : le client 1.34 ne remet pas la boussole sur une cible précédente après un suivi (`IC` la remplace, `removeMember` et `onLeave` l'effacent) ; le bot fait de même. La colonne du groupe a un fond brun opaque au lieu de laisser voir la carte, et le bouton de verrouillage du combat en groupe (`FightGroupAutoLock`) n'y figure pas, l'option n'étant pas reprise.
 
 ### Monde
 
