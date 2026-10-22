@@ -2501,11 +2501,19 @@ internal static partial class Live
             var local = socket?.LocalEndPoint as System.Net.IPEndPoint;
             if (local == null) return "aucun socket";
             string port = local.Port.ToString("X4", CultureInfo.InvariantCulture);
-            // Champs : sl, adresse locale, adresse distante, état, tx_queue:rx_queue, …
+            // Champs : sl, adresse locale, adresse distante, état, tx_queue:rx_queue, tr, retrnsmt, uid, timeout, inode.
             var rows = File.ReadAllLines("/proc/net/tcp").Skip(1).Select(line => line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries))
-                .Where(f => f.Length > 4 && (f[1].EndsWith(":" + port, StringComparison.Ordinal) || f[2].EndsWith(":" + port, StringComparison.Ordinal)))
-                .Select(f => (f[1].EndsWith(":" + port, StringComparison.Ordinal) ? "bot" : "serveur") + " état " + f[3] + " tx:rx " + f[4]);
-            return "port local " + local.Port + " (descripteur " + socket.Handle + ") : " + string.Join(" ; ", rows);
+                .Where(f => f.Length > 9 && (f[1].EndsWith(":" + port, StringComparison.Ordinal) || f[2].EndsWith(":" + port, StringComparison.Ordinal)))
+                .Select(f => (f[1].EndsWith(":" + port, StringComparison.Ordinal) ? "bot" : "serveur") + " état " + f[3] + " tx:rx " + f[4] + " inode " + f[9]);
+            // Le descripteur du socket doit encore désigner l'inode du bot : sinon il a été fermé (et peut-être repris) ailleurs.
+            string target;
+            using (var link = Process.Start(new ProcessStartInfo("readlink", "/proc/" + Process.GetCurrentProcess().Id + "/fd/" + socket.Handle)
+                { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true }))
+            {
+                target = link.StandardOutput.ReadToEnd().Trim();
+                link.WaitForExit(5000);
+            }
+            return "port local " + local.Port + ", descripteur " + socket.Handle + " → " + (target.Length == 0 ? "fermé" : target) + " : " + string.Join(" ; ", rows);
         }
         catch (Exception error) { return "illisibles : " + error.Message; }
     }
