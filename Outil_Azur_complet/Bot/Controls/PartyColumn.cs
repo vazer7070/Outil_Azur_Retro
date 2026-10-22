@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
@@ -263,18 +264,28 @@ namespace Outil_Azur_complet.Bot.Controls
         {
             SpritePose pose = member.Gfx > 0 ? sprites.Resolve(member.Gfx, 1, false, "static", new ActorColors(member.Color1, member.Color2, member.Color3)) : null;
             SpriteSheet sheet = pose?.Sheet;
+            if (sheet != null)
+            {
+                // Dessin dans une image de la taille de la zone, posée ensuite : libgdiplus n'affiche rien quand le retournement de
+                // SpritePainter (échelle négative) se combine à une découpe déjà posée sur le Graphics.
+                bool mirrored = !pose.Mirrored;
+                RectangleF placed = sheet.Destination(PointF.Empty, SpriteScale, SpriteScale, mirrored);
+                using (var portrait = new Bitmap(area.Width, area.Height, PixelFormat.Format32bppArgb))
+                {
+                    using (Graphics inner = Graphics.FromImage(portrait))
+                    {
+                        inner.InterpolationMode = InterpolationMode.HighQualityBicubic; inner.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                        var target = new RectangleF((area.Width - placed.Width) / 2f, 0, placed.Width, placed.Height);
+                        lock (sheet.Image) SpritePainter.Draw(inner, sheet, 0, target, mirrored, null);
+                    }
+                    graphics.DrawImage(portrait, area);
+                }
+                return;
+            }
             GraphicsState state = graphics.Save();
             try
             {
                 graphics.SetClip(area);
-                if (sheet != null)
-                {
-                    bool mirrored = !pose.Mirrored;
-                    RectangleF placed = sheet.Destination(PointF.Empty, SpriteScale, SpriteScale, mirrored);
-                    var target = new RectangleF(area.X + (area.Width - placed.Width) / 2f, area.Y, placed.Width, placed.Height);
-                    lock (sheet.Image) SpritePainter.Draw(graphics, sheet, 0, target, mirrored, null);
-                    return;
-                }
                 Bitmap mini = PartyArtworks.Mini(member.Gfx);
                 if (mini != null) { ClientAssets.DrawFit(graphics, mini, area, true); return; }
                 string initial = member.Name.Length > 0 ? member.Name.Substring(0, 1).ToUpperInvariant() : "?";
