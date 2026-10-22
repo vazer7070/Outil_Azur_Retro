@@ -36,6 +36,7 @@ namespace Outil_Azur_complet.Bot.Panels
         private PictureBox star;
         private ImageList icons;
         private Label challengesLabel, challengesSummary;
+        private bool challengesShown;
         private FlowLayoutPanel challengeIcons;
         private RowStyle challengesRow;
         private ToolTip tips;
@@ -55,7 +56,7 @@ namespace Outil_Azur_complet.Bot.Panels
         public string DurationText => duration?.Text ?? string.Empty;
         public string BonusText => bonus != null && bonus.Visible ? bonus.Text : string.Empty;
         /// <summary>Ligne des défis : « Bonus de challenges : » puis le résumé ; vide sans défi.</summary>
-        public string ChallengesText => challengesLabel != null && challengesLabel.Visible ? challengesLabel.Text + " " + challengesSummary.Text : string.Empty;
+        public string ChallengesText => challengesShown ? challengesLabel.Text + " " + challengesSummary.Text : string.Empty;
         /// <summary>Icônes des défis du résultat (17 × 17), dans l'ordre de réception.</summary>
         public IReadOnlyList<ChallengeIcon> ChallengeIcons => challengeIcons == null ? new ChallengeIcon[0] : challengeIcons.Controls.OfType<ChallengeIcon>().ToArray();
         public string TooltipOf(Control control) => tips?.GetToolTip(control) ?? string.Empty;
@@ -240,6 +241,7 @@ namespace Outil_Azur_complet.Bot.Panels
                     }
             }
             finally { challengeIcons.ResumeLayout(); }
+            challengesShown = shown;
             challengesLabel.Visible = challengeIcons.Visible = challengesSummary.Visible = shown;
             challengesSummary.Text = shown ? string.Join(" · ", challenges.Select(ChallengeTexts.Summary)) : string.Empty;
             challengesRow.Height = shown ? 24 : 0;
