@@ -58,6 +58,7 @@ namespace Outil_Azur_complet.Bot
         private TimelineControl timeline;
         private FightOptionButtons fightOptions;
         private ChallengeMenu challengeMenu;
+        private PartyColumn partyColumn;
         private OptionsForm optionsWindow;
         private string actionFeedback;
         private DateTime actionFeedbackUntil;
@@ -85,6 +86,8 @@ namespace Outil_Azur_complet.Bot
         public ChallengeMenu PlacementMenu => challengeMenu;
         /// <summary>Carte de la fenêtre ; <c>null</c> avant la première carte.</summary>
         public MapControl Map => mapControl;
+        /// <summary>Colonne du groupe (<c>UI_Party</c>) posée sur le bord droit de la carte, visible tant que le personnage est en groupe.</summary>
+        public PartyColumn PartyColumn => partyColumn;
         /// <summary>Hauteur du bandeau bas quand le chat est réduit.</summary>
         public const int HudHeight = 112;
         /// <summary>Hauteur de la barre d'état en haut de la fenêtre.</summary>
@@ -123,6 +126,7 @@ namespace Outil_Azur_complet.Bot
             emptyMap.TextAlign = ContentAlignment.MiddleCenter; mapArea.Controls.Add(emptyMap);
             root.Controls.Add(mapArea, 0, 1);
             BuildDrawer(mapArea);
+            BuildPartyColumn();
 
             hud = new HudPanel { Dock = DockStyle.Fill };
             root.Controls.Add(hud, 0, 2);
@@ -228,7 +232,7 @@ namespace Outil_Azur_complet.Bot
             drawer.Account = ActualCompte;
             drawer.Feedback += ShowActionFeedback;
             drawer.PanelShown += (s,e) => { LayoutDrawer(); banner?.RequestRefresh(); };
-            drawer.PanelClosed += (s,e) => banner?.RequestRefresh();
+            drawer.PanelClosed += (s,e) => { LayoutPartyColumn(); banner?.RequestRefresh(); };
             foreach (IGamePanel panel in new IGamePanel[] { new StatsPanel(), new InventoryPanel(), new SpellsPanel(), new JobsPanel(),
                 new JournalPanel(), new DialoguePanel(), new ZaapsPanel(), new ShopPanel(), new ExchangePanel(), new StoragePanel(), new FightsListPanel(), new ZaapiPanel(), new KeyCodePanel(), new DocumentPanel(), new PartyPanel(), new FriendsPanel(), new CommandsHelpPanel(), new FightResultPanel(), new MerchantPanel(), new HouseIndoorPanel(), new WorldMapPanel(), new GuildPanel(), new CollectorPanel(), new AuctionBuyPanel(), new AuctionSellPanel(), new ConquestPanel(), new PrismTravelPanel(), new CraftPanel(), new CrafterListPanel(), new MountPanel(), new PaddockPanel(), new QuestsPanel(), new PetsExchangePanel(), new CraftSecurePanel() })
                 drawer.Register(panel);
@@ -240,6 +244,46 @@ namespace Outil_Azur_complet.Bot
             if (drawer == null) return;
             int width = Math.Min(410, Math.Max(330, mapArea.Width - 350));
             drawer.SetBounds(Math.Max(0, mapArea.Width - width - 6), 6, width, Math.Max(1, mapArea.Height - 12));
+            LayoutPartyColumn();
+        }
+
+        /// <summary>
+        /// Colonne du groupe du client (<c>UI_Party</c>) : posée sur la zone de la carte, au-dessus d'elle, liée au groupe du compte ;
+        /// un clic sur un membre ouvre son menu (celui du volet Groupe, sans ouvrir le volet).
+        /// </summary>
+        private void BuildPartyColumn()
+        {
+            partyColumn = new PartyColumn();
+            partyColumn.MemberClicked += OnPartyColumnMemberClicked;
+            partyColumn.SizeChanged += OnPartyColumnMoved;
+            partyColumn.VisibleChanged += OnPartyColumnMoved;
+            mapArea.Controls.Add(partyColumn); partyColumn.BringToFront();
+            partyColumn.Bind(ActualCompte);
+            LayoutPartyColumn();
+        }
+
+        private void OnPartyColumnMemberClicked(object sender, PartyMemberEventArgs e)
+        {
+            if (uiReleased || partyColumn == null) return;
+            drawer?.Get<PartyPanel>()?.ShowMemberMenu(e.Member.Id, partyColumn, e.Location);
+        }
+
+        private void OnPartyColumnMoved(object sender, EventArgs e) => LayoutPartyColumn();
+
+        /// <summary>
+        /// Place la colonne du groupe comme <c>UI_Party</c> (x 713 sur la scène de 742 px, y 41) : le long du bord droit de la carte,
+        /// à gauche du volet ouvert, sous la ligne de temps du combat quand elle passe au même endroit.
+        /// </summary>
+        private void LayoutPartyColumn()
+        {
+            if (partyColumn == null || partyColumn.IsDisposed || mapArea == null) return;
+            int right = drawer != null && drawer.Current != null && drawer.Visible ? drawer.Left - 4 : mapArea.ClientSize.Width - 6;
+            int top = PartyColumn.StageTop;
+            if (timeline != null && timeline.Visible && timeline.Right > right - partyColumn.Width && timeline.Left < right)
+                top = Math.Max(top, timeline.Bottom + 4);
+            var place = new Point(Math.Max(0, right - partyColumn.Width), top);
+            if (partyColumn.Location != place) partyColumn.Location = place;
+            if (partyColumn.Visible) partyColumn.BringToFront();
         }
         private void ShowPanel<T>() where T : class, IGamePanel => drawer.Show(drawer.Get<T>());
         private Button MiniButton(string title, EventHandler click, int width)
@@ -567,6 +611,7 @@ namespace Outil_Azur_complet.Bot
             timeline.BringToFront(); fightOptions.BringToFront(); challengeMenu.BringToFront();
             fightOptions.Place();
             mapArea.Resize += LayoutFightControls;
+            timeline.VisibleChanged += OnPartyColumnMoved; timeline.SizeChanged += OnPartyColumnMoved;
             timeline.Bind(ActualCompte); fightOptions.Bind(ActualCompte); challengeMenu.Bind(ActualCompte);
             var fight = ActualCompte.Game?.Fight;
             if (fight != null) fight.FlagReceived += OnFlagReceived;
@@ -706,7 +751,12 @@ namespace Outil_Azur_complet.Bot
             options.OptionChanged -= OnOptionChanged;
             if (OptionsWindow != null) optionsWindow.Close();
             if (mapControl != null) { mapControl.DisplayStateChanged -= UpdateMapDisplay; mapControl.SpellSelectionChanged -= SpellSelectionChanged; mapControl.ActionFeedback -= ShowActionFeedback; mapControl.Router.Panels = null; }
-            if (timeline != null) { mapArea.Resize -= LayoutFightControls; timeline.Release(); }
+            if (timeline != null) { mapArea.Resize -= LayoutFightControls; timeline.VisibleChanged -= OnPartyColumnMoved; timeline.SizeChanged -= OnPartyColumnMoved; timeline.Release(); }
+            if (partyColumn != null)
+            {
+                partyColumn.MemberClicked -= OnPartyColumnMemberClicked; partyColumn.SizeChanged -= OnPartyColumnMoved;
+                partyColumn.VisibleChanged -= OnPartyColumnMoved; partyColumn.Release();
+            }
             if (fightOptions != null) { fightOptions.Feedback -= ShowActionFeedback; fightOptions.FlagRequested -= OnFlagRequested; fightOptions.Release(); }
             if (challengeMenu != null) { challengeMenu.Feedback -= ShowActionFeedback; challengeMenu.Release(); }
             if (banner != null)
