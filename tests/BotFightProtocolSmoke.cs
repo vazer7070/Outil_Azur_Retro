@@ -224,8 +224,8 @@ internal static class BotFightProtocolSmoke
             // Le GM de combat ne porte que le grade : niveau posé ici comme s'il venait de monsters.xml.
             ((Tool_BotProtocol.Game.Monstres.Monstres)account.Game.Map.GetActor(-7)).Level = 4;
 
-            // Gd<type>;<1|0>;<cible>;<xp>;0;<butin>;0 (Challenge.parseToPacket de StarLoco).
-            await Feed(account, "Gd3;1;-7;20;0;15;0");
+            // Gd<type>;<1|0>;<cible>;<xp>;0;<butin>;0; : Challenge.parseToPacket de StarLoco finit par « ; » (huitième champ vide).
+            await Feed(account, "Gd3;1;-7;20;0;15;0;");
             FightChallenge target = fight.Challenges.Single();
             Check(target.Id == 3 && target.ShowTarget && target.TargetId == -7 && target.BasicXpBonus == 20 && target.TeamXpBonus == 0 && target.XpBonus == 20
                 && target.BasicDropBonus == 15 && target.DropBonus == 15 && target.State == FightChallengeState.Running && target.Gfx == 4,
