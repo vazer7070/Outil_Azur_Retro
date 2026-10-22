@@ -91,6 +91,11 @@ namespace Tool_BotProtocol.Game.Combats
         public IReadOnlyList<FightResultEntry> Collectors => Entries.Where(entry => entry.Kind == FightResultKind.Collector).ToList();
         /// <summary>Butin commun (catégorie 6) que le client répartit ensuite entre les gagnants.</summary>
         public IReadOnlyList<FightResultEntry> Pools => Entries.Where(entry => entry.Kind == FightResultKind.Pool).ToList();
+        /// <summary>
+        /// Défis du combat et leur état final, copiés de <see cref="Fights.Challenges"/> à la réception de <c>GE</c> comme
+        /// <c>Game.onEnd</c> du client (<c>challenges.clone()</c>) ; vide hors combat contre des monstres.
+        /// </summary>
+        public IReadOnlyList<FightChallenge> Challenges { get; internal set; } = new FightChallenge[0];
         /// <summary>Lignes illisibles, ignorées sans arrêter la lecture des suivantes.</summary>
         public IReadOnlyList<string> Rejected { get; private set; } = new string[0];
         public string Raw { get; private set; } = string.Empty;

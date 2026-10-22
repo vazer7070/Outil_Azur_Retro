@@ -898,7 +898,7 @@ namespace Tool_BotProtocol.Game.Combats
                 account.Logger?.LogDanger("COMBAT", result.Rejected.Count + " ligne(s) du résultat de combat illisible(s), ignorée(s).");
             int self = account.Game.character.id;
             FightLogEntry[] kept;
-            lock (sync) { if (!InFight) return false; kept = journal.ToArray(); }
+            lock (sync) { if (!InFight) return false; kept = journal.ToArray(); if (result != null) result.Challenges = challenges.ToArray(); }
             Clear(false);
             lock (sync)
             {
@@ -1125,7 +1125,7 @@ namespace Tool_BotProtocol.Game.Combats
                 phase = CombatPhase.None; spectator = ready = canCancel = challengeMenu = firstTurnPending = false; fightType = -1; actor = turn = turnDuration = 0; pa = pm = -1;
                 lastActor = readyActor = 0; tableTurn = null; turnStartedUtc = DateTime.MinValue;
                 places = new short[0]; teamPlaces = new[] { new short[0], new short[0] }; fighters.Clear(); lastSpellTurn.Clear(); castsThisTurn.Clear(); castsOnTarget.Clear();
-                turnOrder.Clear(); effects.Clear(); states.Clear(); zones.Clear(); teamOptions.Clear(); journal.Clear();
+                turnOrder.Clear(); effects.Clear(); states.Clear(); zones.Clear(); teamOptions.Clear(); journal.Clear(); challenges.Clear();
                 lastFlag = null; lastResult = null;
                 pendingKind = null; pendingConfirmed = false; lastMessage = "Aucun combat en cours.";
             }
@@ -1137,7 +1137,7 @@ namespace Tool_BotProtocol.Game.Combats
             lock (sync) { if (disposed) return; disposed = true; }
             Clear(false);
             CombatChanged = null; CombatReady = null; CombatFinished = null;
-            CombatResultReceived = null; FlagReceived = null; FightOptionChanged = null; JournalEntryAdded = null;
+            CombatResultReceived = null; FlagReceived = null; FightOptionChanged = null; JournalEntryAdded = null; ChallengeChanged = null;
         }
     }
 }

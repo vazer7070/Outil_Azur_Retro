@@ -411,6 +411,18 @@ namespace Tool_BotProtocol.Game.Data
             public static string Description(int id) => Attribute("spells", "sort", Key(id), "description") ?? Key(id);
         }
 
+        /// <summary>
+        /// Défis de combat (<c>fightChallenge_fr</c> : <c>FC[id] = {n, d, g}</c>) : nom, description (<c>%1</c> = cible) et numéro
+        /// de l'icône <c>clips/challenges/&lt;g&gt;.swf</c> (<c>Lang.getFightChallenge</c> du client).
+        /// </summary>
+        public static class Challenge
+        {
+            public static bool Has(int id) => Find("fightChallenge", "FC", Key(id)) != null;
+            public static string Name(int id) => Attribute("fightChallenge", "FC", Key(id), "n") ?? Key(id);
+            public static string Description(int id) => Attribute("fightChallenge", "FC", Key(id), "d") ?? string.Empty;
+            public static int? Gfx(int id) => Int(Attribute("fightChallenge", "FC", Key(id), "g"));
+        }
+
         /// <summary>Émotes (<c>emotes_fr</c> : <c>EM[id] = {n, s}</c> ; <c>s</c> = commande du chat, <c>/sit</c>…).</summary>
         public static class Emote
         {
