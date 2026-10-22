@@ -224,6 +224,21 @@ class Export(unittest.TestCase):
         self.assertNotIn("SWF ignorés", self.lire("Portraits", "PROVENANCE.md"))
         self.assertIn("0 PNG", self.lire("Emotes", "PROVENANCE.md"), "famille absente du client : provenance vide, pas d'erreur")
 
+    def test_famille_defis(self):
+        # Lot X9 : icônes des défis (clips/challenges/<g>.swf) et symboles d'état ChallengeOK / ChallengeKO de core.swf.
+        self.faux("clips/challenges/4.swf", {"scene": True})
+        self.faux("modules/core.swf", {"symboles": {"ChallengeOK": 1, "ChallengeKO": 1}})
+        r = subprocess.run([sys.executable, EXPORTEUR, "--client", self.client, "--sortie", self.sortie, "--swfsvg", FAUX,
+                            "--familles", "Challenges", "--processus", "1", "--travail", self.dossier],
+                           capture_output=True, encoding="utf-8")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        for nom in ("4", "ChallengeOK", "ChallengeKO"):
+            self.assertTrue(os.path.exists(os.path.join(self.sortie, "Challenges", nom + ".png")), nom)
+        provenance = self.lire("Challenges", "PROVENANCE.md")
+        self.assertIn("3 PNG", provenance)
+        self.assertIn("--familles Challenges\n", provenance)
+        self.assertIn("FIGHT_CHALLENGE_PATH", provenance)
+
     def test_options_invalides(self):
         for options in (["--familles", "Inconnue"], ["--swfsvg", os.path.join(self.dossier, "absent")]):
             r = subprocess.run([sys.executable, EXPORTEUR, "--client", self.client, "--sortie", self.sortie] + options,
