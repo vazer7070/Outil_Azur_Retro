@@ -230,7 +230,7 @@ namespace Outil_Azur_complet.Bot.Panels
             challengeIcons.SuspendLayout();
             try
             {
-                foreach (Control old in challengeIcons.Controls.Cast<Control>().ToArray()) { challengeIcons.Controls.Remove(old); old.Dispose(); }
+                foreach (Control old in challengeIcons.Controls.Cast<Control>().ToArray()) { tips.SetToolTip(old, null); challengeIcons.Controls.Remove(old); old.Dispose(); }
                 if (shown)
                     foreach (FightChallenge challenge in challenges)
                     {

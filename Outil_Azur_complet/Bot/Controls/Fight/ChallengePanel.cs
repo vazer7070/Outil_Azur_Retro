@@ -291,7 +291,11 @@ namespace Outil_Azur_complet.Bot.Controls.Fight
             SuspendLayout();
             try
             {
-                while (icons.Count > list.Count) { ChallengeIcon last = icons[icons.Count - 1]; icons.RemoveAt(icons.Count - 1); Controls.Remove(last); last.Dispose(); }
+                while (icons.Count > list.Count)
+                {
+                    ChallengeIcon last = icons[icons.Count - 1];
+                    icons.RemoveAt(icons.Count - 1); tips.SetToolTip(last, null); Controls.Remove(last); last.Dispose();
+                }
                 for (int index = 0; index < list.Count; index++)
                 {
                     if (index >= icons.Count)
