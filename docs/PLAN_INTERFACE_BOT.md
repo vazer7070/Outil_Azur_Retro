@@ -171,6 +171,8 @@ Après la relecture, le bot a été joué sur une copie locale du StarLoco du ki
 
 **X33 — Combat : ligne de vue locale et mode tactique.** Ligne de vue du client (`checkView` : hauteurs des cellules et des combattants, cellules sans ligne de vue ou inactives, combattants entre le lanceur et la cible, `GDC` compris) vérifiée avant l'envoi d'un sort, avec les états requis et interdits du lanceur (index 16 et 17 du niveau), la cellule libre (`freeCell`), les lancers par cible (compteur de `addLaunchedSpell`) et les bonus `SB` 289 et 291 ; option `AdvancedLineOfSight` (« Mettre en valeur les cases ciblables », vraie par défaut) qui pose sur chaque cible valable la forme de sélection en #0066CC à 50 % (`drawAllowedZone`) ; bouton du mode tactique actif au placement, en combat et seul pour un spectateur, sans paquet : aplat #29261F à la place des fonds 631 et 632 absents, sols retirés, objets 10000, 10001, 10002 et 1030 du décor exporté (`turnTactic`), choix gardé d'un combat à l'autre, second clic pour le décor normal. Écarts avec StarLoco (ligne de vue des joueurs et états non vérifiés par le serveur) décrits dans le guide. Tests : `BotCombatSmoke`, `BotMapViewSmoke`, `BotFightUiSmoke`, scénario x33 de `BotStarLocoLiveSmoke`.
 
+**X9 — Combat : défis (V-01).** Défis d'un combat contre des monstres lus comme le client : `Gd<type>;<1|0>;<cible>;<xp>;<xp de groupe>;<butin>;<butin de groupe>`, aiguillage de `GdOK` / `GdKO` sur le quatrième caractère, huitième champ de StarLoco ignoré, nom, description et icône de `fightChallenge` (`%1` = « cible (Niv. n) »). Dans la fenêtre de jeu : colonne `UI_FightChallenge` (icônes exportées de 38 × 38, infobulle, bouton affiche / cache, symboles `ChallengeOK` / `ChallengeKO`) ; détail `FightChallengeViewer` (bonus de base et de groupe, état) ; « Voir la cible » → `Gdi<type>` au plus une fois par seconde, réponse `Gf` dessinée en drapeau ; lignes `FIGHT_CHALLENGE_DONE` / `FIGHT_CHALLENGE_FAILED` dans le filtre Infos du chat ; rangée « Bonus de challenges » du résultat (icônes de 17 × 17). Comportements de StarLoco (tirage, `Gf` avant `Gd`, `GdOK` même en défaite, `GdOK` / `GdKO` après `GQ` seulement pour le dernier de l'équipe) décrits dans le guide. Tests : `BotFightProtocolSmoke`, `BotFightUiSmoke`, scénario x9 de `BotStarLocoLiveSmoke`.
+
 ## Couverture des fonctions
 
 Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par le test cité contre un serveur fictif local), **partiel** (une partie seulement), **absent**. Les fonctions rejouées par `BotStarLocoLiveSmoke` sont aussi vérifiées sur un vrai StarLoco local ; les autres lignes ne le sont pas encore. La colonne « Client 1.34 » nomme la fenêtre ou les paquets du client ; la colonne « StarLoco » dit ce que le serveur du kit en fait.
@@ -294,7 +296,7 @@ Légende de la colonne « Bot » : **fait** (fonction utilisable, vérifiée par
 | G6 | Pierres d’âme et arènes | `OU` | pierre utilisable en arène seulement | fait | `BotServerCommandsSmoke` |
 | G7 | Documents | `dCK`, `dV` | pancartes seulement | fait | `BotInteractivesSmoke`, `BotServerCommandsSmoke` |
 | G8 | Commandes joueur du serveur | — | `.commande` dans le canal général | fait | `BotServerCommandsSmoke` |
-| G9 | Combat | `G…`, `GA` | traité ; défis à rejouer, `GA303` rejoué (lot X1) ; `Go` envoyé à la carte d'origine seulement | partiel : ni défis ; zones `GDZ`, prêt `GR1<id>`, options `Go` et invisibilité `GA;150` dessinés depuis le lot X7, mode tactique et ligne de vue locale depuis le lot X33 | `BotFightProtocolSmoke`, `BotCombatSmoke`, `BotFightUiSmoke`, `BotCombatUiSmoke` (Windows), x7 |
+| G9 | Combat | `G…`, `GA` | traité ; défis `Gd` rejoués (lot X9), `GA303` rejoué (lot X1) ; `Go` envoyé à la carte d'origine seulement | partiel : zones `GDZ`, prêt `GR1<id>`, options `Go` et invisibilité `GA;150` dessinés depuis le lot X7, mode tactique et ligne de vue locale depuis le lot X33, défis (`Gd`, `GdOK`, `GdKO`, `Gdi`) depuis le lot X9 | `BotFightProtocolSmoke`, `BotCombatSmoke`, `BotFightUiSmoke`, `BotCombatUiSmoke` (Windows), x7, x9 |
 
 ## Reste à faire
 
@@ -335,6 +337,8 @@ Lot X13 : sont rejoués (scénario x13) un chapeau vivant écrit dans la base, n
 
 Lot X33 : le mode tactique basculé au placement sans paquet (aplat et objets 10000 à 10002), la cellule cachée par le décor exclue des cibles en #0066CC et refusée sans envoi, la Flèche Magique lancée sur une cible visible (`GA300161;<cellule>` accepté) et le retour au décor normal sont rejoués (scénario x33). Restent un bonus `SB` reçu de StarLoco, un lanceur qui porte un autre combattant, les limites par cible et les états sur le vrai serveur, et la comparaison des captures avec le client en jeu.
 
+Lot X9 : sont rejoués (scénario x9) un défi tiré par StarLoco et lu dans la colonne de la fenêtre, un défi à cible (`Gf` avant `Gd`, « Voir la cible » → `Gdi3` → `Gf-1|291` en drapeau, puis `Gdi32` → `Gf-5|278` au passage suivant), un échec (`GdKO`, `Im0188`) et une réussite (`GdOK` en fin de combat, défaite comprise), avec leurs lignes du chat et la rangée « Bonus de challenges » du résultat. Restent deux défis dans un même combat (carte à action de fin de combat ou arène), un combat à plusieurs joueurs, le défi 34 dont la cible change à chaque tour, et la comparaison des captures avec le client en jeu.
+
 ### Carte et acteurs
 
 - Images des sols en pente : `swfsvg` sait rendre une image choisie, mais le décor versionné a été exporté sans les pentes.
@@ -349,7 +353,7 @@ Lot X33 : le mode tactique basculé au placement sans paquet (aplat et objets 10
 
 ### Combat
 
-- Défis (`Gd…`), fond des invocations dans la ligne de temps.
+- Fond des invocations dans la ligne de temps (les défis sont faits depuis le lot X9).
 - Corps à corps (lot X1) : ligne de vue et zone de l’arme laissées au serveur (cellules surlignées = cellules à portée), effets de l’arme absents de l’infobulle, arme non changeable pendant un combat (l’inventaire du bot le refuse, StarLoco l’accepterait). Depuis le lot X8, la zone du type d’arme est dessinée sous le pointeur.
 - Bouton d’exclusion d’un coéquipier dans le menu de placement (`GQ<id>` existe dans l’API).
 - Nombre de tours du résultat compté par le bot (StarLoco n’envoie pas le troisième champ de `GTS`).
@@ -359,6 +363,7 @@ Lot X33 : le mode tactique basculé au placement sans paquet (aplat et objets 10
 - Événements visibles (lot X7) : journal du chat écrit avec les textes du bot plutôt que ceux de langue du client (`INVISIBILITY`, `ENTER_STATE` / `EXIT_STATE` et le nom de l'état), « Combattant #<id> » quand un état arrive avant le `GM` ; zones tracées cellule par cellule au lieu du losange vectoriel de `Zone.drawCircle`.
 - Visée et chemin (lot X8) : ligne de vue dessinée depuis le lot X33 ; icône d'un objet tenu à la souris (lot X12) ; un chemin coupé avant la cellule survolée n'est ni dessiné ni envoyé ; forme `R` réduite à la cellule ; losange opaque sans formes de sélection exportées.
 - Ligne de vue et mode tactique (lot X33) : ligne de vue du corps à corps, limite d'invocations et bonus `SB` autres que 289 et 291 laissés au serveur ; fonds 631 et 632 du mode tactique remplacés par un aplat ; commande `/tactic` non reprise (seul le bouton bascule le mode).
+- Défis (lot X9) : position du détail choisie par le bot (à droite de la colonne) ; un second `Gd` du même type remplace le premier (le client l'empilerait) ; « (Niv. ?) » pour une cible dont le niveau est inconnu ; captures non comparées au client en jeu.
 
 ### Bandeau, options et fiches
 

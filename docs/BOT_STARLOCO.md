@@ -533,7 +533,7 @@ La fenêtre de jeu compose, au-dessus de la carte, les contrôles de combat du c
 
 `BotFightUiSmoke` rejoue tout cela dans une fenêtre de jeu invisible contre un serveur fictif local ; il passe aussi sous Mono.
 
-Limites : le mode tactique, les défis (`GdCK`…) et le fond des invocations de la ligne de temps ne sont pas dessinés ; les portraits viennent de la pose `static` des sprites exportés, pas du symbole de tête du client ; le menu de placement ne propose pas l’exclusion d’un coéquipier (`GQ<id>` reste accessible par `Fights.KickAsync`) ; le nombre de tours affiché est un substitut compté par le bot ; aucun volet ne s’ouvre pour un `GE` dont l’en-tête est illisible. Rien n’a encore été rejoué sur un vrai StarLoco. Le mode tactique est dessiné depuis le lot X33.
+Limites : le mode tactique, les défis (`GdCK`…) et le fond des invocations de la ligne de temps ne sont pas dessinés ; les portraits viennent de la pose `static` des sprites exportés, pas du symbole de tête du client ; le menu de placement ne propose pas l’exclusion d’un coéquipier (`GQ<id>` reste accessible par `Fights.KickAsync`) ; le nombre de tours affiché est un substitut compté par le bot ; aucun volet ne s’ouvre pour un `GE` dont l’en-tête est illisible. Rien n’a encore été rejoué sur un vrai StarLoco. Le mode tactique est dessiné depuis le lot X33, les défis (`Gd`, `GdOK`, `GdKO`) depuis le lot X9.
 
 ## Corps à corps (lot X1)
 
@@ -1169,3 +1169,74 @@ Jusqu'ici la ligne de vue, les états du lanceur et les limites par cible restai
 - la commande `/tactic` reste une commande de l'interface du client que le bot ne reprend pas (`ChatCommands.ClientOnly`) : seul le bouton bascule le mode.
 
 Passage réel (21 octobre 2026, StarLoco local, scénario x33 de `BotStarLocoLiveSmoke`, `AZUR_STARLOCO_SCENARIOS=x33`) : carte 164, un personnage inventé connaissant la Flèche Magique (sort 161, portée 1 à 7, ligne de vue, écrit dans la base) défié par A ; au placement, il prend la cellule 337 de son équipe, d'où la cellule 262, à 5 cellules, est cachée par le seul décor ; le bouton « Mode Tactique » de sa fenêtre n'envoie aucun paquet et passe la carte à l'aplat avec les objets 10000, 10001 et 10002 ; à son tour, la Flèche Magique dessine 112 cellules de portée dont 106 cibles en #0066CC, 262 en est exclue (« Cible hors de la ligne de vue. »), son survol montre la croix d'interdiction et un clic n'envoie rien ; la cible visible 307 envoie `GA300161;307`, accepté par `GA;300;<personnage>;161,307,…` ; un second clic pendant le combat rend le décor normal sans paquet ; l'abandon (`GE`) efface la visée. Compte et personnage supprimés ensuite ; capture `24-reel-x33-tactique` prise dans le dossier de travail du test, non versionnée. Le même jour, la suite complète de `BotStarLocoLiveSmoke` réussit ses trente scénarios (x3c non joué), x33 compris, après une correction du scénario h qui attendait l'échec critique `GA;305;<id>` avec un point-virgule final que StarLoco n'envoie pas.
+
+## Défis de combat (lot X9)
+
+Jusqu'ici le bot ignorait les défis d'un combat contre des monstres. Ce lot les lit comme le client 1.34 (`Game.onFightChallenge` et `onFightChallengeUpdate`, `UI_FightChallenge`, `FightChallengeIcon`, `FightChallengeViewer`, rangée des défis de `GameResult`) et envoie la seule demande du client, `Gdi<type>`.
+
+- **Paquets** (`CombatFrame`, `TBP/Game/Combats/FightChallenges.cs`) :
+  - `Gd<type>;<1|0>;<cible>;<xp de base>;<xp de groupe>;<butin de base>;<butin de groupe>` ajoute un défi à `Fights.Challenges`. Comme le client, le bot aiguille sur le quatrième caractère du paquet : `K` (`GdOK<type>`) marque le défi réussi, `O` (`GdKO<type>`) raté, tout autre caractère est un ajout.
+  - Les sept premiers champs sont lus, un huitième est ignoré, comme le client qui n'en passe que sept au défi. Une cible vide ou nulle n'est pas une cible.
+  - Le nom, la description et l'icône viennent de `fightChallenge.xml` (`FC[id]` : `n`, `d`, `g`). Dans la description, `%1` devient « nom (Niv. n) » de la cible (`LEVEL_SMALL`, niveau du grade du monstre, du joueur ou du percepteur). Sans textes, le défi s'appelle « Challenge <type> ».
+  - Le bonus affiché est la somme du bonus de base et du bonus de groupe, comme dans le client.
+  - `Gdi<type>` (« Voir la cible ») ne part que pour un défi en cours qui désigne une cible ; sinon le refus est local (« Ce challenge ne désigne pas de cible. », « Ce challenge n’est pas en cours. »). La réponse `Gf<cible>|<cellule>` est dessinée comme le drapeau d'un coéquipier (lot F12b).
+  - `GE` copie les défis et leur état dans le résultat (`FightResult.Challenges`, comme `challenges.clone()` du client), puis la liste se vide. `GV` et le combat suivant (`GJK`) la vident aussi.
+- **Fenêtre de jeu** (`Bot/Controls/Fight/ChallengePanel.cs`) :
+  - La colonne `UI_FightChallenge` se place en haut à gauche de la carte, sous les options de combat. Elle porte le bouton affiche / cache (infobulle `PARTY_OPEN_CLOSE`, comme le client), puis une icône de 38 × 38 par défi, tous les 44 pixels.
+  - L'infobulle d'une icône reprend celle de `FightChallengeIcon` : nom, description, « Butin : +n% », « XP : +n% » et « Etat : … » (`CURRENT_FIGHT_CHALLENGE`, `FIGHT_CHALLENGE_DONE`, `FIGHT_CHALLENGE_FAILED`). Un défi terminé reçoit le symbole `ChallengeOK` ou `ChallengeKO` du client.
+  - Un clic sur l'icône ouvre le détail à droite de la colonne, comme `FightChallengeViewer` : titre, nom, description, bonus de butin et d'xp (infobulle « Bonus de base » / « Bonus de groupe »), état, « Voir la cible » et fermeture. Le fond est parchemin #EBE3CB, les filets #B4AC8D et le titre brun #29261F.
+  - « Voir la cible » ferme le détail. Une seule demande part par seconde, comme `_lastShowAsk` du client.
+  - `GdOK` et `GdKO` écrivent « <état> : <nom> » dans le filtre Infos du chat, comme le client, que les infos de combat soient affichées ou non. Le texte `FIGHT_CHALLENGE_FAILED` du client finit par une espace, d'où « Challenge raté  : nom » avec deux espaces, gardé tel quel.
+  - Le volet du résultat ajoute la rangée « Bonus de challenges : » de `GameResult` : une icône de 17 × 17 par défi, avec son symbole d'état et son infobulle.
+  - Les images viennent de `Resources/Bot/Challenges` (50 PNG, 0,11 Mo, voir `PROVENANCE.md`) et sont lues hors du fil de l'interface. Une icône absente laisse une case orange qui porte le numéro du défi.
+- **Choix du bot** :
+  - un second `Gd` du même type remplace le premier au lieu de s'ajouter : le client l'empilerait, mais StarLoco n'envoie chaque type qu'une fois par combat ;
+  - `Gd`, `GdOK` et `GdKO` reçus hors combat sont ignorés ;
+  - un `GdOK` ou un `GdKO` d'un type absent de la liste écrit quand même la ligne du chat, comme le client, sans toucher à la liste ;
+  - à côté des icônes du résultat, le bot écrit un résumé « nom (état) : XP +n%, Butin +n% » ;
+  - un paquet illisible (champs manquants, type ou bonus non numérique, `GdOK` sans type) est journalisé (« Paquet Gd illisible ignoré ») puis ignoré, sans exception.
+- **Ce que fait StarLoco** (`Fight.startFight`, `Challenge`, `World.getChallengeFromConditions` et `getRandomChallenge`, `GameClient.showMonsterTarget`) :
+  - les défis ne sont tirés que pour un combat contre des monstres (`FIGHT_TYPE_PVM`) ou contre un double (`DOPEUL`). Il y en a un par combat, deux si la carte a une action de fin de combat ou est une arène ;
+  - le tirage est aléatoire parmi les défis que le combat permet (plusieurs ennemis, plusieurs alliés, deux sexes, nombre pair d'ennemis, plus d'ennemis que d'alliés, monstres particuliers), avec au plus un défi par famille (déplacement, cible, sorts, tueur, soins) ;
+  - le bonus d'xp vaut `gainXP` + `gainParMob` × nombre de monstres (table `challenge`), et de même pour le butin avec `gainDrop`. Le bonus de groupe est toujours 0 ;
+  - `Challenge.fightStart` choisit la cible des défis 3, 4, 32 et 35 (un monstre au hasard), 10 (le plus faible) et 25 (le plus fort). Il l'envoie aussitôt à l'équipe par `Gf<cible>|<cellule>`, avant `Gd`. Les défis 31, 34, 38 et 42, de la même famille, partent sans cible dans `Gd`, donc sans « Voir la cible » ; le 34 désigne ensuite une cible à chaque tour par `Gf` ;
+  - `Gd` part après `GS`, `GTL` et `GTM`, avant le premier tour, aux joueurs de l'équipe. `parseToPacket` le termine par un point-virgule (huitième champ vide, ou le type pour un défi déjà terminé) ;
+  - `GdKO<type>` part au premier manquement, suivi de `Im0188;<nom du joueur>`. À la fin du combat, chaque défi encore en cours reçoit `GdOK<type>`, défaite comprise. Ces paquets sautent les combattants qui ont quitté (`hasLeft`). Un joueur qui abandonne (`GQ`) alors que d'autres restent dans son équipe ne reçoit donc plus ni `GdOK` ni `GdKO`. S'il était le dernier, `onFighterDie` termine le combat avant qu'il soit marqué parti, et il reçoit les `GdOK` de fin. `GE` arrive dans les deux cas ;
+  - `Gdi<type>` reçoit `Gf<cible>|<cellule>` au seul demandeur, si le défi est en cours et sa cible sur une cellule ; sinon, rien.
+
+`BotFightProtocolSmoke` vérifie ces règles sur le serveur fictif, avec des textes `fightChallenge` synthétiques écrits dans un dossier temporaire :
+
+- `Gd` avec cible et point-virgule final, sans cible, à huit champs, répété, sans textes ;
+- description avec la cible et son niveau ;
+- sept paquets illisibles journalisés ;
+- `Gdi3` envoyé, refusé sans cible ou hors liste ;
+- `GdOK` et `GdKO` avec leurs lignes, type inconnu compris ;
+- `Gd`, `GdOK` et `Gdi` hors combat ;
+- copie dans le résultat `GE` puis liste vidée, résultat PvP sans défi, `Gd` au placement vidé par `GV`.
+
+`BotFightUiSmoke` vérifie dans une fenêtre de jeu invisible :
+
+- la colonne : icônes exportées, position, taille et pas, infobulles exactes, bouton affiche / cache ;
+- le détail : textes, infobulle des bonus, « Voir la cible » → `Gdi3` puis fermeture, seconde demande retenue dans la seconde, défi sans cible ;
+- `Gf` dessiné en drapeau ;
+- les lignes du chat et les symboles d'état ;
+- « Bonus de challenges » et les icônes de 17 × 17 du résultat, la colonne cachée après `GE`.
+
+Les deux passent sous Mono.
+
+Limites :
+
+- la position du détail est celle du bot (à droite de la colonne) ;
+- une cible dont le niveau est inconnu est écrite « (Niv. ?) » ;
+- les captures n'ont pas été comparées au client en jeu.
+
+Passage réel du 22 octobre 2026 (StarLoco local, scénario x9 de `BotStarLocoLiveSmoke`, `AZUR_STARLOCO_SCENARIOS=x9`). A, personnage de niveau 1 du scénario a, attaque des groupes de la carte 765, voisine de la carte 164 ; rien n'est écrit dans la base.
+
+1. Contre 7 monstres, StarLoco tire `Gd36;0;;51;0;51;0;` (« Hardi », 30 + 3 × 7 = 51 %). Le bot le lit, la colonne de la fenêtre montre l'icône 36 et le détail n'a pas de « Voir la cible ». `GdKO36` arrive au deuxième tour, avec `Im0188` : le chat écrit « Challenge raté  : Hardi » et le résultat « Bonus de challenges : Hardi (Challenge raté) : XP +51%, Butin +51% ».
+2. Contre 6 monstres, `Gf-1|291` arrive avant `Gd3;1;-1;44;0;44;0;` (« Désigné volontaire », 20 + 4 × 6 = 44 %), dont la description devient « Tuer Crabe (Niv. 5) en premier. ». « Voir la cible » envoie `Gdi3` : StarLoco répond `Gf-1|291`, le drapeau est dessiné sur la cellule du Crabe et le détail se ferme. A meurt au premier tour, mais StarLoco envoie `GdOK3` à la fin du combat : « Challenge réussi : Désigné volontaire » dans le chat et l'icône cochée dans le résultat.
+
+Un premier passage du même jour n'avait tiré aucun défi à cible en trois combats (`Gd9` « Barbare » raté par un sort, `Gd22` et `Gd46` réussis en défaite). Le scénario tente depuis jusqu'à dix combats. Une fois la réussite et l'échec vus, ou après trois combats, A abandonne aussitôt (`GQ`) chaque combat sans défi à cible.
+
+Un troisième passage a eu besoin de cinq combats. Les trois premiers ont donné `GdOK8`, `GdOK42` et `GdOK38` en défaite. Au quatrième, A abandonne au premier tour d'un monstre : seul de son équipe, il reçoit quand même `GdOK43` avant `GE`. Le cinquième tire `Gd32;1;-5;52;0;52;0;` (« Elitiste », cible « Crabe (Niv. 6) ») : `Gf-5|278` arrive avant `Gd`, `Gdi32` reçoit `Gf-5|278` (drapeau), puis `GdKO32` arrive avec `Im0188` quand A lance le sort 161 sur un autre monstre (`GA300161;413`, monstre -1).
+
+Les captures `25-reel-x9-defi-cible` et `26-reel-x9-resultat` vont dans le dossier que donne `AZUR_STARLOCO_CAPTURES`. Elles ne sont pas versionnées, et ces passages, lancés sans cette variable, n'en ont pas pris.
