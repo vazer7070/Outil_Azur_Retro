@@ -372,8 +372,7 @@ namespace Outil_Azur_complet.Bot
 
         private bool IsTyping()
         {
-            Control focused = ActiveControl;
-            while (focused is ContainerControl container && container.ActiveControl != null) focused = container.ActiveControl;
+            Control focused = FocusedControl();
             return focused is TextBoxBase || focused is ComboBox;
         }
 
@@ -412,9 +411,60 @@ namespace Outil_Azur_complet.Bot
                     if (fight.IsPlacement) _ = ToggleReady(); else _ = PassTurn();
                     return true;
                 }
-                case "ESCAPE": Escape(); return true;
+                case "ESCAPE":
+                    // Banner.onShortcut : Échap dans la zone de saisie du chat lui retire le focus (la carte le reprend) et s'arrête là.
+                    if (ChatHasFocus) { ReturnFocusToMap(); return true; }
+                    Escape(); return true;
+                case "ACCEPT_CURRENT_DIALOG":
+                case "TEAM_MESSAGE":
+                case "GUILD_MESSAGE":
+                    // Banner.onShortcut : hors de toute saisie, Entrée (ou Maj / Ctrl + Entrée) donne le focus à la zone de saisie
+                    // (setChatFocus) ; dans la zone, ChatInput envoie la ligne. Le pavé de code (KeyCode) coupe ce focus automatique.
+                    return !typing && FocusChatInput();
             }
             return false;
+        }
+
+        /// <summary>Vrai quand la zone de saisie du chat a le focus de la fenêtre (<c>isChatFocus</c> du client).</summary>
+        public bool ChatHasFocus => chatPanel != null && ReferenceEquals(FocusedControl(), chatPanel.Input);
+
+        /// <summary>
+        /// <c>setChatFocus</c> du bandeau : focus à la zone de saisie du chat, curseur en fin de ligne. Refusé pendant le pavé de code
+        /// d'une porte (<c>KeyCode</c> met <c>chatAutoFocus</c> à faux) et quand le chat n'est pas affichable.
+        /// </summary>
+        public bool FocusChatInput()
+        {
+            if (uiReleased || chatPanel == null || chatPanel.IsDisposed || drawer?.Current is KeyCodePanel) return false;
+            ChatInput input = chatPanel.Input;
+            if (!input.CanSelect) return false;
+            ActiveControl = input;
+            input.SelectionStart = input.TextLength; input.SelectionLength = 0;
+            return ReferenceEquals(FocusedControl(), input);
+        }
+
+        /// <summary><c>Selection.setFocus(null)</c> : la zone de saisie perd le focus, la carte (ou la fenêtre) le reprend.</summary>
+        public void ReturnFocusToMap()
+        {
+            if (uiReleased) return;
+            if (mapControl != null && !mapControl.IsDisposed && mapControl.CanSelect) ActiveControl = mapControl;
+            else ActiveControl = null;
+        }
+
+        /// <summary>
+        /// Entrée sur un bouton ou la carte : WinForms la passe en touche de dialogue (clic du bouton qui a le focus) avant
+        /// <c>KeyDown</c> ; comme le client, elle va d'abord au raccourci (focus du chat). Les zones de saisie gardent leur Entrée.
+        /// </summary>
+        protected override bool ProcessDialogKey(Keys keyData)
+        {
+            if ((keyData & Keys.KeyCode) == Keys.Enter && ProcessShortcut(keyData)) return true;
+            return base.ProcessDialogKey(keyData);
+        }
+
+        private Control FocusedControl()
+        {
+            Control focused = ActiveControl;
+            while (focused is ContainerControl container && container.ActiveControl != null) focused = container.ActiveControl;
+            return focused;
         }
 
         /// <summary>Échap : annule la visée ou le signalement d'une cellule (<c>removeCursor</c>), sinon ferme le dernier volet, sinon ouvre <c>AskMainMenu</c>.</summary>
