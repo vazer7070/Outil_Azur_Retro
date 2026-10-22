@@ -116,7 +116,7 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
             }
             if (session != null) session.ServerMessageReceived += OnServerMessage;
             if (actions != null) { actions.Notice += OnNotice; actions.ChatInputRequested += OnChatInputRequested; }
-            if (fight != null) fight.JournalEntryAdded += OnFightJournal;
+            if (fight != null) { fight.JournalEntryAdded += OnFightJournal; fight.ChallengeChanged += OnChallenge; }
             RefreshState();
         }
 
@@ -250,7 +250,7 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
             }
             if (session != null) session.ServerMessageReceived -= OnServerMessage;
             if (actions != null) { actions.Notice -= OnNotice; actions.ChatInputRequested -= OnChatInputRequested; }
-            if (fight != null) fight.JournalEntryAdded -= OnFightJournal;
+            if (fight != null) { fight.JournalEntryAdded -= OnFightJournal; fight.ChallengeChanged -= OnChallenge; }
             try { if (smileyDrop.Visible) smileyDrop.Close(); } catch (InvalidOperationException) { }
             Links.ReleaseLastMenu();
             ExpandedChanged = null; CompassRequested = null; Feedback = null;
@@ -268,6 +268,17 @@ namespace Outil_Azur_complet.Bot.Controls.Chat
         {
             if (entry == null || string.IsNullOrEmpty(entry.Text)) return;
             OnUi(() => { if (FightInfos) View.Append(ChatLineBuilder.Local(ChatFilter.Infos, ChatColors.Info, entry.Text)); });
+        }
+
+        /// <summary>
+        /// <c>GdOK</c> / <c>GdKO</c> (lot X9) : « Challenge réussi : nom » ou « Challenge raté : nom » dans le canal infos, comme
+        /// <c>Game.onFightChallengeUpdate</c> du client (<c>INFO_CHAT</c>, indépendant de l'option du journal de combat).
+        /// </summary>
+        private void OnChallenge(FightChallenge challenge)
+        {
+            if (challenge == null || challenge.State == FightChallengeState.Running) return;
+            string text = challenge.ResultMessage;
+            OnUi(() => View.Append(ChatLineBuilder.Local(ChatFilter.Infos, ChatColors.Info, text)));
         }
 
         private void OnNotice(MapActionNotice notice)

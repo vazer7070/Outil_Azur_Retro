@@ -10,6 +10,8 @@ Familles (dossier écrit sous --sortie, voir README.md de ce dossier) :
   Smileys     clips/smileys/<n>.swf              -> Smileys/<n>.png
   Emotes      clips/emotes/<n>.swf               -> Emotes/<n>.png
   Jobs        clips/jobs/<n>.swf                 -> Jobs/<n>.png
+  Challenges  clips/challenges/<g>.swf           -> Challenges/<g>.png
+              modules/core.swf (ChallengeOK, ChallengeKO) -> Challenges/ChallengeOK.png, Challenges/ChallengeKO.png
   Alignments  clips/alignments/{,mini,orders,feats}/<n>.swf -> Alignments/{,mini/,orders/,feats/}<n>.png
   Emblems     clips/emblems/back/<n>.swf         -> Emblems/back/<n>.png (calque « back » à teinter)
                                                     + Emblems/back/<n>_contour.png (le reste)
@@ -557,6 +559,8 @@ SYMBOLES_UI = [
     # Curseurs (lot X8) : déplacement de la vue de la carte du monde (`MapNavigator`, glisser)
     "MapNavigatorMoveCursor",
 ]
+# Symboles de `core.swf` de la famille Challenges (lot X9) : état d'un défi posé sur son icône.
+SYMBOLES_DEFIS = ["ChallengeOK", "ChallengeKO"]
 # Scènes de clips/ rendues à une image donnée (symbole, SWF relatif au client, image, échelle) : le drapeau de combat
 # (`Gf`, `flag.swf` joué par `spriteLaunchVisualEffect`) est pris à l'image 30, flèche posée au-dessus du losange.
 # L'icône des poings (`defaultcc.swf`, case ² du corps à corps sans arme, lot X1) est prise à sa première image.
@@ -625,6 +629,14 @@ def lister_taches(client, familles, sortie_racine, remplacer, ignores=None):
         taches += taches_simples(clips, "Emotes", "emotes", "Emotes/", 2, 48, ignores)
     if "Jobs" in familles:
         taches += taches_simples(clips, "Jobs", "jobs", "Jobs/", 2, 64, ignores)
+    if "Challenges" in familles:
+        # Icône d'un défi (`FIGHT_CHALLENGE_PATH + FC[id].g`, 38 × 38 dans `FightChallengeIcon`) et symboles d'état posés
+        # dessus par `_ldrState` (`ChallengeOK` réussi, `ChallengeKO` raté).
+        taches += taches_simples(clips, "Challenges", "challenges", "Challenges/", 2, 76, ignores)
+        core = os.path.join(client, "modules", "core.swf")
+        if os.path.exists(core):
+            for symbole in SYMBOLES_DEFIS:
+                taches.append({"famille": "Challenges", "type": "symbole", "swf": core, "symbole": symbole, "sortie": "Challenges/" + symbole, "echelle": 2})
     if "Alignments" in familles:
         for sous in ("", "mini/", "orders/", "feats/"):
             taches += taches_simples(clips, "Alignments", "alignments/" + sous, "Alignments/" + sous, 2, 64, ignores)
@@ -756,6 +768,12 @@ SOURCES = {
     "Emotes": ("clips/emotes/<n>.swf", "Emotes/<n>.png", "Icônes des attitudes (`eU<n>`, onglet attitudes du panneau « Smileys », `EMOTES_ICONS_PATH + n`).",
                "--scene, échelle 2, côté le plus long limité à 48 px"),
     "Jobs": ("clips/jobs/<g>.swf", "Jobs/<g>.png", "Icônes des métiers (`JOBS_ICONS_PATH + J[id].g`).", "--scene, échelle 2, côté le plus long limité à 64 px"),
+    "Challenges": ("clips/challenges/<g>.swf et modules/core.swf (symboles ChallengeOK, ChallengeKO)",
+                   "Challenges/<g>.png, Challenges/ChallengeOK.png, Challenges/ChallengeKO.png",
+                   "Défis de combat (`Gd`, lot X9) : icône d'un défi (`FIGHT_CHALLENGE_PATH + FC[id].g`, `g` venant de `fightChallenge_fr`), "
+                   "affichée en 38 × 38 dans la colonne des défis (`FightChallengeIcon`) et en 17 × 17 dans le résultat du combat ; "
+                   "`ChallengeOK.png` (coche) et `ChallengeKO.png` (croix) sont les symboles que le client pose sur l'icône d'un défi réussi ou raté (`_ldrState`).",
+                   "--scene pour les icônes (côté le plus long limité à 76 px), nom d'export pour les deux symboles ; échelle 2"),
     "Alignments": ("clips/alignments/{,mini/,orders/,feats/}<n>.swf", "Alignments/{,mini/,orders/,feats/}<n>.png",
                    "Alignements (`ALIGNMENTS_PATH`), petites icônes à côté des noms (`ALIGNMENTS_MINI_PATH + alignement`), ordres et dons (`ORDERS_PATH`, `FEATS_PATH`).",
                    "--scene, échelle 2, côté le plus long limité à 64 px"),
@@ -858,7 +876,7 @@ def ecrire_tuiles(sortie_racine, resultats):
 
 VERSION_SWFSVG = "?"
 CLIENT_RACINE = "."
-FAMILLES = ["Smileys", "Emotes", "Jobs", "Alignments", "Emblems", "Portraits", "Items", "Spells", "WorldMap", "UI"]
+FAMILLES = ["Smileys", "Emotes", "Jobs", "Challenges", "Alignments", "Emblems", "Portraits", "Items", "Spells", "WorldMap", "UI"]
 
 
 def main(argv=None):

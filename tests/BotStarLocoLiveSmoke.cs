@@ -502,6 +502,7 @@ internal static partial class Live
         await Scenario("x8. Iop contre A : portée en cercle et en croix, pointeur en croix et en ligne, croix d'interdiction, GA300 sur la cible, chemin de combat survolé puis GA001 (lot X8)", 180, SpellAimAsync).ConfigureAwait(false);
         await Scenario("x13. objet vivant de la base nourri, apparence changée et dissocié par le volet de l'inventaire ; pain donné à l'autre joueur par la visée de la carte (lot X13)", 150, LivingItemAsync).ConfigureAwait(false);
         await Scenario("x33. Flèche Magique contre A : mode tactique au placement sans paquet, cible derrière un mur exclue et refusée, cible visible lancée (GA;300), retour au décor normal (lot X33)", 180, TacticSightAsync).ConfigureAwait(false);
+        await Scenario("x9. défis d'un combat contre des monstres : Gd lus et dans la colonne de la fenêtre, « Voir la cible » → Gdi → Gf en drapeau, GdOK / GdKO dans le chat, bonus de challenges du résultat (lot X9)", 600, ChallengeFightsAsync).ConfigureAwait(false);
         // Toujours en dernier : arrête puis redémarre le serveur de jeu (A et B restent déconnectés).
         await Scenario("x3c. serveur de jeu arrêté en pleine partie : boîte de perte de connexion, « Oui » reconnecte A (lot X3)", 360, GameStopAsync).ConfigureAwait(false);
     }
@@ -5751,5 +5752,241 @@ internal static partial class Live
         await sv.Expect("GTF" + sv.Id, "GTF (fin du tour)", 10, mark).ConfigureAwait(false);
         await sv.Until(() => !fv.IsMyTurn, 5).ConfigureAwait(false);
         return evidence;
+    }
+}
+
+// Scénario x9 (lot X9) : défis d'un combat contre des monstres (Gd), cible du défi montrée (Gdi → Gf), réussite et échec (GdOK / GdKO),
+// bonus de challenges du résultat, dans la fenêtre de jeu de A.
+internal static partial class Live
+{
+    /// <summary>
+    /// Combats tentés au plus pour obtenir un défi qui désigne une cible : StarLoco tire les défis au hasard parmi ceux que le combat
+    /// permet (<c>World.getChallengeFromConditions</c> puis <c>getRandomChallenge</c>), un ou deux par combat. Pour un personnage seul
+    /// contre plusieurs monstres, environ un défi permis sur quatre désigne une cible (3, 4, 10, 25, 32, 35 avec une cible choisie au
+    /// début), soit un sur cinq : dix combats en donnent un dans près de neuf passages sur dix. Une fois la réussite et l'échec vus, ou
+    /// après trois combats, A abandonne aussitôt chaque combat sans défi à cible.
+    /// </summary>
+    private const int ChallengeAttempts = 10;
+
+    private sealed class ChallengeFightReport
+    {
+        public bool Target, Succeeded, Failed, Natural;
+    }
+
+    /// <summary><c>Gd&lt;type&gt;;…</c> : défi ajouté (le client aiguille sur le quatrième caractère, <c>K</c> et <c>O</c> sont des mises à jour).</summary>
+    private static bool IsChallengeAdd(string packet) => packet.StartsWith("Gd", StringComparison.Ordinal) && packet.Length > 2 && char.IsDigit(packet[2]);
+
+    private static bool IsChallengeUpdate(string packet) =>
+        packet.StartsWith("GdOK", StringComparison.Ordinal) || packet.StartsWith("GdKO", StringComparison.Ordinal);
+
+    /// <summary>
+    /// A attaque le groupe de monstres le plus faible de sa carte ou d'une voisine (de préférence un groupe de deux monstres ou plus, seul
+    /// cas où StarLoco tire les défis à cible). Après <c>GS</c>, chaque <c>Gd</c> de StarLoco (<c>Challenge.parseToPacket</c>) doit se
+    /// retrouver dans <see cref="Fights.Challenges"/> (type, cible, bonus d'xp et de butin, nom et icône de <c>fightChallenge.xml</c>) et
+    /// dans la colonne de la fenêtre de A (icônes exportées, infobulles). Si un défi désigne une cible, le bouton « Voir la cible » du
+    /// détail envoie <c>Gdi&lt;type&gt;</c> et StarLoco répond <c>Gf&lt;cible&gt;|&lt;cellule&gt;</c> (<c>showCibleToPerso</c>), dessiné en
+    /// drapeau ; sinon un autre combat est tenté (au plus <see cref="ChallengeAttempts"/>). A joue ses tours jusqu'à la fin du combat :
+    /// StarLoco envoie <c>GdKO</c> au premier manquement et <c>GdOK</c> pour chaque défi encore en cours à la fin (<c>Challenge.fightEnd</c>,
+    /// défaite comprise), chacun lu par le bot et écrit dans le chat ; le résultat <c>GE</c> montre « Bonus de challenges » et les icônes.
+    /// </summary>
+    private static async Task<string> ChallengeFightsAsync()
+    {
+        RequireMaps();
+        if (window?.Map == null || await OnUi(() => window.Challenges == null).ConfigureAwait(false)) throw new SkipScenario("pas de fenêtre de jeu pour A");
+        var evidence = new List<string>();
+        var total = new ChallengeFightReport();
+        int attempt = 0;
+        while (attempt < ChallengeAttempts && !total.Target)
+        {
+            attempt++;
+            if (attempt > 1)
+            {
+                string prepared = await PrepareAsync().ConfigureAwait(false);
+                evidence.Add("combat " + attempt + " : " + (prepared == null ? "A prêt" : "remise en état " + prepared));
+            }
+            // Au-delà de trois combats, seul le défi à cible est encore cherché (délai du scénario).
+            bool targetOnly = (total.Succeeded && total.Failed) || attempt > 3;
+            ChallengeFightReport report = await ChallengeFightAsync(attempt, evidence, targetOnly).ConfigureAwait(false);
+            total.Target |= report.Target; total.Succeeded |= report.Succeeded; total.Failed |= report.Failed; total.Natural |= report.Natural;
+        }
+        if (total.Natural) Check(total.Succeeded || total.Failed, "Aucun GdOK ni GdKO reçu avant GE alors qu'un combat s'est terminé sans abandon");
+        evidence.Add("bilan en " + attempt + " combat(s) : cible " + (total.Target ? "montrée (Gdi → Gf, drapeau)" : "jamais tirée par StarLoco, Gdi non rejoué")
+            + ", réussite " + (total.Succeeded ? "vue (GdOK)" : "non vue") + ", échec " + (total.Failed ? "vu (GdKO)" : "non vu (tirage et combat)"));
+        return string.Join(" ; ", evidence);
+    }
+
+    /// <summary>Carte de A ou voisine avec un groupe de monstres (comme le scénario f) ; renvoie le déclencheur du retour, ou null.</summary>
+    private static async Task<Trigger> MonstersMapAsync(int home)
+    {
+        Trigger back = null;
+        var visited = new List<string>();
+        if (a.Map.MonsterGroups.Count == 0)
+            foreach (Trigger go in Triggers.ForMap(home).Values.Where(t => t.IsTeleport && t.TargetMapId != home && Map.AllBotMaps.ContainsKey(t.TargetMapId)).OrderBy(t => t.CellId))
+            {
+                Trigger reverse = Triggers.ForMap(go.TargetMapId).Values.FirstOrDefault(t => t.IsTeleport && t.TargetMapId == home);
+                if (reverse == null) continue;
+                await WalkThroughTrigger(a, go).ConfigureAwait(false);
+                await a.Until(() => a.Map.MonsterGroups.Count > 0, 3).ConfigureAwait(false);
+                visited.Add(go.TargetMapId + " (" + a.Map.MonsterGroups.Count + " groupe(s))");
+                if (a.Map.MonsterGroups.Count > 0) { back = reverse; break; }
+                await WalkThroughTrigger(a, reverse).ConfigureAwait(false);
+            }
+        if (a.Map.MonsterGroups.Count == 0) throw new SkipScenario("aucun groupe de monstres sur la carte " + home + " ni sur ses voisines (" + string.Join(", ", visited) + ")");
+        return back;
+    }
+
+    /// <summary>Un combat contre des monstres avec ses défis : voir <see cref="ChallengeFightsAsync"/>.</summary>
+    /// <param name="targetOnly">Réussite et échec déjà vus, ou trois combats déjà tentés : sans défi à cible, A abandonne aussitôt pour un
+    /// nouveau tirage.</param>
+    private static async Task<ChallengeFightReport> ChallengeFightAsync(int attempt, List<string> evidence, bool targetOnly)
+    {
+        var report = new ChallengeFightReport();
+        Fights fight = a.Account.Game.Fight;
+        Outil_Azur_complet.Bot.Controls.Fight.ChallengePanel column = await OnUi(() => window.Challenges).ConfigureAwait(false);
+        int home = a.MapId;
+        Trigger back = await MonstersMapAsync(home).ConfigureAwait(false);
+        int mark = a.ReceivedCount, fightMap = a.MapId;
+        string gjk = null, group = null;
+        for (int tries = 0; tries < 4 && gjk == null; tries++)
+        {
+            if (!await BackToGroupsAsync(a, fightMap).ConfigureAwait(false)) break;
+            MonsterGroupActor target = a.Map.MonsterGroups.OrderBy(g => g.Members.Count >= 2 ? 0 : 1).ThenBy(g => g.TotalLevel).First();
+            group = "carte " + a.MapId + ", groupe niveau " + target.TotalLevel + " (" + target.Members.Count + " monstre(s))";
+            int before = a.ReceivedCount;
+            var attack = await a.Account.Game.Interactions.MapActions.AttackGroupAsync(target.Id, async cell =>
+            {
+                var moved = await a.Account.Game.Manager.Mouvements.MoveToAsync(a.Map.GetCellFromId(cell)).ConfigureAwait(false);
+                Journal("A [test] marche vers le groupe : " + moved);
+            }).ConfigureAwait(false);
+            Check(attack.Sent, "Attaque refusée par le bot : " + attack.Message);
+            try { gjk = await a.Expect("GJK", "GJK (combat lancé)", 15, before).ConfigureAwait(false); }
+            catch (TimeoutException) { Journal("A [test] le groupe a bougé, nouvel essai"); await Task.Delay(500).ConfigureAwait(false); }
+        }
+        Check(gjk != null, "Aucun combat lancé contre les monstres");
+        await PlaceAndReady(a, mark, false).ConfigureAwait(false);
+        await a.Expect("GS", "GS (début du combat)", 30, mark).ConfigureAwait(false);
+
+        // Gd : un ou deux défis juste après GS (Fight.startFight, avant le premier tour).
+        await a.Expect(IsChallengeAdd, "Gd (défi du combat)", 15, mark).ConfigureAwait(false);
+        await Task.Delay(500).ConfigureAwait(false);
+        string[] adds = a.ReceivedSince(mark).Where(IsChallengeAdd).ToArray();
+        int[] ids = adds.Select(p => int.Parse(p.Substring(2).Split(';')[0], CultureInfo.InvariantCulture)).Distinct().ToArray();
+        Check(await a.Until(() => fight.Challenges.Select(c => c.Id).SequenceEqual(ids), 5).ConfigureAwait(false),
+            "Défis du bot " + string.Join(",", fight.Challenges.Select(c => c.Id)) + " au lieu de " + string.Join(" | ", adds));
+        bool texts = LangData.IsLoaded("fightChallenge");
+        var described = new List<string>();
+        foreach (string raw in adds)
+        {
+            string[] f = raw.Substring(2).Split(';');
+            int id = int.Parse(f[0], CultureInfo.InvariantCulture);
+            FightChallenge c = fight.Challenges.First(x => x.Id == id);
+            int? targetId = int.TryParse(f[2], NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out int t) && t != 0 ? t : (int?)null;
+            Check(c.ShowTarget == (f[1] == "1") && c.TargetId == targetId && c.BasicXpBonus == int.Parse(f[3], CultureInfo.InvariantCulture)
+                && c.BasicDropBonus == int.Parse(f[5], CultureInfo.InvariantCulture), "Défi " + raw + " mal lu : cible " + c.TargetId + ", xp " + c.XpBonus + ", butin " + c.DropBonus);
+            if (texts && LangData.Challenge.Has(id))
+                Check(c.Name == LangData.Challenge.Name(id) && c.Gfx == LangData.Challenge.Gfx(id) && !c.Description.Contains("%1"),
+                    "Textes du défi " + id + " : « " + c.Name + " », « " + c.Description + " », icône " + c.Gfx);
+            described.Add(Short(raw, 40) + " → « " + c.Name + " »" + (c.TargetId.HasValue ? " (" + c.Description + ")" : "") + ", XP +" + c.XpBonus + " %, butin +" + c.DropBonus + " %");
+        }
+        evidence.Add("combat " + attempt + ", " + group + " : " + string.Join(" ; ", described));
+        // Challenge.fightStart de StarLoco montre déjà la cible à l'équipe (showCibleToFight : Gf avant Gd).
+        string early = a.ReceivedSince(mark).TakeWhile(p => !IsChallengeAdd(p)).LastOrDefault(p => p.StartsWith("Gf", StringComparison.Ordinal));
+        if (early != null) evidence.Add(early + " reçu avant Gd (cible montrée à l'équipe au début du combat)");
+
+        // Colonne de la fenêtre de A : une icône exportée par défi, infobulle du client.
+        string shown = await WaitOnUi(() => column.Visible && column.Icons.Count == ids.Length
+            && column.Icons.All(icon => icon.Challenge != null && (icon.HasIcon || !icon.Challenge.Gfx.HasValue))
+            && column.Icons.All(icon => column.TooltipOf(icon).StartsWith(icon.Challenge.Name + "\n", StringComparison.Ordinal))
+                ? string.Join(", ", column.Icons.Select(icon => icon.Challenge.Id + (icon.HasIcon ? " (icône Challenges/" + icon.Challenge.Gfx + ".png)" : " (sans icône)"))) : null, 10).ConfigureAwait(false);
+        Check(shown != null, "Colonne des défis de la fenêtre de A : visible " + await OnUi(() => column.Visible).ConfigureAwait(false) + ", "
+            + await OnUi(() => column.Icons.Count).ConfigureAwait(false) + " icône(s) pour " + ids.Length + " défi(s)");
+        evidence.Add("colonne de la fenêtre : " + shown);
+
+        // Détail et « Voir la cible » : Gdi<type> → Gf<cible>|<cellule> de StarLoco, dessiné en drapeau.
+        FightChallenge aimed = fight.Challenges.FirstOrDefault(c => c.ShowTarget && c.TargetId.HasValue);
+        FightChallenge opened = aimed ?? fight.Challenges.First();
+        string viewer = await OnUi(() => { column.OpenViewer(opened); return column.ViewerOpen ? column.Viewer.NameText + " / " + column.Viewer.StateText : null; }).ConfigureAwait(false);
+        Check(viewer != null && viewer.StartsWith(opened.Name, StringComparison.Ordinal), "Détail du défi " + opened.Id + " non ouvert : " + viewer);
+        Check(await OnUi(() => column.Viewer.ViewButton.Visible).ConfigureAwait(false) == opened.ShowTarget, "Bouton « Voir la cible » du défi " + opened.Id + " : affiché " + !opened.ShowTarget);
+        if (attempt == 1 || aimed != null) await Capture(aimed != null ? "25-reel-x9-defi-cible" : "25-reel-x9-defis").ConfigureAwait(false);
+        if (aimed != null)
+        {
+            int sentMark = a.SentCount, flagMark = a.ReceivedCount, targetId = aimed.TargetId.Value;
+            DateTime clicked = DateTime.UtcNow;
+            await OnUi(() => { column.Viewer.ViewButton.PerformClick(); return true; }).ConfigureAwait(false);
+            string ask = "Gdi" + aimed.Id.ToString(CultureInfo.InvariantCulture);
+            Check(await a.Until(() => a.SentSince(sentMark).Contains(ask), 5).ConfigureAwait(false), "« Voir la cible » n'a pas envoyé " + ask + " : " + string.Join(" | ", a.SentSince(sentMark)));
+            string gf = await a.Expect("Gf" + targetId.ToString(CultureInfo.InvariantCulture) + "|", "Gf (cible du défi)", 10, flagMark).ConfigureAwait(false);
+            int cell = int.Parse(gf.Split('|')[1], CultureInfo.InvariantCulture);
+            Check(fight.Fighters.TryGetValue(targetId, out CombatFighter aimedFighter) && aimedFighter.CellId == cell, "Gf désigne la cellule " + cell + ", le bot place la cible en " + aimedFighter?.CellId);
+            // Le drapeau doit venir de la réponse à Gdi, pas du Gf reçu au début du combat.
+            Check(await WaitOnUi(() => window.Map.DisplayedFlag != null && window.Map.DisplayedFlag.ActorId == targetId && window.Map.DisplayedFlag.CellId == cell
+                && window.Map.DisplayedFlag.ReceivedUtc >= clicked && !column.ViewerOpen ? "drapeau" : null, 10).ConfigureAwait(false) != null,
+                "Drapeau de la cible (réponse à " + ask + ") absent de la carte de A, ou détail resté ouvert");
+            evidence.Add("« Voir la cible » du défi " + aimed.Id + " : " + ask + " → " + gf + " (" + aimedFighter.Name + "), drapeau dessiné, détail fermé");
+            report.Target = true;
+        }
+        else
+        {
+            await OnUi(() => { column.Viewer.CloseButton.PerformClick(); return true; }).ConfigureAwait(false);
+            Check(await WaitOnUi(() => column.ViewerOpen ? null : "fermé", 5).ConfigureAwait(false) != null, "Détail du défi resté ouvert après « × »");
+            evidence.Add("aucun défi à cible dans ce combat : détail de « " + opened.Name + " » sans « Voir la cible », fermé par « × »");
+        }
+
+        // Tours de A jusqu'à la fin du combat (abandon au-delà de 150 s, ou tout de suite s'il ne reste que la cible à voir).
+        DateTime until = DateTime.UtcNow.AddSeconds(targetOnly && !report.Target ? 0 : 150);
+        int turns = 0;
+        var played = new List<string>();
+        while (DateTime.UtcNow < until && fight.IsInFight)
+        {
+            int actor;
+            try { actor = await WaitForTurnOf(new[] { a }, 60).ConfigureAwait(false); }
+            catch (TimeoutException) { break; }
+            if (actor == 0) break;
+            turns++;
+            await PlayTurn(a, true, true, played).ConfigureAwait(false);
+        }
+        bool gaveUp = fight.IsInFight;
+        if (gaveUp) await fight.GiveUpAsync().ConfigureAwait(false);
+        string ge = await a.Expect("GE", "GE (résultat du combat)", 30, mark).ConfigureAwait(false);
+        Check(await a.Until(() => fight.LastResult != null, 10).ConfigureAwait(false), "Le bot n'a pas lu le résultat GE");
+        FightResult result = fight.LastResult;
+        report.Natural = !gaveUp;
+
+        // GdOK / GdKO : état du défi dans le résultat et ligne du chat de la fenêtre de A.
+        string[] updates = a.ReceivedSince(mark).Where(IsChallengeUpdate).ToArray();
+        Check(result.Challenges.Select(c => c.Id).SequenceEqual(ids), "Défis du résultat " + string.Join(",", result.Challenges.Select(c => c.Id)) + " au lieu de " + string.Join(",", ids));
+        var lines = new List<string>();
+        foreach (FightChallenge c in result.Challenges)
+        {
+            string last = updates.LastOrDefault(p => p.Substring(4) == c.Id.ToString(CultureInfo.InvariantCulture));
+            FightChallengeState expected = last == null ? FightChallengeState.Running : last.StartsWith("GdOK", StringComparison.Ordinal) ? FightChallengeState.Succeeded : FightChallengeState.Failed;
+            Check(c.State == expected, "Défi " + c.Id + " : état " + c.State + " dans le résultat, attendu " + expected + " (" + (last ?? "aucune mise à jour") + ")");
+            if (last == null) continue;
+            string line = c.ResultMessage;
+            Check(await WaitOnUi(() => window.Chat.View.DisplayedLines.Any(l => l.Filter == ChatFilter.Infos && l.Text == line) ? "chat" : null, 10).ConfigureAwait(false) != null,
+                "Ligne « " + line + " » absente du chat de A");
+            lines.Add(last + " → « " + line + " »");
+            report.Succeeded |= expected == FightChallengeState.Succeeded;
+            report.Failed |= expected == FightChallengeState.Failed;
+        }
+        if (report.Failed)
+            Check(a.ReceivedSince(mark).Any(p => p.StartsWith("Im0188", StringComparison.Ordinal)), "GdKO sans le message Im0188 de StarLoco");
+
+        // Résultat : « Bonus de challenges : » suivi des icônes 17 × 17 et du résumé ; colonne du combat cachée.
+        string bonus = await WaitOnUi(() => window.Panels.Current is Outil_Azur_complet.Bot.Panels.FightResultPanel panel && ReferenceEquals(panel.Result, result)
+            && panel.ChallengeIcons.Count == ids.Length && result.Challenges.All(c => panel.ChallengesText.Contains(c.Name)) ? panel.ChallengesText : null, 10).ConfigureAwait(false);
+        Check(bonus != null, "Volet du résultat sans les défis");
+        Check(await WaitOnUi(() => column.Visible || column.Icons.Count > 0 ? null : "cachée", 10).ConfigureAwait(false) != null, "Colonne des défis restée après GE");
+        if (attempt == 1 || report.Target) await Capture("26-reel-x9-resultat").ConfigureAwait(false);
+        await OnUi(() => { if (window.Panels.Current is Outil_Azur_complet.Bot.Panels.FightResultPanel panel) ((Button)panel.CloseButton).PerformClick(); return true; }).ConfigureAwait(false);
+        // Après GQ, StarLoco saute qui a quitté (hasLeft), sauf si son départ termine le combat (dernier de l'équipe : onFighterDie).
+        evidence.Add(turns + " tour(s)" + (gaveUp ? ", abandon (GQ)" : "") + ", " + Short(ge, 40)
+            + (lines.Count == 0 ? " ; aucun GdOK/GdKO" : " ; " + string.Join(" ; ", lines)) + " ; résultat : « " + bonus + " »");
+
+        await WaitBackOnMap(a).ConfigureAwait(false);
+        string returned = await ReturnAfterFightAsync(a, home, back).ConfigureAwait(false);
+        if (returned != null) evidence.Add(returned);
+        return report;
     }
 }

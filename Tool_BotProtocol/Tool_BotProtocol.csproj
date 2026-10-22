@@ -175,6 +175,7 @@
     <Compile Include="Game\Actions\MapFights.cs" />
     <Compile Include="Game\Combats\CloseCombat.cs" />
     <Compile Include="Game\Combats\FightActions.cs" />
+    <Compile Include="Game\Combats\FightChallenges.cs" />
     <Compile Include="Game\Combats\FightEffects.cs" />
     <Compile Include="Game\Combats\FightResult.cs" />
     <Compile Include="Game\Combats\FightVisuals.cs" />

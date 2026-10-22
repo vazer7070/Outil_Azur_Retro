@@ -61,6 +61,13 @@ namespace Tool_BotProtocol.Frames.Jeu
         [MessageAttribution("Gf")]
         public void Flag(TcpClient client, string message) => client.account.Game.Fight.ShowFlag(message.Substring(2));
         /// <summary>
+        /// Défis du combat (<c>Game.onFightChallenge</c> / <c>onFightChallengeUpdate</c> du client) :
+        /// <c>Gd&lt;type&gt;;&lt;1|0&gt;;&lt;cible&gt;;&lt;xp&gt;;0;&lt;butin&gt;;0</c> ajoute un défi au début d'un combat contre des monstres,
+        /// <c>GdOK&lt;type&gt;</c> le marque réussi et <c>GdKO&lt;type&gt;</c> raté (aiguillage sur le quatrième caractère, comme le client).
+        /// </summary>
+        [MessageAttribution("Gd")]
+        public void Challenge(TcpClient client, string message) => client.account.Game.Fight.ApplyChallengePacket(message.Substring(2));
+        /// <summary>
         /// <c>GE&lt;durée&gt;[;&lt;étoiles&gt;]|&lt;initiateur&gt;|&lt;type&gt;|&lt;ligne&gt;…</c> : fin du combat et résultat (matrice §2 n° 23).
         /// Comme <c>GameManager.terminateFight</c> du client (<c>cleanMap</c> puis <c>Game.onLeave</c> → <c>create()</c>), le bot
         /// redemande ensuite la partie par <c>GC1</c> : StarLoco n'envoie ni carte ni acteurs après <c>GE</c>, il répond à

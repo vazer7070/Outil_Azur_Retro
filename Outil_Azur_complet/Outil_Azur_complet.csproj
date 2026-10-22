@@ -448,6 +448,9 @@
     <Compile Include="Bot\Controls\Fight\ChallengeMenu.cs">
       <SubType>Component</SubType>
     </Compile>
+    <Compile Include="Bot\Controls\Fight\ChallengePanel.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Bot\Controls\WorldMapView.cs">
       <SubType>Component</SubType>
     </Compile>

@@ -47,7 +47,7 @@ python3 exporter_sprites.py <client>/clips/sprites ../../Outil_Azur_complet/Reso
 | `swfsvg` | Exporte en SVG un symbole exporté (forme, clip, bouton à l'état relâché) ou la scène d'un SWF, à l'image voulue : dégradés, bitmaps JPEG/sans perte en base64, transformations de couleur, masques, formes morphées. Les aplats magenta `#FF00FF` sont des emplacements remplis à l'exécution : ils sont omis, sauf sous une transformation de couleur du SWF qui remplace la teinte (0.2.2). Écrit aussi `index.tsv` (cadre de chaque rendu). Voir la section suivante. |
 | `exporter_png.py` | Convertit les SVG en PNG avec cairosvg. |
 | `exporter_sprites.py` | Enchaîne `swfsvg --list`, `--frame` et `--scene` sur `clips/sprites/<gfx>.swf`, convertit avec cairosvg, rogne les marges transparentes, assemble les cycles en bandes et écrit `ancres.tsv`. Voir la section « Sprites d'acteurs ». |
-| `exporter_icons.py` | Exporte les icônes et images que le client charge à l'exécution (objets, portraits, smileys, émotes, métiers, alignements, emblèmes, carte du monde, sorts manquants, symboles du bandeau et du chat de `core.swf`) vers `Outil_Azur_complet/Resources/Bot/<Famille>`, avec un `PROVENANCE.md` par famille. Voir la section « Icônes du client ». |
+| `exporter_icons.py` | Exporte les icônes et images que le client charge à l'exécution (objets, portraits, smileys, émotes, métiers, défis de combat, alignements, emblèmes, carte du monde, sorts manquants, symboles du bandeau et du chat de `core.swf`) vers `Outil_Azur_complet/Resources/Bot/<Famille>`, avec un `PROVENANCE.md` par famille. Voir la section « Icônes du client ». |
 | `exporter_groupe.py` | Exporte les petites illustrations `clips/artworks/mini` et les éléments du volet `Party` de `core.swf` (couronne, flèche du suivi, infobulle) vers `Outil_Azur_complet/Resources/Bot/{Artworks/Mini,Party}`. Voir la section « Volet Groupe ». |
 | `exporter_artworks.py` | Exporte les bustes des classes `clips/artworks/faces/<gfx>.swf` (scène principale, gfx = classe × 10 + sexe) vers `Outil_Azur_complet/Resources/Bot/Artworks/Faces` pour la fiche du conjoint du volet Amis ; commande et provenance dans son `PROVENANCE.md`, tests dans `tests/test_exporter_artworks.py`. |
 | `exporter_quetes.py` | Exporte de `modules/core.swf` les pièces de la fenêtre des quêtes (icône d'expérience, coche, marque en cours, flèche d'étape, boussole d'objectif) vers `Outil_Azur_complet/Resources/Bot/Client`, en réutilisant le rendu d'`exporter_icons.py` ; commande dans le `PROVENANCE.md` de ce dossier. |
@@ -369,7 +369,7 @@ Mesuré sur le client 1.34 fourni (4 cœurs) : 5 649 PNG et 63,3 Mo en un peu pl
 ```sh
 # swfsvg 0.2.2 compilé au préalable (étape 4) ; Pillow et cairosvg : pip install pillow cairosvg
 python3 exporter_icons.py --client "<client 1.34>" --sortie ../../Outil_Azur_complet/Resources/Bot \
-    [--familles Smileys,Emotes,Jobs,Alignments,Emblems,Portraits,Items,Spells,WorldMap,UI] \
+    [--familles Smileys,Emotes,Jobs,Challenges,Alignments,Emblems,Portraits,Items,Spells,WorldMap,UI] \
     [--swfsvg swfsvg/target/release/swfsvg] [--processus N] [--travail <dossier>] [--limite N] [--remplacer]
 
 # tests (SWF fabriqués dans le test, faux swfsvg de tests/, aucun fichier du client)
@@ -380,6 +380,7 @@ python3 tests/test_exporter_icons.py
 |---|---|---|---|
 | `Smileys`, `Emotes` | `clips/smileys/<n>.swf`, `clips/emotes/<n>.swf` | `Smileys/<n>.png`, `Emotes/<n>.png` | scène, échelle 2, 48 px au plus |
 | `Jobs`, `Alignments` | `clips/jobs/<g>.swf`, `clips/alignments/{,mini/,orders/,feats/}<n>.swf` | même arborescence | scène, échelle 2, 64 px au plus |
+| `Challenges` (lot X9) | `clips/challenges/<g>.swf` ; symboles `ChallengeOK` et `ChallengeKO` de `modules/core.swf` | `Challenges/<g>.png`, `Challenges/ChallengeOK.png`, `Challenges/ChallengeKO.png` | scène, échelle 2, 76 px au plus ; symboles, échelle 2 |
 | `Emblems` | `clips/emblems/back/<n>.swf`, `clips/emblems/up/<n>.swf` | `Emblems/back/<n>.png` (instance `back` seule, à teinter), `back/<n>_contour.png` (le reste, même cadre), `up/<n>.png` | scène, échelle 2 |
 | `Portraits` | `clips/artworks/big/<n>.swf` | `Portraits/<n>.png` | scène, échelle 1, 320 px au plus |
 | `Items` | `clips/items/<type>/<gfx>.swf` | `Items/<type>/<gfx>.png` | scène, échelle 2, 80 px au plus |

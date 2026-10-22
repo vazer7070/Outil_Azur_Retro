@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Linq;
 using System.Windows.Forms;
 using Outil_Azur_complet.Bot.Controls.Banner;
+using Outil_Azur_complet.Bot.Controls.Fight;
 using Tool_BotProtocol.Game;
 using Tool_BotProtocol.Game.Combats;
 using Tool_BotProtocol.Game.Data;
@@ -17,6 +18,8 @@ namespace Outil_Azur_complet.Bot.Panels
     /// tours : n », durée, bonus d'étoiles (combats contre des monstres), tables des gagnants, des perdants et du percepteur
     /// avec les colonnes du client (nom, niveau, kamas, xp gagnée, monture, guilde, objets gagnés ; honneur, grade et
     /// déshonneur pour une agression), crâne (<c>_mcDeadHead</c>) devant les combattants morts, bouton « Fermer ».
+    /// Lot X9 : sous le bonus d'étoiles, « Bonus de challenges : » (<c>FIGHT_CHALLENGE_BONUS</c>) suivi des icônes des défis du combat
+    /// en 17 × 17 espacées de 5 pixels avec leur état (<c>GameResults</c> du client), et le résumé de leurs bonus.
     /// Le volet s'ouvre tout seul à la réception de <c>GE</c> (<see cref="Fights.CombatResultReceived"/>, fil réseau) et
     /// garde le dernier résultat tant qu'un nouveau combat ne l'a pas remplacé. Les noms de monstres et d'objets viennent
     /// des textes du client s'ils sont chargés, sinon de leur numéro.
@@ -32,6 +35,11 @@ namespace Outil_Azur_complet.Bot.Panels
         private ListView winners, losers, collectors;
         private PictureBox star;
         private ImageList icons;
+        private Label challengesLabel, challengesSummary;
+        private bool challengesShown;
+        private FlowLayoutPanel challengeIcons;
+        private RowStyle challengesRow;
+        private ToolTip tips;
         private Control close;
         private FightResult result;
         private int turns, lastTurns;
@@ -47,15 +55,22 @@ namespace Outil_Azur_complet.Bot.Panels
         public string HeadingText => heading?.Text ?? string.Empty;
         public string DurationText => duration?.Text ?? string.Empty;
         public string BonusText => bonus != null && bonus.Visible ? bonus.Text : string.Empty;
+        /// <summary>Ligne des défis : « Bonus de challenges : » puis le résumé ; vide sans défi.</summary>
+        public string ChallengesText => challengesShown ? challengesLabel.Text + " " + challengesSummary.Text : string.Empty;
+        /// <summary>Icônes des défis du résultat (17 × 17), dans l'ordre de réception.</summary>
+        public IReadOnlyList<ChallengeIcon> ChallengeIcons => challengeIcons == null ? new ChallengeIcon[0] : challengeIcons.Controls.OfType<ChallengeIcon>().ToArray();
+        public string TooltipOf(Control control) => tips?.GetToolTip(control) ?? string.Empty;
         public Control CloseButton => close;
 
         protected override Control CreateView()
         {
             var page = Page();
-            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 9, BackColor = Color.Transparent, Margin = new Padding(0) };
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 10, BackColor = Color.Transparent, Margin = new Padding(0) };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+            challengesRow = new RowStyle(SizeType.Absolute, 0);
+            layout.RowStyles.Add(challengesRow);
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 42));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
@@ -71,18 +86,29 @@ namespace Outil_Azur_complet.Bot.Panels
             bonus = MakeLabel(string.Empty, 9); bonus.Dock = DockStyle.Fill; bonus.TextAlign = ContentAlignment.MiddleLeft; bonus.ForeColor = BotUi.Olive; bonus.Visible = false; bonus.Name = "result-bonus";
             line.Controls.Add(bonus); line.Controls.Add(star); line.Controls.Add(duration);
             layout.Controls.Add(line, 0, 1);
+            // Défis (lot X9) : libellé, icônes de 17 × 17 espacées de 5 pixels (GameResults), résumé des bonus.
+            tips = new ToolTip();
+            var challengeLine = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent, Margin = new Padding(0) };
+            challengesLabel = MakeLabel(BannerArt.Text("FIGHT_CHALLENGE_BONUS", "Bonus de challenges") + " :", 9); challengesLabel.Dock = DockStyle.Left; challengesLabel.AutoSize = true;
+            challengesLabel.TextAlign = ContentAlignment.MiddleLeft; challengesLabel.Name = "result-challenges"; challengesLabel.Visible = false;
+            challengeIcons = new FlowLayoutPanel { Dock = DockStyle.Left, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = false,
+                BackColor = Color.Transparent, Margin = new Padding(0), Padding = new Padding(6, 3, 0, 0), Name = "result-challenge-icons" };
+            challengesSummary = MakeLabel(string.Empty, 8.25f); challengesSummary.Dock = DockStyle.Fill; challengesSummary.TextAlign = ContentAlignment.MiddleLeft;
+            challengesSummary.ForeColor = BotUi.Olive; challengesSummary.AutoEllipsis = true; challengesSummary.Name = "result-challenges-summary";
+            challengeLine.Controls.Add(challengesSummary); challengeLine.Controls.Add(challengeIcons); challengeLine.Controls.Add(challengesLabel);
+            layout.Controls.Add(challengeLine, 0, 2);
             icons = new ImageList { ImageSize = new Size(16, 16), ColorDepth = ColorDepth.Depth32Bit };
-            winnersTitle = SectionTitle(BannerArt.Text("WINNERS", "Gagnants")); layout.Controls.Add(winnersTitle, 0, 2);
-            winners = ResultList("result-winners"); layout.Controls.Add(winners, 0, 3);
-            losersTitle = SectionTitle(BannerArt.Text("LOOSERS", "Perdants")); layout.Controls.Add(losersTitle, 0, 4);
-            losers = ResultList("result-losers"); layout.Controls.Add(losers, 0, 5);
-            collectorsTitle = SectionTitle(BannerArt.Text("GUILD_TAXCOLLECTORS", "Percepteurs")); collectorsTitle.Visible = false; layout.Controls.Add(collectorsTitle, 0, 6);
-            collectors = ResultList("result-collectors"); collectors.Visible = false; layout.Controls.Add(collectors, 0, 7);
+            winnersTitle = SectionTitle(BannerArt.Text("WINNERS", "Gagnants")); layout.Controls.Add(winnersTitle, 0, 3);
+            winners = ResultList("result-winners"); layout.Controls.Add(winners, 0, 4);
+            losersTitle = SectionTitle(BannerArt.Text("LOOSERS", "Perdants")); layout.Controls.Add(losersTitle, 0, 5);
+            losers = ResultList("result-losers"); layout.Controls.Add(losers, 0, 6);
+            collectorsTitle = SectionTitle(BannerArt.Text("GUILD_TAXCOLLECTORS", "Percepteurs")); collectorsTitle.Visible = false; layout.Controls.Add(collectorsTitle, 0, 7);
+            collectors = ResultList("result-collectors"); collectors.Visible = false; layout.Controls.Add(collectors, 0, 8);
             var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, Margin = new Padding(0), Padding = new Padding(0, 6, 0, 0), WrapContents = false };
             close = MakeButton(BannerArt.Text("CLOSE", "Fermer"), (s, e) => RaiseClosed(), true, 110); close.Name = "result-close";
             status = MakeStatus("Le résultat du prochain combat s'affichera ici."); status.Dock = DockStyle.Fill; status.Height = 34; status.Margin = new Padding(8, 0, 0, 0);
             actions.Controls.Add(close); actions.Controls.Add(status);
-            layout.Controls.Add(actions, 0, 8);
+            layout.Controls.Add(actions, 0, 9);
             page.Controls.Add(layout);
             BannerArt.RequestIcon(page, "Star", 18, image => { if (star != null && !star.IsDisposed) star.Image = image; });
             BannerArt.Request(page, "UI_GameResultPlayer_mort", image => AddSkull(image));
@@ -180,6 +206,7 @@ namespace Outil_Azur_complet.Bot.Panels
             bool bonusShown = value.StarBonus.HasValue && value.StarBonus.Value > 0;
             bonus.Visible = star.Visible = bonusShown;
             if (bonusShown) bonus.Text = BannerArt.Text("GAME_RESULTS_BONUS", "Bonus sur ce combat") + " : +" + value.StarBonus.Value.ToString(CultureInfo.InvariantCulture) + " %";
+            ShowChallenges(value.Challenges);
             string[] columns = (value.FightType == 1 ? PvpColumns : PveColumns).Select(Column).ToArray();
             Fill(winners, columns, value.Winners, value.FightType);
             Fill(losers, columns, value.Losers, value.FightType);
@@ -191,6 +218,33 @@ namespace Outil_Azur_complet.Bot.Panels
             status.Text = own == null ? (value.Rejected.Count > 0 ? value.Rejected.Count + " ligne(s) illisible(s) ignorée(s)." : string.Empty)
                 : own.Kind == FightResultKind.Winner ? "Victoire." : own.Kind == FightResultKind.Loser ? "Défaite." : string.Empty;
             view.Invalidate(true);
+        }
+
+        /// <summary>
+        /// Ligne des défis (<c>_lblChallenges</c> et <c>FightChallengeIcon</c> sans ouverture au clic) : visible seulement si le combat en
+        /// avait, comme <c>challenges.length</c> dans <c>GameResults</c> ; l'infobulle de chaque icône est celle de la colonne du combat.
+        /// </summary>
+        private void ShowChallenges(IReadOnlyList<FightChallenge> challenges)
+        {
+            bool shown = challenges != null && challenges.Count > 0;
+            challengeIcons.SuspendLayout();
+            try
+            {
+                foreach (Control old in challengeIcons.Controls.Cast<Control>().ToArray()) { tips.SetToolTip(old, null); challengeIcons.Controls.Remove(old); old.Dispose(); }
+                if (shown)
+                    foreach (FightChallenge challenge in challenges)
+                    {
+                        var icon = new ChallengeIcon(ChallengeIcon.ResultSize) { Margin = new Padding(0, 0, 5, 0), BackColor = BotUi.Paper };
+                        icon.Show(challenge);
+                        tips.SetToolTip(icon, ChallengeTexts.Tooltip(challenge));
+                        challengeIcons.Controls.Add(icon);
+                    }
+            }
+            finally { challengeIcons.ResumeLayout(); }
+            challengesShown = shown;
+            challengesLabel.Visible = challengeIcons.Visible = challengesSummary.Visible = shown;
+            challengesSummary.Text = shown ? string.Join(" · ", challenges.Select(ChallengeTexts.Summary)) : string.Empty;
+            challengesRow.Height = shown ? 24 : 0;
         }
 
         private void Fill(ListView list, string[] columns, IReadOnlyList<FightResultEntry> entries, int fightType)
@@ -271,6 +325,7 @@ namespace Outil_Azur_complet.Bot.Panels
             if (disposing)
             {
                 if (icons != null) { icons.Dispose(); icons = null; }
+                if (tips != null) { tips.Dispose(); tips = null; }
             }
         }
     }

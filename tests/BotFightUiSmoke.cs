@@ -21,6 +21,7 @@ using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Game.Chat;
 using Tool_BotProtocol.Game.Combats;
+using Tool_BotProtocol.Game.Data;
 using Tool_BotProtocol.Game.Maps;
 using Tool_BotProtocol.Game.Perso.Spells;
 using Tool_BotProtocol.Utils.Crypto;
@@ -32,6 +33,8 @@ using Tool_BotProtocol.Utils.Crypto;
 // GTL mal formé ignoré, dessin hors écran), « Abandonner » (boîte Non puis Oui → GQ, spectateur → GQ direct), GV, résultat
 // GE (PvM avec bonus d'étoiles et objets, PvP avec les colonnes d'honneur, GE illisible sans volet). Lot X1 : case ² du corps à corps
 // (poing DefaultCC, visée, cellules à portée, GA303 au clic, Échap, SH0) et clic sur un ennemi adjacent sans sort choisi → GA303.
+// Lot X9 : défis (Gd → colonne d'icônes du client avec infobulles, détail au clic, « voir la cible » → Gdi3 limité à une demande
+// par seconde, bouton affiche / cache, GdOK / GdKO → symboles d'état et lignes du chat), puis « Bonus de challenges » du résultat GE.
 internal static class BotFightUiSmoke
 {
     [STAThread]
@@ -49,7 +52,7 @@ internal static class BotFightUiSmoke
         {
             Application.EnableVisualStyles(); Run();
             Check(uiErrors.Count == 0, "Interface errors: " + string.Join(" / ", uiErrors.Select(e => e.GetType().Name + " " + e.Message)));
-            Console.WriteLine("OK: menu de placement GR1/GQ, clip « prêt » et icônes d'options par combattant, zones GDZ, invisibilité GA;150 (lot X7), options fN/fH/fS et Go±, drapeau Gf, ligne de temps GTL/GTR/GTS/GTF, corps à corps (case ², SH0, clic sur un ennemi adjacent) → GA303, abandon confirmé → GQ, spectateur, résultat GE PvM/PvP, bouton du mode tactique local (lot X33)");
+            Console.WriteLine("OK: menu de placement GR1/GQ, clip « prêt » et icônes d'options par combattant, zones GDZ, invisibilité GA;150 (lot X7), options fN/fH/fS et Go±, drapeau Gf, ligne de temps GTL/GTR/GTS/GTF, corps à corps (case ², SH0, clic sur un ennemi adjacent) → GA303, abandon confirmé → GQ, spectateur, résultat GE PvM/PvP, bouton du mode tactique local (lot X33), défis Gd/GdOK/GdKO (colonne, détail, Gdi, chat, bonus du résultat ; lot X9)");
         }
         catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
     }
@@ -65,6 +68,7 @@ internal static class BotFightUiSmoke
         while (!done()) { if (DateTime.UtcNow > end) throw new TimeoutException("Fight UI loopback timed out: " + what); Application.DoEvents(); Thread.Sleep(5); }
         Application.DoEvents();
     }
+    private static void Click(Control control) => typeof(Control).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(control, new object[] { EventArgs.Empty });
     private static void Complete(Task task) { PumpUntil(() => task.IsCompleted, "task"); task.GetAwaiter().GetResult(); }
     private static void Feed(Accounts account, string packet) { Complete(MessagesReception.ReceptionAsync(account.Connexion, packet)); }
     /// <summary>Paquet traité sur un autre fil, comme ceux du serveur : les contrôles créés masqués doivent quand même se mettre à jour.</summary>
@@ -423,6 +427,67 @@ internal static class BotFightUiSmoke
                         PumpUntil(() => menu.Visible, "second placement");
                         Check(!menu.CancelButton.Visible && menu.Width < 200, "Cancel button shown although the second GJK field is 0");
                         Feed(account, "GS"); Feed(account, "GTS42|30000"); Feed(account, "GTF42"); Feed(account, "GTS42|30000"); Feed(account, "GTF42");
+                        // ---------------------------------------------------------------- défis (lot X9) : colonne, détail, Gdi, chat
+                        ChallengePanel challenges = form.Challenges;
+                        Check(challenges != null && !challenges.Visible && challenges.Icons.Count == 0, "Challenge column shown before Gd");
+                        string challengeLang = Path.Combine(TestPaths.Work, "x9-ui-lang"); Directory.CreateDirectory(challengeLang);
+                        foreach (string old in Directory.GetFiles(challengeLang, "*.xml")) File.Delete(old);
+                        File.WriteAllText(Path.Combine(challengeLang, "fightChallenge.xml"), "<?xml version='1.0' encoding='utf-8'?>\n"
+                            + "<BotLang famille=\"fightChallenge\" langue=\"fr\" version=\"1\" source=\"fightChallenge_fr_1.swf\">\n"
+                            + "<entree table=\"FC\" id=\"3\" d=\"Abattre %1 en premier (texte de test).\" g=\"4\" n=\"Volontaire de test\" />\n"
+                            + "<entree table=\"FC\" id=\"17\" d=\"Ne perdre aucun point de vie (texte de test).\" g=\"17\" n=\"Intact de test\" />\n</BotLang>\n",
+                            new UTF8Encoding(false));
+                        Check(LangData.Load(challengeLang) == 1, "Synthetic fightChallenge.xml not loaded: " + string.Join(" / ", LangData.LoadWarnings));
+                        Feed(account, "GM|+9;1;0;-7;101;-2;1100^100;1;-1;-1;-1;0,0,0,0;60;4;2;1");
+                        // Le GM de combat ne porte que le grade : niveau posé ici comme s'il venait de monsters.xml.
+                        ((Tool_BotProtocol.Game.Monstres.Monstres)account.Game.Map.GetActor(-7)).Level = 4;
+                        string monsterName = fight.Fighters[-7].Name;
+                        FeedFromNetwork(account, "Gd3;1;-7;20;0;15;0"); FeedFromNetwork(account, "Gd17;0;;10;0;5;0");
+                        PumpUntil(() => challenges.Visible && challenges.Icons.Count == 2 && challenges.Icons.All(icon => icon.HasIcon),
+                            "challenge column with the exported client icons (Challenges/4.png, Challenges/17.png) after Gd");
+                        Check(challenges.IsHandleCreated && !challenges.InvokeRequired, "Challenge column got its handle on the network thread");
+                        ChallengeIcon first = challenges.Icons[0], second = challenges.Icons[1];
+                        Check(challenges.Location == new Point(6, 92) && first.Size == new Size(ChallengeIcon.ColumnSize, ChallengeIcon.ColumnSize) && first.Top == ChallengePanel.IconTop
+                            && second.Top - first.Top == 44 && challenges.Height >= second.Bottom && first.Challenge.Id == 3 && second.Challenge.Id == 17,
+                            "Challenge column layout differs from UI_FightChallenge (38 x 38, (6 + height) x rank)");
+                        string firstTip = challenges.TooltipOf(first);
+                        Check(firstTip == "Volontaire de test\nAbattre " + monsterName + " (Niv. 4) en premier (texte de test).\nButin : +15%\nXP : +20%\nEtat : Challenge en cours",
+                            "Challenge icon tooltip: " + firstTip);
+                        Check(challenges.TooltipOf(challenges.ToggleButton) == "Affiche/Cache le groupe", "Toggle tooltip is not PARTY_OPEN_CLOSE");
+                        // Clic sur l'icône → détail à droite de la colonne ; « voir la cible » → Gdi3 puis fermeture, comme FightChallengeViewer.
+                        Click(first); PumpUntil(() => challenges.ViewerOpen, "challenge viewer after a click on the icon");
+                        ChallengeViewer viewer = challenges.Viewer;
+                        Check(viewer.Parent == challenges.Parent && viewer.Left == challenges.Right + 4 && viewer.Top == challenges.Top, "Challenge viewer is not beside the column");
+                        Check(viewer.TitleText == "Challenge en cours" && viewer.NameText == "Volontaire de test" && viewer.DescriptionText.Contains(monsterName + " (Niv. 4)")
+                            && viewer.DropText == "+15%" && viewer.XpText == "+20%" && viewer.StateText == "Etat : Challenge en cours" && viewer.ViewButton.Visible,
+                            "Challenge viewer texts: " + viewer.NameText + " / " + viewer.DescriptionText + " / " + viewer.StateText);
+                        Check(viewer.TooltipOf(viewer.Controls["challenge-viewer-xp"]) == "Bonus de base : 20%\nBonus de groupe : 0%", "Bonus tooltip of the viewer");
+                        DateTime asked = DateTime.UtcNow;
+                        viewer.ViewButton.PerformClick(); Expect(peer, "Gdi3", "« Voir la cible » does not send Gdi<type>");
+                        PumpUntil(() => !challenges.ViewerOpen, "viewer closed after the target request");
+                        Click(first); PumpUntil(() => challenges.ViewerOpen, "viewer opened again");
+                        // _lastShowAsk : une seule demande par seconde (une machine lente qui dépasse la seconde reçoit la seconde demande).
+                        bool quick = (DateTime.UtcNow - asked).TotalMilliseconds < Fights.ChallengeTargetDelayMilliseconds - 100;
+                        viewer.ViewButton.PerformClick();
+                        if (quick) { NoPacket(peer, "Second Gdi sent within one second"); Check(challenges.ViewerOpen, "Throttled click closed the viewer"); }
+                        else Expect(peer, "Gdi3", "Gdi not sent again after one second");
+                        // Le serveur répond par Gf<cible>|<cellule>, dessiné en drapeau.
+                        Feed(account, "Gf-7|5"); PumpUntil(() => form.Map.DisplayedFlag != null && form.Map.DisplayedFlag.ActorId == -7 && form.Map.DisplayedFlag.CellId == 5, "Gf answer drawn as a flag");
+                        Click(second); PumpUntil(() => challenges.ViewerOpen && viewer.NameText == "Intact de test", "viewer of the second challenge");
+                        Check(!viewer.ViewButton.Visible && viewer.DescriptionText == "Ne perdre aucun point de vie (texte de test).", "Viewer of a challenge without target");
+                        viewer.CloseButton.PerformClick(); PumpUntil(() => !challenges.ViewerOpen, "viewer closed by its button");
+                        // Bouton affiche / cache (_btnOpenClose).
+                        Click(challenges.ToggleButton);
+                        Check(challenges.Collapsed && !first.Visible && !second.Visible && challenges.Height == ChallengePanel.IconTop, "Toggle does not hide the icons");
+                        Click(challenges.ToggleButton);
+                        Check(!challenges.Collapsed && first.Visible && second.Visible && challenges.Height >= second.Bottom, "Toggle does not show the icons again");
+                        // GdOK / GdKO : symboles ChallengeOK / ChallengeKO sur les icônes et lignes du chat (INFO_CHAT).
+                        FeedFromNetwork(account, "GdOK3"); FeedFromNetwork(account, "GdKO17");
+                        PumpUntil(() => form.Chat.View.DisplayedLines.Any(line => line.Text.Contains("Challenge réussi : Volontaire de test"))
+                            && form.Chat.View.DisplayedLines.Any(line => line.Text.Contains("Challenge raté : Intact de test")), "challenge lines in the chat");
+                        PumpUntil(() => first.HasStateMark && second.HasStateMark && first.Challenge.State == FightChallengeState.Succeeded
+                            && second.Challenge.State == FightChallengeState.Failed, "ChallengeOK / ChallengeKO marks on the icons");
+                        Check(challenges.TooltipOf(first).EndsWith("Etat : Challenge réussi") && challenges.TooltipOf(second).EndsWith("Etat : Challenge raté"), "Tooltip state after GdOK/GdKO");
                         // Drapeau armé quand le combat se termine : le mode est désarmé, le clic suivant n'est pas avalé.
                         PumpUntil(() => options.FlagButton.Visible && options.FlagButton.Enabled, "flag button after GS");
                         options.FlagButton.PerformClick(); Check(form.Map.FlagMode, "Flag mode not armed before GE");
@@ -440,6 +505,14 @@ internal static class BotFightUiSmoke
                             "Winner row differs: " + string.Join("|", winner.SubItems.Cast<ListViewItem.ListViewSubItem>().Select(cell => cell.Text)));
                         Check(loser.Text.EndsWith("Monstre #101") && ((FightResultEntry)loser.Tag).IsDead && loser.Cell(1) == "4", "Loser row differs: " + loser.Text);
                         Check(!combatTools.Visible && !fight.IsInFight, "Fight controls stay after GE");
+                        // Lot X9 : « Bonus de challenges : » et les icônes 17 x 17 du résultat ; la colonne du combat disparaît.
+                        Check(result.ChallengesText == "Bonus de challenges : Volontaire de test (Challenge réussi) : XP +20%, Butin +15% · Intact de test (Challenge raté) : XP +10%, Butin +5%",
+                            "Challenge bonus of the result: " + result.ChallengesText);
+                        PumpUntil(() => result.ChallengeIcons.Count == 2 && result.ChallengeIcons.All(icon => icon.HasIcon && icon.HasStateMark), "result challenge icons");
+                        Check(result.ChallengeIcons[0].Size == new Size(ChallengeIcon.ResultSize, ChallengeIcon.ResultSize)
+                            && result.TooltipOf(result.ChallengeIcons[1]).StartsWith("Intact de test\n"), "Result challenge icon size or tooltip");
+                        PumpUntil(() => !challenges.Visible && challenges.Icons.Count == 0 && !challenges.ViewerOpen, "challenge column hidden after GE");
+                        LangData.Clear();
                         PumpUntil(() => !form.Map.FlagMode, "flag mode disarmed after GE");
                         Check(map.Cursor == Cursors.Default, "Flag cursor stays after the end of the fight");
                         ((Button)result.CloseButton).PerformClick(); PumpUntil(() => !form.Panels.IsOpen(result), "result closed");
@@ -455,6 +528,7 @@ internal static class BotFightUiSmoke
                         Check(winner.Cell(2) == "10" && winner.Cell(3) == "+20 (120)" && winner.Cell(4) == "3" && winner.Cell(7) == "80", "PvP winner row differs: " + winner.Cell(3));
                         Check(loser.Cell(3) == "-20 (50)" && loser.Cell(6) == "+5 (5)" && result.HeadingText.EndsWith("Résultat du combat") && result.BonusText == "",
                             "PvP loser row or heading differs: " + loser.Cell(3) + " / " + result.HeadingText);
+                        Check(result.ChallengesText == "" && result.ChallengeIcons.Count == 0, "PvP result shows the challenges of the previous fight");
                         ((Button)result.CloseButton).PerformClick(); PumpUntil(() => !form.Panels.IsOpen(result), "pvp result closed");
 
                         // ---------------------------------------------------------------- spectateur : GQ sans question
@@ -478,6 +552,6 @@ internal static class BotFightUiSmoke
                 }
             }
         }
-        finally { listener.Stop(); Environment.CurrentDirectory = previous; }
+        finally { listener.Stop(); Environment.CurrentDirectory = previous; LangData.Clear(); }
     }
 }

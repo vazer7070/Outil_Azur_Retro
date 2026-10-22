@@ -16,6 +16,7 @@ using Tool_BotProtocol.Game.Data;
 using Tool_BotProtocol.Game.Maps;
 using Tool_BotProtocol.Game.Perso.Spells;
 using Tool_BotProtocol.Utils.Crypto;
+using Tool_BotProtocol.Utils.Logger;
 
 /// <summary>
 /// Protocole de combat F12a sur paquets synthétiques (format StarLoco / client 1.34) : ordre des tours (GTL, GTR→GT, GTS à deux
@@ -24,6 +25,8 @@ using Tool_BotProtocol.Utils.Crypto;
 /// Lot X1 : corps à corps <c>GA303&lt;cellule&gt;</c> à mains nues, à l'épée puis à l'arc (items.xml et classes.xml synthétiques),
 /// <c>GAF</c> → <c>GKK</c>, refus locaux (PA, adjacence, portée, état interdit) et réponses StarLoco (Im1170, GA;305).
 /// Lot X8 : zone du type d'arme posée sous le pointeur (« Pa » de l'épée, « Xb » du marteau, « P » à défaut).
+/// Lot X9 : défis <c>Gd</c> (textes d'un fightChallenge.xml synthétique, cible « nom (Niv. n) »), <c>GdOK</c> / <c>GdKO</c>,
+/// paquets illisibles journalisés, <c>Gdi&lt;type&gt;</c> et ses refus, copie dans le résultat <c>GE</c>, vidage par <c>GV</c>.
 /// </summary>
 internal static class BotFightProtocolSmoke
 {
@@ -192,6 +195,90 @@ internal static class BotFightProtocolSmoke
         await Feed(account, reset);
     }
 
+    /// <summary>
+    /// Défis du combat (lot X9), au tour du personnage : <c>Gd</c> lu avec les textes d'un fightChallenge.xml et d'un lang.xml
+    /// synthétiques (« %1 » remplacé par « nom (Niv. n) » de la cible), huitième champ ignoré, doublon remplacé, type sans texte,
+    /// paquets illisibles journalisés et ignorés, <c>Gdi&lt;type&gt;</c> et ses refus, <c>GdOK</c> / <c>GdKO</c> (quatrième caractère
+    /// du paquet) et type inconnu. Laisse quatre défis (3 réussi, 17 raté, 9 et 40 en cours) pour le résultat <c>GE</c>.
+    /// </summary>
+    private static async Task ChallengesAsync(Accounts account, Socket peer, Fights fight)
+    {
+        var events = new List<FightChallenge>();
+        var dangers = new List<string>();
+        Action<FightChallenge> onChallenge = challenge => { lock (events) events.Add(challenge); };
+        Action<LogsMessages, string> onLog = (entry, color) =>
+        { if (entry.reference == "COMBAT" && entry.message.StartsWith("Paquet Gd ", StringComparison.Ordinal)) lock (dangers) dangers.Add(entry.message); };
+        string lang = Path.Combine(TestPaths.Work, "x9-lang");
+        Directory.CreateDirectory(lang);
+        foreach (string old in Directory.GetFiles(lang, "*.xml")) File.Delete(old);
+        WriteLang(lang, "fightChallenge", "<entree table=\"FC\" id=\"3\" d=\"Abattre %1 avant les autres (texte de test).\" g=\"4\" n=\"Volontaire de test\" />\n"
+            + "<entree table=\"FC\" id=\"17\" d=\"Garder tous ses points de vie (texte de test).\" g=\"17\" n=\"Intact de test\" />\n"
+            + "<entree table=\"FC\" id=\"9\" d=\"Défi sans cible (texte de test).\" g=\"9\" n=\"Neuf de test\" />");
+        WriteLang(lang, "lang", "<texte cle=\"LEVEL_SMALL\" valeur=\"Nv\" />\n<texte cle=\"CURRENT_FIGHT_CHALLENGE\" valeur=\"Défi actif\" />\n"
+            + "<texte cle=\"FIGHT_CHALLENGE_DONE\" valeur=\"Défi gagné\" />\n<texte cle=\"FIGHT_CHALLENGE_FAILED\" valeur=\"Défi perdu\" />");
+        Check(LangData.Load(lang) == 2, "Synthetic fightChallenge.xml/lang.xml not loaded: " + string.Join(" / ", LangData.LoadWarnings));
+        fight.ChallengeChanged += onChallenge; account.Logger.log_event += onLog;
+        try
+        {
+            Check(fight.IsMyTurn && fight.Challenges.Count == 0, "Challenges section must start on the own turn without challenge");
+            // Le GM de combat ne porte que le grade : niveau posé ici comme s'il venait de monsters.xml.
+            ((Tool_BotProtocol.Game.Monstres.Monstres)account.Game.Map.GetActor(-7)).Level = 4;
+
+            // Gd<type>;<1|0>;<cible>;<xp>;0;<butin>;0; : Challenge.parseToPacket de StarLoco finit par « ; » (huitième champ vide).
+            await Feed(account, "Gd3;1;-7;20;0;15;0;");
+            FightChallenge target = fight.Challenges.Single();
+            Check(target.Id == 3 && target.ShowTarget && target.TargetId == -7 && target.BasicXpBonus == 20 && target.TeamXpBonus == 0 && target.XpBonus == 20
+                && target.BasicDropBonus == 15 && target.DropBonus == 15 && target.State == FightChallengeState.Running && target.Gfx == 4,
+                "Gd3 fields: " + target.Raw);
+            Check(target.Name == "Volontaire de test" && target.Description == "Abattre Bouftou synthétique (Nv 4) avant les autres (texte de test)."
+                && target.StateText == "Défi actif" && target.ResultMessage == "", "Gd3 texts: " + target.Name + " / " + target.Description + " / " + target.StateText);
+            Check(events.Count == 1 && events[0].Id == 3 && events[0].State == FightChallengeState.Running, "Gd3 did not raise ChallengeChanged");
+            // Cible vide, puis cible 0 et huitième champ (StarLoco répète le type d'un défi fini) : pas de cible, champ ignoré.
+            await Feed(account, "Gd17;0;;10;0;5;0");
+            await Feed(account, "Gd9;0;0;5;0;5;0;9");
+            IReadOnlyList<FightChallenge> list = fight.Challenges;
+            Check(list.Count == 3 && list[1].Id == 17 && !list[1].ShowTarget && list[1].TargetId == null && list[1].Description == "Garder tous ses points de vie (texte de test)."
+                && list[2].Id == 9 && list[2].TargetId == null && list[2].XpBonus == 5 && list[2].Raw == "9;0;0;5;0;5;0;9", "Gd without target or with an eighth field");
+            // Un second Gd du même type remplace le premier à sa place (choix du bot) ; un type absent des textes garde un nom par défaut.
+            await Feed(account, "Gd9;0;0;7;0;6;0");
+            await Feed(account, "Gd40;0;;1;2;3;4");
+            list = fight.Challenges;
+            Check(list.Count == 4 && list[2].Id == 9 && list[2].XpBonus == 7 && list[2].DropBonus == 6, "Duplicate Gd not replaced in place");
+            Check(list[3].Name == "Challenge 40" && list[3].Description == "" && list[3].Gfx == null && list[3].XpBonus == 3 && list[3].DropBonus == 7
+                && list[3].TeamXpBonus == 2 && list[3].TeamDropBonus == 4, "Gd of a type without client texts");
+            Check(events.Count == 5, "Gd events: " + events.Count);
+
+            // Paquets illisibles : journalisés (COMBAT) et ignorés, sans exception ni changement.
+            string[] malformed = { "Gd", "Gd3;1;-7", "Gdx;0;;10;0;5;0", "Gd3;0;;abc;0;5;0", "GdOK", "GdKOx", "GdOK-" };
+            foreach (string packet in malformed) await Feed(account, packet);
+            Check(fight.Challenges.Count == 4 && fight.Challenges[0].XpBonus == 20 && fight.Challenges.All(c => c.State == FightChallengeState.Running)
+                && events.Count == 5 && dangers.Count == malformed.Length, "Malformed Gd applied or not logged: " + string.Join(" / ", dangers));
+
+            // Gdi<type> : bouton « voir la cible » (défi qui désigne une cible) ; refus local sinon, rien n'est envoyé.
+            Check(fight.GetChallengeTargetUnavailableReason(3) == null, "Target of challenge 3 refused");
+            CombatActionResult ask = await fight.ShowChallengeTargetAsync(3);
+            Check(ask.Sent && await Within(Read(peer)) == "Gdi3" && ask.Message == "Cible du challenge demandée.", "Gdi3 wire");
+            CombatActionResult noTarget = await fight.ShowChallengeTargetAsync(17), unknown = await fight.ShowChallengeTargetAsync(5);
+            Check(!noTarget.Sent && noTarget.Message.Contains("ne désigne pas de cible") && !unknown.Sent && unknown.Message.Contains("n’est pas en cours")
+                && peer.Available == 0, "Gdi sent for a challenge without target or unknown");
+
+            // GdOK<type> / GdKO<type> : aiguillage sur le quatrième caractère (K réussi, O raté), ligne du chat dans ResultMessage.
+            await Feed(account, "GdOK3"); await Feed(account, "GdKO17");
+            list = fight.Challenges;
+            Check(list[0].State == FightChallengeState.Succeeded && list[1].State == FightChallengeState.Failed && list[2].State == FightChallengeState.Running
+                && list[0].Description == target.Description && list[0].XpBonus == 20, "GdOK/GdKO states");
+            Check(events.Count == 7 && events[5].ResultMessage == "Défi gagné : Volontaire de test" && events[6].ResultMessage == "Défi perdu : Intact de test"
+                && events[6].StateText == "Défi perdu", "GdOK/GdKO events: " + string.Join(" / ", events.Skip(5).Select(c => c.ResultMessage)));
+            // Type absent de la liste : la liste ne change pas, mais la ligne du chat est levée comme dans le client.
+            await Feed(account, "GdOK99");
+            Check(fight.Challenges.Count == 4 && events.Count == 8 && events[7].Id == 99 && events[7].State == FightChallengeState.Succeeded
+                && events[7].ResultMessage == "Défi gagné : Challenge 99", "GdOK of an unknown type");
+        }
+        finally { fight.ChallengeChanged -= onChallenge; account.Logger.log_event -= onLog; LangData.Clear(); }
+        // Les textes sont lus à la réception : LangData.Clear ne change pas les défis reçus.
+        Check(fight.Challenges[0].Name == "Volontaire de test", "Challenge names depend on the loaded client texts");
+    }
+
     private static void CheckParsers()
     {
         List<int> order; int actor, duration; int? table;
@@ -256,6 +343,11 @@ internal static class BotFightProtocolSmoke
                         && !(await fight.SetFlagAsync(5)).Sent && !(await fight.KickAsync(43)).Sent, "Fight requests accepted outside a fight");
                     await Feed(account, "GTL|1|2"); await Feed(account, "GTR42");
                     Check(fight.TurnOrder.Count == 0 && peer.Available == 0, "Turn packets applied or answered outside a fight");
+                    // Lot X9 : défis ignorés hors combat ; « voir la cible » refusé sans combat.
+                    int challengeEvents = 0; fight.ChallengeChanged += challenge => challengeEvents++;
+                    await Feed(account, "Gd3;1;-7;20;0;15;0"); await Feed(account, "GdOK3");
+                    Check(fight.Challenges.Count == 0 && challengeEvents == 0 && !(await fight.ShowChallengeTargetAsync(3)).Sent && peer.Available == 0,
+                        "Challenges applied or Gdi sent outside a fight");
 
                     // Placement: options, kick, flag. GJK empties the map like Game.onJoin (cleanMap(1)): only the fighters' GM come back.
                     await Feed(account, "GM|+2;4;0;-1;555;-4;9001^80x120;1;ff;-1;-1;2a,,,;2;3|+6;1;0;77;Passerby;1;10^100;0");
@@ -424,6 +516,7 @@ internal static class BotFightProtocolSmoke
                     Check(fight.IsInFight && fight.Fighters[-7].Life == 55 && fight.Fighters[-7].CellId == 13 && fight.Fighters[-7].Orientation == 3,
                         "Malformed GA changed the state or stopped the fight");
 
+                    await ChallengesAsync(account, peer, fight);
                     await CloseCombatAsync(account, peer, fight);
 
                     // Abandon (GQ) then PvM result.
@@ -441,6 +534,10 @@ internal static class BotFightProtocolSmoke
                         && own.Kamas == 150 && monster.MonsterTemplateId == 101 && monster.IsDead && monster.WonExperience == null, "GE PvM line");
                     Check(fight.Phase == CombatPhase.Finished && !fight.IsInFight && fight.LastActionMessage.Contains("victoire") && results == 1
                         && fight.Journal.Count == journalBeforeEnd && journalBeforeEnd > 20, "GE end state, result event or kept journal");
+                    // Lot X9 : les défis passent dans le résultat (results.challenges du client) puis la liste du combat est vidée.
+                    Check(pvm.Challenges.Select(c => c.Id).SequenceEqual(new[] { 3, 17, 9, 40 }) && pvm.Challenges[0].State == FightChallengeState.Succeeded
+                        && pvm.Challenges[1].State == FightChallengeState.Failed && pvm.Challenges[0].XpBonus == 20 && fight.Challenges.Count == 0,
+                        "GE did not copy the challenges into the result or kept them in the fight");
 
                     // PvP result (type 1: honour then experience), no star bonus.
                     await Feed(account, "GJK2|1|1|0|30000|1"); Check(fight.LastResult == null && fight.Journal.Count == 0, "New fight keeps the previous result");
@@ -449,6 +546,7 @@ internal static class BotFightProtocolSmoke
                     FightResult pvp = fight.LastResult; FightResultEntry pvpOwn = pvp?.Find(42);
                     Check(pvp != null && pvp.FightType == 1 && pvp.StarBonus == null && pvpOwn.WonHonour == 10 && pvpOwn.Rank == 1 && pvpOwn.Honour == 100
                         && pvpOwn.WonExperience == 50 && pvpOwn.Items.Count == 0 && pvpOwn.Kamas == 0, "GE PvP line");
+                    Check(pvp.Challenges.Count == 0, "PvP result carries challenges");
 
                     // A malformed GE still ends the fight (the client always leaves the fight screen).
                     await Feed(account, "GJK2|1|1|0|30000|0"); await Feed(account, "GEabc");
@@ -458,9 +556,11 @@ internal static class BotFightProtocolSmoke
 
                     // GQ during placement, then GV.
                     await Feed(account, "GJK2|1|1|0|30000|0");
+                    await Feed(account, "Gd9;0;;5;0;5;0"); Check(fight.Challenges.Count == 1, "Gd ignored during the placement");
                     CombatActionResult leave = await fight.GiveUpAsync();
                     Check(leave.Sent && await Within(Read(peer)) == "GQ" && leave.Message.Contains("sortie"), "GQ in placement");
                     await Feed(account, "GV"); Check(await Within(Read(peer)) == "GC1" && !fight.IsInFight, "GV after GQ");
+                    Check(fight.Challenges.Count == 0 && challengeEvents == 9, "GV kept the challenges or challenge events missing: " + challengeEvents);
                     Check(peer.Available == 0 && journalEvents > 20 && flags == 1, "Stray packet or missing notifications");
                 }
             }
@@ -468,6 +568,7 @@ internal static class BotFightProtocolSmoke
         finally { listener.Stop(); }
         Console.WriteLine("OK: GTL/GTR/GTS(2-3)/GTF timeline, GIE/GIe effects and expiry, GDZ, Go/fN/fS/fP/fH, Gf, GQ (give up, kick), " +
             "combat GA table (life, AP/MP, states, invisibility, buffs, carry/throw, summon, GA;999, router fallback), GE PvM/PvP/malformed, " +
-            "close combat GA303 (fists, sword, bow, soul stone; GAF->GKK, AP/range/state refusals, Im1170, GA;305), weapon type zone under the pointer (lot X8)");
+            "close combat GA303 (fists, sword, bow, soul stone; GAF->GKK, AP/range/state refusals, Im1170, GA;305), weapon type zone under the pointer (lot X8), " +
+            "challenges Gd/GdOK/GdKO, Gdi and GE copy (lot X9)");
     }
 }
