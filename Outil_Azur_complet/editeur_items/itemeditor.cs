@@ -483,9 +483,7 @@ namespace Outil_Azur_complet.editeur_items
             if (iTalk_ComboBox2.SelectedItem != null)
                 CreateQuery["pano"] = ItemCreationService.BuildPanoplyQuery(TablePano, ColumsPano,
                     EmuManager.ReturnInfoCol("pano"), iTalk_ComboBox2.SelectedItem.ToString(), templateId);
-            CreateQuery["item"] = QueryBuilder.InsertIntoQuery(TableItems,
-                new[] { "guid", "template", "qua", "pos", "stats", "puit" },
-                new[] { itemGuid.ToString(), templateId.ToString(), "0", "-1", "", "0" }, "");
+            CreateQuery["item"] = ItemCreationService.BuildItemQuery(TableItems, templateId, itemGuid);
             CreateQuery["template"] = ItemCreationService.BuildTemplateQuery(TableItemsTemplate,
                 new[] { templateId.ToString(), type.ToString(), iTalk_TextBox_Small1.Text.Trim(),
                     iTalk_NumericUpDown1.Value.ToString(), b, iTalk_NumericUpDown2.Value.ToString(),

@@ -1,0 +1,4 @@
+<?xml version='1.0' encoding='utf-8'?>
+<BotLang famille="guilds" langue="fr" version="109" source="guilds_fr_109.swf">
+<entree table="GU" id="b" c="[[0,10,1]]" cm="50" p="[[0,1,1]]" pm="500" s="[[0,5],[1,5],[2,5],[4,5]]" sm="5" w="[[0,1,20]]" wm="5000" x="[[0,1,1]]" xm="400" />
+</BotLang>

@@ -61,7 +61,17 @@ namespace Tool_BotProtocol.Frames.Auth
         }
 
         [MessageAttribution("Ad")]
-        public void Getpseudo(TcpClient client, string message) { if (client.account != null) client.account.Name = message.Substring(2); }
+        public void Getpseudo(TcpClient client, string message)
+        {
+            Accounts account = client.account;
+            if (account == null) return;
+            account.Name = message.Substring(2);
+            // Le Login reprend la connexion après un pseudo accepté (ChooseNickName.verify, puis AccountQueue.sendInformation).
+            account.Nickname.OnAccepted(account.Name);
+        }
+        /// <summary><c>AlK0</c> ou <c>AlK1</c> (compte modérateur) : connexion acceptée ; clôt aussi une demande de pseudo encore ouverte.</summary>
+        [MessageAttribution("AlK")]
+        public void LoginAccepted(TcpClient client, string message) => client.account?.Nickname.OnAccepted(client.account.Name);
         [MessageAttribution("ADE")]
         public void FailDeletePerso(TcpClient client, string message) => client.account?.Game.Server.deleteCharacter();
         [MessageAttribution("ASE")]
@@ -206,7 +216,7 @@ namespace Tool_BotProtocol.Frames.Auth
                 account.SetConnectionStatus("Connexion impossible : " + reason);
                 account.Logger?.LogError("CONNEXION", reason);
             }
-            finally { account.Disconnect(); }
+            finally { account.Disconnect(DisconnectCause.Refused); }
         }
         [MessageAttribution("AF")]
         public void SearchFriends(TcpClient client, string message)

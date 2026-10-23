@@ -18,7 +18,10 @@ namespace Outil_Azur_complet.Bot
         private Control connect, retry;
         private bool transferred, subscribed;
         private readonly bool autoConnect;
+        /// <summary>Choix du pseudo d'un compte neuf en cours (lot X3), ou <c>null</c>.</summary>
+        private ChooseNickNameForm nicknameForm;
         public bool Alreadyhere { get; private set; }
+        internal ChooseNickNameForm NicknameForm => nicknameForm;
         public PersoSelection(AccountConfig account) : this(account,true) { }
         public PersoSelection(AccountConfig account,bool connectAutomatically) { config=account;A=new Accounts(account);autoConnect=connectAutomatically;BuildLayout();Load+=Loaded;FormClosed+=OnSessionClosed; }
         private void BuildLayout()
@@ -29,12 +32,14 @@ namespace Outil_Azur_complet.Bot
             servers=BotUi.List("Serveur","Personnages","État");servers.Columns[0].Width=170;servers.Columns[1].Width=120;servers.Columns[2].Width=170;servers.SelectedIndexChanged+=(s,e)=>UpdateSelection();servers.DoubleClick+=async(s,e)=>await SelectServer();
             connect=BotUi.Button("Choisir ce serveur",async(s,e)=>await SelectServer(),true,175);connect.Enabled=false;retry=BotUi.Button("Retenter",async(s,e)=>await Reconnect(),false,110);status=BotUi.Status("Connexion au serveur Login…");
             BotUi.Body(card).Controls.Add(servers);BotUi.Body(card).Controls.Add(status);BotUi.Body(card).Controls.Add(BotUi.Actions(connect,retry,BotUi.Button("Retour aux comptes",(s,e)=>Back(),false,180)));split.Controls.Add(card,0,0);
+            // Bannière de l'écran de choix du serveur du client (UI_ChooseServer), au-dessus de la liste.
+            var banner=BotUi.Banner("bandeau-serveurs",64,null,DockStyle.Left);if(banner!=null) { banner.Dock=DockStyle.Top;BotUi.Body(card).Controls.Add(banner);servers.BringToFront(); }
             var log=BotUi.Card("État de la connexion","Les erreurs sont affichées ici. Aucun mot de passe n’est affiché.");journal=BotUi.Journal();BotUi.Body(log).Controls.Add(journal);split.Controls.Add(log,1,0);
         }
-        private async void Loaded(object sender,EventArgs args) { A.Game.Server.AddServerInMenu+=UpdateListViews;A.Game.Server.WrongCredential+=DisplayWrong;A.Game.Server.WrongVersion+=DisplayWrongVersion;A.Game.Server.IsBanned+=DisplayBantime;A.Game.Server.AlreadyConnected+=AlreadyConnected;A.AccountStateEvent+=StateChanged;A.AccountDisconnectEvent+=StateChanged;A.Logger.log_event+=Log;subscribed=true;if(autoConnect)await Reconnect();else status.Text="Sélectionnez Retenter pour démarrer la connexion."; }
+        private async void Loaded(object sender,EventArgs args) { A.Game.Server.AddServerInMenu+=UpdateListViews;A.Game.Server.WrongCredential+=DisplayWrong;A.Game.Server.WrongVersion+=DisplayWrongVersion;A.Game.Server.IsBanned+=DisplayBantime;A.Game.Server.AlreadyConnected+=AlreadyConnected;A.AccountStateEvent+=StateChanged;A.AccountDisconnectEvent+=StateChanged;A.Logger.log_event+=Log;A.Nickname.Requested+=NicknameRequested;A.Nickname.Accepted+=NicknameAccepted;subscribed=true;if(autoConnect)await Reconnect();else status.Text="Sélectionnez Retenter pour démarrer la connexion."; }
         private async Task Reconnect() { retry.Enabled=false;connect.Enabled=false;servers.Items.Clear();A.Disconnect();try { await A.ConnectAsync(); }catch(Exception ex) { status.Text=ex.Message; }finally { retry.Enabled=true;StateChanged(); } }
         private void Log(LogsMessages message,string color) { BotUi.OnUi(this,()=>BotUi.Append(journal,BotPacketRedactor.Redact(message.ToString(),A),color)); }
-        private void StateChanged() { BotUi.OnUi(this,()=> { status.Text=A.ConnectionStatus;UpdateSelection(); }); }
+        private void StateChanged() { BotUi.OnUi(this,()=> { status.Text=A.ConnectionStatus;UpdateSelection();if(!A.Nickname.IsPending)CloseNickname(); }); }
         public void UpdateListViews()
         {
             BotUi.OnUi(this,()=> {
@@ -60,9 +65,29 @@ namespace Outil_Azur_complet.Bot
         public void DisplayBantime(string value) => Error("Le serveur a indiqué un bannissement : "+value+".");
         public void AlreadyConnected() => Error("Ce compte est déjà connecté. Fermez sa session précédente, puis retentez.");
         private void Error(string text) { BotUi.OnUi(this,()=> { status.Text=text;BotUi.Append(journal,text);connect.Enabled=false;retry.Enabled=true; }); }
+        /// <summary>
+        /// <c>AlEr</c>/<c>AlEs</c> pendant la connexion : ouvre (ou remet à la saisie) la fenêtre du choix du pseudo, au-dessus de
+        /// cet écran ; elle se referme quand le Login reprend (<c>Ad</c>, <c>AlK</c>) ou quand la connexion se ferme.
+        /// </summary>
+        private void NicknameRequested(NicknameRequest request)
+        {
+            BotUi.OnUi(this,()=> {
+                if(!A.Nickname.IsPending)return;
+                if(nicknameForm==null||nicknameForm.IsDisposed)
+                {
+                    var form=new ChooseNickNameForm(A.Nickname);nicknameForm=form;
+                    form.FormClosed+=(s,e)=> { if(ReferenceEquals(nicknameForm,form))nicknameForm=null; };
+                    form.PlaceOver(this);if(Visible)form.Show(this);else form.Show();
+                }
+                nicknameForm.ShowRequest(request);status.Text=request.Error==null?ConnectionTexts.NicknameTitle+" : le compte n’a pas encore de pseudo.":request.Error;
+            });
+        }
+        private void NicknameAccepted(string nickname) { BotUi.OnUi(this,()=> { CloseNickname();status.Text=A.ConnectionStatus; }); }
+        private void CloseNickname() { var form=nicknameForm;nicknameForm=null;if(form!=null&&!form.IsDisposed)form.CloseSettled(); }
         private void OnSessionClosed(object sender,FormClosedEventArgs args)
         {
-            if(subscribed) { A.Game.Server.AddServerInMenu-=UpdateListViews;A.Game.Server.WrongCredential-=DisplayWrong;A.Game.Server.WrongVersion-=DisplayWrongVersion;A.Game.Server.IsBanned-=DisplayBantime;A.Game.Server.AlreadyConnected-=AlreadyConnected;A.AccountStateEvent-=StateChanged;A.AccountDisconnectEvent-=StateChanged;A.Logger.log_event-=Log; }
+            if(subscribed) { A.Game.Server.AddServerInMenu-=UpdateListViews;A.Game.Server.WrongCredential-=DisplayWrong;A.Game.Server.WrongVersion-=DisplayWrongVersion;A.Game.Server.IsBanned-=DisplayBantime;A.Game.Server.AlreadyConnected-=AlreadyConnected;A.AccountStateEvent-=StateChanged;A.AccountDisconnectEvent-=StateChanged;A.Logger.log_event-=Log;A.Nickname.Requested-=NicknameRequested;A.Nickname.Accepted-=NicknameAccepted; }
+            CloseNickname();
             if(!transferred)A.Dispose();
         }
     }

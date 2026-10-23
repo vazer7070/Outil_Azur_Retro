@@ -14,6 +14,7 @@ using System.Windows.Forms;
 using Outil_Azur_complet.Bot;
 using Outil_Azur_complet.Bot.Controls;
 using Outil_Azur_complet.Bot.Interfaces;
+using Outil_Azur_complet.Bot.Panels;
 using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Frames.Messages;
 using Tool_BotProtocol.Game.Accounts;
@@ -64,6 +65,33 @@ internal static class BotCombatUiSmoke
         typeof(UserMapControl).GetMethod("OnMouseUp",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(map,new object[]{e});
         Application.DoEvents();
     }
+    // Cellule client sur dix caractères, codée comme la lisent Map.DecompressCell et BotMapArtwork : active, niveau 7, à plat,
+    // avec un sol, un objet au sol (object1) et un objet en relief (object2) ; une cellule infranchissable bloque aussi la vue.
+    private static string EncodedCell(int ground,int object1,int object2,bool walkable)
+    {
+        int[] value=new int[10];
+        value[0]=32|(walkable?1:0)|((ground>>6)&24)|((object1>>11)&4)|((object2>>12)&2);
+        value[1]=7;value[2]=(walkable?32:0)|((ground>>6)&7);value[3]=ground&63;
+        value[4]=4|((object1>>12)&1);value[5]=(object1>>6)&63;value[6]=object1&63;
+        value[7]=(object2>>12)&1;value[8]=(object2>>6)&63;value[9]=object2&63;
+        return new string(value.Select(part=>Hash.caracteres_array[part]).ToArray());
+    }
+    // Carte 7411 synthétique de 15 × 17 (479 cellules), sans aucune donnée de carte du serveur ni du client : herbe (sol 39),
+    // chemin pavé (sol 6) sur les lignes 18 à 21 où se tiennent le personnage (282) et les entités (299, 300, 310), touffes
+    // et fleurs (objets 374, 528, 543), arbres et menhirs infranchissables placés hors du chemin pour ne pas le masquer
+    // (objets 42, 57, 58, 59) et fond 114. Ces visuels viennent du décor versionné (Resources/Bot/Decor) que le projet
+    // copie dans ressources/maps.
+    private static Map SyntheticAstrub()
+    {
+        const int width=15,height=17,count=height*(2*width-1)-(width-1);
+        int[] tufts={33,64,120,141,205,352,397,441},obstacles={46,98,149,198,230,364,419,450};
+        int[] flats={374,528,543},reliefs={42,57,58,59};
+        string data=string.Concat(Enumerable.Range(0,count).Select(id=>{
+            int row=2*(id/(2*width-1))+(id%(2*width-1)<width?0:1),tuft=Array.IndexOf(tufts,id),obstacle=Array.IndexOf(obstacles,id);
+            return EncodedCell(row>=18&&row<=21?6:39,tuft<0?0:flats[tuft%flats.Length],obstacle<0?0:reliefs[obstacle%reliefs.Length],obstacle<0);
+        }));
+        return new Map {MapID=7411,MapWidth=width,MapHeight=height,X=4,Y=-18,Back_ID=114,MapData=data};
+    }
     private static void Capture(Form form,string name)
     {
         Application.DoEvents();
@@ -83,7 +111,7 @@ internal static class BotCombatUiSmoke
         var listener=new TcpListener(IPAddress.Loopback,0);listener.Start();
         try {
             MessagesReception.Init(); Spell.AllSpells.Clear();
-            for(short i=10;i<23;i++) { var spell=new Spell(i,"Sort test "+i);spell.GetSpellsStats(1,new SpellStats {PA=3,Min_portee=1,Max_portee=6}); }
+            for(short i=10;i<26;i++) { var spell=new Spell(i,"Sort test "+i);spell.GetSpellsStats(1,new SpellStats {PA=3,Min_portee=1,Max_portee=6}); }
             Map.AllBotMaps[900091]=new Map {MapID=900091,MapWidth=3,MapHeight=4,MapData=string.Concat(Enumerable.Repeat("HhGaeaaaaa",18))};
             using(var account=new Accounts(new AccountConfig("synthetic-combat-ui","synthetic","loopback"))) {
                 Task<Socket> accept=listener.AcceptSocketAsync();
@@ -91,15 +119,15 @@ internal static class BotCombatUiSmoke
                 using(Socket peer=accept.Result) {
                     peer.ReceiveTimeout=6000; account.Game.character.SetPerso_Data(42,"Personnage de test",25,0,8);
                     account.Game.Map.SetRefreshMap("900091|date|");account.Game.character.Cell=account.Game.Map.MapCells[0];
-                    for(short i=10;i<23;i++)account.Game.character.Spells[i]=Spell.ForCharacter(i,1);
+                    for(short i=10;i<26;i++)account.Game.character.Spells[i]=Spell.ForCharacter(i,1);
                     using(var form=new GameClientFullform(account)) {
                         form.ShowInTaskbar=false;form.Opacity=0;form.Show();Application.DoEvents();
                         var slots=(List<Button>)Get(form,"quickSpells");var ids=(Dictionary<Button,short>)Get(form,"quickSpellIds");
                         var view=(MapControl)Get(form,"mapControl");var map=(UserMapControl)Get(view,"UserMap");
-                        Check(slots.Count==10&&slots.All(slot=>slot.Width==30&&slot.Height==30),"Spell icons stretch with the HUD");
-                        var icon=slots[0].GetType().GetProperty("Icon").GetValue(slots[0],null) as Image;
+                        Check(slots.Count==14&&slots.All(slot=>slot.Width==25&&slot.Height==25),"Spell icons stretch with the HUD");
+                        PumpUntil(()=>slots[0].GetType().GetProperty("Icon").GetValue(slots[0],null)!=null);var icon=slots[0].GetType().GetProperty("Icon").GetValue(slots[0],null) as Image;
                         Check(icon!=null&&icon.Width>30,"A real spell icon was not loaded");
-                        ((Button)Get(form,"nextSpellPage")).PerformClick();Check(ids[slots[0]]==20,"Second page does not reach all learned spells");
+                        ((Button)Get(form,"nextSpellPage")).PerformClick();Check(ids[slots[0]]==24,"Second page does not reach all learned spells");
                         ((Button)Get(form,"previousSpellPage")).PerformClick();Check(ids[slots[0]]==10,"First page lost its order");
                         slots[0].PerformClick();Check(view.SelectedSpellId==null&&peer.Available==0,"Spell cast outside combat or opened target mode");
                         Feed(account,"GJK2|1|1|0|30000|0");Feed(account,"GP"+Hash.Get_Cell_Char(0)+Hash.Get_Cell_Char(3)+"|"+Hash.Get_Cell_Char(9)+"|0");
@@ -117,13 +145,19 @@ internal static class BotCombatUiSmoke
                         Feed(account,"GTF42");Feed(account,"GTS43|30000");slots[0].PerformClick();
                         Check(view.SelectedSpellId==null&&peer.Available==0,"Another actor's turn allows casting");
                         Feed(account,"GE0|0");Check(!((Control)Get(form,"combatTools")).Visible,"Combat actions stay visible after GE");
-                        // Real supplied Astrub scenery, with explicitly synthetic actors and combat state.
-                        var xml=System.Xml.Linq.XElement.Load(Path.Combine(TestPaths.ApplicationBin,"ressources","Bot","BotMaps","7411.xml"));
-                        Map.AllBotMaps[7411]=new Map {MapID=7411,MapWidth=byte.Parse(xml.Element("LARGEUR").Value),MapHeight=byte.Parse(xml.Element("LONGUEUR").Value),MapData=xml.Element("MAP_DATA").Value,Back_ID=int.Parse(xml.Element("BACK").Value)};
+                        Check(Read(peer)=="GC1","GE is not followed by GC1");
+                        // Lot F12b : GE ouvre le volet de résultat, refermé ici pour laisser la carte libre aux captures.
+                        Application.DoEvents();Check(form.Panels.Current is FightResultPanel,"GE did not open the result panel");
+                        ((Button)((FightResultPanel)form.Panels.Current).CloseButton).PerformClick();Application.DoEvents();
+                        // Synthetic full-size map drawn with the shipped scenery pictures, with explicitly synthetic actors and combat state.
+                        Map.AllBotMaps[7411]=SyntheticAstrub();
                         account.Game.Map.SetRefreshMap("7411|date|");account.Game.character.Cell=account.Game.Map.MapCells[282];
                         Feed(account,"GM|+282;2;0;42;Personnage de test;8;80^100;0|+300;2;0;43;Autre joueur;2;20^100;0|+310;2;0;-8;100;-4;40^100;0|+299;2;20;-7;101,102;-3;1566^100,1069^100;5,6");
                         Capture(form,"bot-entites-astrub");
                         Feed(account,"GJK2|1|1|0|30000|0");Feed(account,"GS");Feed(account,"GTM|42;0;250;6;3;282;;300");Feed(account,"GTS42|30000");
+                        // Lot F12b : ligne de temps, options et bouton Abandonner présents sur la capture compacte.
+                        Feed(account,"GTL|42|43|-8|-7");Application.DoEvents();
+                        Check(form.Timeline.Visible&&form.Timeline.Entries.Count==4&&form.FightOptions.Visible&&((Button)Get(form,"giveUp")).Visible,"Fight controls are missing from the compact HUD");
                         Capture(form,"bot-combat-compact");slots[0].PerformClick();Capture(form,"bot-combat-ciblage");form.Close();
                     }
                 }

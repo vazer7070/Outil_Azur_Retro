@@ -1,4 +1,6 @@
+using System.Threading.Tasks;
 using Tool_BotProtocol.Frames.Messages;
+using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Network;
 
 namespace Tool_BotProtocol.Frames.Jeu
@@ -15,14 +17,65 @@ namespace Tool_BotProtocol.Frames.Jeu
         public void Start(TcpClient client, string message) => client.account.Game.Fight.Start();
         [MessageAttribution("GTM")]
         public void Stats(TcpClient client, string message) => client.account.Game.Fight.UpdateTeamStats(message.Substring(3));
+        /// <summary><c>GTL|id|id…</c> : ordre des tours (aussi reçu dans <c>GA;999</c> après une invocation ou une mort).</summary>
+        [MessageAttribution("GTL")]
+        public void TurnList(TcpClient client, string message) => client.account.Game.Fight.SetTurnList(message.Substring(3));
+        /// <summary><c>GTR&lt;id&gt;</c> : le client répond <c>GT</c>.</summary>
+        [MessageAttribution("GTR")]
+        public Task TurnReady(TcpClient client, string message) => client.account.Game.Fight.TurnReadyAsync(client, message.Substring(3));
+        /// <summary><c>GTS&lt;id&gt;|&lt;durée&gt;[|&lt;tour&gt;]</c> : StarLoco n'envoie que deux champs (matrice §2 n° 16).</summary>
         [MessageAttribution("GTS")]
         public void TurnStart(TcpClient client, string message) => client.account.Game.Fight.StartTurn(message.Substring(3));
         [MessageAttribution("GTF")]
         public void TurnEnd(TcpClient client, string message) => client.account.Game.Fight.EndTurn(message.Substring(3));
         [MessageAttribution("GIC")]
         public void Positions(TcpClient client, string message) => client.account.Game.Fight.UpdatePositions(message.Substring(3));
+        /// <summary><c>GIE&lt;effet&gt;;&lt;cibles&gt;;…</c> : effet affiché sur un combattant.</summary>
+        [MessageAttribution("GIE")]
+        public void Effect(TcpClient client, string message) => client.account.Game.Fight.ApplyEffectPacket(message.Substring(3));
+        /// <summary><c>GIe</c> : tous les effets sont retirés.</summary>
+        [MessageAttribution("GIe")]
+        public void ClearEffects(TcpClient client, string message) => client.account.Game.Fight.ClearAllEffects();
+        /// <summary><c>GDZ±&lt;cellule&gt;;&lt;taille&gt;;&lt;couleur&gt;</c> : zone de glyphe ou de piège.</summary>
+        [MessageAttribution("GDZ")]
+        public void Zones(TcpClient client, string message) => client.account.Game.Fight.ApplyZones(message.Substring(3));
+        /// <summary><c>Go±&lt;A|S|P|H&gt;&lt;équipe&gt;</c> : option d'une équipe (combats de la carte compris).</summary>
+        [MessageAttribution("Go")]
+        public void Option(TcpClient client, string message) => client.account.Game.Fight.ApplyFightOption(message.Substring(2));
+        /// <summary>
+        /// <c>GO</c> : fin de partie du mode héroïque (routage sensible à la casse : distinct de <c>Go</c>). StarLoco ne l'envoie
+        /// qu'avec <c>HEROIC</c> (faux par défaut), en réponse à <c>GF</c> (<c>Player.setGhost</c>). Comme <c>Game.onGameOver</c>
+        /// du client (déconnexion douce, puis écran <c>GameOver</c> et son bouton « Rejouer »), le bot lève
+        /// <see cref="Game.Session.GameSession.GameOver"/> puis ferme la connexion.
+        /// </summary>
+        [MessageAttribution("GO")]
+        public void GameOver(TcpClient client, string message)
+        {
+            Accounts account = client.account;
+            if (account == null) return;
+            account.Logger?.LogInfo("SESSION", "Fin de partie (GO) : le serveur a terminé la partie de ce personnage ; déconnexion.");
+            try { account.Game.Session.OnGameOver(); }
+            finally { account.Disconnect(client, DisconnectCause.GameOver); }
+        }
+        /// <summary><c>Gf&lt;combattant&gt;|&lt;cellule&gt;</c> : cellule signalée par un coéquipier.</summary>
+        [MessageAttribution("Gf")]
+        public void Flag(TcpClient client, string message) => client.account.Game.Fight.ShowFlag(message.Substring(2));
+        /// <summary>
+        /// Défis du combat (<c>Game.onFightChallenge</c> / <c>onFightChallengeUpdate</c> du client) :
+        /// <c>Gd&lt;type&gt;;&lt;1|0&gt;;&lt;cible&gt;;&lt;xp&gt;;0;&lt;butin&gt;;0</c> ajoute un défi au début d'un combat contre des monstres,
+        /// <c>GdOK&lt;type&gt;</c> le marque réussi et <c>GdKO&lt;type&gt;</c> raté (aiguillage sur le quatrième caractère, comme le client).
+        /// </summary>
+        [MessageAttribution("Gd")]
+        public void Challenge(TcpClient client, string message) => client.account.Game.Fight.ApplyChallengePacket(message.Substring(2));
+        /// <summary>
+        /// <c>GE&lt;durée&gt;[;&lt;étoiles&gt;]|&lt;initiateur&gt;|&lt;type&gt;|&lt;ligne&gt;…</c> : fin du combat et résultat (matrice §2 n° 23).
+        /// Comme <c>GameManager.terminateFight</c> du client (<c>cleanMap</c> puis <c>Game.onLeave</c> → <c>create()</c>), le bot
+        /// redemande ensuite la partie par <c>GC1</c> : StarLoco n'envoie ni carte ni acteurs après <c>GE</c>, il répond à
+        /// <c>GC1</c> par <c>GCK</c>, <c>As</c> et <c>GDM</c> (et applique là l'action de fin de combat de la carte).
+        /// </summary>
         [MessageAttribution("GE")]
-        public void End(TcpClient client, string message) => client.account.Game.Fight.Finish();
+        public Task End(TcpClient client, string message)
+            => client.account.Game.Fight.Finish(message.Substring(2)) ? client.SendPacket("GC1") : Task.CompletedTask;
         [MessageAttribution("Im1170")]
         public void InsufficientPa(TcpClient client, string message) => client.account.Game.Fight.Refuse("PA insuffisants.");
         [MessageAttribution("Im1171")]

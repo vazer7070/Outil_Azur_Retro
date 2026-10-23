@@ -20,6 +20,10 @@ namespace Tool_BotProtocol.Game.Perso.Spells
         public byte PerTurn { get; set; }
         public byte PerObjective { get; set; }
         public byte Interval { get; set; }
+        /// <summary>États requis du lanceur (<c>requiredStates</c> du client, index 16 du niveau).</summary>
+        public int[] RequiredStates { get; set; } = new int[0];
+        /// <summary>États interdits au lanceur (<c>forbiddenStates</c> du client, index 17 du niveau).</summary>
+        public int[] ForbiddenStates { get; set; } = new int[0];
 
         public List<SpellEffect>NormalEffect { get; set; }
         public List<SpellEffect>CriticalEffect { get; set; }

@@ -1,11 +1,11 @@
-﻿using MySql.Data.MySqlClient;
+using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Tools_protocol.Json;
+using Tools_protocol.Emulators;
 using Tools_protocol.Query;
 
 namespace Tools_protocol.Kryone.Database
@@ -16,7 +16,7 @@ namespace Tools_protocol.Kryone.Database
         public int Cellid { get; set; }
         public static int ZaapsCount;
         public static List<ZaapsList> AllZaaps = new List<ZaapsList>();
-        public static string TableZaaps = JsonManager.SearchAuth("zaaps");
+        public static string TableZaaps => EmulatorRegistry.Current.Table("zaaps");
 
         public ZaapsList(IDataReader reader)
         {
@@ -27,7 +27,7 @@ namespace Tools_protocol.Kryone.Database
         {
             string query = QueryBuilder.SelectFromQuery(new string[] { "*" }, TableZaaps, "", "");
 
-            using (MySqlConnection connection = new MySqlConnection(DatabaseManager.ConnectionString))
+            using (MySqlConnection connection = new MySqlConnection(EmulatorRegistry.ConnectionFor("zaaps")))
             {
                 try
                 {

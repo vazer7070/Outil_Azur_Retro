@@ -460,8 +460,7 @@ namespace Outil_Azur_complet.editeur_compte
             {
                 var changes = _pendingChanges.ToArray();
                 string table = TableCompte;
-                if (string.IsNullOrEmpty(table) ||
-                    !Regex.IsMatch(table, @"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant))
+                if (!Tools_protocol.Query.QueryBuilder.IsIdentifier(table))
                     throw new InvalidOperationException("Le nom de la table des comptes est invalide.");
 
                 foreach (var pair in changes)
@@ -504,14 +503,14 @@ namespace Outil_Azur_complet.editeur_compte
         private static void ApplyAccountChanges(string table, KeyValuePair<string, PendingAccountChange>[] changes)
         {
             ServerSql.Require(EmulatorFeature.AccountEditing);
-            if (string.IsNullOrWhiteSpace(DatabaseManager.ConnectionString))
+            // La base des comptes est celle que le profil leur attribue (auth pour Kryone et StarLoco).
+            string connectionString = EmulatorRegistry.ConnectionFor("comptes");
+            if (string.IsNullOrWhiteSpace(connectionString))
                 throw new InvalidOperationException("La connexion auth doit être active.");
-            if (string.IsNullOrWhiteSpace(table) ||
-                !Regex.IsMatch(table, @"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant))
+            if (!Tools_protocol.Query.QueryBuilder.IsIdentifier(table))
                 throw new InvalidOperationException("Le nom de la table des comptes est invalide.");
-            var settings = new MySqlConnectionStringBuilder(DatabaseManager.ConnectionString);
-            if (string.IsNullOrWhiteSpace(settings.Database) ||
-                !Regex.IsMatch(settings.Database, @"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant))
+            var settings = new MySqlConnectionStringBuilder(connectionString);
+            if (!Tools_protocol.Query.QueryBuilder.IsIdentifier(settings.Database))
                 throw new InvalidOperationException("Le nom de la base auth est invalide.");
             if (changes == null) throw new ArgumentNullException(nameof(changes));
             var allowedFields = new HashSet<string>(StringComparer.Ordinal)

@@ -1,5 +1,4 @@
 using System;
-using System.Text.RegularExpressions;
 using MySql.Data.MySqlClient;
 using Tools_protocol.Query;
 using Tools_protocol.Emulators;
@@ -45,9 +44,13 @@ namespace Outil_Azur_complet
             if (!emulator.Supports(feature))
                 throw new NotSupportedException("Cette fonction n'est pas disponible pour l'émulateur " + emulator.DisplayName + ".");
         }
+        /// <summary>
+        /// Nom de base ou de table entre accents graves. Les points sont acceptés à l'intérieur du nom,
+        /// car StarLoco nomme certaines tables « world.entity.objects ».
+        /// </summary>
         internal static string Identifier(string value)
         {
-            if (string.IsNullOrWhiteSpace(value) || !Regex.IsMatch(value, @"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant))
+            if (!QueryBuilder.IsIdentifier(value))
                 throw new InvalidOperationException("Un nom de base ou de table SQL est invalide.");
             return "`" + value + "`";
         }
@@ -58,6 +61,47 @@ namespace Outil_Azur_complet
             var builder = new MySqlConnectionStringBuilder(DatabaseManager.ConnectionString);
             Identifier(builder.Database);
             return builder.ConnectionString;
+        }
+        /// <summary>
+        /// Chaîne de connexion de la base qui contient la table logique selon le profil courant (auth ou world),
+        /// après vérification que l'émulateur prend en charge la fonction et que cette base est connectée.
+        /// </summary>
+        internal static string ConnectionFor(string logicalTable, EmulatorFeature feature)
+        {
+            Require(feature);
+            string connectionString = EmulatorRegistry.ConnectionFor(logicalTable);
+            if (string.IsNullOrWhiteSpace(connectionString))
+                throw new InvalidOperationException(EmulatorRegistry.Current.Locate(logicalTable) == TableLocation.World
+                    ? "Connectez la base world." : "Connectez la base auth.");
+            var builder = new MySqlConnectionStringBuilder(connectionString);
+            Identifier(builder.Database);
+            return builder.ConnectionString;
+        }
+        /// <summary>Les requêtes qui touchent les deux bases exigent le même serveur SQL et le même compte.</summary>
+        internal static void RequireSameServer(MySqlConnectionStringBuilder first, MySqlConnectionStringBuilder second)
+        {
+            if (!string.Equals(first.Server, second.Server, StringComparison.OrdinalIgnoreCase) || first.Port != second.Port ||
+                !string.Equals(first.UserID, second.UserID, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Les bases auth et world doivent être sur le même serveur SQL et accessibles avec le même compte.");
+        }
+        /// <summary>
+        /// Référence SQL d'une table logique depuis une connexion : `table` quand elle est dans la base de
+        /// cette connexion, `base`.`table` quand le profil la place dans l'autre base du même serveur
+        /// (par exemple les sorts de StarLoco, dans game, lus depuis la connexion login des personnages).
+        /// </summary>
+        internal static string TableReference(string connectionString, string logicalTable)
+        {
+            string table = EmulatorRegistry.Current.Table(logicalTable);
+            if (string.IsNullOrWhiteSpace(table))
+                throw new InvalidOperationException("La table " + logicalTable + " n'est pas configurée pour cet émulateur.");
+            string target = EmulatorRegistry.ConnectionFor(logicalTable);
+            if (string.IsNullOrWhiteSpace(target))
+                throw new InvalidOperationException("Connectez la base qui contient la table " + table + ".");
+            var from = new MySqlConnectionStringBuilder(connectionString);
+            var to = new MySqlConnectionStringBuilder(target);
+            if (string.Equals(from.Database, to.Database, StringComparison.OrdinalIgnoreCase)) return Identifier(table);
+            RequireSameServer(from, to);
+            return Identifier(to.Database) + "." + Identifier(table);
         }
         internal static void RequireInnoDb(MySqlConnection connection, params string[] tables)
         { RequireInnoDbInSchema(connection,connection.Database,tables); }

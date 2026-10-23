@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<BotDoc id="145" date="0706250958" type="book" style="1" source="fr_145_0706250958.swf">
+<titre>test - ne pas traduire</titre>
+<soustitre>test</soustitre>
+<auteur>test</auteur>
+<page>&lt;p&gt;dsqdsqds&lt;/p&gt;</page>
+<page>&lt;p class='n'&gt;&lt;/p&gt;</page>
+<page>page 2</page>
+<page>page 3</page>
+</BotDoc>

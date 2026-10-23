@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Text.RegularExpressions;
 using Tools_protocol.Kryone.Database;
 using Tools_protocol.Query;
 using Tools_protocol.Emulators;
@@ -65,9 +64,10 @@ namespace Outil_Azur_complet.editeur_items
 
         internal static List<InventoryTemplateChoice> LoadTemplateChoices()
         {
-            if (string.IsNullOrWhiteSpace(DatabaseManager.ConnectionString))
+            string connectionString = EmulatorRegistry.ConnectionFor("Template");
+            if (string.IsNullOrWhiteSpace(connectionString))
                 throw new InvalidOperationException("La base auth n'est pas connectée.");
-            var auth = new MySqlConnectionStringBuilder(DatabaseManager.ConnectionString);
+            var auth = new MySqlConnectionStringBuilder(connectionString);
             string qualifiedTable = $"`{Identifier(auth.Database)}`.`{Identifier(ItemTemplateList.TableTemplate)}`";
             var choices = new List<InventoryTemplateChoice>();
             using (var connection = new MySqlConnection(auth.ConnectionString))
@@ -88,39 +88,51 @@ namespace Outil_Azur_complet.editeur_items
 
         private static string Identifier(string value)
         {
-            if (string.IsNullOrWhiteSpace(value) ||
-                !Regex.IsMatch(value, @"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant))
+            if (!QueryBuilder.IsIdentifier(value))
                 throw new InvalidOperationException("Un nom de base ou de table SQL est invalide.");
             return value;
+        }
+
+        /// <summary>Colonne réelle de la table des exemplaires, entre accents graves (guid/qua/pos selon le profil).</summary>
+        private static string Col(string logicalColumn)
+        {
+            return "`" + Identifier(EmulatorRegistry.Current.ItemColumn(logicalColumn)) + "`";
+        }
+
+        private static MySqlConnectionStringBuilder Connection(string logicalTable)
+        {
+            string connectionString = EmulatorRegistry.ConnectionFor(logicalTable);
+            if (string.IsNullOrWhiteSpace(connectionString))
+                throw new InvalidOperationException("Les connexions auth et world doivent être actives.");
+            return new MySqlConnectionStringBuilder(connectionString);
         }
 
         private static Tables ResolveTables()
         {
             ServerSql.Require(EmulatorFeature.Inventory);
-            if (string.IsNullOrWhiteSpace(DatabaseManager.ConnectionString) ||
-                string.IsNullOrWhiteSpace(DatabaseManager2.ConnectionString))
-                throw new InvalidOperationException("Les connexions auth et world doivent être actives.");
-            var auth = new MySqlConnectionStringBuilder(DatabaseManager.ConnectionString);
-            var world = new MySqlConnectionStringBuilder(DatabaseManager2.ConnectionString);
-            if (!string.Equals(auth.Server, world.Server, StringComparison.OrdinalIgnoreCase) ||
-                auth.Port != world.Port ||
-                !string.Equals(auth.UserID, world.UserID, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Les bases auth et world doivent être sur le même serveur SQL et accessibles avec le même compte.");
-            string authSchema = Identifier(auth.Database);
-            string worldSchema = Identifier(world.Database);
+            // Personnages, exemplaires et modèles sont dans la base que le profil leur attribue :
+            // Kryone place les exemplaires dans world, StarLoco les garde avec les personnages dans login.
+            var players = Connection("perso");
+            var items = Connection("items");
+            var templates = Connection("Template");
+            ServerSql.RequireSameServer(players, items);
+            ServerSql.RequireSameServer(players, templates);
+            string authSchema = Identifier(players.Database);
+            string worldSchema = Identifier(items.Database);
+            string templateSchema = Identifier(templates.Database);
             string playerTable = Identifier(CharacterList.TablePerso);
             string itemTable = Identifier(ItemList.TableItems);
             string templateTable = Identifier(ItemTemplateList.TableTemplate);
             return new Tables
             {
-                ConnectionString = auth.ConnectionString,
+                ConnectionString = players.ConnectionString,
                 AuthSchema = authSchema,
                 WorldSchema = worldSchema,
                 PlayerTable = playerTable,
                 ItemTable = itemTable,
                 Players = $"`{authSchema}`.`{playerTable}`",
                 Items = $"`{worldSchema}`.`{itemTable}`",
-                Templates = $"`{authSchema}`.`{templateTable}`"
+                Templates = $"`{templateSchema}`.`{templateTable}`"
             };
         }
 
@@ -233,7 +245,7 @@ namespace Outil_Azur_complet.editeur_items
         private static int ReadNextGuid(MySqlConnection connection, MySqlTransaction transaction, Tables tables)
         {
             using (var command = new MySqlCommand(
-                $"SELECT `guid` FROM {tables.Items} ORDER BY `guid` DESC LIMIT 1 FOR UPDATE", connection, transaction))
+                $"SELECT {Col("guid")} FROM {tables.Items} ORDER BY {Col("guid")} DESC LIMIT 1 FOR UPDATE", connection, transaction))
             {
                 object last = command.ExecuteScalar();
                 return checked((last == null ? 0 : Convert.ToInt32(last)) + 1);
@@ -242,12 +254,13 @@ namespace Outil_Azur_complet.editeur_items
         private static void UpdateItem(MySqlConnection connection,MySqlTransaction transaction,Tables tables,List<string> inventory,InventoryChange change)
         {
             if(inventory.Count(id=>id==change.ItemGuid.ToString())!=1)throw new InvalidOperationException("L'objet n'appartient plus à ce personnage.");
-            using(var command=new MySqlCommand("SELECT * FROM "+tables.Items+" WHERE `guid`=@id FOR UPDATE",connection,transaction))
+            EmulatorProfile emulator=EmulatorRegistry.Current;
+            using(var command=new MySqlCommand("SELECT * FROM "+tables.Items+" WHERE "+Col("guid")+"=@id FOR UPDATE",connection,transaction))
             {
                 command.Parameters.AddWithValue("@id",change.ItemGuid);
                 using(var reader=command.ExecuteReader())
                 {
-                    if(!reader.Read() || Convert.ToInt32(reader["template"])!=change.OriginalTemplate || Convert.ToInt32(reader["qua"])!=change.OriginalQuantity || Convert.ToInt32(reader["pos"])!=change.OriginalPosition || Convert.ToInt32(reader["puit"])!=change.OriginalPuit || Convert.ToString(reader["stats"])!=change.OriginalStats)
+                    if(!reader.Read() || Convert.ToInt32(reader["template"])!=change.OriginalTemplate || Convert.ToInt32(reader[emulator.ItemColumn("qua")])!=change.OriginalQuantity || Convert.ToInt32(reader[emulator.ItemColumn("pos")])!=change.OriginalPosition || Convert.ToInt32(reader["puit"])!=change.OriginalPuit || Convert.ToString(reader["stats"])!=change.OriginalStats)
                         throw new InvalidOperationException("L'objet a changé depuis son chargement. Rechargez son inventaire.");
                 }
             }
@@ -263,13 +276,13 @@ namespace Outil_Azur_complet.editeur_items
                         if(slots==null || !slots.Any(slot=>(int)slot==change.Position))throw new FormatException("Ce type d'objet ne peut pas être équipé à cet emplacement.");
                     }
                     foreach(string id in inventory.Where(id=>id!=change.ItemGuid.ToString()))
-                    using(var command=new MySqlCommand("SELECT `pos` FROM "+tables.Items+" WHERE `guid`=@id FOR UPDATE",connection,transaction))
+                    using(var command=new MySqlCommand("SELECT "+Col("pos")+" FROM "+tables.Items+" WHERE "+Col("guid")+"=@id FOR UPDATE",connection,transaction))
                     {command.Parameters.AddWithValue("@id",id);object pos=command.ExecuteScalar();if(pos!=null && Convert.ToInt32(pos)==change.Position)throw new InvalidOperationException("Cet emplacement est déjà occupé par un autre objet.");}
                 }
             }
             if(change.Position>=0 && change.Position<=15 && change.Quantity!=1)throw new FormatException("Un objet équipé doit avoir une quantité de 1.");
             Editors.ItemFieldCatalog.ValidateEffects(change.Stats);
-            using(var command=new MySqlCommand("UPDATE "+tables.Items+" SET `qua`=@quantity,`pos`=@position,`stats`=@stats,`puit`=@puit WHERE `guid`=@id",connection,transaction))
+            using(var command=new MySqlCommand("UPDATE "+tables.Items+" SET "+Col("qua")+"=@quantity,"+Col("pos")+"=@position,`stats`=@stats,`puit`=@puit WHERE "+Col("guid")+"=@id",connection,transaction))
             {command.Parameters.AddWithValue("@quantity",change.Quantity);command.Parameters.AddWithValue("@position",change.Position);command.Parameters.AddWithValue("@stats",change.Stats);command.Parameters.AddWithValue("@puit",change.Puit);command.Parameters.AddWithValue("@id",change.ItemGuid);command.ExecuteNonQuery();}
         }
 
@@ -281,7 +294,7 @@ namespace Outil_Azur_complet.editeur_items
                 throw new InvalidOperationException($"L'objet {guid} n'appartient plus une seule fois à {change.CharacterName}.");
             int currentQuantity;
             using (var command = new MySqlCommand(
-                $"SELECT `qua` FROM {tables.Items} WHERE `guid`=@guid FOR UPDATE", connection, transaction))
+                $"SELECT {Col("qua")} FROM {tables.Items} WHERE {Col("guid")}=@guid FOR UPDATE", connection, transaction))
             {
                 command.Parameters.AddWithValue("@guid", change.ItemGuid);
                 object result = command.ExecuteScalar();
@@ -293,7 +306,7 @@ namespace Outil_Azur_complet.editeur_items
             if (change.Quantity == currentQuantity)
             {
                 using (var command = new MySqlCommand(
-                    $"DELETE FROM {tables.Items} WHERE `guid`=@guid", connection, transaction))
+                    $"DELETE FROM {tables.Items} WHERE {Col("guid")}=@guid", connection, transaction))
                 {
                     command.Parameters.AddWithValue("@guid", change.ItemGuid);
                     if (command.ExecuteNonQuery() != 1) throw new InvalidOperationException($"Suppression de l'objet {guid} impossible.");
@@ -303,7 +316,7 @@ namespace Outil_Azur_complet.editeur_items
             else
             {
                 using (var command = new MySqlCommand(
-                    $"UPDATE {tables.Items} SET `qua`=@quantity WHERE `guid`=@guid AND `qua`=@previous",
+                    $"UPDATE {tables.Items} SET {Col("qua")}=@quantity WHERE {Col("guid")}=@guid AND {Col("qua")}=@previous",
                     connection, transaction))
                 {
                     command.Parameters.AddWithValue("@quantity", currentQuantity - change.Quantity);
@@ -327,7 +340,7 @@ namespace Outil_Azur_complet.editeur_items
                 stats = result == DBNull.Value ? string.Empty : Convert.ToString(result);
             }
             using (var command = new MySqlCommand(
-                $"INSERT INTO {tables.Items} (`guid`,`template`,`qua`,`pos`,`stats`,`puit`) " +
+                $"INSERT INTO {tables.Items} ({Col("guid")},`template`,{Col("qua")},{Col("pos")},`stats`,`puit`) " +
                 "VALUES (@guid,@template,@quantity,-1,@stats,0)", connection, transaction))
             {
                 command.Parameters.AddWithValue("@guid", newGuid);

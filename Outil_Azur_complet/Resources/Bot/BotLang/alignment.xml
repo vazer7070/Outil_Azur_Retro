@@ -1,0 +1,139 @@
+<?xml version='1.0' encoding='utf-8'?>
+<BotLang famille="alignment" langue="fr" version="147" source="alignment_fr_147.swf">
+<entree table="A.a" id="0" c="true" n="Neutre" />
+<entree table="A.a" id="1" c="true" n="Bontarien" />
+<entree table="A.a" id="2" c="true" n="Brakmarien" />
+<entree table="A.a" id="3" c="false" n="Mercenaire" />
+<entree table="A.o" id="0" a="0" n="Neutre" />
+<entree table="A.o" id="1" a="1" n="Nouvelles recrues de Bonta" />
+<entree table="A.o" id="2" a="1" n="Ordre du Coeur Vaillant" />
+<entree table="A.o" id="3" a="1" n="Ordre de l'Esprit Salvateur" />
+<entree table="A.o" id="4" a="1" n="Ordre de l'Oeil Attentif" />
+<entree table="A.o" id="5" a="2" n="Nouvelles recrues de Brakmar" />
+<entree table="A.o" id="6" a="2" n="Ordre du Coeur Saignant" />
+<entree table="A.o" id="7" a="2" n="Ordre de l'Esprit Malsain" />
+<entree table="A.o" id="8" a="2" n="Ordre de l'Oeil Putride" />
+<entree table="A.o" id="9" a="3" n="Clan de Sériane-Kerm" />
+<entree table="A.s" id="0" av="0" d="-" f="" n="Neutre" o="0" />
+<entree table="A.s" id="1" av="0" d="Les nouvelles recrues ont fait le choix de protéger la veuve et l'orphelin. Toutefois, leur formation débutant à peine, elles n'ont pas encore choisi de spécialisation. Leur désir et leurs aptitudes permettront de les orienter par la suite." f="" n="Néophyte" o="1" />
+<entree table="A.s" id="2" av="20" d="Désireux de développer leurs aptitudes guerrières, les disciples de Menalt doivent prouver leur courage et leur force au cours d'entraînements longs et douloureux." f="[[22,1,[200]],[21,1]]" n="Disciple de Menalt" o="2" />
+<entree table="A.s" id="3" av="40" d="Un Ecuyer digne de ce nom n’a cure des courbatures;&#13;&#10;            il le montrera chaque jour au cours d’entraînements très longs et très douloureux." f="[[22,2,[400]],[21,2]]" n="Ecuyer" o="2" />
+<entree table="A.s" id="4" av="60" d="-" f="[[21,3],[22,3,[600]]]" n="Chevalier de l'Espoir" o="2" />
+<entree table="A.s" id="5" av="80" d="-" f="[[22,4,[800]],[21,4]]" n="Champion Merveilleux" o="2" />
+<entree table="A.s" id="6" av="100" d="-" f="[[21,5],[22,5,[1000]]]" n="Héros Légendaire" o="2" />
+<entree table="A.s" id="7" av="20" d="Désireux de développer leurs pouvoirs magiques, les disciples de Jiva doivent découvrir en eux-mêmes la force spirituelle qui doit les guider dans l'apprentissage de la magie." f="[[23,1]]" n="Disciple de Jiva" o="3" />
+<entree table="A.s" id="8" av="40" d="Celui ou celle qui se revendique Apprenti devra mériter ce titre honorifique, en soignant blessés et mourants au plus fort des batailles." f="[[23,2]]" n="Apprenti" o="3" />
+<entree table="A.s" id="9" av="60" d="-" f="[[23,3]]" n="Adepte des Ecrits" o="3" />
+<entree table="A.s" id="10" av="80" d="-" f="[[23,4]]" n="Maître des Parchemins" o="3" />
+<entree table="A.s" id="11" av="100" d="-" f="[[23,5]]" n="Gardien du Savoir" o="3" />
+<entree table="A.s" id="13" av="20" d="Désireux de développer leurs qualités d'espion, les disciples de Silvosse doivent apprendre à récolter des informations utiles et à ne pas se faire repérer." f="[[10,1]]" n="Disciple de Silvosse" o="4" />
+<entree table="A.s" id="14" av="40" d="Se proclamer espion n’est rien. Immobile comme le chêne, silencieux comme la pierre, seul un Espion éprouvé saura écouter tout ce qui se meut ici-bas." f="[[10,2]]" n="Espion" o="4" />
+<entree table="A.s" id="15" av="60" d="-" f="[[10,3]]" n="Chasseur de Renégats" o="4" />
+<entree table="A.s" id="16" av="80" d="-" f="[[10,4]]" n="Assassin Suprême" o="4" />
+<entree table="A.s" id="17" av="100" d="-" f="[[10,5]]" n="Maître des Illusions" o="4" />
+<entree table="A.s" id="18" av="0" d="Les nouvelles recrues sont issues de la fange la plus immonde qui soit. Même si leur fourberie est déjà grande, leur niaiserie n'en fait pas des ennemis redoutables. La formation et les spécialisations qu'ils vont suivre devraient y remédier." f="" n="Néophyte" o="5" />
+<entree table="A.s" id="19" av="20" d="Animés par l'amour de la haine, les disciples de Djaul doivent apprendre qu'en combat, il n'y a pas d'ennemis, seulement des têtes à fracasser." f="[[22,1,[200]],[21,1]]" n="Disciple de Djaul" o="6" />
+<entree table="A.s" id="20" av="40" d="Etre surineur à la solde de Djaul requiert de grandes qualités physiques et une immoralité à toute épreuve." f="[[21,2],[22,2,[400]]]" n="Surineur" o="6" />
+<entree table="A.s" id="21" av="60" d="-" f="[[22,3,[600]],[21,3]]" n="Chevalier du Désespoir" o="6" />
+<entree table="A.s" id="22" av="80" d="-" f="[[21,4],[22,4,[800]]]" n="Champion du Chaos" o="6" />
+<entree table="A.s" id="23" av="100" d="-" f="[[22,5,[1000]],[21,5]]" n="Héros de l'Apocalypse" o="6" />
+<entree table="A.s" id="24" av="20" d="Animés par le vice, les disciples d'Hécate doivent démontrer leur capacité à collecter des informations et à désinformer." f="[[23,1]]" n="Disciple d'Hécate" o="7" />
+<entree table="A.s" id="25" av="40" d="Celui ou celle qui se revendique Apprenti devra mériter ce titre honorifique, en ensorcelant des vivants, des morts et même des morts-vivants." f="[[23,2]]" n="Apprenti Sombre" o="7" />
+<entree table="A.s" id="26" av="60" d="-" f="[[23,3]]" n="Adepte des Douleurs" o="7" />
+<entree table="A.s" id="27" av="80" d="-" f="[[23,4]]" n="Maître des Sévices" o="7" />
+<entree table="A.s" id="28" av="100" d="-" f="[[23,5]]" n="Gardien des Tortures" o="7" />
+<entree table="A.s" id="29" av="20" d="Animés par un goût immodéré pour le glauque, les disciples de Brumaire doivent justifier de leurs bonnes connaissances dans l'assortiment des ingrédients mortifères." f="[[10,1]]" n="Disciple de Brumaire" o="8" />
+<entree table="A.s" id="30" av="40" d="Drapé dans son manteau de ténèbres, l’Espion sombre saura faire couler les larmes et saigner les lames, et non l’inverse." f="[[10,2]]" n="Espion Sombre" o="8" />
+<entree table="A.s" id="31" av="60" d="-" f="[[10,3]]" n="Chasseur d'Ames" o="8" />
+<entree table="A.s" id="32" av="80" d="-" f="[[10,4]]" n="Psychopathe" o="8" />
+<entree table="A.s" id="33" av="100" d="-" f="[[10,5]]" n="Maître des Ombres" o="8" />
+<entree table="A.s" id="34" av="0" d="-" f="" n="Néophyte" o="9" />
+<entree table="A.s" id="36" av="20" d="-" f="[[3,1,[1]],[2,1,[50]],[4,1,[1]],[5,1,[1]],[6,1,[1]],[13,1,[1500]]]" n="Apprenti Mercenaire" o="9" />
+<entree table="A.s" id="37" av="40" d="-" f="[[3,2,[2]],[4,2,[2]],[13,2,[3500]],[5,2,[2]],[6,2,[2]],[2,2,[100]]]" n="Mercenaire" o="9" />
+<entree table="A.s" id="38" av="60" d="-" f="[[2,3,[150]],[6,3,[3]],[5,3,[3]],[8,3,[50]],[4,3,[3]],[3,3,[3]],[13,3,[5500]]]" n="Grand Mercenaire" o="9" />
+<entree table="A.s" id="39" av="80" d="-" f="[[3,4,[4]],[11,1],[2,4,[200]],[13,4,[7500]],[8,4,[100]],[6,4,[4]],[5,4,[4]],[4,4,[4]]]" n="Maître Mercenaire" o="9" />
+<entree table="A.s" id="40" av="100" d="-" f="[[4,5,[5]],[13,5,[9500]],[11,1],[2,5,[250]],[6,5,[5]],[8,5,[150]],[5,5,[5]],[3,5,[5]]]" n="Grand Maître Mercenaire" o="9" />
+<entree table="A.f" id="1" e="10" g="1" n="Efficacité" />
+<entree table="A.f" id="2" e="2" g="2" n="Initiative" />
+<entree table="A.f" id="3" e="17" g="3" n="Résistance à la Terre" />
+<entree table="A.f" id="4" e="18" g="4" n="Résistance au Feu" />
+<entree table="A.f" id="5" e="19" g="5" n="Résistance à l'Eau" />
+<entree table="A.f" id="6" e="20" g="6" n="Résistance à l'Air" />
+<entree table="A.f" id="7" e="21" g="7" n="Résistance au Neutre" />
+<entree table="A.f" id="8" e="4" g="8" n="Robustesse" />
+<entree table="A.f" id="9" e="22" g="9" n="Endurance" />
+<entree table="A.f" id="10" e="0" g="10" n="Art du Camouflage" />
+<entree table="A.f" id="11" e="0" g="11" n="Connaissance des Parchemins" />
+<entree table="A.f" id="12" e="0" g="12" n="Faculté de résurrection" />
+<entree table="A.f" id="13" e="23" g="12" n="Perte d'énergie supplémentaire" />
+<entree table="A.f" id="15" e="29" g="3" n="Résistance aux combattants Terre" />
+<entree table="A.f" id="16" e="31" g="5" n="Résistance aux combattants Eau" />
+<entree table="A.f" id="17" e="32" g="6" n="Résistance aux combattants Air" />
+<entree table="A.f" id="18" e="33" g="7" n="Résistance aux combattants Neutre" />
+<entree table="A.f" id="19" e="30" g="4" n="Résistance aux combattants Feu" />
+<entree table="A.f" id="20" e="40" g="13" n="Prospection" />
+<entree table="A.f" id="21" e="0" g="1" n="Garde" />
+<entree table="A.f" id="22" e="23" g="12" n="Affaiblissement" />
+<entree table="A.f" id="23" e="0" g="11" n="Connaissance des potions" />
+<entree table="A.fe" id="1" valeur="+#1 en portée" />
+<entree table="A.fe" id="2" valeur="+#1 en initiative" />
+<entree table="A.fe" id="3" valeur="+#1 aux dommages" />
+<entree table="A.fe" id="4" valeur="+#1 en vitalité" />
+<entree table="A.fe" id="6" valeur="+#1 en intelligence" />
+<entree table="A.fe" id="7" valeur="+#1 en force" />
+<entree table="A.fe" id="8" valeur="+#1 en agilité" />
+<entree table="A.fe" id="9" valeur="+#1 en chance" />
+<entree table="A.fe" id="10" valeur="+#1 aux coups critiques" />
+<entree table="A.fe" id="11" valeur="+#1 PA" />
+<entree table="A.fe" id="12" valeur="+#1 PM" />
+<entree table="A.fe" id="13" valeur="+#1 en sagesse" />
+<entree table="A.fe" id="14" valeur="+#1% en résistance à la perte de PA" />
+<entree table="A.fe" id="15" valeur="+#1% en résistance à la perte de PM" />
+<entree table="A.fe" id="16" valeur="#1% de remise en magasin" />
+<entree table="A.fe" id="17" valeur="+#1% de résistance aux dommages de Terre" />
+<entree table="A.fe" id="18" valeur="+#1% de résistance aux dommages de Feu" />
+<entree table="A.fe" id="19" valeur="+#1% de résistance aux dommages d'Eau" />
+<entree table="A.fe" id="20" valeur="+#1% de résistance aux dommages d'Air" />
+<entree table="A.fe" id="21" valeur="+#1% de résistance aux dommages Neutres" />
+<entree table="A.fe" id="22" valeur="+#1 en énergie" />
+<entree table="A.fe" id="23" valeur="+#1 en énergie perdue" />
+<entree table="A.fe" id="24" valeur="+#1 de résistance aux dommages de Terre" />
+<entree table="A.fe" id="25" valeur="+#1 de résistance aux dommages de Feu" />
+<entree table="A.fe" id="26" valeur="+#1 de résistance aux dommages d'Eau" />
+<entree table="A.fe" id="27" valeur="+#1 de résistance aux dommages d'Air" />
+<entree table="A.fe" id="28" valeur="+#1 de résistance aux dommages Neutres" />
+<entree table="A.fe" id="29" valeur="+#1% de résistance aux dommages des combattants Terre " />
+<entree table="A.fe" id="30" valeur="+#1% de résistance aux dommages des combattants Feu" />
+<entree table="A.fe" id="31" valeur="+#1% de résistance aux dommages des combattants Eau" />
+<entree table="A.fe" id="32" valeur="+#1% de résistance aux dommages des combattants Air" />
+<entree table="A.fe" id="33" valeur="+#1% de résistance aux dommages des combattants Neutres" />
+<entree table="A.fe" id="34" valeur="+#1 de résistance aux dommages des combattants Terre" />
+<entree table="A.fe" id="35" valeur="+#1 de résistance aux dommages des combattants Feu" />
+<entree table="A.fe" id="36" valeur="+#1 de résistance aux dommages des combattants Eau" />
+<entree table="A.fe" id="37" valeur="+#1 de résistance aux dommages des combattants Air" />
+<entree table="A.fe" id="38" valeur="+#1 de résistance aux dommages des combattants Neutres" />
+<entree table="A.fe" id="39" valeur="+#1 aux soins" />
+<entree table="A.fe" id="40" valeur="+#1 en prospection" />
+<entree table="A.b" id="0" d="Votre alignement est si faible que sa survie est menacée." e="10" n="Requiem" s="0" />
+<entree table="A.b" id="1" d="Votre alignement survit difficilement dans un environnement très hostile." e="20" n="Survivant" s="10" />
+<entree table="A.b" id="2" d="Votre alignement résiste envers et contre tout à l'envahisseur !" e="30" n="Guerilla" s="20" />
+<entree table="A.b" id="3" d="Votre alignement est à genoux, mais il ne tardera pas à se relever." e="40" n="Minorité" s="30" />
+<entree table="A.b" id="4" d="L'équilibre du Monde est au désavantage de votre alignement." e="50" n="Cohabitation" s="40" />
+<entree table="A.b" id="5" d="Votre alignement domine de peu la Balance du Monde." e="60" n="Statu quo" s="50" />
+<entree table="A.b" id="6" d="Vos ennemis n'osent plus sortir de chez eux;&#13;&#10;            votre alignement domine." e="70" n="Domination" s="60" />
+<entree table="A.b" id="7" d="La puissance de votre alignement est telle que vous doutez de l'existence de vos ennemis." e="80" n="Tyrannie" s="70" />
+<entree table="A.b" id="8" d="Votre alignement n'a plus de prédateur et la guerre est presque gagnée." e="90" n="Conquérant" s="80" />
+<entree table="A.b" id="9" d="Votre alignement est au sommet et vos ennemis n'existent (probablement) plus." e="100" n="Apogée" s="90" />
+<entree table="A.jo" id="0" valeur="true,false,false,false" />
+<entree table="A.jo" id="1" valeur="true,true,false,true" />
+<entree table="A.jo" id="2" valeur="true,false,true,true" />
+<entree table="A.jo" id="3" valeur="true,true,true,true" />
+<entree table="A.at" id="0" valeur="false,false,false,false" />
+<entree table="A.at" id="1" valeur="true,false,true,true" />
+<entree table="A.at" id="2" valeur="true,true,false,true" />
+<entree table="A.at" id="3" valeur="true,true,true,true" />
+<entree table="A.g" id="0" valeur="false,false,false,false" />
+<entree table="A.g" id="1" valeur="false,true,true,false" />
+<entree table="A.g" id="2" valeur="false,true,true,false" />
+<entree table="A.g" id="3" valeur="false,false,false,true" />
+</BotLang>

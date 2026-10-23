@@ -364,3 +364,5 @@ FodyWeavers.xsd
 # Configurations locales (identifiants SQL)
 Config.ini
 config.json
+# Export local des sprites au-delà de la part versionnée (lot AN3) : lu par le bot avant ressources/Bot/sprites
+sprites-local/

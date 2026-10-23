@@ -1,0 +1,67 @@
+<?xml version='1.0' encoding='utf-8'?>
+<BotLang famille="states" langue="fr" version="206" source="states_fr_206.swf">
+<entree table="ST" id="0" n="Neutre" p="0" />
+<entree table="ST" id="1" n="Saoul" p="1" />
+<entree table="ST" id="2" n="Chercheur d'âmes" p="0" />
+<entree table="ST" id="3" n="Porteur" p="1" />
+<entree table="ST" id="4" n="Peureux" p="0" />
+<entree table="ST" id="5" n="Désorienté" p="0" />
+<entree table="ST" id="6" n="Enraciné" p="0" />
+<entree table="ST" id="7" n="Pesanteur" p="0" />
+<entree table="ST" id="8" n="Porté" p="0" />
+<entree table="ST" id="9" n="Motivation Sylvestre" p="0" />
+<entree table="ST" id="10" n="Apprivoisement" p="0" />
+<entree table="ST" id="11" n="Chevauchant" p="0" />
+<entree table="ST" id="12" n="Pas sage" p="0" />
+<entree table="ST" id="13" n="Vraiment pas sage" p="0" />
+<entree table="ST" id="14" n="Enneigé" p="0" />
+<entree table="ST" id="15" n="Eveillé" p="0" />
+<entree table="ST" id="16" n="Fragilisé" p="0" />
+<entree table="ST" id="17" n="Séparé" p="0" />
+<entree table="ST" id="18" n="Gelé" p="1" />
+<entree table="ST" id="19" n="Fissuré" p="1" />
+<entree table="ST" id="26" n="Endormi" p="0" />
+<entree table="ST" id="27" n="Léopardo" p="0" />
+<entree table="ST" id="28" n="Libre" p="0" />
+<entree table="ST" id="29" n="Glyphe impaire" p="0" />
+<entree table="ST" id="30" n="Glyphe paire" p="0" />
+<entree table="ST" id="31" n="Encre primaire" p="0" />
+<entree table="ST" id="32" n="Encre secondaire" p="0" />
+<entree table="ST" id="33" n="Encre tertiaire" p="0" />
+<entree table="ST" id="34" n="Encre quaternaire" p="0" />
+<entree table="ST" id="35" n="Envie de tuer" p="0" />
+<entree table="ST" id="36" n="Envie de paralyser" p="0" />
+<entree table="ST" id="37" n="Envie de maudire" p="0" />
+<entree table="ST" id="38" n="Envie d'empoisonner" p="0" />
+<entree table="ST" id="39" n="Flou" p="0" />
+<entree table="ST" id="40" n="Corrompu" p="0" />
+<entree table="ST" id="41" n="Silencieux" p="1" />
+<entree table="ST" id="42" n="Affaibli" p="0" />
+<entree table="ST" id="43" n="[wait] OVNI" p="0" />
+<entree table="ST" id="44" n="[wait] Pas contente" p="0" />
+<entree table="ST" id="46" n="[wait] Contente" p="0" />
+<entree table="ST" id="47" n="[wait] Mauvaise humeur" p="0" />
+<entree table="ST" id="48" n="Confus" p="0" />
+<entree table="ST" id="49" n="Goulifié" p="0" />
+<entree table="ST" id="50" n="Altruiste" p="0" />
+<entree table="ST" id="51" n="[wip]Châtiment agile" p="0" />
+<entree table="ST" id="52" n="[wip]Châtiment osé" p="0" />
+<entree table="ST" id="53" n="[wip]Châtiment spirituel" p="0" />
+<entree table="ST" id="54" n="[wip]Châtiment vitalesque" p="0" />
+<entree table="ST" id="55" n="Retraité" p="0" />
+<entree table="ST" id="56" n="[wip]Invulnérable" p="0" />
+<entree table="ST" id="57" n="Compte à rebours - 2" p="0" />
+<entree table="ST" id="58" n="Compte à rebours - 1" p="0" />
+<entree table="ST" id="60" n="Dévoué" p="0" />
+<entree table="ST" id="61" n="Bagarreur" p="0" />
+<entree table="ST" id="63" n="[wip]Lourd" p="0" />
+<entree table="ST" id="64" n="[wip]Glyphe nom provisoire" p="0" />
+<entree table="ST" id="65" n="[wip]Rayonnement bloqué" p="0" />
+<entree table="ST" id="66" n="[wip]Rayonnement 1 joueur" p="0" />
+<entree table="ST" id="67" n="[wip]Rayonnement 2 joueur" p="0" />
+<entree table="ST" id="68" n="[wip]Rayonnement 3 joueur" p="0" />
+<entree table="ST" id="69" n="[wip]Rayonnement 4 joueur" p="0" />
+<entree table="ST" id="70" n="[wip]Rayonnement 1 boss" p="0" />
+<entree table="ST" id="71" n="[wip]Rayonnement 2 boss" p="0" />
+<entree table="ST" id="72" n="[wip]Rayonnement 3 boss" p="0" />
+</BotLang>

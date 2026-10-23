@@ -1,7 +1,9 @@
 using System;
+using System.IO;
 using System.Linq;
 using Tool_Editor.maps.data;
 using Tool_Editor.maps.managers;
+using Tools_protocol.Parser.XML;
 
 namespace Outil_Azur_complet.Parser
 {
@@ -53,6 +55,75 @@ namespace Outil_Azur_complet.Parser
             map.HasProjectCells = true;
             if (original != null && original.HasProjectCells) map.fightPlaces = original.fightPlaces;
             return map;
+        }
+
+        /// <summary>
+        /// Dossier des cartes du client : <c>data/maps</c> d'une installation du client, un dossier <c>maps</c>
+        /// (racine du « dataserver »), ou le dossier indiqué lui-même. Null si rien n'existe.
+        /// </summary>
+        public static string ClientMapsDirectory(string clientDirectory)
+        {
+            if (string.IsNullOrWhiteSpace(clientDirectory)) return null;
+            string root;
+            try { root = Path.GetFullPath(clientDirectory.Trim()); }
+            catch (Exception error) when (error is ArgumentException || error is NotSupportedException || error is PathTooLongException) { return null; }
+            foreach (string candidate in new[] { Path.Combine(root, "data", "maps"), Path.Combine(root, "maps"), root })
+                if (Directory.Exists(candidate)) return candidate;
+            return null;
+        }
+
+        /// <summary>
+        /// Fond (<c>backgroundNum</c>) d'une carte lu dans le SWF que le client 1.34 charge après <c>GDM|id|date|clé</c> :
+        /// <c>&lt;id&gt;_&lt;date&gt;X.swf</c> quand la carte a une clé (cellules chiffrées), sinon <c>&lt;id&gt;_&lt;date&gt;.swf</c>.
+        /// Les cellules du fichier sont déchiffrées avec la clé de la base et comparées aux cellules de la base : un écart
+        /// est signalé sans écarter le fond, qui reste celui que le client affiche. Fichier absent, illisible ou d'une
+        /// autre carte : 0 et avertissement dans <see cref="MapBackgroundRequest.Warning"/>. Le SWF n'est jamais exécuté.
+        /// </summary>
+        public static int ReadClientBackground(string mapsDirectory, MapBackgroundRequest request)
+        {
+            if (request == null) throw new ArgumentNullException(nameof(request));
+            request.Warning = null;
+            if (string.IsNullOrEmpty(mapsDirectory) || !Directory.Exists(mapsDirectory))
+            {
+                request.Warning = "dossier des cartes du client introuvable.";
+                return 0;
+            }
+            string date = request.Date.Trim(), key = request.Key.Trim();
+            if (date.Length == 0 || date.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || date.Contains(".."))
+            {
+                request.Warning = "date « " + date + " » inutilisable pour retrouver le fichier du client.";
+                return 0;
+            }
+            string name = request.MapId + "_" + date + (key.Length != 0 ? "X" : "") + ".swf";
+            string path = Path.Combine(mapsDirectory, name);
+            if (!File.Exists(path))
+            {
+                request.Warning = "fichier " + name + " absent du dossier du client.";
+                return 0;
+            }
+            Map client;
+            try { client = MapSwfSerializer.Load(path); }
+            catch (Exception error) when (error is IOException || error is InvalidDataException || error is UnauthorizedAccessException)
+            {
+                request.Warning = name + " illisible : " + error.Message;
+                return 0;
+            }
+            if (client.ID != request.MapId)
+            {
+                request.Warning = name + " décrit la carte " + client.ID + ".";
+                return 0;
+            }
+            try
+            {
+                string cells = key.Length != 0 ? Decrypt(client.MapData, key, client.Width, client.Height) : client.MapData;
+                if (client.Width != request.Width || client.Height != request.Height || !string.Equals(cells, request.MapData.Trim(), StringComparison.Ordinal))
+                    request.Warning = name + " ne contient pas les mêmes cellules que la base ; fond du fichier conservé.";
+            }
+            catch (FormatException error)
+            {
+                request.Warning = name + " ne se déchiffre pas avec la clé de la base (" + error.Message + ") ; fond du fichier conservé.";
+            }
+            return client.BackGroundID;
         }
 
         private static void ValidateDimensions(int width, int height)

@@ -1,0 +1,23 @@
+# WorldMap : images du client utilisées par le bot
+
+Source : `clips/maps/<zone>.swf (exports x_y et subarea_<id>), clips/maps/hints.swf, clips/maps/dungeon.swf` du client Dofus 1.34 remis par l'utilisateur (`04 - Dofus 1.34 - Qu'Tan et Ilyzaelle`). Les SWF ne sont pas versionnés ; seuls ces PNG, qui en sont dérivés, le sont.
+
+Usage : Carte du monde (`MapExplorer`, zones 0, 2 et 3 du client) : la tuile `x_y` couvre 15 × 15 cartes de 40 × 23 pixels et se pose en (x × 600, y × 345) au zoom 100 ; `tuiles.tsv` donne pour chaque tuile non vide le décalage de son PNG dans cette case et sa taille (`nom`, `x`, `y`, `largeur`, `hauteur`). Les sous-zones (`subarea_<id>`) sont les contours que le client pose à l'origine de la carte et recolore par `Color.setRGB` pour montrer la sous-zone choisie : `sous-zones.tsv` donne leur position dans le même repère. Les icônes d'indices de `hints.swf` sont nommées par leur gfx (`HI[id].g` de `hints_fr`).
+
+Fichiers : `WorldMap/<zone>/<x_y>.png + tuiles.tsv, WorldMap/<zone>/sous-zones/<id>.png + sous-zones.tsv, WorldMap/hints/<id>.png, WorldMap/dungeon.png` — 347 PNG (347 fichiers écrits), 4.3 Mo. Copiés à côté de l'exécutable dans `ressources/Bot/WorldMap` par la cible `CopyBotAssets` du projet ; lus par `Outil_Azur_complet/Bot/ClientAssets.cs` (`ClientAssets.Get("WorldMap", nom)`, nom relatif sans `.png`), qui renvoie `null` si un fichier manque ou est illisible.
+
+Outil : `tools/client-analysis/exporter_icons.py` (`swfsvg` 0.2.2, cairosvg, Pillow) : rendu SVG par `swfsvg` (symboles exportés, échelle 1 pour les tuiles et le parchemin, 2 pour les indices), PNG par cairosvg, magenta pur rendu transparent, palette de 256 couleurs quand l'écart moyen par canal reste sous 4,5/255 sur les pixels visibles.
+
+Commande exacte (depuis la racine du dépôt) :
+
+```sh
+python3 tools/client-analysis/exporter_icons.py --client "<client 1.34>" --sortie Outil_Azur_complet/Resources/Bot --familles WorldMap
+```
+
+Date : 2026-10-04.
+
+Sans dessin dans le SWF même (sprite ou scène vide), donc sans PNG (191) :
+
+- `clips/maps/0.swf` : subarea_0, subarea_7, subarea_25, subarea_29, subarea_34, subarea_39, subarea_60, subarea_63, subarea_64, subarea_65, subarea_66, subarea_67, subarea_73, subarea_75, subarea_77, subarea_78, subarea_82, subarea_83, subarea_86, subarea_88, subarea_91, subarea_94, subarea_99, subarea_100, subarea_110, subarea_120, subarea_121, subarea_122, subarea_123, subarea_124, subarea_125, subarea_126, subarea_127, subarea_128, subarea_129, subarea_130, subarea_131, subarea_132, subarea_134, subarea_135, subarea_136, subarea_137, subarea_138, subarea_139, subarea_140, subarea_141, subarea_144, subarea_145, subarea_146, subarea_147, subarea_148, subarea_149, subarea_150, subarea_151, subarea_153, subarea_154, subarea_155, subarea_156, subarea_157, subarea_158, subarea_159, subarea_167, subarea_175, subarea_181, subarea_200, subarea_201, subarea_202, subarea_203, subarea_204, subarea_205, subarea_206, subarea_207, subarea_208, subarea_210, subarea_211, subarea_212, subarea_213, subarea_214, subarea_215, subarea_216, subarea_217, subarea_218, subarea_219, subarea_220, subarea_221, subarea_222, subarea_223, subarea_224, subarea_225, subarea_226, subarea_227, subarea_228, subarea_229, subarea_236, subarea_243, subarea_244, subarea_245, subarea_246, subarea_247, subarea_248, subarea_249, subarea_250, subarea_251, subarea_252, subarea_254, subarea_255, subarea_256, subarea_257, subarea_258, subarea_259, subarea_260, subarea_261, subarea_266, subarea_267, subarea_268, subarea_269, subarea_270, subarea_271, subarea_272, subarea_273, subarea_274, subarea_285, subarea_286, subarea_288, subarea_289, subarea_290, subarea_291, subarea_292, subarea_293, subarea_294, subarea_295, subarea_296, subarea_297, subarea_298, subarea_299, subarea_300, subarea_301, subarea_302, subarea_303, subarea_304, subarea_306, subarea_307, subarea_308, subarea_309, subarea_310, subarea_311, subarea_312, subarea_313, subarea_314, subarea_316, subarea_317, subarea_318, subarea_319, subarea_321, subarea_322, subarea_323, subarea_324, subarea_325, subarea_326, subarea_327, subarea_328, subarea_329, subarea_330, subarea_331, subarea_332, subarea_336, subarea_337, subarea_338, subarea_339, subarea_446, subarea_447, subarea_452, subarea_461, subarea_462, subarea_463, subarea_464, subarea_467, subarea_470, subarea_473, subarea_474, subarea_487, subarea_488, subarea_492, subarea_493, subarea_494, subarea_495, subarea_496, subarea_497, subarea_498, subarea_499, subarea_500
+
+Les illustrations conservent les droits de leurs titulaires d'origine, comme celles de `../Selection` et `../Client`.

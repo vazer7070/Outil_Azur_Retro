@@ -1,0 +1,329 @@
+<?xml version='1.0' encoding='utf-8'?>
+<BotLang famille="hints" langue="fr" version="116" source="hints_fr_116.swf">
+<entree table="HI" id="0" c="1" g="50" m="50" n="Temple Xélor" />
+<entree table="HI" id="1" c="1" g="10" m="177" n="Temple Feca" />
+<entree table="HI" id="2" c="1" g="70" m="487" n="Temple Eniripsa" />
+<entree table="HI" id="3" c="1" g="20" m="490" n="Temple Osamodas" />
+<entree table="HI" id="4" c="1" g="80" m="518" n="Temple Iop" />
+<entree table="HI" id="5" c="1" g="90" m="540" n="Temple Crâ " />
+<entree table="HI" id="6" c="1" g="100" m="684" n="Temple Sadida" />
+<entree table="HI" id="7" c="1" g="30" m="686" n="Temple Enutrof" />
+<entree table="HI" id="8" c="1" g="40" m="690" n="Temple Sram" />
+<entree table="HI" id="9" c="1" g="60" m="744" n="Temple Ecaflip" />
+<entree table="HI" id="10" c="1" g="110" m="2061" n="Temple Sacrieur" />
+<entree table="HI" id="11" c="1" g="50" m="7332" n="Statue Xélor" />
+<entree table="HI" id="12" c="1" g="110" m="7336" n="Statue Sacrieur" />
+<entree table="HI" id="13" c="1" g="70" m="7361" n="Statue Eniripsa" />
+<entree table="HI" id="14" c="1" g="90" m="7378" n="Statue Crâ " />
+<entree table="HI" id="15" c="1" g="40" m="7392" n="Statue Sram" />
+<entree table="HI" id="16" c="1" g="100" m="7395" n="Statue Sadida" />
+<entree table="HI" id="17" c="1" g="10" m="7398" n="Statue Féca" />
+<entree table="HI" id="18" c="1" g="80" m="7427" n="Statue Iop" />
+<entree table="HI" id="19" c="1" g="30" m="7442" n="Statue Enutrof" />
+<entree table="HI" id="20" c="1" g="60" m="7446" n="Statue Ecaflip" />
+<entree table="HI" id="21" c="1" g="20" m="7545" n="Statue Osamodas" />
+<entree table="HI" id="22" c="1" g="120" m="8035" n="Statue Pandawa" />
+<entree table="HI" id="23" c="1" g="120" m="8207" n="Temple Pandawa" />
+<entree table="HI" id="24" c="2" g="204" m="2221" n="Hôtel de vente des boulangers" />
+<entree table="HI" id="25" c="2" g="223" m="3412" n="Hôtel de vente des fées d'artifice" />
+<entree table="HI" id="26" c="2" g="208" m="4098" n="Hôtel de vente des forgerons" />
+<entree table="HI" id="27" c="2" g="215" m="4172" n="Hôtel de vente des tailleurs" />
+<entree table="HI" id="28" c="2" g="214" m="4174" n="Hôtel de vente des sculpteurs" />
+<entree table="HI" id="29" c="2" g="205" m="4178" n="Hôtel de vente des bûcherons" />
+<entree table="HI" id="30" c="2" g="209" m="4179" n="Hôtel de vente des mineurs" />
+<entree table="HI" id="31" c="2" g="207" m="4183" n="Hôtel de vente des cordonniers" />
+<entree table="HI" id="32" c="2" g="202" m="4216" n="Hôtel de vente des bijoutiers" />
+<entree table="HI" id="33" c="2" g="222" m="4232" n="Hôtel de vente des bricoleurs" />
+<entree table="HI" id="34" c="2" g="212" m="4247" n="Hôtel de vente des poissonniers et des pêcheurs" />
+<entree table="HI" id="35" c="2" g="213" m="4262" n="Hôtel de vente des ressources" />
+<entree table="HI" id="36" c="2" g="201" m="4271" n="Hôtel de vente des alchimistes" />
+<entree table="HI" id="37" c="2" g="203" m="4287" n="Hôtel de vente des bouchers et des chasseurs" />
+<entree table="HI" id="38" c="2" g="210" m="4299" n="Hôtel de vente des paysans" />
+<entree table="HI" id="39" c="2" g="207" m="4562" n="Hôtel de vente des cordonniers" />
+<entree table="HI" id="40" c="2" g="215" m="4588" n="Hôtel de vente des tailleurs" />
+<entree table="HI" id="41" c="2" g="203" m="4595" n="Hôtel de vente des bouchers et des chasseurs" />
+<entree table="HI" id="42" c="2" g="201" m="4607" n="Hôtel de vente des alchimistes" />
+<entree table="HI" id="43" c="2" g="212" m="4615" n="Hôtel de vente des poissonniers et des pêcheurs" />
+<entree table="HI" id="44" c="2" g="214" m="4618" n="Hôtel de vente des sculpteurs" />
+<entree table="HI" id="45" c="2" g="202" m="4622" n="Hôtel de vente des bijoutiers" />
+<entree table="HI" id="46" c="2" g="222" m="4627" n="Hôtel de vente des bricoleurs" />
+<entree table="HI" id="47" c="2" g="210" m="4629" n="Hôtel de vente des paysans" />
+<entree table="HI" id="48" c="2" g="204" m="4630" n="Hôtel de vente des boulangers" />
+<entree table="HI" id="49" c="2" g="213" m="4646" n="Hôtel de vente des ressources" />
+<entree table="HI" id="50" c="2" g="205" m="5112" n="Hôtel de vente des bûcherons" />
+<entree table="HI" id="51" c="2" g="209" m="5311" n="Hôtel de vente des mineurs" />
+<entree table="HI" id="52" c="2" g="208" m="5317" n="Hôtel de vente des forgerons" />
+<entree table="HI" id="53" c="2" g="219" m="6158" n="Hôtel de vente des parchemins liés" />
+<entree table="HI" id="54" c="2" g="219" m="6159" n="Hôtel de vente des parchemins liés" />
+<entree table="HI" id="55" c="2" g="219" m="6167" n="Hôtel de vente des parchemins liés" />
+<entree table="HI" id="56" c="2" g="205" m="7289" n="Hôtel de vente des bûcherons" />
+<entree table="HI" id="57" c="2" g="211" m="7348" n="Hôtel de vente des pêcheurs" />
+<entree table="HI" id="58" c="2" g="206" m="7350" n="Hôtel de vente des chasseurs" />
+<entree table="HI" id="59" c="2" g="210" m="7397" n="Hôtel de vente des paysans" />
+<entree table="HI" id="60" c="2" g="213" m="7413" n="Hôtel de vente des ressources" />
+<entree table="HI" id="61" c="2" g="222" m="7428" n="Hôtel de vente des bricoleurs" />
+<entree table="HI" id="62" c="2" g="209" m="7443" n="Hôtel de vente des mineurs" />
+<entree table="HI" id="63" c="2" g="212" m="7501" n="Hôtel de vente des poissonniers" />
+<entree table="HI" id="64" c="2" g="204" m="7510" n="Hôtel de vente des boulangers" />
+<entree table="HI" id="65" c="2" g="208" m="7511" n="Hôtel de vente des forgerons" />
+<entree table="HI" id="66" c="2" g="214" m="7512" n="Hôtel de vente des sculpteurs" />
+<entree table="HI" id="67" c="2" g="215" m="7513" n="Hôtel de vente des tailleurs" />
+<entree table="HI" id="68" c="2" g="202" m="7514" n="Hôtel de vente des bijoutiers" />
+<entree table="HI" id="69" c="2" g="203" m="7515" n="Hôtel de vente des bouchers" />
+<entree table="HI" id="70" c="2" g="201" m="7516" n="Hôtel de vente des alchimistes" />
+<entree table="HI" id="71" c="2" g="207" m="7602" n="Hôtel de vente des cordonniers" />
+<entree table="HI" id="72" c="2" g="216" m="8039" n="Hôtel de vente des boucliers" />
+<entree table="HI" id="73" c="2" g="217" m="8478" n="Hôtel des ventes d'âmes" />
+<entree table="HI" id="74" c="2" g="217" m="8493" n="Hôtel des ventes d'âmes" />
+<entree table="HI" id="75" c="2" g="218" m="8753" n="Hôtel de vente des animaux" />
+<entree table="HI" id="76" c="2" g="221" m="8754" n="Hôtel de vente des documents" />
+<entree table="HI" id="77" c="2" g="220" m="8756" n="Hôtel de vente des runes" />
+<entree table="HI" id="78" c="2" g="220" m="8757" n="Hôtel de vente des runes" />
+<entree table="HI" id="79" c="2" g="218" m="8759" n="Hôtel de vente des animaux" />
+<entree table="HI" id="80" c="2" g="221" m="8760" n="Hôtel de vente des documents" />
+<entree table="HI" id="81" c="3" g="302" m="34" n="Atelier des bijoutiers" />
+<entree table="HI" id="82" c="3" g="315" m="44" n="Atelier des tailleurs" />
+<entree table="HI" id="83" c="3" g="304" m="49" n="Atelier des boulangers" />
+<entree table="HI" id="84" c="3" g="307" m="55" n="Atelier des cordonniers" />
+<entree table="HI" id="85" c="3" g="311" m="524" n="Atelier des paysans" />
+<entree table="HI" id="86" c="3" g="305" m="531" n="Atelier des bûcherons" />
+<entree table="HI" id="87" c="3" g="314" m="577" n="Atelier des sculpteurs" />
+<entree table="HI" id="88" c="3" g="304" m="579" n="Atelier des boulangers" />
+<entree table="HI" id="89" c="3" g="306" m="618" n="Atelier des chasseurs" />
+<entree table="HI" id="90" c="3" g="301" m="643" n="Atelier des alchimistes" />
+<entree table="HI" id="91" c="3" g="310" m="714" n="Atelier des mineurs" />
+<entree table="HI" id="92" c="3" g="312" m="766" n="Atelier des pêcheurs" />
+<entree table="HI" id="93" c="3" g="310" m="933" n="Atelier des mineurs" />
+<entree table="HI" id="94" c="3" g="309" m="942" n="Atelier des forgerons" />
+<entree table="HI" id="95" c="3" g="309" m="942" n="Atelier des forgerons" />
+<entree table="HI" id="96" c="3" g="305" m="1070" n="Atelier des bûcherons" />
+<entree table="HI" id="97" c="3" g="314" m="1109" n="Atelier des sculpteurs" />
+<entree table="HI" id="98" c="3" g="314" m="1299" n="Atelier des sculpteurs" />
+<entree table="HI" id="99" c="3" g="305" m="1314" n="Atelier des bûcherons" />
+<entree table="HI" id="100" c="3" g="311" m="1339" n="Atelier des paysans" />
+<entree table="HI" id="101" c="3" g="311" m="1355" n="Atelier des paysans" />
+<entree table="HI" id="102" c="3" g="304" m="1356" n="Atelier des boulangers" />
+<entree table="HI" id="103" c="3" g="304" m="1369" n="Atelier des boulangers" />
+<entree table="HI" id="104" c="3" g="314" m="1392" n="Atelier des sculpteurs" />
+<entree table="HI" id="105" c="3" g="309" m="1397" n="Atelier des forgerons" />
+<entree table="HI" id="106" c="3" g="310" m="1397" n="Ateliers des mineurs" />
+<entree table="HI" id="107" c="3" g="302" m="1398" n="Atelier des bijoutiers" />
+<entree table="HI" id="108" c="3" g="312" m="1888" n="Atelier des poissonniers et des pêcheurs" />
+<entree table="HI" id="109" c="3" g="308" m="2187" n="Atelier des forgemages" />
+<entree table="HI" id="110" c="3" g="304" m="2214" n="Atelier des boulangers" />
+<entree table="HI" id="111" c="3" g="311" m="2672" n="Atelier des paysans" />
+<entree table="HI" id="112" c="3" g="309" m="4074" n="Atelier des forgerons" />
+<entree table="HI" id="113" c="3" g="315" m="4106" n="Atelier des tailleurs" />
+<entree table="HI" id="114" c="3" g="310" m="4180" n="Atelier des mineurs" />
+<entree table="HI" id="115" c="3" g="314" m="4181" n="Atelier des sculpteurs" />
+<entree table="HI" id="116" c="3" g="302" m="4217" n="Atelier des Bijoutiers" />
+<entree table="HI" id="117" c="3" g="317" m="4232" n="Atelier des bricoleurs" />
+<entree table="HI" id="118" c="3" g="303" m="4240" n="Atelier des bouchers" />
+<entree table="HI" id="119" c="3" g="312" m="4250" n="Atelier des poissonniers et des pêcheurs" />
+<entree table="HI" id="120" c="3" g="301" m="4272" n="Atelier des Alchimistes" />
+<entree table="HI" id="121" c="3" g="307" m="4300" n="Atelier des cordonniers" />
+<entree table="HI" id="122" c="3" g="305" m="4313" n="Atelier des bûcherons" />
+<entree table="HI" id="123" c="3" g="315" m="4549" n="Atelier des tailleurs" />
+<entree table="HI" id="124" c="3" g="307" m="4579" n="Atelier des cordonniers" />
+<entree table="HI" id="125" c="3" g="303" m="4604" n="Atelier des bouchers" />
+<entree table="HI" id="126" c="3" g="314" m="4612" n="Atelier des sculpteurs" />
+<entree table="HI" id="127" c="3" g="302" m="4620" n="Atelier des bijoutiers" />
+<entree table="HI" id="128" c="3" g="317" m="4627" n="Atelier des bricoleurs" />
+<entree table="HI" id="129" c="3" g="304" m="4639" n="Atelier des boulangers" />
+<entree table="HI" id="130" c="3" g="301" m="4930" n="Atelier des alchimistes" />
+<entree table="HI" id="131" c="3" g="309" m="5277" n="Atelier des forgerons" />
+<entree table="HI" id="132" c="3" g="310" m="5304" n="Atelier des mineurs" />
+<entree table="HI" id="133" c="3" g="312" m="5334" n="Atelier des pêcheurs" />
+<entree table="HI" id="134" c="3" g="312" m="5334" n="Atelier des poissonniers et des pêcheurs" />
+<entree table="HI" id="135" c="3" g="318" m="6860" n="Atelier des fées d'artifice" />
+<entree table="HI" id="136" c="3" g="307" m="7345" n="Atelier des cordonniers" />
+<entree table="HI" id="137" c="3" g="303" m="7351" n="Atelier des bouchers et chasseurs" />
+<entree table="HI" id="138" c="3" g="305" m="7357" n="Atelier des bûcherons" />
+<entree table="HI" id="139" c="3" g="315" m="7360" n="Atelier des tailleurs" />
+<entree table="HI" id="140" c="3" g="312" m="7364" n="Atelier des poissonniers et des pêcheurs" />
+<entree table="HI" id="141" c="3" g="314" m="7377" n="Atelier des sculpteurs" />
+<entree table="HI" id="142" c="3" g="304" m="7382" n="Atelier des boulangers" />
+<entree table="HI" id="143" c="3" g="301" m="7426" n="Atelier des alchimistes" />
+<entree table="HI" id="144" c="3" g="302" m="7430" n="Atelier des bijoutiers" />
+<entree table="HI" id="145" c="3" g="309" m="7441" n="Atelier des forgerons" />
+<entree table="HI" id="146" c="3" g="311" m="7453" n="Atelier des paysans" />
+<entree table="HI" id="147" c="3" g="310" m="7458" n="Atelier des mineurs" />
+<entree table="HI" id="148" c="3" g="305" m="8038" n="Atelier des bûcherons" />
+<entree table="HI" id="149" c="3" g="316" m="8089" n="Atelier des boucliers" />
+<entree table="HI" id="150" c="3" g="316" m="8117" n="Atelier des boucliers" />
+<entree table="HI" id="151" c="3" g="316" m="8160" n="Atelier des boucliers" />
+<entree table="HI" id="152" c="3" g="308" m="8756" n="Atelier des forgemages" />
+<entree table="HI" id="153" c="3" g="308" m="8757" n="Atelier des forgemages" />
+<entree table="HI" id="154" c="4" g="406" m="32" n="Kanojedo" />
+<entree table="HI" id="155" c="4" g="415" m="33" n="Place Marchande" />
+<entree table="HI" id="156" c="4" g="423" m="37" n="Attitude &quot;Bisou&quot;" />
+<entree table="HI" id="157" c="4" g="415" m="38" n="Place Marchande" />
+<entree table="HI" id="158" c="4" g="401" m="40" n="Banque" />
+<entree table="HI" id="159" c="4" g="408" m="41" n="Taverne" />
+<entree table="HI" id="160" c="4" g="417" m="51" n="Bibliothèque" />
+<entree table="HI" id="161" c="4" g="410" m="164" n="Zaap" />
+<entree table="HI" id="162" c="4" g="413" m="167" n="Bateau vers l'île des Wabbits" />
+<entree table="HI" id="163" c="4" g="412" m="188" n="Transporteur brigandin" />
+<entree table="HI" id="164" c="4" g="423" m="464" n="Attitude &quot;Pierre, feuille, ciseaux&quot;" />
+<entree table="HI" id="165" c="4" g="403" m="494" n="Eglise" />
+<entree table="HI" id="166" c="4" g="410" m="528" n="Zaap" />
+<entree table="HI" id="167" c="4" g="423" m="736" n="Attitude &quot;Applaudir&quot;" />
+<entree table="HI" id="168" c="4" g="412" m="819" n="Transporteur Brigandin" />
+<entree table="HI" id="169" c="4" g="410" m="844" n="Zaap" />
+<entree table="HI" id="170" c="4" g="410" m="935" n="Zaap" />
+<entree table="HI" id="171" c="4" g="410" m="951" n="Zaap" />
+<entree table="HI" id="172" c="4" g="402" m="1014" n="Canon pour l'île de Moon" />
+<entree table="HI" id="173" c="4" g="412" m="1116" n="Transporteur Brigandin" />
+<entree table="HI" id="174" c="4" g="404" m="1140" n="Chanil" />
+<entree table="HI" id="175" c="4" g="410" m="1158" n="Zaap" />
+<entree table="HI" id="176" c="4" g="423" m="1213" n="Attitude &quot;Colère&quot;" />
+<entree table="HI" id="177" c="4" g="410" m="1242" n="Zaap" />
+<entree table="HI" id="178" c="4" g="412" m="1246" n="Transporteur brigandin" />
+<entree table="HI" id="179" c="4" g="406" m="1269" n="Kanojedo" />
+<entree table="HI" id="180" c="4" g="423" m="1663" n="Attitude &quot;Montrer son arme&quot;" />
+<entree table="HI" id="181" c="4" g="423" m="1665" n="Attitude &quot;Faire signe&quot;" />
+<entree table="HI" id="182" c="4" g="412" m="1669" n="Transporteur brigandin" />
+<entree table="HI" id="183" c="4" g="410" m="1841" n="Zaap" />
+<entree table="HI" id="184" c="4" g="408" m="1878" n="Taverne du Ripate" />
+<entree table="HI" id="185" c="4" g="423" m="1884" n="Attitude &quot;Peur&quot;" />
+<entree table="HI" id="186" c="4" g="401" m="1886" n="Banque" />
+<entree table="HI" id="187" c="4" g="406" m="2021" n="Kanojedo" />
+<entree table="HI" id="188" c="4" g="405" m="2056" n="Temple des guildes" />
+<entree table="HI" id="189" c="4" g="410" m="2191" n="Zaap" />
+<entree table="HI" id="190" c="4" g="408" m="2214" n="Taverne du Pinchaut" />
+<entree table="HI" id="191" c="4" g="410" m="3022" n="Zaap" />
+<entree table="HI" id="192" c="4" g="410" m="3250" n="Zaap" />
+<entree table="HI" id="193" c="4" g="408" m="4090" n="Taverne du Feubuk" />
+<entree table="HI" id="194" c="4" g="408" m="4172" n="Taverne Alakarte" />
+<entree table="HI" id="195" c="4" g="408" m="4174" n="Taverne de la Chopenbois" />
+<entree table="HI" id="196" c="4" g="408" m="4218" n="Taverne de la Bagrutte" />
+<entree table="HI" id="197" c="4" g="416" m="4223" n="Tour des ordres" />
+<entree table="HI" id="198" c="4" g="408" m="4229" n="Taverne du Ferayeur" />
+<entree table="HI" id="199" c="4" g="408" m="4238" n="Taverne de la Tabasse" />
+<entree table="HI" id="200" c="4" g="415" m="4259" n="Place Marchande" />
+<entree table="HI" id="201" c="4" g="410" m="4263" n="Zaap" />
+<entree table="HI" id="202" c="4" g="401" m="4308" n="Banque" />
+<entree table="HI" id="203" c="4" g="412" m="4413" n="Transporteur brigandin" />
+<entree table="HI" id="204" c="4" g="416" m="4551" n="Tour de Brâkmar" />
+<entree table="HI" id="205" c="4" g="408" m="4579" n="Taverne de Djaul" />
+<entree table="HI" id="206" c="4" g="415" m="4601" n="Place Marchande" />
+<entree table="HI" id="207" c="4" g="408" m="4604" n="Taverne Atolmond" />
+<entree table="HI" id="208" c="4" g="408" m="4612" n="Taverne de la Misère" />
+<entree table="HI" id="209" c="4" g="408" m="4623" n="Taverne du Chabrulé " />
+<entree table="HI" id="210" c="4" g="408" m="4637" n="Taverne du Bwork" />
+<entree table="HI" id="211" c="4" g="410" m="4739" n="Zaap" />
+<entree table="HI" id="212" c="4" g="412" m="5015" n="Transporteur brigandin" />
+<entree table="HI" id="213" c="4" g="407" m="5116" n="Milice" />
+<entree table="HI" id="214" c="4" g="410" m="5295" n="Zaap" />
+<entree table="HI" id="215" c="4" g="401" m="5332" n="Banque" />
+<entree table="HI" id="216" c="4" g="410" m="6137" n="Zaap" />
+<entree table="HI" id="217" c="4" g="407" m="6159" n="Milice" />
+<entree table="HI" id="218" c="4" g="412" m="6850" n="Transporteur Brigandin" />
+<entree table="HI" id="219" c="4" g="410" m="6855" n="Zaap" />
+<entree table="HI" id="220" c="4" g="410" m="6954" n="Zaap" />
+<entree table="HI" id="221" c="4" g="418" m="7362" n="Hôtel des metiers" />
+<entree table="HI" id="222" c="4" g="410" m="7411" n="Zaap" />
+<entree table="HI" id="223" c="4" g="401" m="7414" n="Banque" />
+<entree table="HI" id="224" c="4" g="408" m="7429" n="Taverne" />
+<entree table="HI" id="225" c="4" g="401" m="8012" n="Banque" />
+<entree table="HI" id="226" c="4" g="417" m="8014" n="Bibliothèque" />
+<entree table="HI" id="227" c="4" g="408" m="8026" n="Taverne du Pandawa Ivre" />
+<entree table="HI" id="228" c="4" g="414" m="8027" n="Dojo" />
+<entree table="HI" id="229" c="4" g="415" m="8036" n="Place Marchande" />
+<entree table="HI" id="230" c="4" g="410" m="8037" n="Zaap" />
+<entree table="HI" id="231" c="4" g="410" m="8088" n="Zaap" />
+<entree table="HI" id="232" c="4" g="414" m="8090" n="Dojo" />
+<entree table="HI" id="233" c="4" g="414" m="8109" n="Dojo" />
+<entree table="HI" id="234" c="4" g="410" m="8125" n="Zaap" />
+<entree table="HI" id="235" c="4" g="410" m="8163" n="Zaap" />
+<entree table="HI" id="236" c="4" g="423" m="8167" n="Attitude &quot;Pointer du doigt&quot;" />
+<entree table="HI" id="237" c="4" g="414" m="8170" n="Dojo" />
+<entree table="HI" id="238" c="4" g="412" m="8223" n="Transporteur brigandin" />
+<entree table="HI" id="239" c="4" g="410" m="8437" n="Zaap" />
+<entree table="HI" id="240" c="4" g="414" m="8471" n="Dojo" />
+<entree table="HI" id="241" c="4" g="411" m="8478" n="Arène" />
+<entree table="HI" id="242" c="4" g="411" m="8493" n="Arène" />
+<entree table="HI" id="243" c="4" g="423" m="8538" n="Attitude &quot;Croiser les bras&quot;" />
+<entree table="HI" id="244" c="4" g="419" m="8743" n="Enclos public" />
+<entree table="HI" id="245" c="4" g="419" m="8744" n="Enclos public" />
+<entree table="HI" id="246" c="4" g="419" m="8745" n="Enclos public" />
+<entree table="HI" id="247" c="4" g="419" m="8746" n="Enclos public" />
+<entree table="HI" id="248" c="4" g="419" m="8747" n="Enclos public" />
+<entree table="HI" id="249" c="4" g="419" m="8748" n="Enclos public" />
+<entree table="HI" id="250" c="4" g="419" m="8749" n="Enclos public" />
+<entree table="HI" id="251" c="4" g="419" m="8750" n="Enclos public" />
+<entree table="HI" id="252" c="4" g="419" m="8751" n="Enclos public" />
+<entree table="HI" id="253" c="4" g="419" m="8752" n="Enclos public" />
+<entree table="HI" id="254" c="4" g="417" m="8754" n="Bibliothèque" />
+<entree table="HI" id="255" c="4" g="418" m="8755" n="Hôtel des metiers" />
+<entree table="HI" id="256" c="4" g="418" m="8758" n="Hôtel des metiers" />
+<entree table="HI" id="257" c="4" g="417" m="8760" n="Bibliothèque" />
+<entree table="HI" id="258" c="4" g="410" m="8785" n="Zaap" />
+<entree table="HI" id="259" c="4" g="401" m="8800" n="Banque" />
+<entree table="HI" id="260" c="4" g="419" m="8848" n="Enclos public" />
+<entree table="HI" id="261" c="4" g="419" m="8851" n="Enclos public" />
+<entree table="HI" id="262" c="4" g="410" m="9454" n="Zaap" />
+<entree table="HI" id="263" c="4" g="407" m="9458" n="Milice" />
+<entree table="HI" id="264" c="4" g="413" m="9520" n="Bateau vers l'île du minotoror" />
+<entree table="HI" id="265" c="4" g="412" m="9550" n="Transporteur Brigandin" />
+<entree table="HI" id="266" c="4" g="410" m="10114" n="Zaap" />
+<entree table="HI" id="267" c="4" g="410" m="10297" n="Zaap" />
+<entree table="HI" id="268" c="4" g="415" m="10301" n="Place Marchande" />
+<entree table="HI" id="269" c="4" g="408" m="10302" n="Taverne" />
+<entree table="HI" id="270" c="4" g="410" m="10304" n="Zaap" />
+<entree table="HI" id="271" c="4" g="407" m="10307" n="Milice" />
+<entree table="HI" id="272" c="4" g="410" m="10317" n="Zaap" />
+<entree table="HI" id="273" c="4" g="412" m="10318" n="Transport vers Astrub" />
+<entree table="HI" id="274" c="4" g="410" m="10349" n="Zaap" />
+<entree table="HI" id="275" c="4" g="412" m="10365" n="Transporteur Brigandin" />
+<entree table="HI" id="276" c="4" g="410" m="10643" n="Zaap" />
+<entree table="HI" id="277" c="4" g="401" m="10746" n="Banque" />
+<entree table="HI" id="278" c="4" g="412" m="11157" n="Transporteur Brigandin" />
+<entree table="HI" id="279" c="6" g="422" m="749" n="Donjon des Craqueleurs" />
+<entree table="HI" id="280" c="6" g="422" m="822" n="Donjon Wabbit" />
+<entree table="HI" id="281" c="6" g="422" m="1130" n="Donjon des Forgerons" />
+<entree table="HI" id="282" c="6" g="422" m="1186" n="Donjon des Squelettes" />
+<entree table="HI" id="283" c="6" g="422" m="1298" n="Donjon des Scarafeuilles" />
+<entree table="HI" id="284" c="6" g="422" m="1384" n="Donjon des Tofus et du Tofu Royal" />
+<entree table="HI" id="285" c="6" g="422" m="1399" n="Antre du Dragon Cochon" />
+<entree table="HI" id="286" c="6" g="422" m="1764" n="Donjon de Moon" />
+<entree table="HI" id="287" c="6" g="422" m="1856" n="Donjon des Bouftous" />
+<entree table="HI" id="288" c="6" g="422" m="2985" n="Donjon du Maitre Corbac" />
+<entree table="HI" id="289" c="6" g="422" m="4416" n="Donjon des Blops" />
+<entree table="HI" id="290" c="6" g="422" m="4786" n="Donjon du Bworker" />
+<entree table="HI" id="291" c="6" g="422" m="5044" n="Donjon Fungus" />
+<entree table="HI" id="292" c="6" g="422" m="6536" n="Donjon des Rats de Bonta" />
+<entree table="HI" id="293" c="6" g="422" m="6684" n="Donjon des Larves" />
+<entree table="HI" id="294" c="6" g="422" m="6738" n="Donjon des Rats de Brâkmar" />
+<entree table="HI" id="295" c="6" g="422" m="7453" n="Donjon des Champs" />
+<entree table="HI" id="296" c="6" g="422" m="8167" n="Repaire des Pandikazes" />
+<entree table="HI" id="297" c="6" g="422" m="8236" n="Donjon des Kitsounes" />
+<entree table="HI" id="298" c="6" g="422" m="8244" n="Donjon des Bulbes" />
+<entree table="HI" id="299" c="6" g="422" m="8467" n="Donjon des Firefoux" />
+<entree table="HI" id="300" c="6" g="422" m="8905" n="Donjon du Koulosse" />
+<entree table="HI" id="301" c="6" g="422" m="9052" n="Sanctuaire des familiers" />
+<entree table="HI" id="302" c="6" g="422" m="9127" n="Donjon des Abraknydes et du Chêne Mou" />
+<entree table="HI" id="303" c="6" g="422" m="9470" n="Donjon des Bworks" />
+<entree table="HI" id="304" c="6" g="422" m="9503" n="Repaire de Skeunk" />
+<entree table="HI" id="305" c="6" g="422" m="9538" n="Labyrinthe du Minotoror et du Minotot" />
+<entree table="HI" id="306" c="6" g="422" m="9638" n="Donjon des Rats du Château d'Amakna" />
+<entree table="HI" id="307" c="6" g="422" m="9787" n="Donjon des Canidés" />
+<entree table="HI" id="308" c="6" g="422" m="9788" n="Sanctuaire des Dragoeufs" />
+<entree table="HI" id="309" c="6" g="422" m="9946" n="Donjon de Nowel" />
+<entree table="HI" id="310" c="6" g="422" m="10155" n="Donjon ensablé " />
+<entree table="HI" id="311" c="6" g="422" m="10359" n="Donjon d'Incarnam" />
+<entree table="HI" id="312" c="6" g="422" m="10700" n="Antre du Kralamoure Géant" />
+<entree table="HI" id="313" c="6" g="422" m="10722" n="Grotte Hesque" />
+<entree table="HI" id="314" c="6" g="422" m="10807" n="Laboratoire du Tynril" />
+<entree table="HI" id="315" c="6" g="422" m="11066" n="Arche d'Otomaï " />
+<entree table="HI" id="316" c="6" g="422" m="11136" n="Canopée du Kimbo" />
+<entree table="HI" id="317" c="6" g="422" m="11260" n="Goulet du Rasboul" />
+<entree table="HI" id="318" c="6" g="422" m="11965" n="Sanctuaire de Qu'tan" />
+<entree table="HI" id="319" c="6" g="422" m="11970" n="Belvédère d'Ilyzaelle" />
+<entree table="HIC" id="1" c="Orange" n="Lieux de classes" />
+<entree table="HIC" id="2" c="Blue" n="Hôtels de vente" />
+<entree table="HIC" id="3" c="Green" n="Ateliers" />
+<entree table="HIC" id="4" c="Beige" n="Divers" />
+<entree table="HIC" id="5" c="Red" n="Territoires de conquête" />
+<entree table="HIC" id="6" c="Violet" n="Donjons" />
+</BotLang>

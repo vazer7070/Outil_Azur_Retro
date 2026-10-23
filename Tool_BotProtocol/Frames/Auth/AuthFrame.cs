@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Tool_BotProtocol.Config;
 using Tool_BotProtocol.Frames.Messages;
+using Tool_BotProtocol.Game.Accounts;
 using Tool_BotProtocol.Network;
 
 namespace Tool_BotProtocol.Frames.Auth
@@ -42,11 +43,38 @@ namespace Tool_BotProtocol.Frames.Auth
             }
             Refuse(client, reason, () => client.account?.Game.Server.DisplayIsBanned(reason));
         }
+        /// <summary>
+        /// <c>AlEr</c> : pendant la connexion, le compte n'a pas encore de pseudo (première demande) ou le pseudo envoyé est le nom
+        /// du compte. Le Login attend alors le pseudo en ligne brute (<see cref="NicknameChoice"/>, interface <c>ChooseNickName</c>
+        /// du client). En jeu, le même paquet accompagne la potion de changement de nom (manque B-07, lot X32).
+        /// </summary>
         [MessageAttribution("AlEr")]
-        public void MissingNickname(TcpClient client, string message) => Refuse(client,
-            "Un pseudonyme doit être défini pour ce compte dans le client de jeu avant de connecter le bot.");
+        public void NicknameRequired(TcpClient client, string message) => RequestNickname(client, false);
+        /// <summary><c>AlEs</c> : pseudo envoyé déjà pris ou fait d'un caractère interdit ; le Login attend un autre pseudo.</summary>
         [MessageAttribution("AlEs")]
-        public void InvalidNickname(TcpClient client, string message) => Refuse(client, "Le pseudonyme du compte a été refusé.");
+        public void NicknameUnavailable(TcpClient client, string message) => RequestNickname(client, true);
+
+        /// <summary>
+        /// Pendant la connexion (avant <c>ASK</c>), la demande va au pseudo du compte ; sans interface abonnée à
+        /// <see cref="NicknamePrompt.Requested"/>, personne ne peut répondre : la connexion est refusée plutôt que de laisser le Login
+        /// attendre un pseudo qui ne viendra pas. En jeu (potion de changement de nom, lot X32), la demande va à
+        /// <see cref="Tool_BotProtocol.Game.Session.NameChange"/> et une session n'est jamais déconnectée par ces paquets.
+        /// </summary>
+        private static void RequestNickname(TcpClient client, bool alreadyUsed)
+        {
+            Accounts account = client.account;
+            if (account == null) return;
+            if (account.Game?.character != null && account.Game.character.id > 0)
+            {
+                if (!account.Game.Session.NameChange.OnRequested(alreadyUsed))
+                    account.Logger?.LogDanger("SESSION", (alreadyUsed ? "AlEs" : "AlEr")
+                        + " reçu en jeu (changement de nom, lot X32) : aucune interface pour saisir le nom, la session continue.");
+                return;
+            }
+            if (!account.Nickname.OnRequested(alreadyUsed))
+                Refuse(client, "Le compte n'a pas encore de pseudo et rien ne permet d'en saisir un ici : "
+                    + "choisissez-le depuis l'écran de connexion du bot ou dans le client de jeu.");
+        }
         [MessageAttribution("AXEr")]
         public void ServerUnauthorized(TcpClient client, string message) => Refuse(client, "Vous n’êtes pas autorisé à rejoindre ce serveur.");
         [MessageAttribution("AXEd")]
@@ -55,8 +83,17 @@ namespace Tool_BotProtocol.Frames.Auth
         public void ServerFull(TcpClient client, string message) => Refuse(client, "Le serveur choisi est complet ou exige un abonnement.");
         [MessageAttribution("AXEs")]
         public void MerchantCharacter(TcpClient client, string message) => Refuse(client, "Le personnage est en mode marchand sur un autre serveur.");
+        /// <summary>
+        /// StarLoco répond <c>ATE</c> puis ferme la session quand le compte en attente (<c>WA</c> du Login) n'est pas encore arrivé :
+        /// tant qu'un ticket est en cours et qu'il reste des essais, c'est la même course qu'une fermeture avant <c>ATK</c>, et le
+        /// ticket est renvoyé sur une nouvelle connexion. Sinon le refus est définitif.
+        /// </summary>
         [MessageAttribution("ATE")]
-        public void InvalidTicket(TcpClient client, string message) => Refuse(client, "Le serveur de jeu a refusé le ticket de connexion.");
+        public void InvalidTicket(TcpClient client, string message)
+        {
+            if (client.RetryTicketAfterRefusal()) return;
+            Refuse(client, "Le serveur de jeu a refusé le ticket de connexion.");
+        }
         [MessageAttribution("AlE")]
         public void OtherLoginRefusal(TcpClient client, string message) => Refuse(client, "La connexion a été refusée par le serveur d’authentification.");
         [MessageAttribution("AXE")]

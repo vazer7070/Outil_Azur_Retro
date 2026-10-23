@@ -12,7 +12,17 @@ namespace Outil_Azur_complet.Bot
         private CheckBox remember;
         private Label status;
         private bool unsupportedProfile, updatingFields;
-        public LoginForm() { string error=null;try { GlobalConfig.InitializeConfig(); }catch(Exception ex) { error="Configuration à corriger : "+ex.Message; }try { AccountConfig.LoadAccount();if(AccountConfig.LoadWarnings.Length>0)error=AccountConfig.LoadWarnings.Length+" compte(s) illisible(s) ou protégé(s) ignoré(s). Renseignez de nouveau leurs identifiants pour les enregistrer ici."; }catch(Exception ex) { error="Lecture des comptes : "+ex.Message; }BuildLayout();UpdateListViews();if(error!=null)status.Text=error; }
+        public LoginForm() : this(null,null) { }
+        /// <summary>
+        /// Écran de connexion rempli avec les identifiants de <paramref name="prefill"/> (retour après une perte de connexion,
+        /// lot X3) ; <paramref name="message"/> remplace la ligne d'état, suivi d'une éventuelle erreur de configuration.
+        /// </summary>
+        public LoginForm(AccountConfig prefill,string message)
+        {
+            string error=null;try { GlobalConfig.InitializeConfig(); }catch(Exception ex) { error="Configuration à corriger : "+ex.Message; }try { AccountConfig.LoadAccount();if(AccountConfig.LoadWarnings.Length>0)error=AccountConfig.LoadWarnings.Length+" compte(s) illisible(s) ou protégé(s) ignoré(s). Renseignez de nouveau leurs identifiants pour les enregistrer ici."; }catch(Exception ex) { error="Lecture des comptes : "+ex.Message; }BuildLayout();UpdateListViews();
+            if(prefill!=null&&prefill.Lieu!="Officiel") { updatingFields=true;login.Text=prefill.Account??"";password.Text=prefill.Password??"";remember.Checked=prefill.Account!=null&&AccountConfig.AccountsDico.ContainsKey(prefill.Account);updatingFields=false; }
+            if(!string.IsNullOrEmpty(message))status.Text=error==null?message:message+" "+error;else if(error!=null)status.Text=error;
+        }
         private void BuildLayout()
         {
             var root = BotUi.Window(this,"Bot · Connexion","Connectez un compte à votre serveur, puis choisissez le serveur de jeu et le personnage.");
@@ -20,6 +30,9 @@ namespace Outil_Azur_complet.Bot
             var connect=new TabPage("Comptes et connexion") { BackColor=BackColor,Padding=new Padding(12) };
             var optionsPage=new TabPage("Serveur et protocole") { BackColor=BackColor,Padding=new Padding(12) }; tabs.TabPages.Add(connect);tabs.TabPages.Add(optionsPage);
             var split=new TableLayoutPanel { Dock=DockStyle.Fill,ColumnCount=2 };split.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,52));split.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,48));connect.Controls.Add(split);
+            // Composition de l'écran de connexion du client : logo et illustration en haut, œufs de classe en bas.
+            var eggs=BotUi.Banner("oeufs",92);if(eggs!=null) { connect.Controls.Add(eggs);split.BringToFront(); }
+            var header=BotUi.Banner("bandeau-connexion",70,"logo",DockStyle.Right);if(header!=null) { header.Dock=DockStyle.Top;connect.Controls.Add(header);split.BringToFront(); }
             var saved=BotUi.Card("Comptes enregistrés","Sélectionnez un compte pour renseigner les champs ou vous connecter."); accounts=BotUi.List("Compte","Destination");accounts.Columns[0].Width=230;accounts.Columns[1].Width=170;
             accounts.SelectedIndexChanged+=(s,e)=> { if(accounts.SelectedItems.Count==0)return;var a=(AccountConfig)accounts.SelectedItems[0].Tag;updatingFields=true;login.Text=a.Account;password.Text=a.Lieu=="Officiel"?"":a.Password;remember.Checked=a.Lieu!="Officiel";unsupportedProfile=a.Lieu=="Officiel";updatingFields=false;if(unsupportedProfile)status.Text="Profil officiel historique : connexion via launcher non validée. Renseignez un compte du serveur privé."; };
             accounts.DoubleClick+=(s,e)=>ConnectSelected();BotUi.Body(saved).Controls.Add(accounts);BotUi.Body(saved).Controls.Add(BotUi.Actions(BotUi.Button("Se connecter",(s,e)=>ConnectSelected(),true),BotUi.Button("Supprimer",(s,e)=>DeleteSelected(),false,110)));split.Controls.Add(saved,0,0);

@@ -3,66 +3,70 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 using System.Xml.Linq;
 using Tool_BotProtocol.Game.Maps;
-using Tool_BotProtocol.Game.Maps.Interfaces;
+using Tool_BotProtocol.Game.Maps.Entities;
 
 namespace Tool_BotProtocol.Game.NPC
 {
-    public class PNJ : Entites
+    /// <summary>
+    /// PNJ : modèle chargé de <c>BotNPCs</c> (<see cref="AllPNJ"/>, indexé par identifiant de modèle) ou PNJ d'une carte.
+    /// Les PNJ lus dans <c>GM</c> sont des <see cref="NpcActor"/>, qui dérivent de cette classe.
+    /// </summary>
+    public class PNJ : MapActor
     {
-        public int id { get; set; }
-        
+        public override ActorKind Kind => ActorKind.Npc;
         public int MapId { get; set; }
-        public int CellId { get; set; }
-        public int Orientation { get; set; }
-        public int GFX { get; set; }
-        public int GraphicsScaleX { get; set; } = 100;
-        public int GraphicsScaleY { get; set; } = 100;
+        public int GFX { get => Gfx; set => Gfx = value; }
+        public int GraphicsScaleX { get => ScaleX; set => ScaleX = value; }
+        public int GraphicsScaleY { get => ScaleY; set => ScaleY = value; }
         public int Sexe { get; set; }
-        public Cell Cell { get; set; }
+        /// <summary>Identifiant du modèle (<c>npc_template</c>) ; différent de <see cref="MapActor.Id"/> chez StarLoco.</summary>
         public int NPc_ID { get; set; }
         public short Question_ID { get; set; }
         public List<short> Réponses { get; set; }
-        public string Name { get; set; }
 
         private static string pnjpath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ressources", "Bot", "BotNPCs");
 
-        private bool dispose;
         public static ConcurrentDictionary<int, PNJ> AllPNJ = new ConcurrentDictionary<int, PNJ>();
+
+        /// <summary>
+        /// Nom des PNJ fourni par les textes du client (<c>npc_fr</c>, <c>N.d[id].n</c>) lorsqu'ils sont chargés ;
+        /// null ou une chaîne vide fait retomber sur <c>BotNPCs</c> puis sur « PNJ #modèle ».
+        /// </summary>
+        public static Func<int, string> ClientNameResolver { get; set; }
+
         public PNJ(int Id, int Self_ID, Cell C)
         {
             id = Id;
-            if (AllPNJ.ContainsKey(Self_ID))
+            if (AllPNJ.TryGetValue(Self_ID, out PNJ template) && template != null)
             {
-                Name = AllPNJ[Self_ID].Name;
-                MapId = AllPNJ[Self_ID].MapId;
-                CellId = AllPNJ[Self_ID].CellId;
-                Orientation = AllPNJ[Self_ID].Orientation;
-                GFX = AllPNJ[Self_ID].GFX;
-                Sexe = AllPNJ[Self_ID].Sexe;
+                MapId = template.MapId;
+                Orientation = template.Orientation;
+                GFX = template.GFX;
+                Sexe = template.Sexe;
+                CellId = template.CellId;
             }
-            else
-                Name = $"PNJ {Self_ID}";
-            Cell = C;
+            Name = ResolveName(Self_ID);
             NPc_ID = Self_ID;
+            if (C != null) Cell = C;
         }
+
+        /// <summary>Nom affiché d'un modèle de PNJ : textes du client, puis <c>BotNPCs</c>, puis « PNJ #modèle ».</summary>
+        public static string ResolveName(int templateId)
+        {
+            string name = null;
+            try { name = ClientNameResolver?.Invoke(templateId); }
+            catch (Exception error) when (!(error is OutOfMemoryException)) { name = null; }
+            if (string.IsNullOrEmpty(name) && AllPNJ.TryGetValue(templateId, out PNJ template)) name = template?.Name;
+            return string.IsNullOrEmpty(name) ? "PNJ #" + templateId : name;
+        }
+
         public static PNJ ReturnNpc(int id, bool notSelfid)
         {
-            try
-            {
-                if (notSelfid)
-                    return AllPNJ.FirstOrDefault(x => x.Value.id == id).Value;
-                else
-                    return AllPNJ[id];
-            }
-            catch
-            {
-                return null;
-            }
+            if (notSelfid) return AllPNJ.FirstOrDefault(x => x.Value.id == id).Value;
+            return AllPNJ.TryGetValue(id, out PNJ value) ? value : null;
         }
         public static Task LoadAllNPCAsync()
         {
@@ -82,18 +86,17 @@ namespace Tool_BotProtocol.Game.NPC
             });
         }
 
-        PNJ() { }
+        /// <summary>Construction d'un modèle ou d'un acteur dont les champs sont remplis ensuite.</summary>
+        protected PNJ() { }
 
-        public void Dispose() => Dispose(true);
-        public virtual void Dispose( bool disposed)
+        protected override void Dispose(bool disposing)
         {
-            if (!dispose)
+            if (disposing)
             {
                 Réponses?.Clear();
                 Réponses = null;
-                Cell = null;
-                dispose = true;
             }
+            base.Dispose(disposing);
         }
     }
 }

@@ -34,6 +34,7 @@ namespace Outil_Azur_complet
             public string ConnectionString { get; set; }
             public string AuthSchema { get; set; }
             public string WorldSchema { get; set; }
+            public string PlayerSchema { get; set; }
             public string AccountTable { get; set; }
             public string PlayerTable { get; set; }
             public string ItemTable { get; set; }
@@ -51,7 +52,7 @@ namespace Outil_Azur_complet
             {
                 connection.Open();
                 RequireTransactionalTables(connection, tables,
-                    Tuple.Create(tables.AuthSchema, tables.PlayerTable),
+                    Tuple.Create(tables.PlayerSchema, tables.PlayerTable),
                     Tuple.Create(tables.AuthSchema, tables.AccountTable));
                 using (var transaction = connection.BeginTransaction(IsolationLevel.Serializable))
                 {
@@ -101,7 +102,7 @@ namespace Outil_Azur_complet
             {
                 connection.Open();
                 RequireTransactionalTables(connection, tables,
-                    Tuple.Create(tables.AuthSchema, tables.PlayerTable),
+                    Tuple.Create(tables.PlayerSchema, tables.PlayerTable),
                     Tuple.Create(tables.WorldSchema, tables.ItemTable));
                 using (var transaction = connection.BeginTransaction(IsolationLevel.Serializable))
                 {
@@ -153,7 +154,7 @@ namespace Outil_Azur_complet
                 connection.Open();
                 RequireTransactionalTables(connection, tables,
                     Tuple.Create(tables.AuthSchema, tables.AccountTable),
-                    Tuple.Create(tables.AuthSchema, tables.PlayerTable),
+                    Tuple.Create(tables.PlayerSchema, tables.PlayerTable),
                     Tuple.Create(tables.WorldSchema, tables.ItemTable));
                 using (var transaction = connection.BeginTransaction(IsolationLevel.Serializable))
                 {
@@ -265,7 +266,7 @@ namespace Outil_Azur_complet
                 var batch = itemIds.Skip(offset).Take(500).ToArray();
                 string parameters = string.Join(",", batch.Select((id, index) => "@item" + index));
                 using (var command = new MySqlCommand(
-                    $"DELETE FROM {tables.Items} WHERE `guid` IN ({parameters})", connection, transaction))
+                    $"DELETE FROM {tables.Items} WHERE `{Identifier(EmulatorRegistry.Current.ItemColumn("guid"))}` IN ({parameters})", connection, transaction))
                 {
                     for (int index = 0; index < batch.Length; index++)
                         command.Parameters.AddWithValue("@item" + index, batch[index]);
@@ -277,15 +278,25 @@ namespace Outil_Azur_complet
         private static Tables ResolveTables(bool requireWorld)
         {
             ServerSql.Require(EmulatorFeature.AccountEditing);
-            if (string.IsNullOrWhiteSpace(DatabaseManager.ConnectionString))
+            // Comptes, personnages et exemplaires sont dans la base que le profil leur attribue.
+            string accountsConnection = EmulatorRegistry.ConnectionFor("comptes");
+            string playersConnection = EmulatorRegistry.ConnectionFor("perso");
+            if (string.IsNullOrWhiteSpace(accountsConnection) || string.IsNullOrWhiteSpace(playersConnection))
                 throw new InvalidOperationException("La connexion auth doit être active.");
-            var auth = new MySqlConnectionStringBuilder(DatabaseManager.ConnectionString);
+            var auth = new MySqlConnectionStringBuilder(accountsConnection);
+            var players = new MySqlConnectionStringBuilder(playersConnection);
+            if (!string.Equals(auth.Server, players.Server, StringComparison.OrdinalIgnoreCase) ||
+                auth.Port != players.Port ||
+                !string.Equals(auth.UserID, players.UserID, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(
+                    "Les bases des comptes et des personnages doivent partager le même serveur et le même compte SQL.");
             MySqlConnectionStringBuilder world = null;
             if (requireWorld)
             {
-                if (string.IsNullOrWhiteSpace(DatabaseManager2.ConnectionString))
+                string itemsConnection = EmulatorRegistry.ConnectionFor("items");
+                if (string.IsNullOrWhiteSpace(itemsConnection))
                     throw new InvalidOperationException("La connexion world doit être active.");
-                world = new MySqlConnectionStringBuilder(DatabaseManager2.ConnectionString);
+                world = new MySqlConnectionStringBuilder(itemsConnection);
                 if (!string.Equals(auth.Server, world.Server, StringComparison.OrdinalIgnoreCase) ||
                     auth.Port != world.Port ||
                     !string.Equals(auth.UserID, world.UserID, StringComparison.OrdinalIgnoreCase))
@@ -293,6 +304,7 @@ namespace Outil_Azur_complet
                         "Les bases auth et world doivent partager le même serveur et le même compte SQL.");
             }
             string authSchema = Identifier(auth.Database);
+            string playerSchema = Identifier(players.Database);
             string worldSchema = requireWorld ? Identifier(world.Database) : null;
             string accountTable = Identifier(AccountList.TableCompte);
             string playerTable = Identifier(CharacterList.TablePerso);
@@ -301,20 +313,20 @@ namespace Outil_Azur_complet
             {
                 ConnectionString = auth.ConnectionString,
                 AuthSchema = authSchema,
+                PlayerSchema = playerSchema,
                 WorldSchema = worldSchema,
                 AccountTable = accountTable,
                 PlayerTable = playerTable,
                 ItemTable = itemTable,
                 Accounts = $"`{authSchema}`.`{accountTable}`",
-                Players = $"`{authSchema}`.`{playerTable}`",
+                Players = $"`{playerSchema}`.`{playerTable}`",
                 Items = requireWorld ? $"`{worldSchema}`.`{itemTable}`" : null
             };
         }
 
         private static string Identifier(string value)
         {
-            if (string.IsNullOrWhiteSpace(value) ||
-                !Regex.IsMatch(value, @"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant))
+            if (!QueryBuilder.IsIdentifier(value))
                 throw new InvalidOperationException("Un nom de base ou de table SQL est invalide.");
             return value;
         }

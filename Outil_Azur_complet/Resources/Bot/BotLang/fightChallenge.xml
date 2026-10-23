@@ -1,0 +1,49 @@
+<?xml version='1.0' encoding='utf-8'?>
+<BotLang famille="fightChallenge" langue="fr" version="25" source="fightChallenge_fr_25.swf">
+<entree table="FC" id="1" d="Utiliser exactement un point de mouvement par tour de jeu." g="11" n="Zombie" />
+<entree table="FC" id="2" d="Finir son tour sur la même case que celle où vous l'avez commencé, pendant toute la durée du combat." g="9" n="Statue" />
+<entree table="FC" id="3" d="Tuer %1 en premier." g="4" n="Désigné volontaire" />
+<entree table="FC" id="4" d="Tuer %1 en dernier." g="10" n="Sursis" />
+<entree table="FC" id="5" d="Tous les personnages ne doivent utiliser qu'une seule fois la même action durant toute la durée du combat." g="3" n="Économe" />
+<entree table="FC" id="6" d="Chaque joueur n'a le droit d'effectuer qu'une seule fois une même action pendant son tour de jeu." g="12" n="Versatile" />
+<entree table="FC" id="7" d="Planter une Cawotte à chaque fois que le sort est disponible, pendant toute la durée du combat." g="6" n="Jardinier" />
+<entree table="FC" id="8" d="Utiliser tous ses PM disponibles à chaque tour pendant toute la durée du combat." g="8" n="Nomade" />
+<entree table="FC" id="9" d="N'utiliser aucun sort pendant toute la durée du combat." g="1" n="Barbare" />
+<entree table="FC" id="10" d="Les adversaires doivent être achevés dans l'ordre croissant de leur niveau." g="2" n="Cruel" />
+<entree table="FC" id="11" d="N'utiliser que des sorts pendant toute la durée du combat." g="7" n="Mystique" />
+<entree table="FC" id="12" d="Invoquer un Chaferfu à chaque fois que le sort est disponible, pendant toute la durée du combat." g="5" n="Fossoyeur" />
+<entree table="FC" id="14" d="Lancer le sort Roulette à chaque fois que le sort est disponible, pendant toute la durée du combat." g="14" n="Casino Royal" />
+<entree table="FC" id="15" d="Invoquer une Arakne à chaque fois que le sort est disponible, pendant toute la durée du combat." g="15" n="Araknophile" />
+<entree table="FC" id="17" d="Ne pas perdre de point de vie pendant toute la durée du combat." g="17" n="Intouchable" />
+<entree table="FC" id="18" d="Ne pas soigner pendant toute la durée du combat." g="18" n="Incurable" />
+<entree table="FC" id="19" d="Achever tous les monstres sans leur occasionner de dégâts directs pendant toute la durée du combat. Les pièges, les glyphes, les poisons, les dommages occasionnés par les déplacements, les renvois de dommages ainsi que les attaques des invocations peuvent être utilisés." g="19" n="Mains propres" />
+<entree table="FC" id="20" d="Utiliser le même élément d'attaque pendant toute la durée du combat." g="20" n="Elémentaire" />
+<entree table="FC" id="21" d="Ne pas tenter de retirer de PM aux adversaires pendant toute la durée du combat." g="21" n="Circulez !" />
+<entree table="FC" id="22" d="Ne pas tenter de retirer de PA aux adversaires pendant toute la durée du combat." g="22" n="Le temps qui court" />
+<entree table="FC" id="23" d="Ne pas tenter de retirer de portée aux adversaires pendant toute la durée du combat." g="23" n="Perdu de vue" />
+<entree table="FC" id="24" d="Utiliser le même sort ou la même attaque au corps à corps pendant toute la durée du combat." g="24" n="Borné" />
+<entree table="FC" id="25" d="Les adversaires doivent être achevés dans l'ordre décroissant de leurs niveaux." g="25" n="Ordonné" />
+<entree table="FC" id="28" d="Les personnages de sexe masculin doivent laisser les personnages de sexe féminin achever les adversaires pendant toute la durée du combat." g="28" n="Ni pioutes ni soumises" />
+<entree table="FC" id="29" d="Les personnages de sexe féminin doivent laisser les personnages de sexe masculin achever les adversaires pendant toute la durée du combat." g="29" n="Ni pious ni soumis" />
+<entree table="FC" id="30" d="Le personnage de plus petit niveau doit achever tous les adversaires." g="30" n="Les petits d'abord" />
+<entree table="FC" id="31" d="Lorsqu'un adversaire est attaqué, il doit être achevé avant qu'un autre adversaire soit attaqué." g="31" n="Focus" />
+<entree table="FC" id="32" d="Toutes les attaques doivent être concentrées sur %1 jusqu'à ce qu'il meure." g="32" n="Elitiste" />
+<entree table="FC" id="33" d="Aucun allié ne doit mourir." g="33" n="Survivant" />
+<entree table="FC" id="34" d="Toutes les attaques doivent être concentrées sur la cible désignée à chaque nouveau tour d'un personnage." g="34" n="Imprévisible" />
+<entree table="FC" id="35" d="Les adversaires doivent être tués dans l'ordre désigné. Une nouvelle cible est désignée à chaque fois que la cible précédente est tuée." g="35" n="Tueur à gages" />
+<entree table="FC" id="36" d="Finir son tour sur une cellule adjacente à celle d'un adversaire." g="36" n="Hardi" />
+<entree table="FC" id="37" d="Finir son tour sur une cellule adjacente à celle d'un allié." g="37" n="Collant" />
+<entree table="FC" id="38" d="Dès qu'un adversaire est attaqué, il doit être achevé avant le début de son tour de jeu." g="38" n="Blitzkrieg" />
+<entree table="FC" id="39" d="Ne jamais finir son tour sur une cellule adjacente à celle d'un allié." g="39" n="Anachorète" />
+<entree table="FC" id="40" d="Ne jamais finir son tour sur une cellule adjacente à celle d'un adversaire." g="40" n="Pusillanime" />
+<entree table="FC" id="41" d="Utiliser tous les points d'action disponibles avant la fin de son tour de jeu." g="41" n="Pétulant" />
+<entree table="FC" id="42" d="Lorsqu'un personnage achève un adversaire, il doit obligatoirement achever un (et un seul) deuxième adversaire pendant son tour de jeu." g="42" n="Deux pour le prix d'un" />
+<entree table="FC" id="43" d="Les personnages ne doivent jamais recevoir de soins pendant leur tour de jeu." g="43" n="Abnégation" />
+<entree table="FC" id="44" d="Chaque personnage doit avoir achevé au moins un adversaire (qui ne soit pas une invocation) pendant le combat." g="44" n="Partage" />
+<entree table="FC" id="45" d="Lorsqu'un personnage attaque un adversaire, aucun autre personnage ne doit attaquer cet adversaire pendant toute la durée du combat." g="46" n="Duel" />
+<entree table="FC" id="46" d="Chaque personnage doit avoir achevé au moins un adversaire (qui ne soit pas une invocation) pendant le combat et lorsqu'un personnage attaque un adversaire, aucun autre personnage ne doit attaquer cet adversaire pendant toute la durée du combat." g="46" n="Chacun son monstre" />
+<entree table="FC" id="47" d="Dès qu'un allié perd des points de vie, vous avez 3 tours de jeu pour achever votre allié." g="47" n="Contamination" />
+<entree table="FC" id="48" d="La mule de plus faible niveau doit achever tous les adversaires (ça vous apprendra à &quot;muler&quot; comme un Porkass)." g="48" n="Les mules d'abord" />
+<entree table="FC" id="49" d="Ni les mules, ni les alliés ne doivent mourir." g="49" n="Protégez vos mules" />
+<entree table="FC" id="50" d="Finissez ce combat pour remporter ce challenge. C'est bien connu, tous les devs sont des cheaters." g="50" n="Le cheat des devs" />
+</BotLang>

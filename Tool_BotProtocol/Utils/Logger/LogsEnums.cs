@@ -6,21 +6,38 @@ using System.Threading.Tasks;
 
 namespace Tool_BotProtocol.Utils.Logger
 {
+    /// <summary>
+    /// Couleurs du journal et du chat. Les couleurs de chat reprennent celles du client 1.34 (<c>dofus.Constants.*_CHAT_COLOR</c>) :
+    /// information, erreur, alignement, messages, chuchotements, groupe, guilde, recrutement, commerce, Incarnam, admin.
+    /// </summary>
     public enum LogTypes
     {
-        ERROR = 0xd81a1a,
-        WARNING = 0xd17e32,
-        INFORMATION = 0x387a30,
+        /// <summary><c>ERROR_CHAT_COLOR</c>.</summary>
+        ERROR = 0xC10000,
+        /// <summary><c>PVP_CHAT_COLOR</c> : avertissements et messages JcJ (<c>Im2…</c>).</summary>
+        WARNING = 0xDD7700,
+        /// <summary><c>INFO_CHAT_COLOR</c>.</summary>
+        INFORMATION = 0x009900,
         DEBUG = 0x4f5051,
-        NORMAL = 0x000000,
-        PRIVATE = 0x4b72c5,
-        TCHATRECRUIT = 0xbfc9ca,
-        TCHATCOMMERCE = 0xa04000,
-        TCHATADMIN = 0x8e44ad,
-        TCHATPRIVATE = 0x3498db,
-        TCHATGUILD = 0x8e44ad,
-        TCHATGROUP = 0x21618c,
-        TCHATTEAM = 0xf4d03f
-
+        /// <summary><c>MSG_CHAT_COLOR</c> : canal général.</summary>
+        NORMAL = 0x111111,
+        /// <summary><c>MSGCHUCHOTE_CHAT_COLOR</c>.</summary>
+        PRIVATE = 0x0066FF,
+        TCHATRECRUIT = 0x737373,
+        TCHATCOMMERCE = 0x663300,
+        TCHATADMIN = 0xFF00FF,
+        TCHATPRIVATE = 0x0066FF,
+        TCHATGUILD = 0x663399,
+        /// <summary><c>GROUP_CHAT_COLOR</c> : canal de groupe.</summary>
+        TCHATGROUP = 0x006699,
+        /// <summary>Canal d'équipe : affiché comme un chuchotement par le client (<c>WHISP_CHAT</c>).</summary>
+        TCHATTEAM = 0x0066FF,
+        TCHATALIGNMENT = 0xDD7700,
+        /// <summary><c>MEETIC_CHAT_COLOR</c> : canal d'Incarnam.</summary>
+        TCHATINCARNAM = 0x0000CC,
+        TCHATEMOTE = 0x222222,
+        TCHATTHINK = 0x232323,
+        /// <summary><c>COMMANDS_CHAT_COLOR</c> : sortie des commandes de la console.</summary>
+        TCHATCOMMANDS = 0xE4287C,
     }
 }
