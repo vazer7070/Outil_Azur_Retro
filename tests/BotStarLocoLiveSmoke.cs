@@ -5989,6 +5989,9 @@ internal static partial class Live
         string returned = await ReturnAfterFightAsync(a, home, back).ConfigureAwait(false);
         if (returned != null) evidence.Add(returned);
         return report;
+    }
+}
+
 // Scénario x14 (lot X14) : Entrée du chat, guilde créée au temple (onglets Maisons et Enclos), colonne du groupe et boussole.
 internal static partial class Live
 {
