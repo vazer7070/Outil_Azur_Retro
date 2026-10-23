@@ -24,6 +24,11 @@ namespace Tool_BotProtocol.Network
             internal readonly Socket Socket;
             internal readonly byte[] Buffer;
             internal readonly NullTerminatedPacketDecoder Decoder = new NullTerminatedPacketDecoder();
+            // Compteurs de diagnostic (lus par le test réel par réflexion quand une connexion se fige) : lectures terminées,
+            // octets lus, paquets découpés puis remis aux gestionnaires, préfixe du dernier paquet remis, réceptions en cours.
+            internal int Reads, Decoded, Dispatched, PendingReceives;
+            internal long Bytes;
+            internal string LastDispatched = "";
 
             internal SocketSession(IPAddress address)
             {
@@ -125,6 +130,7 @@ namespace Tool_BotProtocol.Network
         private void BeginReceive(SocketSession session)
         {
             if (!IsCurrent(session)) return;
+            Interlocked.Increment(ref session.PendingReceives);
             session.Socket.BeginReceive(session.Buffer, 0, session.Buffer.Length,
                 SocketFlags.None, ReceptionCallBack, session);
         }
@@ -134,7 +140,10 @@ namespace Tool_BotProtocol.Network
             var session = (SocketSession)ar.AsyncState;
             try
             {
+                Interlocked.Decrement(ref session.PendingReceives);
                 int count = session.Socket.EndReceive(ar, out SocketError response);
+                Interlocked.Increment(ref session.Reads);
+                if (count > 0) Interlocked.Add(ref session.Bytes, count);
                 if (!IsCurrent(session)) return;
                 if (count <= 0 || response != SocketError.Success)
                 {
@@ -162,11 +171,14 @@ namespace Tool_BotProtocol.Network
                 if (_disposed || !ReferenceEquals(_session, session)) return;
                 packets = session.Decoder.Append(session.Buffer, 0, count);
             }
+            Interlocked.Add(ref session.Decoded, packets.Count);
             foreach (string packet in packets)
             {
                 if (!IsCurrent(session)) return;
                 packetReceivedEvent?.Invoke(packet);
                 if (!IsCurrent(session)) return;
+                session.LastDispatched = packet.Length <= 3 ? packet : packet.Substring(0, 3);
+                Interlocked.Increment(ref session.Dispatched);
                 await MessagesReception.ReceptionAsync(this, packet).ConfigureAwait(false);
             }
         }

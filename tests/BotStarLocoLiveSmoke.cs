@@ -1033,7 +1033,10 @@ internal static partial class Live
         int paBefore = fight.ActionPoints, pmBefore = fight.MovementPoints, origin = Self(s)?.CellId ?? -1;
         if (move && fight.MovementPoints > 0)
         {
-            short? destination = StepToward(s, target, DamageSpellOn(s, (short)target.CellId) == null);
+            // Sans sort possible, s'approcher en visant d'abord une cellule d'où la cible est en ligne de vue (le bot la vérifie avant
+            // d'envoyer un sort, lot X33) : A et B restaient sinon à deux cellules l'un de l'autre, un obstacle entre eux, sans fin.
+            bool approach = DamageSpellOn(s, (short)target.CellId) == null;
+            short? destination = StepToward(s, target, approach, approach && cast);
             if (destination.HasValue)
             {
                 var moved = await fight.MoveAsync(destination.Value).ConfigureAwait(false);
@@ -1125,8 +1128,13 @@ internal static partial class Live
         return from == null || to == null ? int.MaxValue : from.GetDistanceBetweenCells(to);
     }
 
-    /// <summary>Cellule libre à portée de PM : la plus proche de la cible si <paramref name="approach"/>, sinon un pas de côté.</summary>
-    private static short? StepToward(LiveSession s, CombatFighter target, bool approach)
+    /// <summary>
+    /// Cellule libre à portée de PM vers laquelle le bot trouve un chemin (<see cref="Fights.PreviewMovePath"/>) : la plus proche
+    /// de la cible si <paramref name="approach"/> (d'abord celles d'où la cible est en ligne de vue si <paramref name="sight"/>),
+    /// sinon un pas de côté. Une cellule proche à vol d'oiseau mais fermée par le décor ou les combattants est sautée : le bot
+    /// refusait le déplacement (« Aucun chemin libre ») et le combattant ne bougeait plus de tout le combat.
+    /// </summary>
+    private static short? StepToward(LiveSession s, CombatFighter target, bool approach, bool sight = false)
     {
         Fights fight = s.Account.Game.Fight;
         Cell origin = s.Map.GetCellFromId((short)(Self(s)?.CellId ?? -1)), goal = s.Map.GetCellFromId((short)target.CellId);
@@ -1134,11 +1142,15 @@ internal static partial class Live
         var occupied = new HashSet<int>(fight.Fighters.Values.Where(f => !f.IsDead).Select(f => (int)f.CellId));
         var candidates = s.Map.MapCells.Where(c => c != null && c.IsActive && c.IsWalkable() && !occupied.Contains(c.CellID))
             .Where(c => { int d = origin.GetDistanceBetweenCells(c); return d >= 1 && d <= fight.MovementPoints; }).ToList();
-        IEnumerable<Cell> ordered = approach ? candidates.OrderBy(c => c.GetDistanceBetweenCells(goal)).ThenBy(c => origin.GetDistanceBetweenCells(c))
+        // Ligne de vue depuis la cellule d'arrivée : le combattant y est posé et a quitté sa cellule de départ.
+        Func<Cell, bool> sees = c => LineOfSight.Check(s.Map, c.CellID, goal.CellID,
+            cell => cell == c.CellID || (cell != origin.CellID && occupied.Contains(cell)) ? 1 : 0);
+        IEnumerable<Cell> ordered = approach
+            ? candidates.OrderBy(c => sight && !sees(c) ? 1 : 0).ThenBy(c => c.GetDistanceBetweenCells(goal)).ThenBy(c => origin.GetDistanceBetweenCells(c))
             : candidates.Where(c => origin.GetDistanceBetweenCells(c) == 1).OrderBy(c => Math.Abs(c.GetDistanceBetweenCells(goal) - origin.GetDistanceBetweenCells(goal)));
-        foreach (Cell cell in ordered.Take(12))
+        foreach (Cell cell in ordered.Take(30))
         {
-            return cell.CellID;
+            if (fight.PreviewMovePath(cell.CellID) != null) return cell.CellID;
         }
         return null;
     }
@@ -2563,7 +2575,13 @@ internal static partial class Live
                 target = link.StandardOutput.ReadToEnd().Trim();
                 link.WaitForExit(5000);
             }
-            return "port local " + local.Port + ", descripteur " + socket.Handle + " → " + (target.Length == 0 ? "fermé" : target) + " : " + string.Join(" ; ", rows);
+            // Compteurs de la session (TcpClient.SocketSession) : distinguent des octets jamais lus, lus sans être découpés,
+            // découpés sans être remis aux gestionnaires, ou une réception qui n'a pas été relancée.
+            Func<string, object> counter = name => session.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(session);
+            string counters = "lectures " + counter("Reads") + ", octets " + counter("Bytes") + ", paquets découpés " + counter("Decoded")
+                + ", remis " + counter("Dispatched") + " (dernier « " + counter("LastDispatched") + " »), réceptions en cours " + counter("PendingReceives");
+            return "port local " + local.Port + ", descripteur " + socket.Handle + " → " + (target.Length == 0 ? "fermé" : target) + " : " + string.Join(" ; ", rows)
+                + " ; " + counters;
         }
         catch (Exception error) { return "illisibles : " + error.Message; }
     }
