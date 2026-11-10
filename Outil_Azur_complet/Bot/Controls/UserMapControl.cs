@@ -355,8 +355,29 @@ namespace Outil_Azur_complet.Bot.Controls
         {
             bool expired = bubbles.Prune();
             bool busy = TickAnimations();
-            if (Anim.Count > 0 || expired || busy) Invalidate();
+            if (Anim.Count > 0 || expired || busy) RequestFrame();
             if (Anim.Count == 0 && !bubbles.HasTimedItems && !busy) AnimTimer.Stop();
+        }
+
+        private static readonly bool MonoRuntime = Type.GetType("Mono.Runtime") != null;
+        private const int WmNcPaint = 0x0085;
+
+        /// <summary>
+        /// Image suivante demandée par la minuterie. Sous Mono (compilation et tests Linux), une fenêtre dont l'exposition
+        /// de la zone non cliente attend reste en tête de la file de dessin tant qu'elle est invalidée de nouveau avant
+        /// son tour : dès que le dessin de la carte dure plus que la minuterie, la carte animée garde la tête, son
+        /// exposition non cliente n'est jamais servie et aucune autre fenêtre du fil n'est plus dessinée (les autres
+        /// comptes ouverts, les panneaux autour de la carte). La vue n'a pas de zone non cliente : cette exposition est
+        /// acquittée ici, et la demande reprend sa place en fin de file. Windows n'est pas concerné.
+        /// </summary>
+        private void RequestFrame()
+        {
+            if (MonoRuntime && IsHandleCreated)
+            {
+                Message acknowledge = Message.Create(Handle, WmNcPaint, (IntPtr)1, IntPtr.Zero);
+                DefWndProc(ref acknowledge);
+            }
+            Invalidate();
         }
 
         // ---------------------------------------------------------------- animations du lot AN1
