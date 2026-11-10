@@ -107,6 +107,8 @@ try {
     $azurTests += 'BotRecolorSmoke'
     $azurTests += 'BotAccessoriesSmoke'
     $azurTests += 'BotExtraClipsSmoke'
+    # File de dessin de Mono (carte animée et contrôles voisins) : sans objet sous Windows, où il réussit sans rien ouvrir.
+    $azurTests += 'BotMapPaintQueueSmoke'
     # Lot X2 (tombe, fantôme, menu de son personnage, mariage) : couvert par BotSessionSmoke, BotMapActionsSmoke et les scénarios
     # x2a à x2c de BotStarLocoLiveSmoke ; AZUR_STARLOCO_SCENARIOS=x2a,x2b,x2c ne joue que ceux-là après la connexion (scénario a).
     # Lot X3 (pseudo d'un compte neuf, M0, nouveau niveau, perte de connexion) : BotHandshakeSmoke, BotSessionSmoke, BotConnectionUiSmoke

@@ -91,6 +91,7 @@ BotSpellProjectilesSmoke
 BotRecolorSmoke
 BotAccessoriesSmoke
 BotExtraClipsSmoke
+BotMapPaintQueueSmoke
 BotConnectionUiSmoke
 BotStarLocoLiveSmoke
 "
